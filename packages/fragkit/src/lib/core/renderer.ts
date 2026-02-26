@@ -1,5 +1,11 @@
 import { buildShaderSource } from './shader';
-import { normalizeTextureDefinitions, resolveTextureSize, toTextureData } from './textures';
+import {
+	getTextureMipLevelCount,
+	isVideoTextureSource,
+	normalizeTextureDefinitions,
+	resolveTextureSize,
+	toTextureData
+} from './textures';
 import { packUniforms } from './uniforms';
 import type { Renderer, RendererOptions, TextureSource, TextureValue } from './types';
 
@@ -19,8 +25,11 @@ interface RuntimeTextureBinding {
 	source: TextureSource | null;
 	width: number | undefined;
 	height: number | undefined;
+	mipLevelCount: number;
 	format: GPUTextureFormat;
 	flipY: boolean;
+	generateMipmaps: boolean;
+	premultipliedAlpha: boolean;
 }
 
 function getTextureBindings(index: number): { samplerBinding: number; textureBinding: number } {
@@ -78,6 +87,91 @@ function createFallbackTexture(device: GPUDevice, format: GPUTextureFormat): GPU
 	);
 
 	return texture;
+}
+
+function createMipmapCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
+	if (typeof OffscreenCanvas !== 'undefined') {
+		return new OffscreenCanvas(width, height);
+	}
+
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	return canvas;
+}
+
+function createExternalCopySource(
+	source: CanvasImageSource,
+	options: { flipY?: boolean; premultipliedAlpha?: boolean }
+): GPUCopyExternalImageSourceInfo {
+	const descriptor = {
+		source,
+		...(options.flipY ? { flipY: true } : {}),
+		...(options.premultipliedAlpha ? { premultipliedAlpha: true } : {})
+	};
+
+	return descriptor as GPUCopyExternalImageSourceInfo;
+}
+
+function uploadTexture(
+	device: GPUDevice,
+	texture: GPUTexture,
+	binding: Pick<RuntimeTextureBinding, 'flipY' | 'premultipliedAlpha' | 'generateMipmaps'>,
+	source: TextureSource,
+	width: number,
+	height: number,
+	mipLevelCount: number
+): void {
+	device.queue.copyExternalImageToTexture(
+		createExternalCopySource(source, {
+			flipY: binding.flipY,
+			premultipliedAlpha: binding.premultipliedAlpha
+		}),
+		{ texture, mipLevel: 0 },
+		{ width, height, depthOrArrayLayers: 1 }
+	);
+
+	if (!binding.generateMipmaps || mipLevelCount <= 1) {
+		return;
+	}
+
+	let previousSource: CanvasImageSource = source;
+	let previousWidth = width;
+	let previousHeight = height;
+
+	for (let level = 1; level < mipLevelCount; level += 1) {
+		const nextWidth = Math.max(1, Math.floor(previousWidth / 2));
+		const nextHeight = Math.max(1, Math.floor(previousHeight / 2));
+		const canvas = createMipmapCanvas(nextWidth, nextHeight);
+		const context = canvas.getContext('2d');
+		if (!context) {
+			throw new Error('Unable to create 2D context for mipmap generation');
+		}
+
+		context.drawImage(
+			previousSource,
+			0,
+			0,
+			previousWidth,
+			previousHeight,
+			0,
+			0,
+			nextWidth,
+			nextHeight
+		);
+
+		device.queue.copyExternalImageToTexture(
+			createExternalCopySource(canvas, {
+				premultipliedAlpha: binding.premultipliedAlpha
+			}),
+			{ texture, mipLevel: level },
+			{ width: nextWidth, height: nextHeight, depthOrArrayLayers: 1 }
+		);
+
+		previousSource = canvas;
+		previousWidth = nextWidth;
+		previousHeight = nextHeight;
+	}
 }
 
 function createBindGroupLayoutEntries(
@@ -161,8 +255,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const sampler = device.createSampler({
 			magFilter: config.filter,
 			minFilter: config.filter,
+			mipmapFilter: config.generateMipmaps ? config.filter : 'nearest',
 			addressModeU: config.addressModeU,
-			addressModeV: config.addressModeV
+			addressModeV: config.addressModeV,
+			maxAnisotropy: config.filter === 'linear' ? config.anisotropy : 1
 		});
 		const fallbackTexture = createFallbackTexture(device, config.format);
 		const fallbackView = fallbackTexture.createView();
@@ -179,8 +275,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			source: null,
 			width: undefined,
 			height: undefined,
+			mipLevelCount: 1,
 			format: config.format,
-			flipY: config.flipY
+			flipY: config.flipY,
+			generateMipmaps: config.generateMipmaps,
+			premultipliedAlpha: config.premultipliedAlpha
 		};
 	});
 
@@ -258,39 +357,40 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		}
 
 		const source = nextData.source;
+		const { width, height } = resolveTextureSize(nextData);
+		const mipLevelCount = binding.generateMipmaps ? getTextureMipLevelCount(width, height) : 1;
+
 		if (
 			binding.source === source &&
-			binding.width === nextData.width &&
-			binding.height === nextData.height
+			binding.width === width &&
+			binding.height === height &&
+			binding.mipLevelCount === mipLevelCount
 		) {
+			if (isVideoTextureSource(source) && binding.texture) {
+				uploadTexture(device, binding.texture, binding, source, width, height, mipLevelCount);
+			}
 			return false;
 		}
 
-		const { width, height } = resolveTextureSize(nextData);
 		const texture = device.createTexture({
 			size: { width, height, depthOrArrayLayers: 1 },
 			format: binding.format,
+			mipLevelCount,
 			usage:
 				GPUTextureUsage.TEXTURE_BINDING |
 				GPUTextureUsage.COPY_DST |
 				GPUTextureUsage.RENDER_ATTACHMENT
 		});
 
-		device.queue.copyExternalImageToTexture(
-			{
-				source,
-				flipY: binding.flipY
-			},
-			{ texture },
-			{ width, height, depthOrArrayLayers: 1 }
-		);
+		uploadTexture(device, texture, binding, source, width, height, mipLevelCount);
 
 		binding.texture?.destroy();
 		binding.texture = texture;
 		binding.view = texture.createView();
 		binding.source = source;
-		binding.width = nextData.width;
-		binding.height = nextData.height;
+		binding.width = width;
+		binding.height = height;
+		binding.mipLevelCount = mipLevelCount;
 		return true;
 	};
 

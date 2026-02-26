@@ -6,6 +6,9 @@ export interface NormalizedTextureDefinition {
 	colorSpace: 'srgb' | 'linear';
 	format: GPUTextureFormat;
 	flipY: boolean;
+	generateMipmaps: boolean;
+	premultipliedAlpha: boolean;
+	anisotropy: number;
 	filter: GPUFilterMode;
 	addressModeU: GPUAddressMode;
 	addressModeV: GPUAddressMode;
@@ -30,6 +33,9 @@ export function normalizeTextureDefinition(
 		colorSpace: definition?.colorSpace ?? 'srgb',
 		format: definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb',
 		flipY: definition?.flipY ?? true,
+		generateMipmaps: definition?.generateMipmaps ?? false,
+		premultipliedAlpha: definition?.premultipliedAlpha ?? false,
+		anisotropy: Math.max(1, Math.min(16, Math.floor(definition?.anisotropy ?? 1))),
 		filter: definition?.filter ?? DEFAULT_TEXTURE_FILTER,
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE
@@ -81,4 +87,22 @@ export function resolveTextureSize(data: TextureData): { width: number; height: 
 	}
 
 	return { width, height };
+}
+
+export function getTextureMipLevelCount(width: number, height: number): number {
+	let levels = 1;
+	let currentWidth = Math.max(1, width);
+	let currentHeight = Math.max(1, height);
+
+	while (currentWidth > 1 || currentHeight > 1) {
+		currentWidth = Math.max(1, Math.floor(currentWidth / 2));
+		currentHeight = Math.max(1, Math.floor(currentHeight / 2));
+		levels += 1;
+	}
+
+	return levels;
+}
+
+export function isVideoTextureSource(source: TextureData['source']): source is HTMLVideoElement {
+	return typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement;
 }

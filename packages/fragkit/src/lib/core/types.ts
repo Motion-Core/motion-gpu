@@ -31,7 +31,7 @@ export interface UniformLayout {
 	byName: Record<string, UniformLayoutEntry>;
 	byteLength: number;
 }
-export type TextureSource = ImageBitmap | HTMLImageElement | HTMLCanvasElement;
+export type TextureSource = ImageBitmap | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement;
 
 export interface TextureData {
 	source: TextureSource;
@@ -45,6 +45,9 @@ export interface TextureDefinition {
 	source?: TextureValue;
 	colorSpace?: 'srgb' | 'linear';
 	flipY?: boolean;
+	generateMipmaps?: boolean;
+	premultipliedAlpha?: boolean;
+	anisotropy?: number;
 	filter?: GPUFilterMode;
 	addressModeU?: GPUAddressMode;
 	addressModeV?: GPUAddressMode;

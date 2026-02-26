@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	getTextureMipLevelCount,
+	isVideoTextureSource,
 	normalizeTextureDefinition,
 	normalizeTextureDefinitions,
 	resolveTextureKeys,
@@ -22,6 +24,9 @@ describe('textures', () => {
 			colorSpace: 'srgb',
 			format: 'rgba8unorm-srgb',
 			flipY: true,
+			generateMipmaps: false,
+			premultipliedAlpha: false,
+			anisotropy: 1,
 			filter: 'linear',
 			addressModeU: 'clamp-to-edge',
 			addressModeV: 'clamp-to-edge'
@@ -31,8 +36,12 @@ describe('textures', () => {
 	it('normalizes texture maps by key', () => {
 		const normalized = normalizeTextureDefinitions(
 			{
-				uTexture1: { filter: 'nearest', flipY: false },
-				uTexture2: { addressModeU: 'repeat', addressModeV: 'mirror-repeat' }
+				uTexture1: { filter: 'nearest', flipY: false, anisotropy: 8, generateMipmaps: true },
+				uTexture2: {
+					addressModeU: 'repeat',
+					addressModeV: 'mirror-repeat',
+					premultipliedAlpha: true
+				}
 			},
 			['uTexture1', 'uTexture2']
 		);
@@ -41,6 +50,8 @@ describe('textures', () => {
 			colorSpace: 'srgb',
 			format: 'rgba8unorm-srgb',
 			flipY: false,
+			generateMipmaps: true,
+			anisotropy: 8,
 			filter: 'nearest',
 			addressModeU: 'clamp-to-edge',
 			addressModeV: 'clamp-to-edge'
@@ -49,10 +60,16 @@ describe('textures', () => {
 			colorSpace: 'srgb',
 			format: 'rgba8unorm-srgb',
 			flipY: true,
+			generateMipmaps: false,
+			premultipliedAlpha: true,
+			anisotropy: 1,
 			filter: 'linear',
 			addressModeU: 'repeat',
 			addressModeV: 'mirror-repeat'
 		});
+
+		const clamped = normalizeTextureDefinition({ anisotropy: 999 });
+		expect(clamped.anisotropy).toBe(16);
 	});
 
 	it('converts texture source values into texture data', () => {
@@ -86,5 +103,19 @@ describe('textures', () => {
 		expect(() => resolveTextureSize({ source: canvas, width: 0, height: 0 })).toThrow(
 			/Texture source must have positive width and height/
 		);
+	});
+
+	it('computes mip level count for texture sizes', () => {
+		expect(getTextureMipLevelCount(1, 1)).toBe(1);
+		expect(getTextureMipLevelCount(16, 16)).toBe(5);
+		expect(getTextureMipLevelCount(1024, 512)).toBe(11);
+	});
+
+	it('detects video texture sources', () => {
+		const video = document.createElement('video');
+		const canvas = document.createElement('canvas');
+
+		expect(isVideoTextureSource(video)).toBe(true);
+		expect(isVideoTextureSource(canvas)).toBe(false);
 	});
 });

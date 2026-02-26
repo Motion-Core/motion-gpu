@@ -1,0 +1,25 @@
+{
+	"name": "fragkit-monorepo",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"workspaces": ["apps/*", "packages/*"],
+	"scripts": {
+		"dev": "bun run dev:web",
+		"dev:web": "bun run --cwd apps/web dev",
+		"build": "bun run build:fragkit && bun run build:web",
+		"build:web": "bun run --cwd apps/web build",
+		"build:fragkit": "bun run --cwd packages/fragkit build",
+		"preview": "bun run --cwd apps/web preview",
+		"check": "bun run check:fragkit && bun run check:web",
+		"check:web": "bun run --cwd apps/web check",
+		"check:fragkit": "bun run --cwd packages/fragkit check",
+		"test": "bun run test:fragkit && bun run test:web",
+		"test:web": "bun run --cwd apps/web test",
+		"test:fragkit": "bun run --cwd packages/fragkit test",
+		"lint": "bun run lint:fragkit && bun run lint:web",
+		"lint:web": "bun run --cwd apps/web lint",
+		"lint:fragkit": "bun run --cwd packages/fragkit lint",
+		"format": "bun run --cwd apps/web format && bun run --cwd packages/fragkit format"
+	}
+}

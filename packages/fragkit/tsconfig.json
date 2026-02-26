@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"verbatimModuleSyntax": true,
+		"sourceMap": true,
+		"declaration": true,
+		"declarationMap": true,
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["@webgpu/types", "vite/client", "vitest/globals"],
+		"skipLibCheck": true
+	},
+	"include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
+}

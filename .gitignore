@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.svelte-kit/
+.DS_Store

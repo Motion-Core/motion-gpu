@@ -29,68 +29,20 @@ fn frag(uv: vec2f) -> vec4f {
 	};
 </script>
 
-<main data-testid="fragkit-demo">
-	<header class="intro">
-		<h1>FragKit Demo</h1>
-		<p>Raw WGSL shader, uniforms and a single useFrame loop.</p>
+<main
+	data-testid="fragkit-demo"
+	class=" flex h-dvh w-screen flex-col items-center justify-center gap-4 bg-white p-8"
+>
+	<header class="grid gap-2 text-center">
+		<h1 class="text-4xl leading-none font-light tracking-tight text-black">FragKit Demo</h1>
+		<p class="text-sm text-black/80">Raw WGSL shader, uniforms and a single useFrame loop.</p>
 	</header>
 
-	<div class="scene">
-		<FragCanvas {fragmentWgsl} {uniforms} class="demo-canvas">
+	<div
+		class="aspect-16/10 w-[64vw] overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg"
+	>
+		<FragCanvas {fragmentWgsl} {uniforms} class="h-full w-full">
 			<UniformAnimator />
 		</FragCanvas>
 	</div>
 </main>
-
-<style>
-	main {
-		box-sizing: border-box;
-		width: min(1080px, 100%);
-		height: 100dvh;
-		margin: 0 auto;
-		padding: clamp(2rem, 6vw, 4rem) 1.25rem;
-		display: grid;
-		align-content: center;
-		justify-items: center;
-		gap: 1.35rem;
-		background: #fff;
-	}
-
-	.intro {
-		text-align: center;
-		display: grid;
-		gap: 0.45rem;
-	}
-
-	.intro h1 {
-		margin: 0;
-		font-size: clamp(1.55rem, 2.4vw, 2.1rem);
-		font-weight: 300;
-		letter-spacing: -0.03em;
-		line-height: 1.05;
-		color: #101010;
-	}
-
-	.intro p {
-		margin: 0;
-		font-size: 0.88rem;
-		color: #555;
-	}
-
-	.scene {
-		width: min(860px, 84vw);
-		aspect-ratio: 16 / 10;
-		border: 1px solid #dcdcdc;
-		border-radius: 14px;
-		overflow: hidden;
-		background: #fff;
-		box-shadow:
-			0 1px 0 rgba(16, 16, 16, 0.08),
-			0 10px 32px rgba(16, 16, 16, 0.06);
-	}
-
-	:global(.demo-canvas) {
-		width: 100%;
-		height: 100%;
-	}
-</style>

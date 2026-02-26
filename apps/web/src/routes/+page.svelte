@@ -7,7 +7,7 @@
 fn frag(uv: vec2f) -> vec4f {
 	let colorA = textureSample(uTextureA, uTextureASampler, uv);
 	let colorB = textureSample(uTextureB, uTextureBSampler, uv);
-	let mixFactor = clamp(fragkitUniforms.uMix.x, 0.0, 1.0);
+	let mixFactor = clamp(fragkitUniforms.uMix, 0.0, 1.0);
 	return mix(colorA, colorB, mixFactor);
 }
 `;

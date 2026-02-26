@@ -1,35 +1,72 @@
 import { describe, expect, it } from 'vitest';
-import { packUniforms, resolveUniformKeys, toVec4 } from '../lib/core/uniforms';
+import {
+	assertUniformValueForType,
+	inferUniformType,
+	packUniforms,
+	resolveUniformLayout
+} from '../lib/core/uniforms';
 
 describe('uniform helpers', () => {
-	it('packs scalar and vectors to vec4', () => {
-		expect(toVec4(4)).toEqual([4, 0, 0, 0]);
-		expect(toVec4([1, 2])).toEqual([1, 2, 0, 0]);
-		expect(toVec4([1, 2, 3])).toEqual([1, 2, 3, 0]);
-		expect(toVec4([1, 2, 3, 4])).toEqual([1, 2, 3, 4]);
+	it('infers uniform types from legacy and typed values', () => {
+		expect(inferUniformType(4)).toBe('f32');
+		expect(inferUniformType([1, 2])).toBe('vec2f');
+		expect(inferUniformType([1, 2, 3])).toBe('vec3f');
+		expect(inferUniformType([1, 2, 3, 4])).toBe('vec4f');
+		expect(inferUniformType({ type: 'mat4x4f', value: new Float32Array(16) })).toBe('mat4x4f');
 	});
 
-	it('sorts uniform keys and validates identifiers', () => {
-		expect(resolveUniformKeys({ z: 0, a: 1 })).toEqual(['a', 'z']);
-		expect(() => resolveUniformKeys({ 'bad-key': 1 })).toThrow(/Invalid uniform name/);
+	it('builds layout using wgsl alignment rules', () => {
+		const layout = resolveUniformLayout({
+			a: { type: 'f32', value: 1 },
+			b: { type: 'vec2f', value: [1, 2] },
+			c: { type: 'vec3f', value: [1, 2, 3] },
+			d: { type: 'mat4x4f', value: new Float32Array(16) }
+		});
+
+		expect(layout.byName.a?.offset).toBe(0);
+		expect(layout.byName.b?.offset).toBe(8);
+		expect(layout.byName.c?.offset).toBe(16);
+		expect(layout.byName.d?.offset).toBe(32);
+		expect(layout.byteLength).toBe(96);
 	});
 
-	it('writes all uniforms to a tightly packed float array', () => {
+	it('validates values against declared uniform types', () => {
+		expect(() => assertUniformValueForType('f32', 1)).not.toThrow();
+		expect(() => assertUniformValueForType('vec2f', [1, 2])).not.toThrow();
+		expect(() =>
+			assertUniformValueForType('mat4x4f', { type: 'mat4x4f', value: [1, 2, 3] })
+		).toThrow(/16 numbers/);
+		expect(() => assertUniformValueForType('vec3f', [1, 2])).toThrow(/vec3f/);
+	});
+
+	it('packs typed uniforms with offsets and matrices', () => {
+		const matrix = new Float32Array(16);
+		matrix[0] = 1;
+		matrix[5] = 1;
+		matrix[10] = 1;
+		matrix[15] = 1;
+		const layout = resolveUniformLayout({
+			uIntensity: { type: 'f32', value: 0 },
+			uTint: { type: 'vec3f', value: [0, 0, 0] },
+			uTransform: { type: 'mat4x4f', value: matrix }
+		});
+
 		const packed = packUniforms(
 			{
-				intensity: 0.5,
-				tint: [1, 0.5, 0.2]
+				uIntensity: { type: 'f32', value: 0.5 },
+				uTint: { type: 'vec3f', value: [1, 0.5, 0.2] },
+				uTransform: { type: 'mat4x4f', value: matrix }
 			},
-			['intensity', 'tint']
+			layout
 		);
 
 		expect(packed[0]).toBeCloseTo(0.5);
-		expect(packed[1]).toBe(0);
-		expect(packed[2]).toBe(0);
-		expect(packed[3]).toBe(0);
 		expect(packed[4]).toBeCloseTo(1);
 		expect(packed[5]).toBeCloseTo(0.5);
 		expect(packed[6]).toBeCloseTo(0.2);
-		expect(packed[7]).toBe(0);
+		expect(packed[8]).toBeCloseTo(1);
+		expect(packed[13]).toBeCloseTo(1);
+		expect(packed[18]).toBeCloseTo(1);
+		expect(packed[23]).toBeCloseTo(1);
 	});
 });

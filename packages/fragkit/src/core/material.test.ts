@@ -45,9 +45,9 @@ describe('material', () => {
 			textures: { z: {}, x: {} }
 		});
 
-		expect(resolved.uniformKeys).toEqual(['a', 'b']);
+		expect(resolved.uniformLayout.entries.map((entry) => entry.name)).toEqual(['a', 'b']);
 		expect(resolved.textureKeys).toEqual(['x', 'z']);
-		expect(resolved.signature).toContain('"uniformKeys":["a","b"]');
+		expect(resolved.signature).toContain('"uniforms":["a:f32","b:f32"]');
 	});
 
 	it('changes signature when defines change', () => {

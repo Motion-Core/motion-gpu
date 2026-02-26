@@ -1,26 +1,40 @@
 import { assertUniformName } from './uniforms';
+import type { UniformLayout } from './types';
 
 const DEFAULT_UNIFORM_FIELD = 'fragkit_unused: vec4f,';
 
-function buildUniformStruct(uniformKeys: string[]): string {
-	if (uniformKeys.length === 0) {
+function buildUniformStruct(layout: UniformLayout): string {
+	if (layout.entries.length === 0) {
 		return DEFAULT_UNIFORM_FIELD;
 	}
 
-	return uniformKeys
-		.map((name) => {
-			assertUniformName(name);
-			return `${name}: vec4f,`;
+	return layout.entries
+		.map((entry) => {
+			assertUniformName(entry.name);
+			return `${entry.name}: ${entry.type},`;
 		})
 		.join('\n\t');
 }
 
-function getKeepAliveUniform(uniformKeys: string[]): string {
-	if (uniformKeys.length === 0) {
-		return 'fragkit_unused';
+function getKeepAliveExpression(layout: UniformLayout): string {
+	if (layout.entries.length === 0) {
+		return 'fragkitUniforms.fragkit_unused.x';
 	}
 
-	return uniformKeys[0] as string;
+	const [firstEntry] = layout.entries;
+	if (!firstEntry) {
+		return 'fragkitUniforms.fragkit_unused.x';
+	}
+
+	if (firstEntry.type === 'f32') {
+		return `fragkitUniforms.${firstEntry.name}`;
+	}
+
+	if (firstEntry.type === 'mat4x4f') {
+		return `fragkitUniforms.${firstEntry.name}[0].x`;
+	}
+
+	return `fragkitUniforms.${firstEntry.name}.x`;
 }
 
 function buildTextureBindings(textureKeys: string[]): string {
@@ -56,11 +70,11 @@ fn fragkitLinearToSrgb(linearColor: vec3f) -> vec3f {
 `;
 }
 
-function buildFragmentOutput(keepAliveUniform: string, enableSrgbTransform: boolean): string {
+function buildFragmentOutput(keepAliveExpression: string, enableSrgbTransform: boolean): string {
 	if (enableSrgbTransform) {
 		return `
 	let fragColor = frag(in.uv);
-	let fragkitKeepAlive = fragkitUniforms.${keepAliveUniform}.x;
+	let fragkitKeepAlive = ${keepAliveExpression};
 	let fragkitLinear = vec4f(fragColor.rgb + fragkitKeepAlive * 0.0, fragColor.a);
 	let fragkitSrgb = fragkitLinearToSrgb(max(fragkitLinear.rgb, vec3f(0.0)));
 	return vec4f(fragkitSrgb, fragkitLinear.a);
@@ -69,23 +83,23 @@ function buildFragmentOutput(keepAliveUniform: string, enableSrgbTransform: bool
 
 	return `
 	let fragColor = frag(in.uv);
-	let fragkitKeepAlive = fragkitUniforms.${keepAliveUniform}.x;
+	let fragkitKeepAlive = ${keepAliveExpression};
 	return vec4f(fragColor.rgb + fragkitKeepAlive * 0.0, fragColor.a);
 `;
 }
 
 export function buildShaderSource(
 	fragmentWgsl: string,
-	uniformKeys: string[],
+	uniformLayout: UniformLayout,
 	textureKeys: string[] = [],
 	options?: { convertLinearToSrgb?: boolean }
 ): string {
-	const uniformFields = buildUniformStruct(uniformKeys);
-	const keepAliveUniform = getKeepAliveUniform(uniformKeys);
+	const uniformFields = buildUniformStruct(uniformLayout);
+	const keepAliveExpression = getKeepAliveExpression(uniformLayout);
 	const textureBindings = buildTextureBindings(textureKeys);
 	const enableSrgbTransform = options?.convertLinearToSrgb ?? false;
 	const colorTransformHelpers = buildColorTransformHelpers(enableSrgbTransform);
-	const fragmentOutput = buildFragmentOutput(keepAliveUniform, enableSrgbTransform);
+	const fragmentOutput = buildFragmentOutput(keepAliveExpression, enableSrgbTransform);
 
 	return `
 struct FragkitFrame {

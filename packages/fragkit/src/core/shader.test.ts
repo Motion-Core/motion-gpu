@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { buildShaderSource } from '../lib/core/shader';
+import { resolveUniformLayout } from '../lib/core/uniforms';
 
 describe('buildShaderSource', () => {
 	it('injects user uniforms and frag wrapper', () => {
 		const shader = buildShaderSource(
 			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			['intensity', 'tint'],
+			resolveUniformLayout({
+				intensity: { type: 'vec4f', value: [1, 0, 0, 0] },
+				tint: [1, 1, 1, 1]
+			}),
 			['uTexture1']
 		);
 
@@ -21,7 +25,7 @@ describe('buildShaderSource', () => {
 	it('keeps valid WGSL when there are no custom uniforms', () => {
 		const shader = buildShaderSource(
 			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			[]
+			resolveUniformLayout({})
 		);
 		expect(shader).toContain('fragkit_unused: vec4f');
 		expect(shader).toContain('let fragkitKeepAlive = fragkitUniforms.fragkit_unused.x;');
@@ -30,7 +34,7 @@ describe('buildShaderSource', () => {
 	it('assigns deterministic bindings for multiple textures', () => {
 		const shader = buildShaderSource(
 			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			[],
+			resolveUniformLayout({}),
 			['uTexture1', 'uTexture2']
 		);
 
@@ -43,7 +47,7 @@ describe('buildShaderSource', () => {
 	it('can inject linear to srgb conversion for output color', () => {
 		const shader = buildShaderSource(
 			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			['uMix'],
+			resolveUniformLayout({ uMix: { type: 'f32', value: 1 } }),
 			[],
 			{ convertLinearToSrgb: true }
 		);
@@ -56,5 +60,23 @@ describe('buildShaderSource', () => {
 			'let fragkitSrgb = fragkitLinearToSrgb(max(fragkitLinear.rgb, vec3f(0.0)));'
 		);
 		expect(shader).toContain('return vec4f(fragkitSrgb, fragkitLinear.a);');
+	});
+
+	it('supports mat4 and scalar keep-alive access patterns', () => {
+		const mat4 = new Array(16).fill(0);
+		mat4[0] = 1;
+		const matShader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({ uTransform: { type: 'mat4x4f', value: mat4 } })
+		);
+		const scalarShader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({ uScalar: { type: 'f32', value: 1 } })
+		);
+
+		expect(matShader).toContain('uTransform: mat4x4f');
+		expect(matShader).toContain('let fragkitKeepAlive = fragkitUniforms.uTransform[0].x;');
+		expect(scalarShader).toContain('uScalar: f32');
+		expect(scalarShader).toContain('let fragkitKeepAlive = fragkitUniforms.uScalar;');
 	});
 });

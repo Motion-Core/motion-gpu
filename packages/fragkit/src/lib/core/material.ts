@@ -1,5 +1,5 @@
 import type { TextureDefinitionMap, UniformMap } from './types';
-import { assertUniformName } from './uniforms';
+import { assertUniformName, resolveUniformLayout } from './uniforms';
 
 export type MaterialDefineValue = string | number | boolean;
 export type MaterialDefines = Record<string, MaterialDefineValue>;
@@ -15,7 +15,7 @@ export interface ResolvedMaterial {
 	fragmentWgsl: string;
 	uniforms: UniformMap;
 	textures: TextureDefinitionMap;
-	uniformKeys: string[];
+	uniformLayout: ReturnType<typeof resolveUniformLayout>;
 	textureKeys: string[];
 	signature: string;
 }
@@ -88,13 +88,13 @@ export function resolveMaterial(input: {
 
 	const uniforms = { ...(base.uniforms ?? {}) };
 	const textures = { ...(base.textures ?? {}) };
-	const uniformKeys = Object.keys(uniforms).sort();
+	const uniformLayout = resolveUniformLayout(uniforms);
 	const textureKeys = Object.keys(textures).sort();
 	const fragmentWgsl = applyMaterialDefines(base.fragment, base.defines);
 
 	const signature = JSON.stringify({
 		fragmentWgsl,
-		uniformKeys,
+		uniforms: uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`),
 		textureKeys
 	});
 
@@ -102,7 +102,7 @@ export function resolveMaterial(input: {
 		fragmentWgsl,
 		uniforms,
 		textures,
-		uniformKeys,
+		uniformLayout,
 		textureKeys,
 		signature
 	};

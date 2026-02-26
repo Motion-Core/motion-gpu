@@ -144,7 +144,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	const convertLinearToSrgb = shouldConvertLinearToSrgb(options.outputColorSpace, format);
 	const shaderSource = buildShaderSource(
 		options.fragmentWgsl,
-		options.uniformKeys,
+		options.uniformLayout,
 		options.textureKeys,
 		{ convertLinearToSrgb }
 	);
@@ -213,7 +213,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	});
 
 	const uniformBuffer = device.createBuffer({
-		size: Math.max(16, options.uniformKeys.length * 16),
+		size: options.uniformLayout.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 	});
 
@@ -319,7 +319,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			frameData.byteLength
 		);
 
-		const uniformData = packUniforms(uniforms, options.uniformKeys);
+		const uniformData = packUniforms(uniforms, options.uniformLayout);
 		device.queue.writeBuffer(
 			uniformBuffer,
 			0,

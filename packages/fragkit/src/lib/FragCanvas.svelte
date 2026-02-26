@@ -17,11 +17,12 @@
 		TextureDefinitionMap,
 		TextureMap,
 		TextureValue,
+		UniformType,
 		UniformMap,
 		UniformValue
 	} from './core/types';
 	import { provideFragkitContext } from './fragkit-context';
-	import { resolveUniformKeys } from './core/uniforms';
+	import { assertUniformValueForType } from './core/uniforms';
 	import { createFrameRegistry, provideFrameRegistry } from './frame-context';
 
 	interface Props {
@@ -115,6 +116,7 @@
 		let activeUniforms: UniformMap = {};
 		let activeTextures: TextureDefinitionMap = {};
 		let uniformKeys: string[] = [];
+		let uniformTypes = new Map<string, UniformType>();
 		let textureKeys: string[] = [];
 
 		const resetRuntimeMaps = (): void => {
@@ -144,7 +146,6 @@
 				material: material ?? fallbackMaterial
 			});
 
-			resolveUniformKeys(resolved.uniforms);
 			resolveTextureKeys(resolved.textures);
 
 			return resolved;
@@ -154,6 +155,11 @@
 			if (!uniformKeys.includes(name)) {
 				throw new Error(`Unknown uniform "${name}". Declare it in FragCanvas uniforms prop first.`);
 			}
+			const expectedType = uniformTypes.get(name);
+			if (!expectedType) {
+				throw new Error(`Unknown uniform type for "${name}"`);
+			}
+			assertUniformValueForType(expectedType, value);
 			runtimeUniforms[name] = value;
 		};
 
@@ -173,7 +179,10 @@
 			const rendererSignature = `${materialState.signature}|${outputColorSpace}|${clearColor.join(',')}`;
 			activeUniforms = materialState.uniforms;
 			activeTextures = materialState.textures;
-			uniformKeys = materialState.uniformKeys;
+			uniformKeys = materialState.uniformLayout.entries.map((entry) => entry.name);
+			uniformTypes = new Map(
+				materialState.uniformLayout.entries.map((entry) => [entry.name, entry.type])
+			);
 			textureKeys = materialState.textureKeys;
 			resetRuntimeMaps();
 
@@ -184,7 +193,7 @@
 							const nextRenderer = await createRenderer({
 								canvas: canvasElement,
 								fragmentWgsl: materialState.fragmentWgsl,
-								uniformKeys: materialState.uniformKeys,
+								uniformLayout: materialState.uniformLayout,
 								textureKeys: materialState.textureKeys,
 								textureDefinitions: materialState.textures,
 								outputColorSpace,
@@ -258,7 +267,10 @@
 				const initialMaterial = resolveActiveMaterial();
 				activeUniforms = initialMaterial.uniforms;
 				activeTextures = initialMaterial.textures;
-				uniformKeys = initialMaterial.uniformKeys;
+				uniformKeys = initialMaterial.uniformLayout.entries.map((entry) => entry.name);
+				uniformTypes = new Map(
+					initialMaterial.uniformLayout.entries.map((entry) => [entry.name, entry.type])
+				);
 				textureKeys = initialMaterial.textureKeys;
 				activeRendererSignature = '';
 				frameId = requestAnimationFrame(renderFrame);

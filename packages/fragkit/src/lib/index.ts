@@ -13,7 +13,12 @@ export type {
 	TextureMap,
 	TextureSource,
 	TextureValue,
+	TypedUniform,
+	UniformLayout,
+	UniformLayoutEntry,
+	UniformMat4Value,
 	UniformMap,
+	UniformType,
 	UniformValue
 } from './core/types';
 export type { LoadedTexture, TextureLoadOptions } from './core/texture-loader';

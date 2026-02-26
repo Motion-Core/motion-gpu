@@ -1,10 +1,36 @@
+export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
+
+export interface TypedUniform<TType extends UniformType = UniformType, TValue = unknown> {
+	type: TType;
+	value: TValue;
+}
+
+export type UniformMat4Value = number[] | Float32Array;
 export type UniformValue =
 	| number
 	| [number, number]
 	| [number, number, number]
-	| [number, number, number, number];
+	| [number, number, number, number]
+	| TypedUniform<'f32', number>
+	| TypedUniform<'vec2f', [number, number]>
+	| TypedUniform<'vec3f', [number, number, number]>
+	| TypedUniform<'vec4f', [number, number, number, number]>
+	| TypedUniform<'mat4x4f', UniformMat4Value>;
 
 export type UniformMap = Record<string, UniformValue>;
+
+export interface UniformLayoutEntry {
+	name: string;
+	type: UniformType;
+	offset: number;
+	size: number;
+}
+
+export interface UniformLayout {
+	entries: UniformLayoutEntry[];
+	byName: Record<string, UniformLayoutEntry>;
+	byteLength: number;
+}
 export type TextureSource = ImageBitmap | HTMLImageElement | HTMLCanvasElement;
 
 export interface TextureData {
@@ -45,7 +71,7 @@ export interface FrameState {
 export interface RendererOptions {
 	canvas: HTMLCanvasElement;
 	fragmentWgsl: string;
-	uniformKeys: string[];
+	uniformLayout: UniformLayout;
 	textureKeys: string[];
 	textureDefinitions: TextureDefinitionMap;
 	outputColorSpace: OutputColorSpace;

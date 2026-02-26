@@ -6,10 +6,16 @@ export type UniformValue =
 
 export type UniformMap = Record<string, UniformValue>;
 
+export type RenderMode = 'always' | 'on-demand' | 'manual';
+
 export interface FrameState {
 	time: number;
 	delta: number;
 	setUniform: (name: string, value: UniformValue) => void;
+	invalidate: () => void;
+	advance: () => void;
+	renderMode: RenderMode;
+	autoRender: boolean;
 	canvas: HTMLCanvasElement;
 }
 

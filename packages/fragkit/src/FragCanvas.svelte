@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import { createRenderer } from './core/renderer';
-	import type { Renderer, UniformMap, UniformValue } from './core/types';
+	import type { RenderMode, Renderer, UniformMap, UniformValue } from './core/types';
 	import { resolveUniformKeys } from './core/uniforms';
 	import { createFrameRegistry, provideFrameRegistry } from './frame-context';
 
@@ -10,6 +10,8 @@
 		fragmentWgsl: string;
 		uniforms?: UniformMap;
 		clearColor?: [number, number, number, number];
+		renderMode?: RenderMode;
+		autoRender?: boolean;
 		class?: string;
 		style?: string;
 		children?: Snippet;
@@ -19,6 +21,8 @@
 		fragmentWgsl,
 		uniforms = {},
 		clearColor = [0, 0, 0, 1],
+		renderMode = 'always',
+		autoRender = true,
 		class: className = '',
 		style = '',
 		children
@@ -29,6 +33,14 @@
 
 	const registry = createFrameRegistry();
 	provideFrameRegistry(registry);
+
+	$effect(() => {
+		registry.setRenderMode(renderMode);
+	});
+
+	$effect(() => {
+		registry.setAutoRender(autoRender);
+	});
 
 	onMount(() => {
 		let frameId = 0;
@@ -55,16 +67,29 @@
 			const delta = Math.max(0, time - previousTime);
 			previousTime = time;
 
-			registry.run({ time, delta, setUniform, canvas });
-
-			renderer.render({
+			registry.run({
 				time,
 				delta,
-				uniforms: {
-					...uniforms,
-					...runtimeUniforms
-				}
+				setUniform,
+				invalidate: registry.invalidate,
+				advance: registry.advance,
+				renderMode: registry.getRenderMode(),
+				autoRender: registry.getAutoRender(),
+				canvas
 			});
+
+			if (registry.shouldRender()) {
+				renderer.render({
+					time,
+					delta,
+					uniforms: {
+						...uniforms,
+						...runtimeUniforms
+					}
+				});
+			}
+
+			registry.endFrame();
 
 			frameId = requestAnimationFrame(renderFrame);
 		};

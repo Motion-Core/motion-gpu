@@ -11,6 +11,10 @@ describe('frame registry', () => {
 			time: 1,
 			delta: 0.016,
 			setUniform: vi.fn(),
+			invalidate: registry.invalidate,
+			advance: registry.advance,
+			renderMode: registry.getRenderMode(),
+			autoRender: registry.getAutoRender(),
 			canvas: document.createElement('canvas')
 		});
 
@@ -33,9 +37,41 @@ describe('frame registry', () => {
 			time: 1,
 			delta: 0.016,
 			setUniform: vi.fn(),
+			invalidate: registry.invalidate,
+			advance: registry.advance,
+			renderMode: registry.getRenderMode(),
+			autoRender: registry.getAutoRender(),
 			canvas: document.createElement('canvas')
 		});
 
 		expect(callback).not.toHaveBeenCalled();
+	});
+
+	it('supports on-demand invalidation flow', () => {
+		const registry = createFrameRegistry({ renderMode: 'on-demand' });
+
+		expect(registry.shouldRender()).toBe(true);
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+
+		registry.invalidate();
+		expect(registry.shouldRender()).toBe(true);
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+	});
+
+	it('supports manual advance flow', () => {
+		const registry = createFrameRegistry({ renderMode: 'manual' });
+
+		expect(registry.shouldRender()).toBe(false);
+		registry.advance();
+		expect(registry.shouldRender()).toBe(true);
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+	});
+
+	it('can disable auto-render', () => {
+		const registry = createFrameRegistry({ renderMode: 'always', autoRender: false });
+		expect(registry.shouldRender()).toBe(false);
 	});
 });

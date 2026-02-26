@@ -56,6 +56,36 @@ export interface TextureDefinition {
 export type TextureDefinitionMap = Record<string, TextureDefinition>;
 export type TextureMap = Record<string, TextureValue>;
 export type OutputColorSpace = 'srgb' | 'linear';
+export interface RenderTargetDefinition {
+	width?: number;
+	height?: number;
+	scale?: number;
+	format?: GPUTextureFormat;
+}
+
+export interface RenderTarget {
+	texture: GPUTexture;
+	view: GPUTextureView;
+	width: number;
+	height: number;
+	format: GPUTextureFormat;
+}
+
+export type RenderTargetDefinitionMap = Record<string, RenderTargetDefinition>;
+
+export interface RenderPassContext {
+	device: GPUDevice;
+	commandEncoder: GPUCommandEncoder;
+	sourceView: GPUTextureView;
+	canvasView: GPUTextureView;
+	targets: Readonly<Record<string, RenderTarget>>;
+	time: number;
+	delta: number;
+	width: number;
+	height: number;
+}
+
+export type RenderPass = (context: RenderPassContext) => GPUTextureView | void;
 
 export type RenderMode = 'always' | 'on-demand' | 'manual';
 
@@ -77,6 +107,10 @@ export interface RendererOptions {
 	uniformLayout: UniformLayout;
 	textureKeys: string[];
 	textureDefinitions: TextureDefinitionMap;
+	renderTargets?: RenderTargetDefinitionMap;
+	passes?: RenderPass[];
+	getRenderTargets?: () => RenderTargetDefinitionMap;
+	getPasses?: () => RenderPass[];
 	outputColorSpace: OutputColorSpace;
 	clearColor: [number, number, number, number];
 	getDpr: () => number;

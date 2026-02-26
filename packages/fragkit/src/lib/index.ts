@@ -6,7 +6,12 @@ export { useTexture } from './use-texture';
 export type {
 	FrameState,
 	OutputColorSpace,
+	RenderPass,
+	RenderPassContext,
 	RenderMode,
+	RenderTarget,
+	RenderTargetDefinition,
+	RenderTargetDefinitionMap,
 	TextureData,
 	TextureDefinition,
 	TextureDefinitionMap,

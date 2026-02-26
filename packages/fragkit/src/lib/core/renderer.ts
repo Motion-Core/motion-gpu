@@ -1,3 +1,4 @@
+import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets';
 import { buildShaderSource } from './shader';
 import {
 	getTextureMipLevelCount,
@@ -7,7 +8,14 @@ import {
 	toTextureData
 } from './textures';
 import { packUniforms } from './uniforms';
-import type { Renderer, RendererOptions, TextureSource, TextureValue } from './types';
+import type {
+	RenderPass,
+	RenderTarget,
+	Renderer,
+	RendererOptions,
+	TextureSource,
+	TextureValue
+} from './types';
 
 const FRAME_BINDING = 0;
 const UNIFORM_BINDING = 1;
@@ -30,6 +38,14 @@ interface RuntimeTextureBinding {
 	flipY: boolean;
 	generateMipmaps: boolean;
 	premultipliedAlpha: boolean;
+}
+
+interface RuntimeRenderTarget {
+	texture: GPUTexture;
+	view: GPUTextureView;
+	width: number;
+	height: number;
+	format: GPUTextureFormat;
 }
 
 function getTextureBindings(index: number): { samplerBinding: number; textureBinding: number } {
@@ -218,6 +234,67 @@ function shouldConvertLinearToSrgb(
 	return !canvasFormat.endsWith('-srgb');
 }
 
+function createFullscreenBlitShader(): string {
+	return `
+struct FragkitVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@group(0) @binding(0) var fragkitBlitSampler: sampler;
+@group(0) @binding(1) var fragkitBlitTexture: texture_2d<f32>;
+
+@vertex
+fn fragkitBlitVertex(@builtin(vertex_index) index: u32) -> FragkitVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: FragkitVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+@fragment
+fn fragkitBlitFragment(in: FragkitVertexOut) -> @location(0) vec4f {
+	return textureSample(fragkitBlitTexture, fragkitBlitSampler, in.uv);
+}
+`;
+}
+
+function createRenderTexture(
+	device: GPUDevice,
+	width: number,
+	height: number,
+	format: GPUTextureFormat
+): RuntimeRenderTarget {
+	const texture = device.createTexture({
+		size: { width, height, depthOrArrayLayers: 1 },
+		format,
+		usage:
+			GPUTextureUsage.TEXTURE_BINDING |
+			GPUTextureUsage.RENDER_ATTACHMENT |
+			GPUTextureUsage.COPY_DST |
+			GPUTextureUsage.COPY_SRC
+	});
+
+	return {
+		texture,
+		view: texture.createView(),
+		width,
+		height,
+		format
+	};
+}
+
+function destroyRenderTexture(target: RuntimeRenderTarget | null): void {
+	target?.texture.destroy();
+}
+
 export async function createRenderer(options: RendererOptions): Promise<Renderer> {
 	if (!navigator.gpu) {
 		throw new Error('WebGPU is not available in this browser');
@@ -304,6 +381,41 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		primitive: {
 			topology: 'triangle-list'
 		}
+	});
+
+	const blitShaderModule = device.createShaderModule({ code: createFullscreenBlitShader() });
+	await assertCompilation(blitShaderModule);
+
+	const blitBindGroupLayout = device.createBindGroupLayout({
+		entries: [
+			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+			{
+				binding: 1,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: { sampleType: 'float', viewDimension: '2d', multisampled: false }
+			}
+		]
+	});
+	const blitPipelineLayout = device.createPipelineLayout({
+		bindGroupLayouts: [blitBindGroupLayout]
+	});
+	const blitPipeline = device.createRenderPipeline({
+		layout: blitPipelineLayout,
+		vertex: { module: blitShaderModule, entryPoint: 'fragkitBlitVertex' },
+		fragment: {
+			module: blitShaderModule,
+			entryPoint: 'fragkitBlitFragment',
+			targets: [{ format }]
+		},
+		primitive: {
+			topology: 'triangle-list'
+		}
+	});
+	const blitSampler = device.createSampler({
+		magFilter: 'linear',
+		minFilter: 'linear',
+		addressModeU: 'clamp-to-edge',
+		addressModeV: 'clamp-to-edge'
 	});
 
 	const frameBuffer = device.createBuffer({
@@ -400,6 +512,124 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	}
 
 	let bindGroup = createBindGroup();
+	let sceneTarget: RuntimeRenderTarget | null = null;
+	let renderTargetSignature = '';
+	const runtimeRenderTargets = new Map<string, RuntimeRenderTarget>();
+
+	const resolvePasses = (): RenderPass[] => {
+		return options.getPasses?.() ?? options.passes ?? [];
+	};
+
+	const resolveRenderTargets = () => {
+		return options.getRenderTargets?.() ?? options.renderTargets;
+	};
+
+	const ensureSceneTarget = (width: number, height: number): RuntimeRenderTarget => {
+		if (
+			sceneTarget &&
+			sceneTarget.width === width &&
+			sceneTarget.height === height &&
+			sceneTarget.format === format
+		) {
+			return sceneTarget;
+		}
+
+		destroyRenderTexture(sceneTarget);
+		sceneTarget = createRenderTexture(device, width, height, format);
+		return sceneTarget;
+	};
+
+	const syncRenderTargets = (
+		canvasWidth: number,
+		canvasHeight: number
+	): Readonly<Record<string, RenderTarget>> => {
+		const resolvedDefinitions = resolveRenderTargetDefinitions(
+			resolveRenderTargets(),
+			canvasWidth,
+			canvasHeight,
+			format
+		);
+		const nextSignature = buildRenderTargetSignature(resolvedDefinitions);
+
+		if (nextSignature !== renderTargetSignature) {
+			const activeKeys = new Set(resolvedDefinitions.map((definition) => definition.key));
+
+			for (const [key, target] of runtimeRenderTargets.entries()) {
+				if (!activeKeys.has(key)) {
+					target.texture.destroy();
+					runtimeRenderTargets.delete(key);
+				}
+			}
+
+			for (const definition of resolvedDefinitions) {
+				const current = runtimeRenderTargets.get(definition.key);
+				if (
+					current &&
+					current.width === definition.width &&
+					current.height === definition.height &&
+					current.format === definition.format
+				) {
+					continue;
+				}
+
+				current?.texture.destroy();
+				runtimeRenderTargets.set(
+					definition.key,
+					createRenderTexture(device, definition.width, definition.height, definition.format)
+				);
+			}
+
+			renderTargetSignature = nextSignature;
+		}
+
+		const snapshot: Record<string, RenderTarget> = {};
+		for (const [key, target] of runtimeRenderTargets.entries()) {
+			snapshot[key] = {
+				texture: target.texture,
+				view: target.view,
+				width: target.width,
+				height: target.height,
+				format: target.format
+			};
+		}
+
+		return snapshot;
+	};
+
+	const blitToCanvas = (
+		commandEncoder: GPUCommandEncoder,
+		sourceView: GPUTextureView,
+		canvasView: GPUTextureView
+	): void => {
+		const bindGroup = device.createBindGroup({
+			layout: blitBindGroupLayout,
+			entries: [
+				{ binding: 0, resource: blitSampler },
+				{ binding: 1, resource: sourceView }
+			]
+		});
+
+		const pass = commandEncoder.beginRenderPass({
+			colorAttachments: [
+				{
+					view: canvasView,
+					clearValue: {
+						r: options.clearColor[0],
+						g: options.clearColor[1],
+						b: options.clearColor[2],
+						a: options.clearColor[3]
+					},
+					loadOp: 'clear',
+					storeOp: 'store'
+				}
+			]
+		});
+
+		pass.setPipeline(blitPipeline);
+		pass.setBindGroup(0, bindGroup);
+		pass.draw(3);
+		pass.end();
+	};
 
 	const render: Renderer['render'] = ({ time, delta, uniforms, textures }) => {
 		const { width, height } = resizeCanvas(options.canvas, options.getDpr());
@@ -442,10 +672,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		}
 
 		const commandEncoder = device.createCommandEncoder();
-		const pass = commandEncoder.beginRenderPass({
+		const canvasView = context.getCurrentTexture().createView();
+		const passes = resolvePasses();
+		const runtimeTargets = syncRenderTargets(width, height);
+		const useOffscreenSource = passes.length > 0;
+		const sourceView = useOffscreenSource ? ensureSceneTarget(width, height).view : canvasView;
+
+		const scenePass = commandEncoder.beginRenderPass({
 			colorAttachments: [
 				{
-					view: context.getCurrentTexture().createView(),
+					view: sourceView,
 					clearValue: {
 						r: options.clearColor[0],
 						g: options.clearColor[1],
@@ -458,10 +694,36 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			]
 		});
 
-		pass.setPipeline(pipeline);
-		pass.setBindGroup(0, bindGroup);
-		pass.draw(3);
-		pass.end();
+		scenePass.setPipeline(pipeline);
+		scenePass.setBindGroup(0, bindGroup);
+		scenePass.draw(3);
+		scenePass.end();
+
+		if (useOffscreenSource) {
+			let currentSourceView = sourceView;
+
+			for (const pass of passes) {
+				const nextSourceView = pass({
+					device,
+					commandEncoder,
+					sourceView: currentSourceView,
+					canvasView,
+					targets: runtimeTargets,
+					time,
+					delta,
+					width,
+					height
+				});
+
+				if (nextSourceView) {
+					currentSourceView = nextSourceView;
+				}
+			}
+
+			if (currentSourceView !== canvasView) {
+				blitToCanvas(commandEncoder, currentSourceView, canvasView);
+			}
+		}
 
 		device.queue.submit([commandEncoder.finish()]);
 	};
@@ -471,6 +733,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		destroy: () => {
 			frameBuffer.destroy();
 			uniformBuffer.destroy();
+			destroyRenderTexture(sceneTarget);
+			for (const target of runtimeRenderTargets.values()) {
+				target.texture.destroy();
+			}
+			runtimeRenderTargets.clear();
 			for (const binding of textureBindings) {
 				binding.texture?.destroy();
 				binding.fallbackTexture.destroy();

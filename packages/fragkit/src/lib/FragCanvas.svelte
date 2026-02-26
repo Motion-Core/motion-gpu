@@ -12,8 +12,10 @@
 	import { resolveTextureKeys } from './core/textures';
 	import type {
 		OutputColorSpace,
+		RenderPass,
 		RenderMode,
 		Renderer,
+		RenderTargetDefinitionMap,
 		TextureDefinitionMap,
 		TextureMap,
 		TextureValue,
@@ -31,6 +33,8 @@
 		uniforms?: UniformMap;
 		textures?: TextureDefinitionMap;
 		defines?: MaterialDefines;
+		renderTargets?: RenderTargetDefinitionMap;
+		passes?: RenderPass[];
 		clearColor?: [number, number, number, number];
 		outputColorSpace?: OutputColorSpace;
 		renderMode?: RenderMode;
@@ -49,6 +53,8 @@
 		uniforms = {},
 		textures = {},
 		defines = {},
+		renderTargets = {},
+		passes = [],
 		clearColor = [0, 0, 0, 1],
 		outputColorSpace = 'srgb',
 		renderMode = 'always',
@@ -196,6 +202,8 @@
 								uniformLayout: materialState.uniformLayout,
 								textureKeys: materialState.textureKeys,
 								textureDefinitions: materialState.textures,
+								getRenderTargets: () => renderTargets,
+								getPasses: () => passes,
 								outputColorSpace,
 								clearColor,
 								getDpr: () => dprState.current

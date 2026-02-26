@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
+	import {
+		createMaterial,
+		resolveMaterial,
+		type FragMaterial,
+		type MaterialDefines
+	} from './core/material';
 	import { currentWritable } from './current-writable';
 	import { createRenderer } from './core/renderer';
 	import { resolveTextureKeys } from './core/textures';
@@ -19,9 +25,11 @@
 	import { createFrameRegistry, provideFrameRegistry } from './frame-context';
 
 	interface Props {
-		fragmentWgsl: string;
+		fragmentWgsl?: string;
+		material?: FragMaterial;
 		uniforms?: UniformMap;
 		textures?: TextureDefinitionMap;
+		defines?: MaterialDefines;
 		clearColor?: [number, number, number, number];
 		outputColorSpace?: OutputColorSpace;
 		renderMode?: RenderMode;
@@ -36,8 +44,10 @@
 
 	let {
 		fragmentWgsl,
+		material = undefined,
 		uniforms = {},
 		textures = {},
+		defines = {},
 		clearColor = [0, 0, 0, 1],
 		outputColorSpace = 'srgb',
 		renderMode = 'always',
@@ -97,15 +107,48 @@
 		let renderer: Renderer | null = null;
 		let isDisposed = false;
 		let previousTime = performance.now() / 1000;
+		let activeRendererSignature = '';
+		let rendererRebuildPromise: Promise<void> | null = null;
 
 		const runtimeUniforms: UniformMap = {};
-		const uniformKeys = resolveUniformKeys(uniforms);
 		const runtimeTextures: TextureMap = {};
-		const textureKeys = resolveTextureKeys(textures);
+		let activeUniforms: UniformMap = {};
+		let activeTextures: TextureDefinitionMap = {};
+		let uniformKeys: string[] = [];
+		let textureKeys: string[] = [];
 
-		for (const key of textureKeys) {
-			runtimeTextures[key] = textures[key]?.source ?? null;
-		}
+		const resetRuntimeMaps = (): void => {
+			const validUniforms = new Set(uniformKeys);
+			for (const key of Object.keys(runtimeUniforms)) {
+				if (!validUniforms.has(key)) {
+					Reflect.deleteProperty(runtimeUniforms, key);
+				}
+			}
+
+			const validTextures = new Set(textureKeys);
+			for (const key of Object.keys(runtimeTextures)) {
+				if (!validTextures.has(key)) {
+					Reflect.deleteProperty(runtimeTextures, key);
+				}
+			}
+		};
+
+		const resolveActiveMaterial = () => {
+			const fallbackMaterial = createMaterial({
+				fragment: fragmentWgsl ?? '',
+				uniforms,
+				textures,
+				defines
+			});
+			const resolved = resolveMaterial({
+				material: material ?? fallbackMaterial
+			});
+
+			resolveUniformKeys(resolved.uniforms);
+			resolveTextureKeys(resolved.textures);
+
+			return resolved;
+		};
 
 		const setUniform = (name: string, value: UniformValue): void => {
 			if (!uniformKeys.includes(name)) {
@@ -122,7 +165,50 @@
 		};
 
 		const renderFrame = (timestamp: number): void => {
-			if (isDisposed || !renderer) {
+			if (isDisposed) {
+				return;
+			}
+
+			const materialState = resolveActiveMaterial();
+			const rendererSignature = `${materialState.signature}|${outputColorSpace}|${clearColor.join(',')}`;
+			activeUniforms = materialState.uniforms;
+			activeTextures = materialState.textures;
+			uniformKeys = materialState.uniformKeys;
+			textureKeys = materialState.textureKeys;
+			resetRuntimeMaps();
+
+			if (!renderer || activeRendererSignature !== rendererSignature) {
+				if (!rendererRebuildPromise) {
+					rendererRebuildPromise = (async () => {
+						try {
+							const nextRenderer = await createRenderer({
+								canvas: canvasElement,
+								fragmentWgsl: materialState.fragmentWgsl,
+								uniformKeys: materialState.uniformKeys,
+								textureKeys: materialState.textureKeys,
+								textureDefinitions: materialState.textures,
+								outputColorSpace,
+								clearColor,
+								getDpr: () => dprState.current
+							});
+
+							if (isDisposed) {
+								nextRenderer.destroy();
+								return;
+							}
+
+							renderer?.destroy();
+							renderer = nextRenderer;
+							activeRendererSignature = rendererSignature;
+						} catch (error) {
+							errorMessage = error instanceof Error ? error.message : 'Unknown FragCanvas error';
+						} finally {
+							rendererRebuildPromise = null;
+						}
+					})();
+				}
+
+				frameId = requestAnimationFrame(renderFrame);
 				return;
 			}
 
@@ -150,11 +236,13 @@
 					time,
 					delta,
 					uniforms: {
-						...uniforms,
+						...activeUniforms,
 						...runtimeUniforms
 					},
 					textures: {
-						...Object.fromEntries(textureKeys.map((key) => [key, textures[key]?.source ?? null])),
+						...Object.fromEntries(
+							textureKeys.map((key) => [key, activeTextures[key]?.source ?? null])
+						),
 						...runtimeTextures
 					}
 				});
@@ -167,16 +255,12 @@
 
 		(async () => {
 			try {
-				renderer = await createRenderer({
-					canvas: canvasElement,
-					fragmentWgsl,
-					uniformKeys,
-					textureKeys,
-					textureDefinitions: textures,
-					outputColorSpace,
-					clearColor,
-					getDpr: () => dprState.current
-				});
+				const initialMaterial = resolveActiveMaterial();
+				activeUniforms = initialMaterial.uniforms;
+				activeTextures = initialMaterial.textures;
+				uniformKeys = initialMaterial.uniformKeys;
+				textureKeys = initialMaterial.textureKeys;
+				activeRendererSignature = '';
 				frameId = requestAnimationFrame(renderFrame);
 			} catch (error) {
 				errorMessage = error instanceof Error ? error.message : 'Unknown FragCanvas error';

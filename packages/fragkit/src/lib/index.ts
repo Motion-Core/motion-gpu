@@ -1,4 +1,5 @@
 export { default as FragCanvas } from './FragCanvas.svelte';
+export { createMaterial } from './core/material';
 export { useFragkit } from './fragkit-context';
 export { useFrame } from './frame-context';
 export { useTexture } from './use-texture';
@@ -16,6 +17,7 @@ export type {
 	UniformValue
 } from './core/types';
 export type { LoadedTexture, TextureLoadOptions } from './core/texture-loader';
+export type { FragMaterial, MaterialDefineValue, MaterialDefines } from './core/material';
 export type { FragkitContext } from './fragkit-context';
 export type {
 	FrameKey,

@@ -1,6 +1,6 @@
 import { assertUniformName } from './uniforms';
 
-const DEFAULT_UNIFORM_FIELD = '__unused: vec4f,';
+const DEFAULT_UNIFORM_FIELD = 'fragkit_unused: vec4f,';
 
 function buildUniformStruct(uniformKeys: string[]): string {
 	if (uniformKeys.length === 0) {
@@ -15,8 +15,17 @@ function buildUniformStruct(uniformKeys: string[]): string {
 		.join('\n\t');
 }
 
+function getKeepAliveUniform(uniformKeys: string[]): string {
+	if (uniformKeys.length === 0) {
+		return 'fragkit_unused';
+	}
+
+	return uniformKeys[0] as string;
+}
+
 export function buildShaderSource(fragmentWgsl: string, uniformKeys: string[]): string {
 	const uniformFields = buildUniformStruct(uniformKeys);
+	const keepAliveUniform = getKeepAliveUniform(uniformKeys);
 
 	return `
 struct FragkitFrame {
@@ -56,7 +65,9 @@ ${fragmentWgsl}
 
 @fragment
 fn fragkitFragment(in: FragkitVertexOut) -> @location(0) vec4f {
-	return frag(in.uv);
+	let fragColor = frag(in.uv);
+	let fragkitKeepAlive = fragkitUniforms.${keepAliveUniform}.x;
+	return vec4f(fragColor.rgb + fragkitKeepAlive * 0.0, fragColor.a);
 }
 `;
 }

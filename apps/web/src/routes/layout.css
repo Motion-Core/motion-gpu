@@ -1,1 +1,48 @@
 @import 'tailwindcss';
+
+@font-face {
+	font-family: 'Aeonik Pro';
+	src: url('/fonts/aeonikpro.woff2') format('woff2');
+	font-weight: 200 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Aeonik fono';
+	src: url('/fonts/aeonikfono.woff2') format('woff2');
+	font-weight: 200 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'Aeonik Mono';
+	src: url('/fonts/aeonikmono.woff2') format('woff2');
+	font-weight: 200 900;
+	font-style: normal;
+	font-display: swap;
+}
+
+:root {
+	--color-background: oklch(0.9702 0 0);
+	--color-background-muted: oklch(0.934 0 0);
+	--color-foreground: oklch(0.2686 0 0);
+	--color-card: oklch(0.9672 0 0);
+}
+
+@theme {
+	--font-sans: 'Aeonik Pro';
+	--font-mono: 'Aeonik Mono';
+	--font-fono: 'Aeonik Fono';
+	--color-background: var(--background);
+	--color-background-muted: var(--background-muted);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+}
+
+@layer base {
+	body {
+		@apply bg-background font-sans text-foreground;
+	}
+}

@@ -167,7 +167,23 @@ function toNumberArray(type: UniformType, value: UniformValue): number[] {
 
 export function packUniforms(uniforms: UniformMap, layout: UniformLayout): Float32Array {
 	const data = new Float32Array(layout.byteLength / 4);
+	packUniformsInto(uniforms, layout, data);
+	return data;
+}
 
+export function packUniformsInto(
+	uniforms: UniformMap,
+	layout: UniformLayout,
+	data: Float32Array
+): void {
+	const requiredLength = layout.byteLength / 4;
+	if (data.length !== requiredLength) {
+		throw new Error(
+			`Uniform output buffer size mismatch. Expected ${requiredLength}, got ${data.length}`
+		);
+	}
+
+	data.fill(0);
 	for (const entry of layout.entries) {
 		const raw = uniforms[entry.name];
 		if (raw === undefined) {
@@ -180,6 +196,4 @@ export function packUniforms(uniforms: UniformMap, layout: UniformLayout): Float
 			data[base + index] = normalized[index] ?? 0;
 		}
 	}
-
-	return data;
 }

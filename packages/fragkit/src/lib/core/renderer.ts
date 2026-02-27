@@ -7,7 +7,7 @@ import {
 	resolveTextureSize,
 	toTextureData
 } from './textures';
-import { packUniforms } from './uniforms';
+import { packUniformsInto } from './uniforms';
 import type {
 	RenderPass,
 	RenderTarget,
@@ -223,6 +223,34 @@ function createBindGroupLayoutEntries(
 	return entries;
 }
 
+function findDirtyFloatRanges(
+	previous: Float32Array,
+	next: Float32Array
+): Array<{ start: number; count: number }> {
+	const ranges: Array<{ start: number; count: number }> = [];
+	let start = -1;
+
+	for (let index = 0; index < next.length; index += 1) {
+		if (previous[index] !== next[index]) {
+			if (start === -1) {
+				start = index;
+			}
+			continue;
+		}
+
+		if (start !== -1) {
+			ranges.push({ start, count: index - start });
+			start = -1;
+		}
+	}
+
+	if (start !== -1) {
+		ranges.push({ start, count: next.length - start });
+	}
+
+	return ranges;
+}
+
 function shouldConvertLinearToSrgb(
 	outputColorSpace: 'srgb' | 'linear',
 	canvasFormat: GPUTextureFormat
@@ -427,6 +455,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		size: options.uniformLayout.byteLength,
 		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
 	});
+	const uniformScratch = new Float32Array(options.uniformLayout.byteLength / 4);
+	const uniformPrevious = new Float32Array(options.uniformLayout.byteLength / 4);
+	let hasUniformSnapshot = false;
 
 	const createBindGroup = (): GPUBindGroup => {
 		const entries: GPUBindGroupEntry[] = [
@@ -649,14 +680,35 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			frameData.byteLength
 		);
 
-		const uniformData = packUniforms(uniforms, options.uniformLayout);
-		device.queue.writeBuffer(
-			uniformBuffer,
-			0,
-			uniformData.buffer as ArrayBuffer,
-			uniformData.byteOffset,
-			uniformData.byteLength
-		);
+		packUniformsInto(uniforms, options.uniformLayout, uniformScratch);
+		if (!hasUniformSnapshot) {
+			device.queue.writeBuffer(
+				uniformBuffer,
+				0,
+				uniformScratch.buffer as ArrayBuffer,
+				uniformScratch.byteOffset,
+				uniformScratch.byteLength
+			);
+			uniformPrevious.set(uniformScratch);
+			hasUniformSnapshot = true;
+		} else {
+			const dirtyRanges = findDirtyFloatRanges(uniformPrevious, uniformScratch);
+			for (const range of dirtyRanges) {
+				const byteOffset = range.start * 4;
+				const byteLength = range.count * 4;
+				device.queue.writeBuffer(
+					uniformBuffer,
+					byteOffset,
+					uniformScratch.buffer as ArrayBuffer,
+					uniformScratch.byteOffset + byteOffset,
+					byteLength
+				);
+			}
+
+			if (dirtyRanges.length > 0) {
+				uniformPrevious.set(uniformScratch);
+			}
+		}
 
 		let bindGroupDirty = false;
 		for (const binding of textureBindings) {

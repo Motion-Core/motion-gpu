@@ -169,8 +169,10 @@ export interface FrameRegistry {
 	endFrame: () => void;
 	setRenderMode: (mode: RenderMode) => void;
 	setAutoRender: (enabled: boolean) => void;
+	setMaxDelta: (value: number) => void;
 	getRenderMode: () => RenderMode;
 	getAutoRender: () => boolean;
+	getMaxDelta: () => number;
 	createStage: (
 		key: FrameKey,
 		options?: {
@@ -185,12 +187,23 @@ export interface FrameRegistry {
 export function createFrameRegistry(options?: {
 	renderMode?: RenderMode;
 	autoRender?: boolean;
+	maxDelta?: number;
 }): FrameRegistry {
 	let renderMode: RenderMode = options?.renderMode ?? 'always';
 	let autoRender = options?.autoRender ?? true;
+	let maxDelta = options?.maxDelta ?? 0.1;
 	let frameInvalidated = true;
 	let shouldAdvance = false;
 	let orderCounter = 0;
+
+	const assertMaxDelta = (value: number): number => {
+		if (!Number.isFinite(value) || value <= 0) {
+			throw new Error('maxDelta must be a finite number greater than 0');
+		}
+		return value;
+	};
+
+	maxDelta = assertMaxDelta(maxDelta);
 
 	const stages = new Map<FrameKey, InternalStage>();
 
@@ -294,6 +307,15 @@ export function createFrameRegistry(options?: {
 			};
 		},
 		run(state) {
+			const clampedDelta = Math.min(state.delta, maxDelta);
+			const frameState =
+				clampedDelta === state.delta
+					? state
+					: {
+							...state,
+							delta: clampedDelta
+						};
+
 			const stageList = sortByDependencies(
 				Array.from(stages.values()),
 				(stage) => stage.before,
@@ -319,7 +341,7 @@ export function createFrameRegistry(options?: {
 						continue;
 					}
 
-					task.callback(state);
+					task.callback(frameState);
 					if (task.autoInvalidate) {
 						frameInvalidated = true;
 					}
@@ -358,11 +380,17 @@ export function createFrameRegistry(options?: {
 		setAutoRender(enabled) {
 			autoRender = enabled;
 		},
+		setMaxDelta(value) {
+			maxDelta = assertMaxDelta(value);
+		},
 		getRenderMode() {
 			return renderMode;
 		},
 		getAutoRender() {
 			return autoRender;
+		},
+		getMaxDelta() {
+			return maxDelta;
 		},
 		createStage(key, options) {
 			const stage = ensureStage(key, {

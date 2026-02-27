@@ -34,6 +34,7 @@
 		outputColorSpace?: OutputColorSpace;
 		renderMode?: RenderMode;
 		autoRender?: boolean;
+		maxDelta?: number;
 		dpr?: number;
 		class?: string;
 		style?: string;
@@ -50,6 +51,7 @@
 		outputColorSpace = 'srgb',
 		renderMode = 'always',
 		autoRender = true,
+		maxDelta = 0.1,
 		dpr = initialDpr,
 		class: className = '',
 		style = '',
@@ -70,10 +72,11 @@
 		return normalizeErrorText(report.message) !== normalizeErrorText(report.title);
 	};
 
-	const registry = createFrameRegistry();
+	const registry = createFrameRegistry({ maxDelta: 0.1 });
 	provideFrameRegistry(registry);
 	const size = currentWritable({ width: 0, height: 0 });
 	const dprState = currentWritable(initialDpr);
+	const maxDeltaState = currentWritable<number>(0.1, registry.setMaxDelta);
 	const renderModeState = currentWritable<RenderMode>('always', registry.setRenderMode);
 	const autoRenderState = currentWritable<boolean>(true, registry.setAutoRender);
 
@@ -83,6 +86,7 @@
 		},
 		size,
 		dpr: dprState,
+		maxDelta: maxDeltaState,
 		renderMode: renderModeState,
 		autoRender: autoRenderState,
 		invalidate: registry.invalidate,
@@ -99,6 +103,10 @@
 
 	$effect(() => {
 		autoRenderState.set(autoRender);
+	});
+
+	$effect(() => {
+		maxDeltaState.set(maxDelta);
 	});
 
 	$effect(() => {
@@ -249,7 +257,8 @@
 			}
 
 			const time = timestamp / 1000;
-			const delta = Math.max(0, time - previousTime);
+			const rawDelta = Math.max(0, time - previousTime);
+			const delta = Math.min(rawDelta, maxDeltaState.current);
 			previousTime = time;
 			const width = canvasElement.clientWidth || canvasElement.width;
 			const height = canvasElement.clientHeight || canvasElement.height;

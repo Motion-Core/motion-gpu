@@ -34,6 +34,10 @@ describe('useFragkit', () => {
 		context.autoRender.set(false);
 		expect(context.autoRender.current).toBe(false);
 
+		expect(context.maxDelta.current).toBe(0.1);
+		context.maxDelta.set(0.05);
+		expect(context.maxDelta.current).toBe(0.05);
+
 		const createdStage = context.scheduler.createStage('post');
 		expect(createdStage.key).toBe('post');
 		expect(context.scheduler.getStage('post')?.key).toBe('post');

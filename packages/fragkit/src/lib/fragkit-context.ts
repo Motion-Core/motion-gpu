@@ -11,6 +11,7 @@ export interface FragkitContext {
 	canvas: HTMLCanvasElement | undefined;
 	size: CurrentReadable<{ width: number; height: number }>;
 	dpr: CurrentWritable<number>;
+	maxDelta: CurrentWritable<number>;
 	renderMode: CurrentWritable<RenderMode>;
 	autoRender: CurrentWritable<boolean>;
 	invalidate: () => void;

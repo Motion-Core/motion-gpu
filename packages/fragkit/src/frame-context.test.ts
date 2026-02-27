@@ -2,10 +2,10 @@ import { get } from 'svelte/store';
 import { describe, expect, it, vi } from 'vitest';
 import { createFrameRegistry } from './lib/frame-context';
 
-function createState(registry: ReturnType<typeof createFrameRegistry>) {
+function createState(registry: ReturnType<typeof createFrameRegistry>, delta = 0.016) {
 	return {
 		time: 1,
-		delta: 0.016,
+		delta,
 		setUniform: vi.fn(),
 		setTexture: vi.fn(),
 		invalidate: registry.invalidate,
@@ -65,6 +65,19 @@ describe('frame registry', () => {
 		expect(registry.shouldRender()).toBe(true);
 		registry.endFrame();
 		expect(registry.shouldRender()).toBe(false);
+	});
+
+	it('clamps delta passed to callbacks and supports runtime updates', () => {
+		const registry = createFrameRegistry({ maxDelta: 0.05 });
+		const callback = vi.fn();
+		registry.register(callback);
+
+		registry.run(createState(registry, 0.2));
+		expect(callback).toHaveBeenCalledWith(expect.objectContaining({ delta: 0.05 }));
+
+		registry.setMaxDelta(0.01);
+		registry.run(createState(registry, 0.2));
+		expect(callback).toHaveBeenLastCalledWith(expect.objectContaining({ delta: 0.01 }));
 	});
 
 	it('can disable auto-render', () => {

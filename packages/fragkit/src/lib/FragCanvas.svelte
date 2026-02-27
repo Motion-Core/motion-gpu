@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
-	import {
-		createMaterial,
-		resolveMaterial,
-		type FragMaterial,
-		type MaterialDefines
-	} from './core/material';
+	import { resolveMaterial, type FragMaterial } from './core/material';
 	import {
 		toFragkitErrorReport,
 		type FragkitErrorPhase,
@@ -22,11 +17,9 @@
 		RenderMode,
 		Renderer,
 		RenderTargetDefinitionMap,
-		TextureDefinitionMap,
 		TextureMap,
 		TextureValue,
 		UniformType,
-		UniformMap,
 		UniformValue
 	} from './core/types';
 	import { provideFragkitContext } from './fragkit-context';
@@ -34,11 +27,7 @@
 	import { createFrameRegistry, provideFrameRegistry } from './frame-context';
 
 	interface Props {
-		fragmentWgsl?: string;
-		material?: FragMaterial;
-		uniforms?: UniformMap;
-		textures?: TextureDefinitionMap;
-		defines?: MaterialDefines;
+		material: FragMaterial;
 		renderTargets?: RenderTargetDefinitionMap;
 		passes?: RenderPass[];
 		clearColor?: [number, number, number, number];
@@ -54,11 +43,7 @@
 	const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio ?? 1);
 
 	let {
-		fragmentWgsl,
-		material = undefined,
-		uniforms = {},
-		textures = {},
-		defines = {},
+		material,
 		renderTargets = {},
 		passes = [],
 		clearColor = [0, 0, 0, 1],
@@ -143,10 +128,10 @@
 		let failedRendererSignature: string | null = null;
 		let rendererRebuildPromise: Promise<void> | null = null;
 
-		const runtimeUniforms: UniformMap = {};
+		const runtimeUniforms: Record<string, UniformValue> = {};
 		const runtimeTextures: TextureMap = {};
-		let activeUniforms: UniformMap = {};
-		let activeTextures: TextureDefinitionMap = {};
+		let activeUniforms: Record<string, UniformValue> = {};
+		let activeTextures: Record<string, { source?: TextureValue }> = {};
 		let uniformKeys: string[] = [];
 		let uniformTypes = new Map<string, UniformType>();
 		let textureKeys: string[] = [];
@@ -168,15 +153,7 @@
 		};
 
 		const resolveActiveMaterial = () => {
-			const fallbackMaterial = createMaterial({
-				fragment: fragmentWgsl ?? '',
-				uniforms,
-				textures,
-				defines
-			});
-			const resolved = resolveMaterial({
-				material: material ?? fallbackMaterial
-			});
+			const resolved = resolveMaterial(material);
 
 			resolveTextureKeys(resolved.textures);
 
@@ -185,7 +162,7 @@
 
 		const setUniform = (name: string, value: UniformValue): void => {
 			if (!uniformKeys.includes(name)) {
-				throw new Error(`Unknown uniform "${name}". Declare it in FragCanvas uniforms prop first.`);
+				throw new Error(`Unknown uniform "${name}". Declare it in material.uniforms first.`);
 			}
 			const expectedType = uniformTypes.get(name);
 			if (!expectedType) {
@@ -197,7 +174,7 @@
 
 		const setTexture = (name: string, value: TextureValue): void => {
 			if (!textureKeys.includes(name)) {
-				throw new Error(`Unknown texture "${name}". Declare it in FragCanvas textures prop first.`);
+				throw new Error(`Unknown texture "${name}". Declare it in material.textures first.`);
 			}
 			runtimeTextures[name] = value;
 		};

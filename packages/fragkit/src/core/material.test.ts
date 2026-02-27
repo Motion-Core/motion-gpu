@@ -38,12 +38,14 @@ describe('material', () => {
 		expect(withDefines).toContain('fn frag(uv: vec2f) -> vec4f');
 	});
 
-	it('resolves material from legacy props and tracks signature', () => {
-		const resolved = resolveMaterial({
-			fragmentWgsl: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			uniforms: { b: 1, a: 0 },
-			textures: { z: {}, x: {} }
-		});
+	it('resolves material and tracks signature', () => {
+		const resolved = resolveMaterial(
+			createMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				uniforms: { b: 1, a: 0 },
+				textures: { z: {}, x: {} }
+			})
+		);
 
 		expect(resolved.uniformLayout.entries.map((entry) => entry.name)).toEqual(['a', 'b']);
 		expect(resolved.textureKeys).toEqual(['x', 'z']);
@@ -52,18 +54,18 @@ describe('material', () => {
 
 	it('changes signature when defines change', () => {
 		const baseFragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
-		const a = resolveMaterial({
-			material: createMaterial({
+		const a = resolveMaterial(
+			createMaterial({
 				fragment: baseFragment,
 				defines: { USE_GRAIN: true }
 			})
-		});
-		const b = resolveMaterial({
-			material: createMaterial({
+		);
+		const b = resolveMaterial(
+			createMaterial({
 				fragment: baseFragment,
 				defines: { USE_GRAIN: false }
 			})
-		});
+		);
 
 		expect(a.signature).not.toEqual(b.signature);
 	});

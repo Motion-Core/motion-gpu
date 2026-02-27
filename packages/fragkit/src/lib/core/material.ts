@@ -72,20 +72,8 @@ export function createMaterial(input: FragMaterial): FragMaterial {
 	};
 }
 
-export function resolveMaterial(input: {
-	material?: FragMaterial;
-	fragmentWgsl?: string;
-	uniforms?: UniformMap;
-	textures?: TextureDefinitionMap;
-	defines?: MaterialDefines;
-}): ResolvedMaterial {
-	const base: FragMaterial = input.material ?? {
-		fragment: input.fragmentWgsl ?? '',
-		uniforms: input.uniforms ?? {},
-		textures: input.textures ?? {},
-		defines: input.defines ?? {}
-	};
-
+export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
+	const base = material;
 	const uniforms = { ...(base.uniforms ?? {}) };
 	const textures = { ...(base.textures ?? {}) };
 	const uniformLayout = resolveUniformLayout(uniforms);

@@ -7,7 +7,7 @@ import {
 } from '../lib/core/uniforms';
 
 describe('uniform helpers', () => {
-	it('infers uniform types from legacy and typed values', () => {
+	it('infers uniform types from scalar, tuple and typed values', () => {
 		expect(inferUniformType(4)).toBe('f32');
 		expect(inferUniformType([1, 2])).toBe('vec2f');
 		expect(inferUniformType([1, 2, 3])).toBe('vec3f');

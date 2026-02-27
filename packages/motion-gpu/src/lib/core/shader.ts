@@ -59,6 +59,10 @@ function buildTextureBindings(textureKeys: string[]): string {
 
 	for (let index = 0; index < textureKeys.length; index += 1) {
 		const key = textureKeys[index];
+		if (key === undefined) {
+			continue;
+		}
+
 		assertUniformName(key);
 		const binding = 2 + index * 2;
 		declarations.push(`@group(0) @binding(${binding}) var ${key}Sampler: sampler;`);

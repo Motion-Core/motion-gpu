@@ -290,8 +290,14 @@ describe('frame registry', () => {
 		expect(snapshot?.frameCount).toBe(2);
 		expect(snapshot?.window).toBe(2);
 		expect(snapshot?.total.count).toBe(2);
-		expect(snapshot?.stages.profile.timings.count).toBe(2);
-		expect(snapshot?.stages.profile.tasks['profile-task'].count).toBe(2);
+		const profileStage = snapshot?.stages['profile'];
+		expect(profileStage).toBeDefined();
+		if (!profileStage) {
+			return;
+		}
+
+		expect(profileStage.timings.count).toBe(2);
+		expect(profileStage.tasks['profile-task']?.count).toBe(2);
 
 		registry.run(createState(registry));
 		snapshot = registry.getProfilingSnapshot();

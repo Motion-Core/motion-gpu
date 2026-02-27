@@ -472,6 +472,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	);
 	const textureBindings = options.textureKeys.map((key, index): RuntimeTextureBinding => {
 		const config = normalizedTextureDefinitions[key];
+		if (!config) {
+			throw new Error(`Missing texture definition for "${key}"`);
+		}
+
 		const { samplerBinding, textureBinding } = getTextureBindings(index);
 		const sampler = device.createSampler({
 			magFilter: config.filter,
@@ -484,7 +488,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const fallbackTexture = createFallbackTexture(device, config.format);
 		const fallbackView = fallbackTexture.createView();
 
-		return {
+		const runtimeBinding: RuntimeTextureBinding = {
 			key,
 			samplerBinding,
 			textureBinding,
@@ -507,9 +511,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			premultipliedAlpha: config.premultipliedAlpha,
 			defaultPremultipliedAlpha: config.premultipliedAlpha,
 			update: config.update ?? 'once',
-			defaultUpdate: config.update,
 			lastToken: null
 		};
+
+		if (config.update !== undefined) {
+			runtimeBinding.defaultUpdate = config.update;
+		}
+
+		return runtimeBinding;
 	});
 
 	const bindGroupLayout = device.createBindGroupLayout({
@@ -644,8 +653,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const generateMipmaps = nextData.generateMipmaps ?? binding.defaultGenerateMipmaps;
 		const update = resolveTextureUpdateMode({
 			source,
-			override: nextData.update,
-			defaultMode: binding.defaultUpdate
+			...(nextData.update !== undefined ? { override: nextData.update } : {}),
+			...(binding.defaultUpdate !== undefined ? { defaultMode: binding.defaultUpdate } : {})
 		});
 		const { width, height } = resolveTextureSize(nextData);
 		const mipLevelCount = generateMipmaps ? getTextureMipLevelCount(width, height) : 1;

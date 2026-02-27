@@ -496,11 +496,11 @@ export interface RendererOptions {
 	/**
 	 * Optional adapter request options.
 	 */
-	adapterOptions?: GPURequestAdapterOptions;
+	adapterOptions?: GPURequestAdapterOptions | undefined;
 	/**
 	 * Optional device descriptor.
 	 */
-	deviceDescriptor?: GPUDeviceDescriptor;
+	deviceDescriptor?: GPUDeviceDescriptor | undefined;
 }
 
 /**

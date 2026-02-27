@@ -90,19 +90,24 @@ export function resolveTextureKeys(textures: TextureDefinitionMap): string[] {
 export function normalizeTextureDefinition(
 	definition: TextureDefinition | undefined
 ): NormalizedTextureDefinition {
-	return {
+	const normalized: NormalizedTextureDefinition = {
 		source: definition?.source ?? null,
 		colorSpace: definition?.colorSpace ?? 'srgb',
 		format: definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb',
 		flipY: definition?.flipY ?? true,
 		generateMipmaps: definition?.generateMipmaps ?? false,
 		premultipliedAlpha: definition?.premultipliedAlpha ?? false,
-		update: definition?.update,
 		anisotropy: Math.max(1, Math.min(16, Math.floor(definition?.anisotropy ?? 1))),
 		filter: definition?.filter ?? DEFAULT_TEXTURE_FILTER,
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE
 	};
+
+	if (definition?.update !== undefined) {
+		normalized.update = definition.update;
+	}
+
+	return normalized;
 }
 
 /**

@@ -41,7 +41,7 @@ export class CopyPass implements RenderPass {
 			needsSwap: false,
 			input: this.input,
 			output: this.output,
-			filter: options.filter
+			...(options.filter !== undefined ? { filter: options.filter } : {})
 		});
 	}
 

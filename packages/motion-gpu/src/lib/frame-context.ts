@@ -303,9 +303,17 @@ function normalizeTaskInvalidation(
 	}
 
 	if (explicit === 'never' || explicit === 'always') {
+		if (explicit === 'never') {
+			return {
+				mode: explicit,
+				lastToken: null,
+				hasToken: false
+			};
+		}
+
 		return {
 			mode: explicit,
-			token: explicit === 'always' ? key : undefined,
+			token: key,
 			lastToken: null,
 			hasToken: false
 		};
@@ -317,9 +325,26 @@ function normalizeTaskInvalidation(
 		throw new Error('Task invalidation mode "on-change" requires a token');
 	}
 
+	if (mode === 'never') {
+		return {
+			mode,
+			lastToken: null,
+			hasToken: false
+		};
+	}
+
+	if (mode === 'on-change') {
+		return {
+			mode,
+			token: token as FrameTaskInvalidationToken,
+			lastToken: null,
+			hasToken: false
+		};
+	}
+
 	return {
 		mode,
-		token: token ?? (mode === 'always' ? key : undefined),
+		token: token ?? key,
 		lastToken: null,
 		hasToken: false
 	};
@@ -850,9 +875,12 @@ export function createFrameRegistry(options?: {
 				startedStore: { subscribe: startedWritable.subscribe },
 				before: new Set(before.map((entry) => toTaskKey(entry))),
 				after: new Set(after.map((entry) => toTaskKey(entry))),
-				invalidation: normalizeTaskInvalidation(key, taskOptions),
-				running: taskOptions.running
+				invalidation: normalizeTaskInvalidation(key, taskOptions)
 			};
+
+			if (taskOptions.running) {
+				internalTask.running = taskOptions.running;
+			}
 
 			stage.tasks.set(key, internalTask);
 			markScheduleDirty();

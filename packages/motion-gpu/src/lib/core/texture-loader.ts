@@ -204,21 +204,36 @@ function normalizeRequestInit(requestInit: RequestInit | undefined): Record<stri
 function normalizeTextureLoadOptions(options: TextureLoadOptions): NormalizedTextureLoadOptions {
 	const colorSpace = options.colorSpace ?? 'srgb';
 
-	return {
+	const normalized: NormalizedTextureLoadOptions = {
 		colorSpace,
-		requestInit: options.requestInit,
 		decode: {
 			colorSpaceConversion:
 				options.decode?.colorSpaceConversion ?? (colorSpace === 'linear' ? 'none' : 'default'),
 			premultiplyAlpha: options.decode?.premultiplyAlpha ?? 'default',
 			imageOrientation: options.decode?.imageOrientation ?? 'none'
-		},
-		signal: options.signal,
-		update: options.update,
-		flipY: options.flipY,
-		premultipliedAlpha: options.premultipliedAlpha,
-		generateMipmaps: options.generateMipmaps
+		}
 	};
+
+	if (options.requestInit !== undefined) {
+		normalized.requestInit = options.requestInit;
+	}
+	if (options.signal !== undefined) {
+		normalized.signal = options.signal;
+	}
+	if (options.update !== undefined) {
+		normalized.update = options.update;
+	}
+	if (options.flipY !== undefined) {
+		normalized.flipY = options.flipY;
+	}
+	if (options.premultipliedAlpha !== undefined) {
+		normalized.premultipliedAlpha = options.premultipliedAlpha;
+	}
+	if (options.generateMipmaps !== undefined) {
+		normalized.generateMipmaps = options.generateMipmaps;
+	}
+
+	return normalized;
 }
 
 /**
@@ -382,20 +397,31 @@ export async function loadTextureFromUrl(
 			throw createAbortError();
 		}
 
-		return {
+		const loaded: LoadedTexture = {
 			url,
 			source: bitmap,
 			width: bitmap.width,
 			height: bitmap.height,
 			colorSpace: normalized.colorSpace,
-			update: normalized.update,
-			flipY: normalized.flipY,
-			premultipliedAlpha: normalized.premultipliedAlpha,
-			generateMipmaps: normalized.generateMipmaps,
 			dispose: () => {
 				bitmap?.close();
 			}
 		};
+
+		if (normalized.update !== undefined) {
+			loaded.update = normalized.update;
+		}
+		if (normalized.flipY !== undefined) {
+			loaded.flipY = normalized.flipY;
+		}
+		if (normalized.premultipliedAlpha !== undefined) {
+			loaded.premultipliedAlpha = normalized.premultipliedAlpha;
+		}
+		if (normalized.generateMipmaps !== undefined) {
+			loaded.generateMipmaps = normalized.generateMipmaps;
+		}
+
+		return loaded;
 	} catch (error) {
 		if (bitmap) {
 			bitmap.close();

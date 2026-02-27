@@ -179,6 +179,10 @@ function expandChunk(
 
 	for (let index = 0; index < sourceLines.length; index += 1) {
 		const sourceLine = sourceLines[index];
+		if (sourceLine === undefined) {
+			continue;
+		}
+
 		const includeMatch = sourceLine.match(INCLUDE_DIRECTIVE_PATTERN);
 		if (!includeMatch) {
 			lines.push(sourceLine);
@@ -191,6 +195,10 @@ function expandChunk(
 		}
 
 		const includeKey = includeMatch[1];
+		if (!includeKey) {
+			throw new Error('Invalid include directive in fragment shader.');
+		}
+
 		assertUniformName(includeKey);
 		const includeSource = includes[includeKey];
 		if (!includeSource) {

@@ -1,7 +1,12 @@
 import { getContext, setContext } from 'svelte';
 import type { RenderMode } from './core/types';
 import type { CurrentReadable, CurrentWritable } from './current-writable';
-import type { FrameRegistry, FrameRunTimings, FrameScheduleSnapshot } from './frame-context';
+import type {
+	FrameProfilingSnapshot,
+	FrameRegistry,
+	FrameRunTimings,
+	FrameScheduleSnapshot
+} from './frame-context';
 
 /**
  * Svelte context key used to expose `FragCanvas` runtime state.
@@ -19,8 +24,14 @@ export type FragkitScheduler = Pick<
 	| 'getDiagnosticsEnabled'
 	| 'getLastRunTimings'
 	| 'getSchedule'
+	| 'setProfilingEnabled'
+	| 'setProfilingWindow'
+	| 'resetProfiling'
+	| 'getProfilingEnabled'
+	| 'getProfilingWindow'
+	| 'getProfilingSnapshot'
 >;
-export type { FrameRunTimings, FrameScheduleSnapshot };
+export type { FrameProfilingSnapshot, FrameRunTimings, FrameScheduleSnapshot };
 
 /**
  * Namespace identifier for user-owned context entries.

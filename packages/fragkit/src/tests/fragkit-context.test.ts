@@ -49,5 +49,11 @@ describe('useFragkit', () => {
 		context.scheduler.setDiagnosticsEnabled(true);
 		expect(context.scheduler.getDiagnosticsEnabled()).toBe(true);
 		expect(context.scheduler.getSchedule().stages.length).toBeGreaterThan(0);
+		context.scheduler.setProfilingEnabled(true);
+		expect(context.scheduler.getProfilingEnabled()).toBe(true);
+		context.scheduler.setProfilingWindow(4);
+		expect(context.scheduler.getProfilingWindow()).toBe(4);
+		expect(context.scheduler.getProfilingSnapshot()).not.toBeNull();
+		context.scheduler.resetProfiling();
 	});
 });

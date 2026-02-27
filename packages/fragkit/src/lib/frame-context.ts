@@ -1,6 +1,6 @@
 import { getContext, onDestroy, setContext } from 'svelte';
 import { writable, type Readable } from 'svelte/store';
-import type { FrameState, RenderMode } from './core/types';
+import type { FrameInvalidationToken, FrameState, RenderMode } from './core/types';
 
 /**
  * Per-frame callback executed by the frame scheduler.
@@ -49,6 +49,10 @@ export interface UseFrameOptions {
 	 */
 	autoInvalidate?: boolean;
 	/**
+	 * Explicit task invalidation policy.
+	 */
+	invalidation?: FrameTaskInvalidation;
+	/**
 	 * Stage to register task in.
 	 *
 	 * If omitted, main stage is used unless inferred from task dependencies.
@@ -67,6 +71,28 @@ export interface UseFrameOptions {
 	 */
 	running?: () => boolean;
 }
+
+/**
+ * Invalidation token value or resolver.
+ */
+export type FrameTaskInvalidationToken =
+	| FrameInvalidationToken
+	| (() => FrameInvalidationToken | null | undefined);
+
+/**
+ * Explicit task invalidation policy.
+ */
+export type FrameTaskInvalidation =
+	| 'never'
+	| 'always'
+	| {
+			mode?: 'never' | 'always';
+			token?: FrameTaskInvalidationToken;
+	  }
+	| {
+			mode: 'on-change';
+			token: FrameTaskInvalidationToken;
+	  };
 
 /**
  * Handle returned by `useFrame` registration.
@@ -115,6 +141,34 @@ export interface FrameRunTimings {
 }
 
 /**
+ * Aggregated timing statistics for stage/task profiling.
+ */
+export interface FrameTimingStats {
+	last: number;
+	avg: number;
+	min: number;
+	max: number;
+	count: number;
+}
+
+/**
+ * Profiling snapshot aggregated from the configured history window.
+ */
+export interface FrameProfilingSnapshot {
+	window: number;
+	frameCount: number;
+	lastFrame: FrameRunTimings | null;
+	total: FrameTimingStats;
+	stages: Record<
+		string,
+		{
+			timings: FrameTimingStats;
+			tasks: Record<string, FrameTimingStats>;
+		}
+	>;
+}
+
+/**
  * Internal registration payload including unsubscribe callback.
  */
 interface RegisteredFrameTask extends UseFrameResult {
@@ -134,7 +188,12 @@ interface InternalTask {
 	startedStore: Readable<boolean>;
 	before: Set<FrameKey>;
 	after: Set<FrameKey>;
-	autoInvalidate: boolean;
+	invalidation: {
+		mode: 'never' | 'always' | 'on-change';
+		token?: FrameTaskInvalidationToken;
+		lastToken: FrameInvalidationToken | null;
+		hasToken: boolean;
+	};
 	running?: () => boolean;
 }
 
@@ -160,6 +219,7 @@ const FRAME_CONTEXT_KEY = Symbol('fragkit.frame-context');
  * Default stage key used when task stage is not explicitly specified.
  */
 const MAIN_STAGE_KEY = Symbol('fragkit-main-stage');
+const RENDER_MODE_INVALIDATION_TOKEN = Symbol('fragkit-render-mode-change');
 
 /**
  * Default stage callback that runs tasks immediately.
@@ -197,6 +257,109 @@ function toStageKey(reference: FrameKey | FrameStage): FrameKey {
 	}
 
 	return reference.key;
+}
+
+/**
+ * Resolves invalidation token from static value or resolver callback.
+ */
+function resolveInvalidationToken(
+	token: FrameTaskInvalidationToken | undefined
+): FrameInvalidationToken | null {
+	if (token === undefined) {
+		return null;
+	}
+
+	const resolved = typeof token === 'function' ? token() : token;
+	if (resolved === null || resolved === undefined) {
+		return null;
+	}
+
+	return resolved;
+}
+
+/**
+ * Normalizes task invalidation options to runtime representation.
+ */
+function normalizeTaskInvalidation(
+	key: FrameKey,
+	options: UseFrameOptions
+): InternalTask['invalidation'] {
+	const explicit = options.invalidation;
+	if (explicit === undefined) {
+		if (options.autoInvalidate === false) {
+			return {
+				mode: 'never',
+				lastToken: null,
+				hasToken: false
+			};
+		}
+
+		return {
+			mode: 'always',
+			token: key,
+			lastToken: null,
+			hasToken: false
+		};
+	}
+
+	if (explicit === 'never' || explicit === 'always') {
+		return {
+			mode: explicit,
+			token: explicit === 'always' ? key : undefined,
+			lastToken: null,
+			hasToken: false
+		};
+	}
+
+	const mode = explicit.mode ?? 'always';
+	const token = explicit.token;
+	if (mode === 'on-change' && token === undefined) {
+		throw new Error('Task invalidation mode "on-change" requires a token');
+	}
+
+	return {
+		mode,
+		token: token ?? (mode === 'always' ? key : undefined),
+		lastToken: null,
+		hasToken: false
+	};
+}
+
+/**
+ * Computes aggregate timing stats from sampled durations.
+ */
+function buildTimingStats(samples: number[], last: number): FrameTimingStats {
+	if (samples.length === 0) {
+		return {
+			last,
+			avg: 0,
+			min: 0,
+			max: 0,
+			count: 0
+		};
+	}
+
+	let sum = 0;
+	let min = Number.POSITIVE_INFINITY;
+	let max = Number.NEGATIVE_INFINITY;
+
+	for (const value of samples) {
+		sum += value;
+		if (value < min) {
+			min = value;
+		}
+		if (value > max) {
+			max = value;
+		}
+	}
+
+	return {
+		last,
+		avg: sum / samples.length,
+		min,
+		max,
+		count: samples.length
+	};
 }
 
 /**
@@ -293,7 +456,7 @@ export interface FrameRegistry {
 	/**
 	 * Marks frame as invalidated for `on-demand` mode.
 	 */
-	invalidate: () => void;
+	invalidate: (token?: FrameInvalidationToken) => void;
 	/**
 	 * Requests a single render in `manual` mode.
 	 */
@@ -319,6 +482,18 @@ export interface FrameRegistry {
 	 */
 	setMaxDelta: (value: number) => void;
 	/**
+	 * Enables/disables frame profiling.
+	 */
+	setProfilingEnabled: (enabled: boolean) => void;
+	/**
+	 * Sets profiling history window (in frames).
+	 */
+	setProfilingWindow: (window: number) => void;
+	/**
+	 * Clears collected profiling samples.
+	 */
+	resetProfiling: () => void;
+	/**
 	 * Enables/disables diagnostics capture.
 	 */
 	setDiagnosticsEnabled: (enabled: boolean) => void;
@@ -334,6 +509,18 @@ export interface FrameRegistry {
 	 * Returns current max delta clamp.
 	 */
 	getMaxDelta: () => number;
+	/**
+	 * Returns profiling toggle state.
+	 */
+	getProfilingEnabled: () => boolean;
+	/**
+	 * Returns active profiling history window (in frames).
+	 */
+	getProfilingWindow: () => number;
+	/**
+	 * Returns aggregated profiling snapshot.
+	 */
+	getProfilingSnapshot: () => FrameProfilingSnapshot | null;
 	/**
 	 * Returns diagnostics toggle state.
 	 */
@@ -354,7 +541,7 @@ export interface FrameRegistry {
 		options?: {
 			before?: (FrameKey | FrameStage) | (FrameKey | FrameStage)[];
 			after?: (FrameKey | FrameStage) | (FrameKey | FrameStage)[];
-			callback?: FrameStageCallback;
+			callback?: FrameStageCallback | null;
 		}
 	) => FrameStage;
 	/**
@@ -377,14 +564,19 @@ export function createFrameRegistry(options?: {
 	renderMode?: RenderMode;
 	autoRender?: boolean;
 	maxDelta?: number;
+	profilingEnabled?: boolean;
+	profilingWindow?: number;
 	diagnosticsEnabled?: boolean;
 }): FrameRegistry {
 	let renderMode: RenderMode = options?.renderMode ?? 'always';
 	let autoRender = options?.autoRender ?? true;
 	let maxDelta = options?.maxDelta ?? 0.1;
-	let diagnosticsEnabled = options?.diagnosticsEnabled ?? false;
+	let profilingEnabled = options?.profilingEnabled ?? options?.diagnosticsEnabled ?? false;
+	let profilingWindow = options?.profilingWindow ?? 120;
 	let lastRunTimings: FrameRunTimings | null = null;
-	let frameInvalidated = true;
+	const profilingHistory: FrameRunTimings[] = [];
+	let hasUntokenizedInvalidation = true;
+	const invalidationTokens = new Set<FrameInvalidationToken>();
 	let shouldAdvance = false;
 	let orderCounter = 0;
 
@@ -395,16 +587,142 @@ export function createFrameRegistry(options?: {
 		return value;
 	};
 
+	const assertProfilingWindow = (value: number): number => {
+		if (!Number.isFinite(value) || value <= 0) {
+			throw new Error('profilingWindow must be a finite number greater than 0');
+		}
+		return Math.floor(value);
+	};
+
 	maxDelta = assertMaxDelta(maxDelta);
+	profilingWindow = assertProfilingWindow(profilingWindow);
 
 	const stages = new Map<FrameKey, InternalStage>();
+	let scheduleDirty = true;
+	let sortedStages: InternalStage[] = [];
+	const sortedTasksByStage = new Map<FrameKey, InternalTask[]>();
+	let scheduleSnapshot: FrameScheduleSnapshot = { stages: [] };
+
+	const markScheduleDirty = (): void => {
+		scheduleDirty = true;
+	};
+
+	const syncSchedule = (): void => {
+		if (!scheduleDirty) {
+			return;
+		}
+
+		const stageList = sortByDependencies(
+			Array.from(stages.values()),
+			(stage) => stage.before,
+			(stage) => stage.after
+		);
+		const nextTasksByStage = new Map<FrameKey, InternalTask[]>();
+
+		for (const stage of stageList) {
+			const taskList = sortByDependencies(
+				Array.from(stage.tasks.values()).map((task) => ({
+					key: task.task.key,
+					order: task.order,
+					task
+				})),
+				(task) => task.task.before,
+				(task) => task.task.after
+			).map((task) => task.task);
+			nextTasksByStage.set(stage.key, taskList);
+		}
+
+		sortedStages = stageList;
+		sortedTasksByStage.clear();
+		for (const [stageKey, taskList] of nextTasksByStage) {
+			sortedTasksByStage.set(stageKey, taskList);
+		}
+
+		scheduleSnapshot = {
+			stages: sortedStages.map((stage) => ({
+				key: keyToString(stage.key),
+				tasks: (sortedTasksByStage.get(stage.key) ?? []).map((task) => keyToString(task.task.key))
+			}))
+		};
+
+		scheduleDirty = false;
+	};
+
+	const pushProfile = (timings: FrameRunTimings): void => {
+		profilingHistory.push(timings);
+		while (profilingHistory.length > profilingWindow) {
+			profilingHistory.shift();
+		}
+	};
+
+	const clearProfiling = (): void => {
+		profilingHistory.length = 0;
+		lastRunTimings = null;
+	};
+
+	const buildProfilingSnapshot = (): FrameProfilingSnapshot | null => {
+		if (!profilingEnabled) {
+			return null;
+		}
+
+		const stageBuckets = new Map<
+			string,
+			{
+				durations: number[];
+				taskDurations: Map<string, number[]>;
+			}
+		>();
+		const totalDurations: number[] = [];
+
+		for (const frame of profilingHistory) {
+			totalDurations.push(frame.total);
+			for (const [stageKey, stageTiming] of Object.entries(frame.stages)) {
+				const stageBucket = stageBuckets.get(stageKey) ?? {
+					durations: [],
+					taskDurations: new Map<string, number[]>()
+				};
+				stageBucket.durations.push(stageTiming.duration);
+
+				for (const [taskKey, taskDuration] of Object.entries(stageTiming.tasks)) {
+					const bucket = stageBucket.taskDurations.get(taskKey) ?? [];
+					bucket.push(taskDuration);
+					stageBucket.taskDurations.set(taskKey, bucket);
+				}
+
+				stageBuckets.set(stageKey, stageBucket);
+			}
+		}
+
+		const stagesSnapshot: FrameProfilingSnapshot['stages'] = {};
+		for (const [stageKey, stageBucket] of stageBuckets) {
+			const lastStageDuration = lastRunTimings?.stages[stageKey]?.duration ?? 0;
+			const taskSnapshot: Record<string, FrameTimingStats> = {};
+			for (const [taskKey, taskDurations] of stageBucket.taskDurations) {
+				const lastTaskDuration = lastRunTimings?.stages[stageKey]?.tasks[taskKey] ?? 0;
+				taskSnapshot[taskKey] = buildTimingStats(taskDurations, lastTaskDuration);
+			}
+
+			stagesSnapshot[stageKey] = {
+				timings: buildTimingStats(stageBucket.durations, lastStageDuration),
+				tasks: taskSnapshot
+			};
+		}
+
+		return {
+			window: profilingWindow,
+			frameCount: profilingHistory.length,
+			lastFrame: lastRunTimings,
+			total: buildTimingStats(totalDurations, lastRunTimings?.total ?? 0),
+			stages: stagesSnapshot
+		};
+	};
 
 	const ensureStage = (
 		stageReference: FrameKey | FrameStage,
 		stageOptions?: {
 			before?: (FrameKey | FrameStage)[];
 			after?: (FrameKey | FrameStage)[];
-			callback?: FrameStageCallback;
+			callback?: FrameStageCallback | null;
 		}
 	): InternalStage => {
 		const stageKey = toStageKey(stageReference);
@@ -412,12 +730,14 @@ export function createFrameRegistry(options?: {
 		if (existing) {
 			if (stageOptions?.before !== undefined) {
 				existing.before = new Set(stageOptions.before.map((entry) => toStageKey(entry)));
+				markScheduleDirty();
 			}
 			if (stageOptions?.after !== undefined) {
 				existing.after = new Set(stageOptions.after.map((entry) => toStageKey(entry)));
+				markScheduleDirty();
 			}
-			if (stageOptions?.callback) {
-				existing.callback = stageOptions.callback;
+			if (stageOptions && Object.prototype.hasOwnProperty.call(stageOptions, 'callback')) {
+				existing.callback = stageOptions.callback ?? DEFAULT_STAGE_CALLBACK;
 			}
 			return existing;
 		}
@@ -432,6 +752,7 @@ export function createFrameRegistry(options?: {
 			tasks: new Map()
 		};
 		stages.set(stageKey, stage);
+		markScheduleDirty();
 		return stage;
 	};
 
@@ -448,6 +769,46 @@ export function createFrameRegistry(options?: {
 
 	const keyToString = (key: FrameKey): string => {
 		return typeof key === 'symbol' ? key.toString() : key;
+	};
+
+	const hasPendingInvalidation = (): boolean => {
+		return hasUntokenizedInvalidation || invalidationTokens.size > 0;
+	};
+
+	const invalidateWithToken = (token?: FrameInvalidationToken): void => {
+		if (token === undefined) {
+			hasUntokenizedInvalidation = true;
+			return;
+		}
+
+		invalidationTokens.add(token);
+	};
+
+	const applyTaskInvalidation = (task: InternalTask): void => {
+		const config = task.invalidation;
+		if (config.mode === 'never') {
+			return;
+		}
+
+		if (config.mode === 'always') {
+			const token = resolveInvalidationToken(config.token);
+			invalidateWithToken(token ?? task.task.key);
+			return;
+		}
+
+		const token = resolveInvalidationToken(config.token);
+		if (token === null) {
+			config.hasToken = false;
+			config.lastToken = null;
+			return;
+		}
+
+		const changed = !config.hasToken || config.lastToken !== token;
+		config.hasToken = true;
+		config.lastToken = token;
+		if (changed) {
+			invalidateWithToken(token);
+		}
 	};
 
 	return {
@@ -489,11 +850,12 @@ export function createFrameRegistry(options?: {
 				startedStore: { subscribe: startedWritable.subscribe },
 				before: new Set(before.map((entry) => toTaskKey(entry))),
 				after: new Set(after.map((entry) => toTaskKey(entry))),
-				autoInvalidate: taskOptions.autoInvalidate ?? true,
+				invalidation: normalizeTaskInvalidation(key, taskOptions),
 				running: taskOptions.running
 			};
 
 			stage.tasks.set(key, internalTask);
+			markScheduleDirty();
 			internalTask.startedStoreSet(resolveEffectiveRunning(internalTask));
 
 			const start = () => {
@@ -512,7 +874,9 @@ export function createFrameRegistry(options?: {
 				stop,
 				started: internalTask.startedStore,
 				unsubscribe: () => {
-					stage.tasks.delete(key);
+					if (stage.tasks.delete(key)) {
+						markScheduleDirty();
+					}
 				}
 			};
 		},
@@ -525,49 +889,34 @@ export function createFrameRegistry(options?: {
 							...state,
 							delta: clampedDelta
 						};
-
-			const stageList = sortByDependencies(
-				Array.from(stages.values()),
-				(stage) => stage.before,
-				(stage) => stage.after
-			);
-			const frameStart = diagnosticsEnabled ? performance.now() : 0;
+			syncSchedule();
+			const frameStart = profilingEnabled ? performance.now() : 0;
 			const stageTimings: FrameRunTimings['stages'] = {};
 
-			for (const stage of stageList) {
+			for (const stage of sortedStages) {
 				if (!stage.started) {
 					continue;
 				}
-				const stageStart = diagnosticsEnabled ? performance.now() : 0;
+				const stageStart = profilingEnabled ? performance.now() : 0;
 				const taskTimings: Record<string, number> = {};
-
-				const taskList = sortByDependencies(
-					Array.from(stage.tasks.values()).map((task) => ({
-						...task,
-						key: task.task.key
-					})),
-					(task) => task.before,
-					(task) => task.after
-				);
+				const taskList = sortedTasksByStage.get(stage.key) ?? [];
 
 				stage.callback(frameState, () => {
 					for (const task of taskList) {
 						if (!resolveEffectiveRunning(task)) {
 							continue;
 						}
-						const taskStart = diagnosticsEnabled ? performance.now() : 0;
+						const taskStart = profilingEnabled ? performance.now() : 0;
 
 						task.callback(frameState);
-						if (diagnosticsEnabled) {
+						if (profilingEnabled) {
 							taskTimings[keyToString(task.task.key)] = performance.now() - taskStart;
 						}
-						if (task.autoInvalidate) {
-							frameInvalidated = true;
-						}
+						applyTaskInvalidation(task);
 					}
 				});
 
-				if (diagnosticsEnabled) {
+				if (profilingEnabled) {
 					stageTimings[keyToString(stage.key)] = {
 						duration: performance.now() - stageStart,
 						tasks: taskTimings
@@ -575,19 +924,21 @@ export function createFrameRegistry(options?: {
 				}
 			}
 
-			if (diagnosticsEnabled) {
-				lastRunTimings = {
+			if (profilingEnabled) {
+				const timings = {
 					total: performance.now() - frameStart,
 					stages: stageTimings
 				};
+				lastRunTimings = timings;
+				pushProfile(timings);
 			}
 		},
-		invalidate() {
-			frameInvalidated = true;
+		invalidate(token) {
+			invalidateWithToken(token);
 		},
 		advance() {
 			shouldAdvance = true;
-			frameInvalidated = true;
+			invalidateWithToken();
 		},
 		shouldRender() {
 			if (!autoRender) {
@@ -599,17 +950,26 @@ export function createFrameRegistry(options?: {
 			}
 
 			if (renderMode === 'on-demand') {
-				return frameInvalidated;
+				return shouldAdvance || hasPendingInvalidation();
 			}
 
 			return shouldAdvance;
 		},
 		endFrame() {
-			frameInvalidated = false;
+			hasUntokenizedInvalidation = false;
+			invalidationTokens.clear();
 			shouldAdvance = false;
 		},
 		setRenderMode(mode) {
+			if (renderMode === mode) {
+				return;
+			}
+
 			renderMode = mode;
+			shouldAdvance = false;
+			if (mode === 'on-demand') {
+				invalidateWithToken(RENDER_MODE_INVALIDATION_TOKEN);
+			}
 		},
 		setAutoRender(enabled) {
 			autoRender = enabled;
@@ -617,10 +977,25 @@ export function createFrameRegistry(options?: {
 		setMaxDelta(value) {
 			maxDelta = assertMaxDelta(value);
 		},
-		setDiagnosticsEnabled(enabled) {
-			diagnosticsEnabled = enabled;
+		setProfilingEnabled(enabled) {
+			profilingEnabled = enabled;
 			if (!enabled) {
-				lastRunTimings = null;
+				clearProfiling();
+			}
+		},
+		setProfilingWindow(window) {
+			profilingWindow = assertProfilingWindow(window);
+			while (profilingHistory.length > profilingWindow) {
+				profilingHistory.shift();
+			}
+		},
+		resetProfiling() {
+			clearProfiling();
+		},
+		setDiagnosticsEnabled(enabled) {
+			profilingEnabled = enabled;
+			if (!enabled) {
+				clearProfiling();
 			}
 		},
 		getRenderMode() {
@@ -632,43 +1007,40 @@ export function createFrameRegistry(options?: {
 		getMaxDelta() {
 			return maxDelta;
 		},
+		getProfilingEnabled() {
+			return profilingEnabled;
+		},
+		getProfilingWindow() {
+			return profilingWindow;
+		},
+		getProfilingSnapshot() {
+			return buildProfilingSnapshot();
+		},
 		getDiagnosticsEnabled() {
-			return diagnosticsEnabled;
+			return profilingEnabled;
 		},
 		getLastRunTimings() {
 			return lastRunTimings;
 		},
 		getSchedule() {
-			const stageList = sortByDependencies(
-				Array.from(stages.values()),
-				(stage) => stage.before,
-				(stage) => stage.after
-			);
-
-			return {
-				stages: stageList.map((stage) => {
-					const taskList = sortByDependencies(
-						Array.from(stage.tasks.values()).map((task) => ({
-							...task,
-							key: task.task.key
-						})),
-						(task) => task.before,
-						(task) => task.after
-					);
-
-					return {
-						key: keyToString(stage.key),
-						tasks: taskList.map((task) => keyToString(task.task.key))
-					};
-				})
-			};
+			syncSchedule();
+			return scheduleSnapshot;
 		},
 		createStage(key, options) {
-			const stage = ensureStage(key, {
-				before: options?.before ? asArray(options.before) : undefined,
-				after: options?.after ? asArray(options.after) : undefined,
-				callback: options?.callback
-			});
+			const stageOptions: Parameters<typeof ensureStage>[1] | undefined = options
+				? {
+						...(Object.prototype.hasOwnProperty.call(options, 'before')
+							? { before: asArray(options.before) }
+							: {}),
+						...(Object.prototype.hasOwnProperty.call(options, 'after')
+							? { after: asArray(options.after) }
+							: {}),
+						...(Object.prototype.hasOwnProperty.call(options, 'callback')
+							? { callback: options.callback ?? null }
+							: {})
+					}
+				: undefined;
+			const stage = ensureStage(key, stageOptions);
 			return { key: stage.key };
 		},
 		getStage(key) {
@@ -682,6 +1054,7 @@ export function createFrameRegistry(options?: {
 			for (const stage of stages.values()) {
 				stage.tasks.clear();
 			}
+			markScheduleDirty();
 		}
 	};
 }

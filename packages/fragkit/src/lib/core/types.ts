@@ -386,6 +386,11 @@ export interface RenderPass extends RenderPassFlags {
 export type RenderMode = 'always' | 'on-demand' | 'manual';
 
 /**
+ * Token identifying an invalidation source.
+ */
+export type FrameInvalidationToken = string | number | symbol;
+
+/**
  * Mutable per-frame state passed to frame callbacks.
  */
 export interface FrameState {
@@ -408,7 +413,7 @@ export interface FrameState {
 	/**
 	 * Invalidates frame for on-demand rendering.
 	 */
-	invalidate: () => void;
+	invalidate: (token?: FrameInvalidationToken) => void;
 	/**
 	 * Requests a single render in manual mode.
 	 */

@@ -111,7 +111,13 @@
 			setDiagnosticsEnabled: registry.setDiagnosticsEnabled,
 			getDiagnosticsEnabled: registry.getDiagnosticsEnabled,
 			getLastRunTimings: registry.getLastRunTimings,
-			getSchedule: registry.getSchedule
+			getSchedule: registry.getSchedule,
+			setProfilingEnabled: registry.setProfilingEnabled,
+			setProfilingWindow: registry.setProfilingWindow,
+			resetProfiling: registry.resetProfiling,
+			getProfilingEnabled: registry.getProfilingEnabled,
+			getProfilingWindow: registry.getProfilingWindow,
+			getProfilingSnapshot: registry.getProfilingSnapshot
 		}
 	});
 

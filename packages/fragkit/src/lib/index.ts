@@ -10,6 +10,7 @@ export { useFragkit } from './fragkit-context';
 export { useFrame } from './frame-context';
 export { useTexture } from './use-texture';
 export type {
+	FrameInvalidationToken,
 	FrameState,
 	OutputColorSpace,
 	RenderPass,

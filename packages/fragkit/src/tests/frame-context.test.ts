@@ -134,6 +134,26 @@ describe('frame registry', () => {
 		expect(execution).toEqual(['late', 'early']);
 	});
 
+	it('clears stage dependencies and can reset stage callback to default', () => {
+		const registry = createFrameRegistry();
+		const execution: string[] = [];
+		const skipStageCallback = vi.fn(() => undefined);
+
+		registry.createStage('a', { callback: skipStageCallback });
+		registry.createStage('b');
+		registry.register('a-task', () => execution.push('a'), { stage: 'a' });
+		registry.register('b-task', () => execution.push('b'), { stage: 'b' });
+
+		registry.createStage('a', { after: 'b' });
+		registry.run(createState(registry));
+		expect(execution).toEqual(['b']);
+
+		execution.length = 0;
+		registry.createStage('a', { after: [], callback: null });
+		registry.run(createState(registry));
+		expect(execution).toEqual(['a', 'b']);
+	});
+
 	it('supports running gate and start/stop controls', () => {
 		const registry = createFrameRegistry();
 		let gate = true;
@@ -174,6 +194,65 @@ describe('frame registry', () => {
 		expect(registry.shouldRender()).toBe(true);
 	});
 
+	it('supports tokenized invalidation and clears tokens at frame end', () => {
+		const registry = createFrameRegistry({ renderMode: 'on-demand' });
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+
+		registry.invalidate('camera');
+		registry.invalidate('camera');
+		expect(registry.shouldRender()).toBe(true);
+
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+	});
+
+	it('supports per-task on-change invalidation tokens', () => {
+		const registry = createFrameRegistry({ renderMode: 'on-demand' });
+		let token = 1;
+		registry.register('on-change', () => undefined, {
+			invalidation: {
+				mode: 'on-change',
+				token: () => token
+			}
+		});
+
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+
+		registry.run(createState(registry));
+		expect(registry.shouldRender()).toBe(true);
+
+		registry.endFrame();
+		registry.run(createState(registry));
+		expect(registry.shouldRender()).toBe(false);
+
+		token = 2;
+		registry.run(createState(registry));
+		expect(registry.shouldRender()).toBe(true);
+	});
+
+	it('applies explicit mode-switch rules for always, on-demand and manual', () => {
+		const registry = createFrameRegistry({ renderMode: 'always' });
+
+		registry.endFrame();
+		registry.setRenderMode('on-demand');
+		expect(registry.shouldRender()).toBe(true);
+
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+
+		registry.setRenderMode('manual');
+		expect(registry.shouldRender()).toBe(false);
+		registry.invalidate('manual-token');
+		expect(registry.shouldRender()).toBe(false);
+
+		registry.advance();
+		expect(registry.shouldRender()).toBe(true);
+		registry.endFrame();
+		expect(registry.shouldRender()).toBe(false);
+	});
+
 	it('provides schedule snapshot and optional frame timings diagnostics', () => {
 		const registry = createFrameRegistry({ diagnosticsEnabled: true });
 
@@ -197,6 +276,36 @@ describe('frame registry', () => {
 		registry.setDiagnosticsEnabled(false);
 		expect(registry.getDiagnosticsEnabled()).toBe(false);
 		expect(registry.getLastRunTimings()).toBeNull();
+	});
+
+	it('provides profiling snapshot with rolling averages and reset controls', () => {
+		const registry = createFrameRegistry({ profilingEnabled: true, profilingWindow: 2 });
+		registry.createStage('profile');
+		registry.register('profile-task', () => undefined, { stage: 'profile' });
+
+		registry.run(createState(registry));
+		registry.run(createState(registry));
+		let snapshot = registry.getProfilingSnapshot();
+		expect(snapshot).not.toBeNull();
+		expect(snapshot?.frameCount).toBe(2);
+		expect(snapshot?.window).toBe(2);
+		expect(snapshot?.total.count).toBe(2);
+		expect(snapshot?.stages.profile.timings.count).toBe(2);
+		expect(snapshot?.stages.profile.tasks['profile-task'].count).toBe(2);
+
+		registry.run(createState(registry));
+		snapshot = registry.getProfilingSnapshot();
+		expect(snapshot?.frameCount).toBe(2);
+
+		registry.setProfilingWindow(4);
+		expect(registry.getProfilingWindow()).toBe(4);
+		registry.resetProfiling();
+		snapshot = registry.getProfilingSnapshot();
+		expect(snapshot?.frameCount).toBe(0);
+
+		registry.setProfilingEnabled(false);
+		expect(registry.getProfilingSnapshot()).toBeNull();
+		expect(registry.getProfilingEnabled()).toBe(false);
 	});
 
 	it('supports stage callback wrappers for conditional task execution', () => {

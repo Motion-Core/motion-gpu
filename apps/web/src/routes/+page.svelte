@@ -1,25 +1,26 @@
 <script lang="ts">
-	import { FragCanvas } from 'fragkit';
-	import type { TextureDefinitionMap } from 'fragkit';
+	import { FragCanvas, createMaterial } from 'fragkit';
 	import TextureBlendController from '$lib/TextureBlendController.svelte';
 
-	const fragmentWgsl = `
+	const material = createMaterial({
+		fragment: `
 fn frag(uv: vec2f) -> vec4f {
 	let colorA = textureSample(uTextureA, uTextureASampler, uv);
 	let colorB = textureSample(uTextureB, uTextureBSampler, uv);
 	let mixFactor = clamp(fragkitUniforms.uMix, 0.0, 1.0);
 	return mix(colorA, colorB, mixFactor);
 }
-`;
+`,
+		uniforms: {
+			uMix: 0
+		},
+		textures: {
+			uTextureA: { colorSpace: 'srgb', filter: 'linear' },
+			uTextureB: { colorSpace: 'srgb', filter: 'linear' }
+		}
+	});
 
 	const demoImages = ['/textures/image-1.jpg', '/textures/image-2.jpg'];
-	const uniforms = {
-		uMix: 0
-	};
-	const textures: TextureDefinitionMap = {
-		uTextureA: { colorSpace: 'srgb', filter: 'linear' },
-		uTextureB: { colorSpace: 'srgb', filter: 'linear' }
-	};
 	const demoDpr = 2;
 </script>
 
@@ -35,7 +36,7 @@ fn frag(uv: vec2f) -> vec4f {
 	<div
 		class="aspect-16/10 w-[64vw] overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg"
 	>
-		<FragCanvas {fragmentWgsl} {uniforms} {textures} dpr={demoDpr} class="h-full w-full">
+		<FragCanvas {material} dpr={demoDpr} class="h-full w-full">
 			<TextureBlendController urls={demoImages} />
 		</FragCanvas>
 	</div>

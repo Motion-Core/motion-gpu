@@ -152,4 +152,29 @@ describe('frame registry', () => {
 
 		expect(registry.shouldRender()).toBe(true);
 	});
+
+	it('provides schedule snapshot and optional frame timings diagnostics', () => {
+		const registry = createFrameRegistry({ diagnosticsEnabled: true });
+
+		registry.createStage('early');
+		registry.createStage('late', { after: 'early' });
+		registry.register('early-task', () => undefined, { stage: 'early' });
+		registry.register('late-task', () => undefined, { stage: 'late', after: 'early-task' });
+
+		const schedule = registry.getSchedule();
+		expect(schedule.stages.some((stage) => stage.key === 'early')).toBe(true);
+		expect(schedule.stages.some((stage) => stage.key === 'late')).toBe(true);
+		expect(schedule.stages.find((stage) => stage.key === 'early')?.tasks).toContain('early-task');
+
+		registry.run(createState(registry));
+		const timings = registry.getLastRunTimings();
+		expect(timings).not.toBeNull();
+		expect(timings?.total).toBeGreaterThanOrEqual(0);
+		expect(timings?.stages.early?.duration).toBeGreaterThanOrEqual(0);
+		expect(timings?.stages.early?.tasks['early-task']).toBeGreaterThanOrEqual(0);
+
+		registry.setDiagnosticsEnabled(false);
+		expect(registry.getDiagnosticsEnabled()).toBe(false);
+		expect(registry.getLastRunTimings()).toBeNull();
+	});
 });

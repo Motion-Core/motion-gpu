@@ -93,7 +93,11 @@
 		advance: registry.advance,
 		scheduler: {
 			createStage: registry.createStage,
-			getStage: registry.getStage
+			getStage: registry.getStage,
+			setDiagnosticsEnabled: registry.setDiagnosticsEnabled,
+			getDiagnosticsEnabled: registry.getDiagnosticsEnabled,
+			getLastRunTimings: registry.getLastRunTimings,
+			getSchedule: registry.getSchedule
 		}
 	});
 

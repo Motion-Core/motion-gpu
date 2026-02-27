@@ -1,11 +1,20 @@
 import { getContext, setContext } from 'svelte';
 import type { RenderMode } from './core/types';
 import type { CurrentReadable, CurrentWritable } from './current-writable';
-import type { FrameRegistry } from './frame-context';
+import type { FrameRegistry, FrameRunTimings, FrameScheduleSnapshot } from './frame-context';
 
 const FRAGKIT_CONTEXT_KEY = Symbol('fragkit.context');
 
-export type FragkitScheduler = Pick<FrameRegistry, 'createStage' | 'getStage'>;
+export type FragkitScheduler = Pick<
+	FrameRegistry,
+	| 'createStage'
+	| 'getStage'
+	| 'setDiagnosticsEnabled'
+	| 'getDiagnosticsEnabled'
+	| 'getLastRunTimings'
+	| 'getSchedule'
+>;
+export type { FrameRunTimings, FrameScheduleSnapshot };
 
 export interface FragkitContext {
 	canvas: HTMLCanvasElement | undefined;

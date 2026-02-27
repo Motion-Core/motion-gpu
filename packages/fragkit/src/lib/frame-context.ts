@@ -30,6 +30,24 @@ export interface UseFrameResult {
 	started: Readable<boolean>;
 }
 
+export interface FrameScheduleSnapshot {
+	stages: Array<{
+		key: string;
+		tasks: string[];
+	}>;
+}
+
+export interface FrameRunTimings {
+	total: number;
+	stages: Record<
+		string,
+		{
+			duration: number;
+			tasks: Record<string, number>;
+		}
+	>;
+}
+
 interface RegisteredFrameTask extends UseFrameResult {
 	unsubscribe: () => void;
 }
@@ -170,9 +188,13 @@ export interface FrameRegistry {
 	setRenderMode: (mode: RenderMode) => void;
 	setAutoRender: (enabled: boolean) => void;
 	setMaxDelta: (value: number) => void;
+	setDiagnosticsEnabled: (enabled: boolean) => void;
 	getRenderMode: () => RenderMode;
 	getAutoRender: () => boolean;
 	getMaxDelta: () => number;
+	getDiagnosticsEnabled: () => boolean;
+	getLastRunTimings: () => FrameRunTimings | null;
+	getSchedule: () => FrameScheduleSnapshot;
 	createStage: (
 		key: FrameKey,
 		options?: {
@@ -188,10 +210,13 @@ export function createFrameRegistry(options?: {
 	renderMode?: RenderMode;
 	autoRender?: boolean;
 	maxDelta?: number;
+	diagnosticsEnabled?: boolean;
 }): FrameRegistry {
 	let renderMode: RenderMode = options?.renderMode ?? 'always';
 	let autoRender = options?.autoRender ?? true;
 	let maxDelta = options?.maxDelta ?? 0.1;
+	let diagnosticsEnabled = options?.diagnosticsEnabled ?? false;
+	let lastRunTimings: FrameRunTimings | null = null;
 	let frameInvalidated = true;
 	let shouldAdvance = false;
 	let orderCounter = 0;
@@ -238,6 +263,10 @@ export function createFrameRegistry(options?: {
 			task.startedStoreSet(running);
 		}
 		return running;
+	};
+
+	const keyToString = (key: FrameKey): string => {
+		return typeof key === 'symbol' ? key.toString() : key;
 	};
 
 	return {
@@ -321,11 +350,15 @@ export function createFrameRegistry(options?: {
 				(stage) => stage.before,
 				(stage) => stage.after
 			);
+			const frameStart = diagnosticsEnabled ? performance.now() : 0;
+			const stageTimings: FrameRunTimings['stages'] = {};
 
 			for (const stage of stageList) {
 				if (!stage.started) {
 					continue;
 				}
+				const stageStart = diagnosticsEnabled ? performance.now() : 0;
+				const taskTimings: Record<string, number> = {};
 
 				const taskList = sortByDependencies(
 					Array.from(stage.tasks.values()).map((task) => ({
@@ -340,12 +373,30 @@ export function createFrameRegistry(options?: {
 					if (!resolveEffectiveRunning(task)) {
 						continue;
 					}
+					const taskStart = diagnosticsEnabled ? performance.now() : 0;
 
 					task.callback(frameState);
+					if (diagnosticsEnabled) {
+						taskTimings[keyToString(task.task.key)] = performance.now() - taskStart;
+					}
 					if (task.autoInvalidate) {
 						frameInvalidated = true;
 					}
 				}
+
+				if (diagnosticsEnabled) {
+					stageTimings[keyToString(stage.key)] = {
+						duration: performance.now() - stageStart,
+						tasks: taskTimings
+					};
+				}
+			}
+
+			if (diagnosticsEnabled) {
+				lastRunTimings = {
+					total: performance.now() - frameStart,
+					stages: stageTimings
+				};
 			}
 		},
 		invalidate() {
@@ -383,6 +434,12 @@ export function createFrameRegistry(options?: {
 		setMaxDelta(value) {
 			maxDelta = assertMaxDelta(value);
 		},
+		setDiagnosticsEnabled(enabled) {
+			diagnosticsEnabled = enabled;
+			if (!enabled) {
+				lastRunTimings = null;
+			}
+		},
 		getRenderMode() {
 			return renderMode;
 		},
@@ -391,6 +448,37 @@ export function createFrameRegistry(options?: {
 		},
 		getMaxDelta() {
 			return maxDelta;
+		},
+		getDiagnosticsEnabled() {
+			return diagnosticsEnabled;
+		},
+		getLastRunTimings() {
+			return lastRunTimings;
+		},
+		getSchedule() {
+			const stageList = sortByDependencies(
+				Array.from(stages.values()),
+				(stage) => stage.before,
+				(stage) => stage.after
+			);
+
+			return {
+				stages: stageList.map((stage) => {
+					const taskList = sortByDependencies(
+						Array.from(stage.tasks.values()).map((task) => ({
+							...task,
+							key: task.task.key
+						})),
+						(task) => task.before,
+						(task) => task.after
+					);
+
+					return {
+						key: keyToString(stage.key),
+						tasks: taskList.map((task) => keyToString(task.task.key))
+					};
+				})
+			};
 		},
 		createStage(key, options) {
 			const stage = ensureStage(key, {

@@ -31,6 +31,8 @@ export type { FragMaterial, MaterialDefineValue, MaterialDefines } from './core/
 export type { FragkitContext } from './fragkit-context';
 export type {
 	FrameKey,
+	FrameRunTimings,
+	FrameScheduleSnapshot,
 	FrameStage,
 	FrameTask,
 	UseFrameOptions,

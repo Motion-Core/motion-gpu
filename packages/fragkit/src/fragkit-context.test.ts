@@ -41,5 +41,9 @@ describe('useFragkit', () => {
 		const createdStage = context.scheduler.createStage('post');
 		expect(createdStage.key).toBe('post');
 		expect(context.scheduler.getStage('post')?.key).toBe('post');
+
+		context.scheduler.setDiagnosticsEnabled(true);
+		expect(context.scheduler.getDiagnosticsEnabled()).toBe(true);
+		expect(context.scheduler.getSchedule().stages.length).toBeGreaterThan(0);
 	});
 });

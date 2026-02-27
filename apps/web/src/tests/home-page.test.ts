@@ -7,6 +7,6 @@ describe('home page', () => {
 		const { getByTestId, getByText } = render(Page);
 
 		expect(getByTestId('fragkit-demo')).toBeTruthy();
-		expect(getByText('FragKit Demo')).toBeTruthy();
+		expect(getByText('FragKit')).toBeTruthy();
 	});
 });

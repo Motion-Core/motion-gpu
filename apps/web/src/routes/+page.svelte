@@ -1,26 +1,42 @@
 <script lang="ts">
 	import { FragCanvas, createMaterial } from 'fragkit';
-	import TextureBlendController from '$lib/TextureBlendController.svelte';
 
 	const material = createMaterial({
 		fragment: `
 fn frag(uv: vec2f) -> vec4f {
-	let colorA = textureSample(uTextureA, uTextureASampler, uv);
-	let colorB = textureSample(uTextureB, uTextureBSampler, uv);
-	let mixFactor = clamp(fragkitUniforms.uMix, 0.0, 1.0);
-	return mix(colorA, colorB, mixFactor);
+	let r = fragkitFrame.resolution;
+	let p = vec2f(uv.x * r.x + 0.5, uv.y * r.y + 0.5);
+
+	var h = vec3f(0.0);
+	var c = vec3f(1.0);
+	var A = 0.0;
+	var l = 0.0;
+	var a = 0.0;
+
+	for (var i = 0.6; i > 0.1; i -= 0.1) {
+		a = (fragkitFrame.time + i) * 4.0;
+		a -= sin(a);
+		a -= sin(a);
+
+		let t = cos(a / 4.0 + vec2f(0.0, 11.0));
+		let R = mat2x2f(vec2f(t.x, t.y), vec2f(-t.y, t.x));
+
+		var u = (p * 2.0 - r) / r.y;
+		let ur = transpose(R) * u;
+		u -= R * clamp(ur, -vec2f(i), vec2f(i));
+
+		l = max(length(u), 0.1);
+		A = min((l - 0.1) * r.y / 5.0, 1.0);
+		h = sin(i * 10.0 + a / 3.0 + vec3f(1.0, 3.0, 5.0)) / 5.0 + 0.8;
+		c = mix(h, c, A) * mix(vec3f(1.0), h + A * u.y / l / 2.0, 0.1 / l);
+	}
+
+	return vec4f(tanh(c * c), 1.0);
 }
 `,
-		uniforms: {
-			uMix: 0
-		},
-		textures: {
-			uTextureA: { colorSpace: 'srgb', filter: 'linear' },
-			uTextureB: { colorSpace: 'srgb', filter: 'linear' }
-		}
+		uniforms: {}
 	});
 
-	const demoImages = ['/textures/image-1.jpg', '/textures/image-2.jpg'];
 	const demoDpr = 2;
 </script>
 
@@ -29,15 +45,15 @@ fn frag(uv: vec2f) -> vec4f {
 	class=" flex h-dvh w-screen flex-col items-center justify-center gap-4 bg-white p-8"
 >
 	<header class="grid gap-2 text-center">
-		<h1 class="text-4xl leading-none font-light tracking-tight text-black">FragKit Demo</h1>
-		<p class="text-sm text-black/80">WGSL texture crossfade driven by useTexture + useFrame.</p>
+		<h1 class="text-4xl leading-none tracking-tight text-black">FragKit</h1>
+		<p class="text-sm text-black/80">
+			Lightweight WebGPU framework for writing raw WGSL shaders in Svelte with a minimal API.
+		</p>
 	</header>
 
 	<div
 		class="aspect-16/10 w-[64vw] overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg"
 	>
-		<FragCanvas {material} dpr={demoDpr} class="h-full w-full">
-			<TextureBlendController urls={demoImages} />
-		</FragCanvas>
+		<FragCanvas {material} dpr={demoDpr} class="h-full w-full" />
 	</div>
 </main>

@@ -334,6 +334,35 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	}
 
 	const device = await adapter.requestDevice();
+	let isDestroyed = false;
+	let deviceLostMessage: string | null = null;
+	let uncapturedErrorMessage: string | null = null;
+
+	void device.lost.then((info) => {
+		if (isDestroyed) {
+			return;
+		}
+
+		const reason = info.reason ? ` (${info.reason})` : '';
+		const details = info.message?.trim();
+		deviceLostMessage = details
+			? `WebGPU device lost: ${details}${reason}`
+			: `WebGPU device lost${reason}`;
+	});
+
+	const handleUncapturedError = (event: GPUUncapturedErrorEvent): void => {
+		if (isDestroyed) {
+			return;
+		}
+
+		const message =
+			event.error instanceof Error
+				? event.error.message
+				: String((event.error as { message?: string })?.message ?? event.error);
+		uncapturedErrorMessage = `WebGPU uncaptured error: ${message}`;
+	};
+
+	device.addEventListener('uncapturederror', handleUncapturedError);
 	const context = options.canvas.getContext('webgpu') as GPUCanvasContext | null;
 	if (!context) {
 		throw new Error('Canvas does not support webgpu context');
@@ -663,6 +692,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	};
 
 	const render: Renderer['render'] = ({ time, delta, uniforms, textures }) => {
+		if (deviceLostMessage) {
+			throw new Error(deviceLostMessage);
+		}
+
+		if (uncapturedErrorMessage) {
+			const message = uncapturedErrorMessage;
+			uncapturedErrorMessage = null;
+			throw new Error(message);
+		}
+
 		const { width, height } = resizeCanvas(options.canvas, options.getDpr());
 
 		context.configure({
@@ -783,6 +822,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	return {
 		render,
 		destroy: () => {
+			isDestroyed = true;
+			device.removeEventListener('uncapturederror', handleUncapturedError);
 			frameBuffer.destroy();
 			uniformBuffer.destroy();
 			destroyRenderTexture(sceneTarget);

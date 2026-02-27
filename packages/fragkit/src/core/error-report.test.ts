@@ -32,6 +32,26 @@ describe('error report', () => {
 		]);
 	});
 
+	it('classifies device lost errors', () => {
+		const report = toFragkitErrorReport(
+			new Error('WebGPU device lost: The device was lost (unknown)'),
+			'render'
+		);
+
+		expect(report.title).toBe('WebGPU device lost');
+		expect(report.hint).toContain('Recreate the renderer');
+	});
+
+	it('classifies uncaptured GPU errors', () => {
+		const report = toFragkitErrorReport(
+			new Error('WebGPU uncaptured error: validation failed'),
+			'render'
+		);
+
+		expect(report.title).toBe('WebGPU uncaptured error');
+		expect(report.hint).toContain('GPU command failed asynchronously');
+	});
+
 	it('handles unknown non-error values', () => {
 		const report = toFragkitErrorReport({ broken: true }, 'render');
 		expect(report.title).toBe('Fragkit render error');

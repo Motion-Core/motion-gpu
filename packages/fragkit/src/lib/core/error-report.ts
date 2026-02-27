@@ -46,6 +46,20 @@ function classifyErrorMessage(message: string): Pick<FragkitErrorReport, 'title'
 		};
 	}
 
+	if (message.includes('WebGPU device lost') || message.includes('Device Lost')) {
+		return {
+			title: 'WebGPU device lost',
+			hint: 'GPU device/context was lost. Recreate the renderer and check OS/GPU stability.'
+		};
+	}
+
+	if (message.includes('WebGPU uncaptured error')) {
+		return {
+			title: 'WebGPU uncaptured error',
+			hint: 'A GPU command failed asynchronously. Review details and validate resource/state usage.'
+		};
+	}
+
 	if (message.includes('CreateBindGroup') || message.includes('bind group layout')) {
 		return {
 			title: 'Bind group mismatch',

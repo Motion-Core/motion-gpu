@@ -1,0 +1,23 @@
+<script lang="ts">
+	import FragCanvas from '../../lib/FragCanvas.svelte';
+	import { defineMaterial } from '../../lib/core/material';
+	import MotionGPUUserProbe from './MotionGPUUserProbe.svelte';
+
+	interface Props {
+		onProbe: (value: unknown) => void;
+	}
+
+	let { onProbe }: Props = $props();
+
+	const material = defineMaterial({
+		fragment: `
+fn frag(uv: vec2f) -> vec4f {
+	return vec4f(uv.x, uv.y, 0.35, 1.0);
+}
+`
+	});
+</script>
+
+<FragCanvas {material}>
+	<MotionGPUUserProbe {onProbe} />
+</FragCanvas>

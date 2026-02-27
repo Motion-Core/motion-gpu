@@ -1,0 +1,438 @@
+import { normalizeTextureDefinition } from './textures';
+import {
+	assertUniformName,
+	assertUniformValueForType,
+	inferUniformType,
+	resolveUniformLayout
+} from './uniforms';
+import {
+	normalizeDefines,
+	normalizeIncludes,
+	preprocessMaterialFragment,
+	toDefineLine,
+	type MaterialLineMap,
+	type PreprocessedMaterialFragment
+} from './material-preprocess';
+import type {
+	TextureData,
+	TextureDefinition,
+	TextureDefinitionMap,
+	TextureValue,
+	TypedUniform,
+	UniformMap,
+	UniformValue
+} from './types';
+
+/**
+ * Typed compile-time define declaration.
+ */
+export interface TypedMaterialDefineValue {
+	/**
+	 * WGSL scalar type.
+	 */
+	type: 'bool' | 'f32' | 'i32' | 'u32';
+	/**
+	 * Literal value for the selected WGSL type.
+	 */
+	value: boolean | number;
+}
+
+/**
+ * Allowed value types for WGSL `const` define injection.
+ */
+export type MaterialDefineValue = boolean | number | TypedMaterialDefineValue;
+
+/**
+ * Define map keyed by uniform-compatible identifier names.
+ */
+export type MaterialDefines = Record<string, MaterialDefineValue>;
+
+/**
+ * Include map keyed by include identifier used in `#include <name>` directives.
+ */
+export type MaterialIncludes = Record<string, string>;
+
+/**
+ * External material input accepted by {@link defineMaterial}.
+ */
+export interface FragMaterialInput {
+	/**
+	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
+	 */
+	fragment: string;
+	/**
+	 * Initial uniform values.
+	 */
+	uniforms?: UniformMap;
+	/**
+	 * Texture definitions keyed by texture uniform name.
+	 */
+	textures?: TextureDefinitionMap;
+	/**
+	 * Optional compile-time define constants injected into WGSL.
+	 */
+	defines?: MaterialDefines;
+	/**
+	 * Optional WGSL include chunks used by `#include <name>` directives.
+	 */
+	includes?: MaterialIncludes;
+}
+
+/**
+ * Normalized and immutable material declaration consumed by `FragCanvas`.
+ */
+export interface FragMaterial {
+	/**
+	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
+	 */
+	readonly fragment: string;
+	/**
+	 * Initial uniform values.
+	 */
+	readonly uniforms: Readonly<UniformMap>;
+	/**
+	 * Texture definitions keyed by texture uniform name.
+	 */
+	readonly textures: Readonly<TextureDefinitionMap>;
+	/**
+	 * Optional compile-time define constants injected into WGSL.
+	 */
+	readonly defines: Readonly<MaterialDefines>;
+	/**
+	 * Optional WGSL include chunks used by `#include <name>` directives.
+	 */
+	readonly includes: Readonly<MaterialIncludes>;
+}
+
+/**
+ * Fully resolved, immutable material snapshot used for renderer creation/caching.
+ */
+export interface ResolvedMaterial {
+	/**
+	 * Final fragment WGSL after define injection.
+	 */
+	fragmentWgsl: string;
+	/**
+	 * 1-based map from generated fragment lines to user source lines.
+	 */
+	fragmentLineMap: MaterialLineMap;
+	/**
+	 * Cloned uniforms.
+	 */
+	uniforms: UniformMap;
+	/**
+	 * Cloned texture definitions.
+	 */
+	textures: TextureDefinitionMap;
+	/**
+	 * Resolved packed uniform layout.
+	 */
+	uniformLayout: ReturnType<typeof resolveUniformLayout>;
+	/**
+	 * Sorted texture keys.
+	 */
+	textureKeys: string[];
+	/**
+	 * Deterministic JSON signature for cache invalidation.
+	 */
+	signature: string;
+}
+
+/**
+ * Strict fragment contract used by MotionGPU.
+ */
+const FRAGMENT_CONTRACT_PATTERN = /\bfn\s+frag\s*\(\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/;
+
+/**
+ * Cache of resolved material snapshots keyed by immutable material instance.
+ */
+const resolvedMaterialCache = new WeakMap<FragMaterial, ResolvedMaterial>();
+const preprocessedFragmentCache = new WeakMap<FragMaterial, PreprocessedMaterialFragment>();
+
+/**
+ * Asserts that material has been normalized by {@link defineMaterial}.
+ */
+function assertDefinedMaterial(material: FragMaterial): void {
+	if (
+		!Object.isFrozen(material) ||
+		!material.uniforms ||
+		!material.textures ||
+		!material.defines ||
+		!material.includes
+	) {
+		throw new Error(
+			'Invalid material instance. Create materials with defineMaterial(...) before passing them to <FragCanvas>.'
+		);
+	}
+}
+
+/**
+ * Clones uniform value input to decouple material instances from external objects.
+ */
+function cloneUniformValue(value: UniformValue): UniformValue {
+	if (typeof value === 'number') {
+		return value;
+	}
+
+	if (Array.isArray(value)) {
+		return Object.freeze([...value]) as UniformValue;
+	}
+
+	if (typeof value === 'object' && value !== null && 'type' in value && 'value' in value) {
+		const typed = value as TypedUniform;
+		const typedValue = typed.value as unknown;
+
+		let clonedTypedValue = typedValue;
+		if (typedValue instanceof Float32Array) {
+			clonedTypedValue = new Float32Array(typedValue);
+		} else if (Array.isArray(typedValue)) {
+			clonedTypedValue = Object.freeze([...typedValue]);
+		}
+
+		return Object.freeze({
+			type: typed.type,
+			value: clonedTypedValue
+		}) as UniformValue;
+	}
+
+	return value;
+}
+
+/**
+ * Clones optional texture value payload.
+ */
+function cloneTextureValue(value: TextureValue | undefined): TextureValue {
+	if (value === undefined || value === null) {
+		return null;
+	}
+
+	if (typeof value === 'object' && 'source' in value) {
+		const data = value as TextureData;
+		return {
+			source: data.source,
+			...(data.width !== undefined ? { width: data.width } : {}),
+			...(data.height !== undefined ? { height: data.height } : {})
+		};
+	}
+
+	return value;
+}
+
+/**
+ * Clones and validates fragment source contract.
+ */
+function resolveFragment(fragment: string): string {
+	if (typeof fragment !== 'string' || fragment.trim().length === 0) {
+		throw new Error('Material fragment shader must be a non-empty WGSL string.');
+	}
+
+	if (!FRAGMENT_CONTRACT_PATTERN.test(fragment)) {
+		throw new Error(
+			'Material fragment must declare `fn frag(uv: vec2f) -> vec4f` for fullscreen rendering.'
+		);
+	}
+
+	return fragment;
+}
+
+/**
+ * Clones and validates uniform declarations.
+ */
+function resolveUniforms(uniforms: UniformMap | undefined): UniformMap {
+	const resolved: UniformMap = {};
+
+	for (const [name, value] of Object.entries(uniforms ?? {})) {
+		assertUniformName(name);
+		const clonedValue = cloneUniformValue(value as UniformValue);
+		const type = inferUniformType(clonedValue);
+		assertUniformValueForType(type, clonedValue);
+		resolved[name] = clonedValue;
+	}
+
+	resolveUniformLayout(resolved);
+	return resolved;
+}
+
+/**
+ * Clones and validates texture declarations.
+ */
+function resolveTextures(textures: TextureDefinitionMap | undefined): TextureDefinitionMap {
+	const resolved: TextureDefinitionMap = {};
+
+	for (const [name, definition] of Object.entries(textures ?? {})) {
+		assertUniformName(name);
+
+		const clonedDefinition: TextureDefinition = {
+			...(definition ?? {}),
+			source: cloneTextureValue(definition?.source)
+		};
+
+		resolved[name] = Object.freeze(clonedDefinition);
+	}
+
+	return resolved;
+}
+
+/**
+ * Clones and validates define declarations.
+ */
+function resolveDefines(defines: MaterialDefines | undefined): MaterialDefines {
+	return normalizeDefines(defines);
+}
+
+/**
+ * Clones and validates include declarations.
+ */
+function resolveIncludes(includes: MaterialIncludes | undefined): MaterialIncludes {
+	return normalizeIncludes(includes);
+}
+
+/**
+ * Builds a deterministic texture-config signature map used in material cache signatures.
+ *
+ * @param textures - Raw texture definitions from material input.
+ * @param textureKeys - Sorted texture keys.
+ * @returns Compact signature entries describing effective texture config per key.
+ */
+function buildTextureConfigSignature(
+	textures: TextureDefinitionMap,
+	textureKeys: string[]
+): Record<string, string> {
+	const signature: Record<string, string> = {};
+
+	for (const key of textureKeys) {
+		const normalized = normalizeTextureDefinition(textures[key]);
+		signature[key] = [
+			normalized.colorSpace,
+			normalized.flipY ? '1' : '0',
+			normalized.generateMipmaps ? '1' : '0',
+			normalized.premultipliedAlpha ? '1' : '0',
+			normalized.anisotropy,
+			normalized.filter,
+			normalized.addressModeU,
+			normalized.addressModeV
+		].join(':');
+	}
+
+	return signature;
+}
+
+/**
+ * Creates a stable WGSL define block from the provided map.
+ *
+ * @param defines - Optional material defines.
+ * @returns Joined WGSL const declarations ordered by key.
+ */
+export function buildDefinesBlock(defines: MaterialDefines | undefined): string {
+	const normalizedDefines = normalizeDefines(defines);
+	if (Object.keys(normalizedDefines).length === 0) {
+		return '';
+	}
+
+	return Object.entries(normalizedDefines)
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([key, value]) => {
+			assertUniformName(key);
+			return toDefineLine(key, value);
+		})
+		.join('\n');
+}
+
+/**
+ * Prepends resolved defines to a fragment shader.
+ *
+ * @param fragment - Raw WGSL fragment source.
+ * @param defines - Optional define map.
+ * @returns Fragment source with a leading define block when defines are present.
+ */
+export function applyMaterialDefines(
+	fragment: string,
+	defines: MaterialDefines | undefined
+): string {
+	const defineBlock = buildDefinesBlock(defines);
+	if (defineBlock.length === 0) {
+		return fragment;
+	}
+
+	return `${defineBlock}\n\n${fragment}`;
+}
+
+/**
+ * Creates an immutable material object with validated shader/uniform/texture contracts.
+ *
+ * @param input - User material declaration.
+ * @returns Frozen material object safe to share and cache.
+ */
+export function defineMaterial(input: FragMaterialInput): FragMaterial {
+	const fragment = resolveFragment(input.fragment);
+	const uniforms = Object.freeze(resolveUniforms(input.uniforms));
+	const textures = Object.freeze(resolveTextures(input.textures));
+	const defines = Object.freeze(resolveDefines(input.defines));
+	const includes = Object.freeze(resolveIncludes(input.includes));
+
+	const preprocessed = preprocessMaterialFragment({
+		fragment,
+		defines: defines as MaterialDefines,
+		includes: includes as MaterialIncludes
+	});
+
+	const material = Object.freeze({
+		fragment,
+		uniforms,
+		textures,
+		defines,
+		includes
+	});
+
+	preprocessedFragmentCache.set(material, preprocessed);
+	return material;
+}
+
+/**
+ * Resolves a material to renderer-ready data and a deterministic signature.
+ *
+ * @param material - Material input created via {@link defineMaterial}.
+ * @returns Resolved material with packed uniform layout, sorted texture keys and cache signature.
+ */
+export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
+	assertDefinedMaterial(material);
+
+	const cached = resolvedMaterialCache.get(material);
+	if (cached) {
+		return cached;
+	}
+
+	const uniforms = material.uniforms as UniformMap;
+	const textures = material.textures as TextureDefinitionMap;
+	const uniformLayout = resolveUniformLayout(uniforms);
+	const textureKeys = Object.keys(textures).sort();
+	const preprocessed =
+		preprocessedFragmentCache.get(material) ??
+		preprocessMaterialFragment({
+			fragment: material.fragment,
+			defines: material.defines as MaterialDefines,
+			includes: material.includes as MaterialIncludes
+		});
+	const fragmentWgsl = preprocessed.fragment;
+	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
+
+	const signature = JSON.stringify({
+		fragmentWgsl,
+		uniforms: uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`),
+		textureKeys,
+		textureConfig
+	});
+
+	const resolved: ResolvedMaterial = {
+		fragmentWgsl,
+		fragmentLineMap: preprocessed.lineMap,
+		uniforms,
+		textures,
+		uniformLayout,
+		textureKeys,
+		signature
+	};
+
+	resolvedMaterialCache.set(material, resolved);
+	return resolved;
+}

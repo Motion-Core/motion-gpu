@@ -1,0 +1,112 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildShaderSource > can inject linear to srgb conversion for output color 1`] = `
+"
+struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	uMix: f32,
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+
+
+fn motiongpuLinearToSrgb(linearColor: vec3f) -> vec3f {
+	let cutoff = vec3f(0.0031308);
+	let lower = linearColor * 12.92;
+	let higher = vec3f(1.055) * pow(linearColor, vec3f(1.0 / 2.4)) - vec3f(0.055);
+	return select(lower, higher, linearColor > cutoff);
+}
+
+
+struct MotionGPUVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: MotionGPUVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+
+@fragment
+fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = motiongpuUniforms.uMix;
+	let motiongpuLinear = vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+	let motiongpuSrgb = motiongpuLinearToSrgb(max(motiongpuLinear.rgb, vec3f(0.0)));
+	return vec4f(motiongpuSrgb, motiongpuLinear.a);
+
+}
+"
+`;
+
+exports[`buildShaderSource > injects user uniforms and frag wrapper 1`] = `
+"
+struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	intensity: vec4f,
+	tint: vec4f,
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+@group(0) @binding(2) var uTexture1Sampler: sampler;
+@group(0) @binding(3) var uTexture1: texture_2d<f32>;
+
+
+struct MotionGPUVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: MotionGPUVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+
+@fragment
+fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = motiongpuUniforms.intensity.x;
+	return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+
+}
+"
+`;

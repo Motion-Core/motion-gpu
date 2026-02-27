@@ -1,25 +1,25 @@
 {
-	"name": "fragkit-monorepo",
+	"name": "motion-gpu-monorepo",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
 	"workspaces": ["apps/*", "packages/*"],
 	"scripts": {
 		"dev": "bun run dev:web",
-		"dev:web": "bun run build:fragkit && bun run --cwd apps/web dev",
-		"build": "bun run build:fragkit && bun run build:web",
+		"dev:web": "bun run build:motion-gpu && bun run --cwd apps/web dev",
+		"build": "bun run build:motion-gpu && bun run build:web",
 		"build:web": "bun run --cwd apps/web build",
-		"build:fragkit": "bun run --cwd packages/fragkit build",
+		"build:motion-gpu": "bun run --cwd packages/motion-gpu build",
 		"preview": "bun run --cwd apps/web preview",
-		"check": "bun run build:fragkit && bun run check:fragkit && bun run check:web",
+		"check": "bun run build:motion-gpu && bun run check:motion-gpu && bun run check:web",
 		"check:web": "bun run --cwd apps/web check",
-		"check:fragkit": "bun run --cwd packages/fragkit check",
-		"test": "bun run build:fragkit && bun run test:fragkit && bun run test:web",
+		"check:motion-gpu": "bun run --cwd packages/motion-gpu check",
+		"test": "bun run build:motion-gpu && bun run test:motion-gpu && bun run test:web",
 		"test:web": "bun run --cwd apps/web test",
-		"test:fragkit": "bun run --cwd packages/fragkit test",
-		"lint": "bun run lint:fragkit && bun run lint:web",
+		"test:motion-gpu": "bun run --cwd packages/motion-gpu test",
+		"lint": "bun run lint:motion-gpu && bun run lint:web",
 		"lint:web": "bun run --cwd apps/web lint",
-		"lint:fragkit": "bun run --cwd packages/fragkit lint",
-		"format": "bun run --cwd apps/web format && bun run --cwd packages/fragkit format"
+		"lint:motion-gpu": "bun run --cwd packages/motion-gpu lint",
+		"format": "bun run --cwd apps/web format && bun run --cwd packages/motion-gpu format"
 	}
 }

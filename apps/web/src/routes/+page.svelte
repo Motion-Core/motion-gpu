@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { FragCanvas, defineMaterial } from 'fragkit';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
 
 	const material = defineMaterial({
 		fragment: `
 fn frag(uv: vec2f) -> vec4f {
-	let r = fragkitFrame.resolution;
+	let r = motiongpuFrame.resolution;
 	let p = vec2f(uv.x * r.x + 0.5, uv.y * r.y + 0.5);
 
 	var h = vec3f(0.0);
@@ -14,7 +14,7 @@ fn frag(uv: vec2f) -> vec4f {
 	var a = 0.0;
 
 	for (var i = 0.6; i > 0.1; i -= 0.1) {
-		a = (fragkitFrame.time + i) * 4.0;
+		a = (motiongpuFrame.time + i) * 4.0;
 		a -= sin(a);
 		a -= sin(a);
 
@@ -41,11 +41,11 @@ fn frag(uv: vec2f) -> vec4f {
 </script>
 
 <main
-	data-testid="fragkit-demo"
+	data-testid="motiongpu-demo"
 	class=" flex h-dvh w-screen flex-col items-center justify-center gap-4 bg-white p-8"
 >
 	<header class="grid gap-2 text-center">
-		<h1 class="text-4xl leading-none tracking-tight text-black">FragKit</h1>
+		<h1 class="text-4xl leading-none tracking-tight text-black">MotionGPU</h1>
 		<p class="text-sm text-black/80">
 			Lightweight WebGPU framework for writing raw WGSL shaders in Svelte with a minimal API.
 		</p>

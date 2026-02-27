@@ -69,4 +69,26 @@ describe('material', () => {
 
 		expect(a.signature).not.toEqual(b.signature);
 	});
+
+	it('changes signature when texture sampler config changes', () => {
+		const baseFragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const a = resolveMaterial(
+			createMaterial({
+				fragment: baseFragment,
+				textures: {
+					uMain: { filter: 'linear', addressModeU: 'clamp-to-edge' }
+				}
+			})
+		);
+		const b = resolveMaterial(
+			createMaterial({
+				fragment: baseFragment,
+				textures: {
+					uMain: { filter: 'nearest', addressModeU: 'repeat' }
+				}
+			})
+		);
+
+		expect(a.signature).not.toEqual(b.signature);
+	});
 });

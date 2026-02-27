@@ -1,4 +1,5 @@
 import type { TextureDefinitionMap, UniformMap } from './types';
+import { normalizeTextureDefinition } from './textures';
 import { assertUniformName, resolveUniformLayout } from './uniforms';
 
 export type MaterialDefineValue = string | number | boolean;
@@ -18,6 +19,29 @@ export interface ResolvedMaterial {
 	uniformLayout: ReturnType<typeof resolveUniformLayout>;
 	textureKeys: string[];
 	signature: string;
+}
+
+function buildTextureConfigSignature(
+	textures: TextureDefinitionMap,
+	textureKeys: string[]
+): Record<string, string> {
+	const signature: Record<string, string> = {};
+
+	for (const key of textureKeys) {
+		const normalized = normalizeTextureDefinition(textures[key]);
+		signature[key] = [
+			normalized.colorSpace,
+			normalized.flipY ? '1' : '0',
+			normalized.generateMipmaps ? '1' : '0',
+			normalized.premultipliedAlpha ? '1' : '0',
+			normalized.anisotropy,
+			normalized.filter,
+			normalized.addressModeU,
+			normalized.addressModeV
+		].join(':');
+	}
+
+	return signature;
 }
 
 function toDefineLine(key: string, value: MaterialDefineValue): string {
@@ -79,11 +103,13 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 	const uniformLayout = resolveUniformLayout(uniforms);
 	const textureKeys = Object.keys(textures).sort();
 	const fragmentWgsl = applyMaterialDefines(base.fragment, base.defines);
+	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
 
 	const signature = JSON.stringify({
 		fragmentWgsl,
 		uniforms: uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`),
-		textureKeys
+		textureKeys,
+		textureConfig
 	});
 
 	return {

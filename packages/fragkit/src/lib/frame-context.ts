@@ -14,6 +14,8 @@ export interface FrameStage {
 	key: FrameKey;
 }
 
+export type FrameStageCallback = (state: FrameState, runTasks: () => void) => void;
+
 export interface UseFrameOptions {
 	autoStart?: boolean;
 	autoInvalidate?: boolean;
@@ -72,11 +74,13 @@ interface InternalStage {
 	started: boolean;
 	before: Set<FrameKey>;
 	after: Set<FrameKey>;
+	callback: FrameStageCallback;
 	tasks: Map<FrameKey, InternalTask>;
 }
 
 const FRAME_CONTEXT_KEY = Symbol('fragkit.frame-context');
 const MAIN_STAGE_KEY = Symbol('fragkit-main-stage');
+const DEFAULT_STAGE_CALLBACK: FrameStageCallback = (_state, runTasks) => runTasks();
 
 function asArray<T>(value: T | T[] | undefined): T[] {
 	if (!value) {
@@ -200,6 +204,7 @@ export interface FrameRegistry {
 		options?: {
 			before?: (FrameKey | FrameStage) | (FrameKey | FrameStage)[];
 			after?: (FrameKey | FrameStage) | (FrameKey | FrameStage)[];
+			callback?: FrameStageCallback;
 		}
 	) => FrameStage;
 	getStage: (key: FrameKey) => FrameStage | undefined;
@@ -234,11 +239,18 @@ export function createFrameRegistry(options?: {
 
 	const ensureStage = (
 		stageReference: FrameKey | FrameStage,
-		stageOptions?: { before?: (FrameKey | FrameStage)[]; after?: (FrameKey | FrameStage)[] }
+		stageOptions?: {
+			before?: (FrameKey | FrameStage)[];
+			after?: (FrameKey | FrameStage)[];
+			callback?: FrameStageCallback;
+		}
 	): InternalStage => {
 		const stageKey = toStageKey(stageReference);
 		const existing = stages.get(stageKey);
 		if (existing) {
+			if (stageOptions?.callback) {
+				existing.callback = stageOptions.callback;
+			}
 			return existing;
 		}
 
@@ -248,6 +260,7 @@ export function createFrameRegistry(options?: {
 			started: true,
 			before: new Set((stageOptions?.before ?? []).map((entry) => toStageKey(entry))),
 			after: new Set((stageOptions?.after ?? []).map((entry) => toStageKey(entry))),
+			callback: stageOptions?.callback ?? DEFAULT_STAGE_CALLBACK,
 			tasks: new Map()
 		};
 		stages.set(stageKey, stage);
@@ -369,20 +382,22 @@ export function createFrameRegistry(options?: {
 					(task) => task.after
 				);
 
-				for (const task of taskList) {
-					if (!resolveEffectiveRunning(task)) {
-						continue;
-					}
-					const taskStart = diagnosticsEnabled ? performance.now() : 0;
+				stage.callback(frameState, () => {
+					for (const task of taskList) {
+						if (!resolveEffectiveRunning(task)) {
+							continue;
+						}
+						const taskStart = diagnosticsEnabled ? performance.now() : 0;
 
-					task.callback(frameState);
-					if (diagnosticsEnabled) {
-						taskTimings[keyToString(task.task.key)] = performance.now() - taskStart;
+						task.callback(frameState);
+						if (diagnosticsEnabled) {
+							taskTimings[keyToString(task.task.key)] = performance.now() - taskStart;
+						}
+						if (task.autoInvalidate) {
+							frameInvalidated = true;
+						}
 					}
-					if (task.autoInvalidate) {
-						frameInvalidated = true;
-					}
-				}
+				});
 
 				if (diagnosticsEnabled) {
 					stageTimings[keyToString(stage.key)] = {
@@ -483,7 +498,8 @@ export function createFrameRegistry(options?: {
 		createStage(key, options) {
 			const stage = ensureStage(key, {
 				before: asArray(options?.before),
-				after: asArray(options?.after)
+				after: asArray(options?.after),
+				callback: options?.callback
 			});
 			return { key: stage.key };
 		},

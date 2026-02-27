@@ -177,4 +177,27 @@ describe('frame registry', () => {
 		expect(registry.getDiagnosticsEnabled()).toBe(false);
 		expect(registry.getLastRunTimings()).toBeNull();
 	});
+
+	it('supports stage callback wrappers for conditional task execution', () => {
+		const registry = createFrameRegistry();
+		let runTasks = false;
+		const stageCallback = vi.fn((_state, execute: () => void) => {
+			if (runTasks) {
+				execute();
+			}
+		});
+		const callback = vi.fn();
+
+		registry.createStage('conditional', { callback: stageCallback });
+		registry.register('conditional-task', callback, { stage: 'conditional' });
+
+		registry.run(createState(registry));
+		expect(stageCallback).toHaveBeenCalledTimes(1);
+		expect(callback).not.toHaveBeenCalled();
+
+		runTasks = true;
+		registry.run(createState(registry));
+		expect(stageCallback).toHaveBeenCalledTimes(2);
+		expect(callback).toHaveBeenCalledTimes(1);
+	});
 });

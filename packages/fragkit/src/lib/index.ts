@@ -33,6 +33,7 @@ export type {
 	FrameKey,
 	FrameRunTimings,
 	FrameScheduleSnapshot,
+	FrameStageCallback,
 	FrameStage,
 	FrameTask,
 	UseFrameOptions,

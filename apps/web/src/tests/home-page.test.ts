@@ -4,9 +4,9 @@ import Page from '../routes/+page.svelte';
 
 describe('home page', () => {
 	it('renders single motiongpu demo shell', () => {
-		const { getByTestId, getByText } = render(Page);
+		const { getByRole, getByTestId } = render(Page);
 
 		expect(getByTestId('motiongpu-demo')).toBeTruthy();
-		expect(getByText('MotionGPU')).toBeTruthy();
+		expect(getByRole('heading', { name: 'MotionGPU Glass Pane Demo' })).toBeTruthy();
 	});
 });

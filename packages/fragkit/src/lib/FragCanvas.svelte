@@ -399,13 +399,13 @@
 		display: grid;
 		place-items: center;
 		padding: 1rem;
-		background: rgba(0, 0, 0, 0.7);
-		backdrop-filter: blur(6px);
+		background: rgba(0, 0, 0, 0.9);
+		backdrop-filter: blur(10px);
 		z-index: 2147483647;
 	}
 
 	.fragkit-error-dialog {
-		width: min(52rem, 100%);
+		width: min(48rem, 100%);
 		max-height: min(80vh, 44rem);
 		overflow: auto;
 		margin: 0;
@@ -415,14 +415,12 @@
 		font-size: 0.84rem;
 		line-height: 1.4;
 		background: rgba(12, 12, 12, 0.97);
-		box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
 		color: #f2f2f2;
 	}
 
 	.fragkit-error-phase {
 		margin: 0;
 		font-size: 0.66rem;
-		letter-spacing: 0.11em;
 		text-transform: uppercase;
 		color: #b8b8b8;
 	}

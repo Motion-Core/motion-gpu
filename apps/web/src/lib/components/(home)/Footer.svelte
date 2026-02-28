@@ -14,8 +14,8 @@
 
 <footer class="w-full">
 	<div class="w-full border-y border-background-muted/90 px-2 py-6 sm:px-6 sm:py-8">
-		<div class="flex w-full items-center justify-between gap-6">
-			<p class="font-fono text-xl tracking-tight">MotionGPU</p>
+		<div class="flex w-full items-center justify-start gap-6">
+			<p class="text-xl tracking-tight">MotionGPU</p>
 			<p class="font-fono text-sm text-foreground-muted">Svelte-first WebGPU Runtime</p>
 		</div>
 	</div>

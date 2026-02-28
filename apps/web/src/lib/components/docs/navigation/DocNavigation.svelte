@@ -12,6 +12,7 @@
 	}
 
 	let { previous = null, next = null }: Props = $props();
+	const nextStartsRight = $derived(!previous && !!next);
 </script>
 
 {#if previous || next}
@@ -21,7 +22,9 @@
 				<DocNavButton label="Previous" {...previous} />
 			{/if}
 			{#if next}
-				<DocNavButton label="Next" align="right" {...next} />
+				<div class={nextStartsRight ? 'sm:col-start-2' : ''}>
+					<DocNavButton label="Next" align="right" {...next} />
+				</div>
 			{/if}
 		</div>
 	</nav>

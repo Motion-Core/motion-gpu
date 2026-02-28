@@ -24,8 +24,6 @@
 	let highlighted = $state<Record<string, ThemedToken[][]>>({});
 	let error = $state<string | null>(null);
 	let isReady = $state(false);
-	let isPaused = $state(false);
-	let prefersReducedMotion = $state(false);
 
 	let rafId: number | null = null;
 	let lastTs = 0;
@@ -140,9 +138,7 @@
 		}
 		lastTs = ts;
 
-		if (!isPaused && !prefersReducedMotion) {
-			rafId = requestAnimationFrame(animate);
-		}
+		rafId = requestAnimationFrame(animate);
 	}
 
 	function startAnimation() {
@@ -158,48 +154,20 @@
 		lastTs = 0;
 	}
 
-	function toggleAutoCycle() {
-		isPaused = !isPaused;
-	}
-
 	onMount(() => {
 		void loadHighlightedTokens();
-
-		const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-		const syncMotionPreference = () => {
-			prefersReducedMotion = mediaQuery.matches;
-			if (prefersReducedMotion) {
-				isPaused = true;
-			}
-		};
-
-		syncMotionPreference();
-		mediaQuery.addEventListener('change', syncMotionPreference);
-
-		if (!prefersReducedMotion && !isPaused) {
-			startAnimation();
-		}
+		startAnimation();
 
 		return () => {
 			stopAnimation();
-			mediaQuery.removeEventListener('change', syncMotionPreference);
 		};
-	});
-
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		if (prefersReducedMotion || isPaused) {
-			stopAnimation();
-			return;
-		}
-		startAnimation();
 	});
 </script>
 
 <div class="grid w-full text-background" role="region" aria-label="Code preview">
-	<div class="grid grid-cols-[1fr_auto] items-center gap-2">
+	<div class="grid items-center gap-2">
 		<div
-			class="relative grid grid-cols-2 items-center overflow-hidden"
+			class="relative grid w-full grid-cols-2 items-center overflow-hidden"
 			role="tablist"
 			aria-label="Preview files"
 		>
@@ -228,22 +196,6 @@
 				</Button>
 			{/each}
 		</div>
-		<Button
-			type="button"
-			variant="ghost"
-			class="w-16"
-			size="sm"
-			onclick={toggleAutoCycle}
-			disabled={prefersReducedMotion}
-			aria-pressed={isPaused}
-			aria-label={prefersReducedMotion
-				? 'Automatic tab switching is disabled because reduced motion is enabled'
-				: isPaused
-					? 'Resume automatic tab switching'
-					: 'Pause automatic tab switching'}
-		>
-			{prefersReducedMotion ? 'Paused' : isPaused ? 'Resume' : 'Pause'}
-		</Button>
 	</div>
 
 	<div class="grid gap-3 bg-background p-4">
@@ -286,24 +238,24 @@
 									<div
 										class="[grid-area:code]"
 										in:fly={{
-											x: prefersReducedMotion ? 0 : 20,
-											duration: prefersReducedMotion ? 0 : 360,
+											x: 20,
+											duration: 360,
 											easing: cubicOut
 										}}
 										out:fly={{
-											x: prefersReducedMotion ? 0 : -20,
-											duration: prefersReducedMotion ? 0 : 360,
+											x: -20,
+											duration: 360,
 											easing: cubicOut
 										}}
 									>
 										<div
 											in:blur={{
-												amount: prefersReducedMotion ? 0 : 8,
-												duration: prefersReducedMotion ? 0 : 300
+												amount: 8,
+												duration: 300
 											}}
 											out:blur={{
-												amount: prefersReducedMotion ? 0 : 8,
-												duration: prefersReducedMotion ? 0 : 300
+												amount: 8,
+												duration: 300
 											}}
 										>
 											{#if activeLines.length > 0}

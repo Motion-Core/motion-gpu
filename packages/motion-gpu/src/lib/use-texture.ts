@@ -161,12 +161,12 @@ export function useTexture(
 			if (!disposed && version === requestVersion) {
 				loading.set(false);
 			}
-				if (activeController === controller) {
-					activeController = null;
-				}
-				mergedSignal.dispose();
+			if (activeController === controller) {
+				activeController = null;
 			}
-		};
+			mergedSignal.dispose();
+		}
+	};
 
 	const runLoadLoop = async (): Promise<void> => {
 		do {

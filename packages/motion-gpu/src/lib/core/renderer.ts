@@ -525,573 +525,573 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			return runtimeBinding;
 		});
 
-	const bindGroupLayout = device.createBindGroupLayout({
-		entries: createBindGroupLayoutEntries(textureBindings)
-	});
-	const pipelineLayout = device.createPipelineLayout({
-		bindGroupLayouts: [bindGroupLayout]
-	});
-
-	const pipeline = device.createRenderPipeline({
-		layout: pipelineLayout,
-		vertex: {
-			module: shaderModule,
-			entryPoint: 'motiongpuVertex'
-		},
-		fragment: {
-			module: shaderModule,
-			entryPoint: 'motiongpuFragment',
-			targets: [{ format }]
-		},
-		primitive: {
-			topology: 'triangle-list'
-		}
-	});
-
-	const blitShaderModule = device.createShaderModule({ code: createFullscreenBlitShader() });
-	await assertCompilation(blitShaderModule);
-
-	const blitBindGroupLayout = device.createBindGroupLayout({
-		entries: [
-			{ binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-			{
-				binding: 1,
-				visibility: GPUShaderStage.FRAGMENT,
-				texture: { sampleType: 'float', viewDimension: '2d', multisampled: false }
-			}
-		]
-	});
-	const blitPipelineLayout = device.createPipelineLayout({
-		bindGroupLayouts: [blitBindGroupLayout]
-	});
-	const blitPipeline = device.createRenderPipeline({
-		layout: blitPipelineLayout,
-		vertex: { module: blitShaderModule, entryPoint: 'motiongpuBlitVertex' },
-		fragment: {
-			module: blitShaderModule,
-			entryPoint: 'motiongpuBlitFragment',
-			targets: [{ format }]
-		},
-		primitive: {
-			topology: 'triangle-list'
-		}
-	});
-	const blitSampler = device.createSampler({
-		magFilter: 'linear',
-		minFilter: 'linear',
-		addressModeU: 'clamp-to-edge',
-		addressModeV: 'clamp-to-edge'
-	});
-
-	const frameBuffer = device.createBuffer({
-		size: 16,
-		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-	});
-
-	const uniformBuffer = device.createBuffer({
-		size: options.uniformLayout.byteLength,
-		usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-	});
-	const uniformScratch = new Float32Array(options.uniformLayout.byteLength / 4);
-	const uniformPrevious = new Float32Array(options.uniformLayout.byteLength / 4);
-	let hasUniformSnapshot = false;
-
-	/**
-	 * Rebuilds bind group using current texture views.
-	 */
-	const createBindGroup = (): GPUBindGroup => {
-		const entries: GPUBindGroupEntry[] = [
-			{ binding: FRAME_BINDING, resource: { buffer: frameBuffer } },
-			{ binding: UNIFORM_BINDING, resource: { buffer: uniformBuffer } }
-		];
-
-		for (const binding of textureBindings) {
-			entries.push({
-				binding: binding.samplerBinding,
-				resource: binding.sampler
-			});
-			entries.push({
-				binding: binding.textureBinding,
-				resource: binding.view
-			});
-		}
-
-		return device.createBindGroup({
-			layout: bindGroupLayout,
-			entries
+		const bindGroupLayout = device.createBindGroupLayout({
+			entries: createBindGroupLayoutEntries(textureBindings)
 		});
-	};
+		const pipelineLayout = device.createPipelineLayout({
+			bindGroupLayouts: [bindGroupLayout]
+		});
 
-	/**
-	 * Synchronizes one runtime texture binding with incoming texture value.
-	 *
-	 * @returns `true` when bind group must be rebuilt.
-	 */
-	const updateTextureBinding = (
-		binding: RuntimeTextureBinding,
-		value: TextureValue,
-		renderMode: RenderMode
-	): boolean => {
-		const nextData = toTextureData(value);
+		const pipeline = device.createRenderPipeline({
+			layout: pipelineLayout,
+			vertex: {
+				module: shaderModule,
+				entryPoint: 'motiongpuVertex'
+			},
+			fragment: {
+				module: shaderModule,
+				entryPoint: 'motiongpuFragment',
+				targets: [{ format }]
+			},
+			primitive: {
+				topology: 'triangle-list'
+			}
+		});
 
-		if (!nextData) {
-			if (binding.source === null && binding.texture === null) {
+		const blitShaderModule = device.createShaderModule({ code: createFullscreenBlitShader() });
+		await assertCompilation(blitShaderModule);
+
+		const blitBindGroupLayout = device.createBindGroupLayout({
+			entries: [
+				{ binding: 0, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
+				{
+					binding: 1,
+					visibility: GPUShaderStage.FRAGMENT,
+					texture: { sampleType: 'float', viewDimension: '2d', multisampled: false }
+				}
+			]
+		});
+		const blitPipelineLayout = device.createPipelineLayout({
+			bindGroupLayouts: [blitBindGroupLayout]
+		});
+		const blitPipeline = device.createRenderPipeline({
+			layout: blitPipelineLayout,
+			vertex: { module: blitShaderModule, entryPoint: 'motiongpuBlitVertex' },
+			fragment: {
+				module: blitShaderModule,
+				entryPoint: 'motiongpuBlitFragment',
+				targets: [{ format }]
+			},
+			primitive: {
+				topology: 'triangle-list'
+			}
+		});
+		const blitSampler = device.createSampler({
+			magFilter: 'linear',
+			minFilter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge'
+		});
+
+		const frameBuffer = device.createBuffer({
+			size: 16,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+		});
+
+		const uniformBuffer = device.createBuffer({
+			size: options.uniformLayout.byteLength,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+		});
+		const uniformScratch = new Float32Array(options.uniformLayout.byteLength / 4);
+		const uniformPrevious = new Float32Array(options.uniformLayout.byteLength / 4);
+		let hasUniformSnapshot = false;
+
+		/**
+		 * Rebuilds bind group using current texture views.
+		 */
+		const createBindGroup = (): GPUBindGroup => {
+			const entries: GPUBindGroupEntry[] = [
+				{ binding: FRAME_BINDING, resource: { buffer: frameBuffer } },
+				{ binding: UNIFORM_BINDING, resource: { buffer: uniformBuffer } }
+			];
+
+			for (const binding of textureBindings) {
+				entries.push({
+					binding: binding.samplerBinding,
+					resource: binding.sampler
+				});
+				entries.push({
+					binding: binding.textureBinding,
+					resource: binding.view
+				});
+			}
+
+			return device.createBindGroup({
+				layout: bindGroupLayout,
+				entries
+			});
+		};
+
+		/**
+		 * Synchronizes one runtime texture binding with incoming texture value.
+		 *
+		 * @returns `true` when bind group must be rebuilt.
+		 */
+		const updateTextureBinding = (
+			binding: RuntimeTextureBinding,
+			value: TextureValue,
+			renderMode: RenderMode
+		): boolean => {
+			const nextData = toTextureData(value);
+
+			if (!nextData) {
+				if (binding.source === null && binding.texture === null) {
+					return false;
+				}
+
+				binding.texture?.destroy();
+				binding.texture = null;
+				binding.view = binding.fallbackView;
+				binding.source = null;
+				binding.width = undefined;
+				binding.height = undefined;
+				binding.lastToken = null;
+				return true;
+			}
+
+			const source = nextData.source;
+			const colorSpace = nextData.colorSpace ?? binding.defaultColorSpace;
+			const format = colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
+			const flipY = nextData.flipY ?? binding.defaultFlipY;
+			const premultipliedAlpha = nextData.premultipliedAlpha ?? binding.defaultPremultipliedAlpha;
+			const generateMipmaps = nextData.generateMipmaps ?? binding.defaultGenerateMipmaps;
+			const update = resolveTextureUpdateMode({
+				source,
+				...(nextData.update !== undefined ? { override: nextData.update } : {}),
+				...(binding.defaultUpdate !== undefined ? { defaultMode: binding.defaultUpdate } : {})
+			});
+			const { width, height } = resolveTextureSize(nextData);
+			const mipLevelCount = generateMipmaps ? getTextureMipLevelCount(width, height) : 1;
+			const sourceChanged = binding.source !== source;
+			const tokenChanged = binding.lastToken !== value;
+			const requiresReallocation =
+				binding.texture === null ||
+				sourceChanged ||
+				binding.width !== width ||
+				binding.height !== height ||
+				binding.mipLevelCount !== mipLevelCount ||
+				binding.format !== format;
+
+			if (!requiresReallocation) {
+				const shouldUpload =
+					update === 'perFrame' ||
+					(update === 'onInvalidate' && (renderMode !== 'always' || tokenChanged));
+
+				if (shouldUpload && binding.texture) {
+					binding.flipY = flipY;
+					binding.generateMipmaps = generateMipmaps;
+					binding.premultipliedAlpha = premultipliedAlpha;
+					binding.colorSpace = colorSpace;
+					uploadTexture(device, binding.texture, binding, source, width, height, mipLevelCount);
+				}
+
+				binding.update = update;
+				binding.lastToken = value;
 				return false;
 			}
 
+			const texture = device.createTexture({
+				size: { width, height, depthOrArrayLayers: 1 },
+				format,
+				mipLevelCount,
+				usage:
+					GPUTextureUsage.TEXTURE_BINDING |
+					GPUTextureUsage.COPY_DST |
+					GPUTextureUsage.RENDER_ATTACHMENT
+			});
+
+			binding.flipY = flipY;
+			binding.generateMipmaps = generateMipmaps;
+			binding.premultipliedAlpha = premultipliedAlpha;
+			binding.colorSpace = colorSpace;
+			binding.format = format;
+			uploadTexture(device, texture, binding, source, width, height, mipLevelCount);
+
 			binding.texture?.destroy();
-			binding.texture = null;
-			binding.view = binding.fallbackView;
-			binding.source = null;
-			binding.width = undefined;
-			binding.height = undefined;
-			binding.lastToken = null;
-			return true;
-		}
-
-		const source = nextData.source;
-		const colorSpace = nextData.colorSpace ?? binding.defaultColorSpace;
-		const format = colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
-		const flipY = nextData.flipY ?? binding.defaultFlipY;
-		const premultipliedAlpha = nextData.premultipliedAlpha ?? binding.defaultPremultipliedAlpha;
-		const generateMipmaps = nextData.generateMipmaps ?? binding.defaultGenerateMipmaps;
-		const update = resolveTextureUpdateMode({
-			source,
-			...(nextData.update !== undefined ? { override: nextData.update } : {}),
-			...(binding.defaultUpdate !== undefined ? { defaultMode: binding.defaultUpdate } : {})
-		});
-		const { width, height } = resolveTextureSize(nextData);
-		const mipLevelCount = generateMipmaps ? getTextureMipLevelCount(width, height) : 1;
-		const sourceChanged = binding.source !== source;
-		const tokenChanged = binding.lastToken !== value;
-		const requiresReallocation =
-			binding.texture === null ||
-			sourceChanged ||
-			binding.width !== width ||
-			binding.height !== height ||
-			binding.mipLevelCount !== mipLevelCount ||
-			binding.format !== format;
-
-		if (!requiresReallocation) {
-			const shouldUpload =
-				update === 'perFrame' ||
-				(update === 'onInvalidate' && (renderMode !== 'always' || tokenChanged));
-
-			if (shouldUpload && binding.texture) {
-				binding.flipY = flipY;
-				binding.generateMipmaps = generateMipmaps;
-				binding.premultipliedAlpha = premultipliedAlpha;
-				binding.colorSpace = colorSpace;
-				uploadTexture(device, binding.texture, binding, source, width, height, mipLevelCount);
-			}
-
+			binding.texture = texture;
+			binding.view = texture.createView();
+			binding.source = source;
+			binding.width = width;
+			binding.height = height;
+			binding.mipLevelCount = mipLevelCount;
 			binding.update = update;
 			binding.lastToken = value;
-			return false;
+			return true;
+		};
+
+		for (const binding of textureBindings) {
+			const defaultSource = normalizedTextureDefinitions[binding.key]?.source ?? null;
+			updateTextureBinding(binding, defaultSource, 'always');
 		}
 
-		const texture = device.createTexture({
-			size: { width, height, depthOrArrayLayers: 1 },
-			format,
-			mipLevelCount,
-			usage:
-				GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT
-		});
+		let bindGroup = createBindGroup();
+		let sourceSlotTarget: RuntimeRenderTarget | null = null;
+		let targetSlotTarget: RuntimeRenderTarget | null = null;
+		let renderTargetSignature = '';
+		let contextConfigured = false;
+		let configuredWidth = 0;
+		let configuredHeight = 0;
+		const runtimeRenderTargets = new Map<string, RuntimeRenderTarget>();
+		let activePasses: RenderPass[] = [];
+		let passWidth = 0;
+		let passHeight = 0;
 
-		binding.flipY = flipY;
-		binding.generateMipmaps = generateMipmaps;
-		binding.premultipliedAlpha = premultipliedAlpha;
-		binding.colorSpace = colorSpace;
-		binding.format = format;
-		uploadTexture(device, texture, binding, source, width, height, mipLevelCount);
+		/**
+		 * Resolves active render pass list for current frame.
+		 */
+		const resolvePasses = (): RenderPass[] => {
+			return options.getPasses?.() ?? options.passes ?? [];
+		};
 
-		binding.texture?.destroy();
-		binding.texture = texture;
-		binding.view = texture.createView();
-		binding.source = source;
-		binding.width = width;
-		binding.height = height;
-		binding.mipLevelCount = mipLevelCount;
-		binding.update = update;
-		binding.lastToken = value;
-		return true;
-	};
+		/**
+		 * Resolves active render target declarations for current frame.
+		 */
+		const resolveRenderTargets = () => {
+			return options.getRenderTargets?.() ?? options.renderTargets;
+		};
 
-	for (const binding of textureBindings) {
-		const defaultSource = normalizedTextureDefinitions[binding.key]?.source ?? null;
-		updateTextureBinding(binding, defaultSource, 'always');
-	}
+		/**
+		 * Synchronizes pass lifecycle callbacks and resize notifications.
+		 */
+		const syncPassLifecycle = (passes: RenderPass[], width: number, height: number): void => {
+			const uniquePasses = Array.from(new Set(passes));
+			const previousSet = new Set(activePasses);
+			const nextSet = new Set(uniquePasses);
+			const resized = passWidth !== width || passHeight !== height;
 
-	let bindGroup = createBindGroup();
-	let sourceSlotTarget: RuntimeRenderTarget | null = null;
-	let targetSlotTarget: RuntimeRenderTarget | null = null;
-	let renderTargetSignature = '';
-	let contextConfigured = false;
-	let configuredWidth = 0;
-	let configuredHeight = 0;
-	const runtimeRenderTargets = new Map<string, RuntimeRenderTarget>();
-	let activePasses: RenderPass[] = [];
-	let passWidth = 0;
-	let passHeight = 0;
-
-	/**
-	 * Resolves active render pass list for current frame.
-	 */
-	const resolvePasses = (): RenderPass[] => {
-		return options.getPasses?.() ?? options.passes ?? [];
-	};
-
-	/**
-	 * Resolves active render target declarations for current frame.
-	 */
-	const resolveRenderTargets = () => {
-		return options.getRenderTargets?.() ?? options.renderTargets;
-	};
-
-	/**
-	 * Synchronizes pass lifecycle callbacks and resize notifications.
-	 */
-	const syncPassLifecycle = (passes: RenderPass[], width: number, height: number): void => {
-		const uniquePasses = Array.from(new Set(passes));
-		const previousSet = new Set(activePasses);
-		const nextSet = new Set(uniquePasses);
-		const resized = passWidth !== width || passHeight !== height;
-
-		for (const pass of activePasses) {
-			if (!nextSet.has(pass)) {
-				pass.dispose?.();
-			}
-		}
-
-		for (const pass of uniquePasses) {
-			if (resized || !previousSet.has(pass)) {
-				pass.setSize?.(width, height);
-			}
-		}
-
-		activePasses = uniquePasses;
-		passWidth = width;
-		passHeight = height;
-	};
-
-	/**
-	 * Ensures internal ping-pong slot texture matches current canvas size/format.
-	 */
-	const ensureSlotTarget = (
-		slot: RenderPassInputSlot,
-		width: number,
-		height: number
-	): RuntimeRenderTarget => {
-		const current = slot === 'source' ? sourceSlotTarget : targetSlotTarget;
-		if (
-			current &&
-			current.width === width &&
-			current.height === height &&
-			current.format === format
-		) {
-			return current;
-		}
-
-		destroyRenderTexture(current);
-		const next = createRenderTexture(device, width, height, format);
-		if (slot === 'source') {
-			sourceSlotTarget = next;
-		} else {
-			targetSlotTarget = next;
-		}
-
-		return next;
-	};
-
-	/**
-	 * Creates/updates runtime render targets and returns immutable pass snapshot.
-	 */
-	const syncRenderTargets = (
-		canvasWidth: number,
-		canvasHeight: number
-	): Readonly<Record<string, RenderTarget>> => {
-		const resolvedDefinitions = resolveRenderTargetDefinitions(
-			resolveRenderTargets(),
-			canvasWidth,
-			canvasHeight,
-			format
-		);
-		const nextSignature = buildRenderTargetSignature(resolvedDefinitions);
-
-		if (nextSignature !== renderTargetSignature) {
-			const activeKeys = new Set(resolvedDefinitions.map((definition) => definition.key));
-
-			for (const [key, target] of runtimeRenderTargets.entries()) {
-				if (!activeKeys.has(key)) {
-					target.texture.destroy();
-					runtimeRenderTargets.delete(key);
+			for (const pass of activePasses) {
+				if (!nextSet.has(pass)) {
+					pass.dispose?.();
 				}
 			}
 
-			for (const definition of resolvedDefinitions) {
-				const current = runtimeRenderTargets.get(definition.key);
-				if (
-					current &&
-					current.width === definition.width &&
-					current.height === definition.height &&
-					current.format === definition.format
-				) {
-					continue;
+			for (const pass of uniquePasses) {
+				if (resized || !previousSet.has(pass)) {
+					pass.setSize?.(width, height);
 				}
-
-				current?.texture.destroy();
-				runtimeRenderTargets.set(
-					definition.key,
-					createRenderTexture(device, definition.width, definition.height, definition.format)
-				);
 			}
 
-			renderTargetSignature = nextSignature;
-		}
+			activePasses = uniquePasses;
+			passWidth = width;
+			passHeight = height;
+		};
 
-		const snapshot: Record<string, RenderTarget> = {};
-		for (const [key, target] of runtimeRenderTargets.entries()) {
-			snapshot[key] = {
-				texture: target.texture,
-				view: target.view,
-				width: target.width,
-				height: target.height,
-				format: target.format
-			};
-		}
+		/**
+		 * Ensures internal ping-pong slot texture matches current canvas size/format.
+		 */
+		const ensureSlotTarget = (
+			slot: RenderPassInputSlot,
+			width: number,
+			height: number
+		): RuntimeRenderTarget => {
+			const current = slot === 'source' ? sourceSlotTarget : targetSlotTarget;
+			if (
+				current &&
+				current.width === width &&
+				current.height === height &&
+				current.format === format
+			) {
+				return current;
+			}
 
-		return snapshot;
-	};
+			destroyRenderTexture(current);
+			const next = createRenderTexture(device, width, height, format);
+			if (slot === 'source') {
+				sourceSlotTarget = next;
+			} else {
+				targetSlotTarget = next;
+			}
 
-	/**
-	 * Blits a texture view to the current canvas texture.
-	 */
-	const blitToCanvas = (
-		commandEncoder: GPUCommandEncoder,
-		sourceView: GPUTextureView,
-		canvasView: GPUTextureView,
-		clearColor: [number, number, number, number]
-	): void => {
-		const bindGroup = device.createBindGroup({
-			layout: blitBindGroupLayout,
-			entries: [
-				{ binding: 0, resource: blitSampler },
-				{ binding: 1, resource: sourceView }
-			]
-		});
+			return next;
+		};
 
-		const pass = commandEncoder.beginRenderPass({
-			colorAttachments: [
-				{
-					view: canvasView,
-					clearValue: {
-						r: clearColor[0],
-						g: clearColor[1],
-						b: clearColor[2],
-						a: clearColor[3]
-					},
-					loadOp: 'clear',
-					storeOp: 'store'
-				}
-			]
-		});
-
-		pass.setPipeline(blitPipeline);
-		pass.setBindGroup(0, bindGroup);
-		pass.draw(3);
-		pass.end();
-	};
-
-	/**
-	 * Executes a full frame render.
-	 */
-	const render: Renderer['render'] = ({ time, delta, renderMode, uniforms, textures }) => {
-		if (deviceLostMessage) {
-			throw new Error(deviceLostMessage);
-		}
-
-		if (uncapturedErrorMessage) {
-			const message = uncapturedErrorMessage;
-			uncapturedErrorMessage = null;
-			throw new Error(message);
-		}
-
-		const { width, height } = resizeCanvas(options.canvas, options.getDpr());
-
-		if (!contextConfigured || configuredWidth !== width || configuredHeight !== height) {
-			context.configure({
-				device,
-				format,
-				alphaMode: 'premultiplied'
-			});
-			contextConfigured = true;
-			configuredWidth = width;
-			configuredHeight = height;
-		}
-
-		const frameData = new Float32Array([time, delta, width, height]);
-		device.queue.writeBuffer(
-			frameBuffer,
-			0,
-			frameData.buffer as ArrayBuffer,
-			frameData.byteOffset,
-			frameData.byteLength
-		);
-
-		packUniformsInto(uniforms, options.uniformLayout, uniformScratch);
-		if (!hasUniformSnapshot) {
-			device.queue.writeBuffer(
-				uniformBuffer,
-				0,
-				uniformScratch.buffer as ArrayBuffer,
-				uniformScratch.byteOffset,
-				uniformScratch.byteLength
+		/**
+		 * Creates/updates runtime render targets and returns immutable pass snapshot.
+		 */
+		const syncRenderTargets = (
+			canvasWidth: number,
+			canvasHeight: number
+		): Readonly<Record<string, RenderTarget>> => {
+			const resolvedDefinitions = resolveRenderTargetDefinitions(
+				resolveRenderTargets(),
+				canvasWidth,
+				canvasHeight,
+				format
 			);
-			uniformPrevious.set(uniformScratch);
-			hasUniformSnapshot = true;
-		} else {
-			const dirtyRanges = findDirtyFloatRanges(uniformPrevious, uniformScratch);
-			for (const range of dirtyRanges) {
-				const byteOffset = range.start * 4;
-				const byteLength = range.count * 4;
+			const nextSignature = buildRenderTargetSignature(resolvedDefinitions);
+
+			if (nextSignature !== renderTargetSignature) {
+				const activeKeys = new Set(resolvedDefinitions.map((definition) => definition.key));
+
+				for (const [key, target] of runtimeRenderTargets.entries()) {
+					if (!activeKeys.has(key)) {
+						target.texture.destroy();
+						runtimeRenderTargets.delete(key);
+					}
+				}
+
+				for (const definition of resolvedDefinitions) {
+					const current = runtimeRenderTargets.get(definition.key);
+					if (
+						current &&
+						current.width === definition.width &&
+						current.height === definition.height &&
+						current.format === definition.format
+					) {
+						continue;
+					}
+
+					current?.texture.destroy();
+					runtimeRenderTargets.set(
+						definition.key,
+						createRenderTexture(device, definition.width, definition.height, definition.format)
+					);
+				}
+
+				renderTargetSignature = nextSignature;
+			}
+
+			const snapshot: Record<string, RenderTarget> = {};
+			for (const [key, target] of runtimeRenderTargets.entries()) {
+				snapshot[key] = {
+					texture: target.texture,
+					view: target.view,
+					width: target.width,
+					height: target.height,
+					format: target.format
+				};
+			}
+
+			return snapshot;
+		};
+
+		/**
+		 * Blits a texture view to the current canvas texture.
+		 */
+		const blitToCanvas = (
+			commandEncoder: GPUCommandEncoder,
+			sourceView: GPUTextureView,
+			canvasView: GPUTextureView,
+			clearColor: [number, number, number, number]
+		): void => {
+			const bindGroup = device.createBindGroup({
+				layout: blitBindGroupLayout,
+				entries: [
+					{ binding: 0, resource: blitSampler },
+					{ binding: 1, resource: sourceView }
+				]
+			});
+
+			const pass = commandEncoder.beginRenderPass({
+				colorAttachments: [
+					{
+						view: canvasView,
+						clearValue: {
+							r: clearColor[0],
+							g: clearColor[1],
+							b: clearColor[2],
+							a: clearColor[3]
+						},
+						loadOp: 'clear',
+						storeOp: 'store'
+					}
+				]
+			});
+
+			pass.setPipeline(blitPipeline);
+			pass.setBindGroup(0, bindGroup);
+			pass.draw(3);
+			pass.end();
+		};
+
+		/**
+		 * Executes a full frame render.
+		 */
+		const render: Renderer['render'] = ({ time, delta, renderMode, uniforms, textures }) => {
+			if (deviceLostMessage) {
+				throw new Error(deviceLostMessage);
+			}
+
+			if (uncapturedErrorMessage) {
+				const message = uncapturedErrorMessage;
+				uncapturedErrorMessage = null;
+				throw new Error(message);
+			}
+
+			const { width, height } = resizeCanvas(options.canvas, options.getDpr());
+
+			if (!contextConfigured || configuredWidth !== width || configuredHeight !== height) {
+				context.configure({
+					device,
+					format,
+					alphaMode: 'premultiplied'
+				});
+				contextConfigured = true;
+				configuredWidth = width;
+				configuredHeight = height;
+			}
+
+			const frameData = new Float32Array([time, delta, width, height]);
+			device.queue.writeBuffer(
+				frameBuffer,
+				0,
+				frameData.buffer as ArrayBuffer,
+				frameData.byteOffset,
+				frameData.byteLength
+			);
+
+			packUniformsInto(uniforms, options.uniformLayout, uniformScratch);
+			if (!hasUniformSnapshot) {
 				device.queue.writeBuffer(
 					uniformBuffer,
-					byteOffset,
+					0,
 					uniformScratch.buffer as ArrayBuffer,
-					uniformScratch.byteOffset + byteOffset,
-					byteLength
+					uniformScratch.byteOffset,
+					uniformScratch.byteLength
 				);
-			}
-
-			if (dirtyRanges.length > 0) {
 				uniformPrevious.set(uniformScratch);
+				hasUniformSnapshot = true;
+			} else {
+				const dirtyRanges = findDirtyFloatRanges(uniformPrevious, uniformScratch);
+				for (const range of dirtyRanges) {
+					const byteOffset = range.start * 4;
+					const byteLength = range.count * 4;
+					device.queue.writeBuffer(
+						uniformBuffer,
+						byteOffset,
+						uniformScratch.buffer as ArrayBuffer,
+						uniformScratch.byteOffset + byteOffset,
+						byteLength
+					);
+				}
+
+				if (dirtyRanges.length > 0) {
+					uniformPrevious.set(uniformScratch);
+				}
 			}
-		}
 
-		let bindGroupDirty = false;
-		for (const binding of textureBindings) {
-			const nextTexture =
-				textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
-			if (updateTextureBinding(binding, nextTexture, renderMode)) {
-				bindGroupDirty = true;
+			let bindGroupDirty = false;
+			for (const binding of textureBindings) {
+				const nextTexture =
+					textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
+				if (updateTextureBinding(binding, nextTexture, renderMode)) {
+					bindGroupDirty = true;
+				}
 			}
-		}
 
-		if (bindGroupDirty) {
-			bindGroup = createBindGroup();
-		}
+			if (bindGroupDirty) {
+				bindGroup = createBindGroup();
+			}
 
-		const commandEncoder = device.createCommandEncoder();
-		const passes = resolvePasses();
-		const clearColor = options.getClearColor();
-		syncPassLifecycle(passes, width, height);
-		const graphPlan = planRenderGraph(passes, clearColor);
-		const canvasTexture = context.getCurrentTexture();
-		const canvasSurface: RenderTarget = {
-			texture: canvasTexture,
-			view: canvasTexture.createView(),
-			width,
-			height,
-			format
+			const commandEncoder = device.createCommandEncoder();
+			const passes = resolvePasses();
+			const clearColor = options.getClearColor();
+			syncPassLifecycle(passes, width, height);
+			const graphPlan = planRenderGraph(passes, clearColor);
+			const canvasTexture = context.getCurrentTexture();
+			const canvasSurface: RenderTarget = {
+				texture: canvasTexture,
+				view: canvasTexture.createView(),
+				width,
+				height,
+				format
+			};
+			const runtimeTargets = syncRenderTargets(width, height);
+			const slots =
+				graphPlan.steps.length > 0
+					? {
+							source: ensureSlotTarget('source', width, height),
+							target: ensureSlotTarget('target', width, height),
+							canvas: canvasSurface
+						}
+					: null;
+			const sceneOutput = slots ? slots.source : canvasSurface;
+
+			const scenePass = commandEncoder.beginRenderPass({
+				colorAttachments: [
+					{
+						view: sceneOutput.view,
+						clearValue: {
+							r: clearColor[0],
+							g: clearColor[1],
+							b: clearColor[2],
+							a: clearColor[3]
+						},
+						loadOp: 'clear',
+						storeOp: 'store'
+					}
+				]
+			});
+
+			scenePass.setPipeline(pipeline);
+			scenePass.setBindGroup(0, bindGroup);
+			scenePass.draw(3);
+			scenePass.end();
+
+			if (slots) {
+				for (const step of graphPlan.steps) {
+					const input = slots[step.input];
+					const output =
+						step.output === 'canvas'
+							? slots.canvas
+							: step.output === 'source'
+								? slots.source
+								: slots.target;
+
+					step.pass.render({
+						device,
+						commandEncoder,
+						source: slots.source,
+						target: slots.target,
+						canvas: slots.canvas,
+						input,
+						output,
+						targets: runtimeTargets,
+						time,
+						delta,
+						width,
+						height,
+						clear: step.clear,
+						clearColor: step.clearColor,
+						preserve: step.preserve,
+						beginRenderPass: (passOptions) => {
+							const clear = passOptions?.clear ?? step.clear;
+							const clearColor = passOptions?.clearColor ?? step.clearColor;
+							const preserve = passOptions?.preserve ?? step.preserve;
+
+							return commandEncoder.beginRenderPass({
+								colorAttachments: [
+									{
+										view: passOptions?.view ?? output.view,
+										clearValue: {
+											r: clearColor[0],
+											g: clearColor[1],
+											b: clearColor[2],
+											a: clearColor[3]
+										},
+										loadOp: clear ? 'clear' : 'load',
+										storeOp: preserve ? 'store' : 'discard'
+									}
+								]
+							});
+						}
+					});
+
+					if (step.needsSwap) {
+						const previousSource = slots.source;
+						slots.source = slots.target;
+						slots.target = previousSource;
+					}
+				}
+
+				if (graphPlan.finalOutput !== 'canvas') {
+					const finalSurface = graphPlan.finalOutput === 'source' ? slots.source : slots.target;
+					blitToCanvas(commandEncoder, finalSurface.view, slots.canvas.view, clearColor);
+				}
+			}
+
+			device.queue.submit([commandEncoder.finish()]);
 		};
-		const runtimeTargets = syncRenderTargets(width, height);
-		const slots =
-			graphPlan.steps.length > 0
-				? {
-						source: ensureSlotTarget('source', width, height),
-						target: ensureSlotTarget('target', width, height),
-						canvas: canvasSurface
-					}
-				: null;
-		const sceneOutput = slots ? slots.source : canvasSurface;
-
-		const scenePass = commandEncoder.beginRenderPass({
-			colorAttachments: [
-				{
-					view: sceneOutput.view,
-					clearValue: {
-						r: clearColor[0],
-						g: clearColor[1],
-						b: clearColor[2],
-						a: clearColor[3]
-					},
-					loadOp: 'clear',
-					storeOp: 'store'
-				}
-			]
-		});
-
-		scenePass.setPipeline(pipeline);
-		scenePass.setBindGroup(0, bindGroup);
-		scenePass.draw(3);
-		scenePass.end();
-
-		if (slots) {
-			for (const step of graphPlan.steps) {
-				const input = slots[step.input];
-				const output =
-					step.output === 'canvas'
-						? slots.canvas
-						: step.output === 'source'
-							? slots.source
-							: slots.target;
-
-				step.pass.render({
-					device,
-					commandEncoder,
-					source: slots.source,
-					target: slots.target,
-					canvas: slots.canvas,
-					input,
-					output,
-					targets: runtimeTargets,
-					time,
-					delta,
-					width,
-					height,
-					clear: step.clear,
-					clearColor: step.clearColor,
-					preserve: step.preserve,
-					beginRenderPass: (passOptions) => {
-						const clear = passOptions?.clear ?? step.clear;
-						const clearColor = passOptions?.clearColor ?? step.clearColor;
-						const preserve = passOptions?.preserve ?? step.preserve;
-
-						return commandEncoder.beginRenderPass({
-							colorAttachments: [
-								{
-									view: passOptions?.view ?? output.view,
-									clearValue: {
-										r: clearColor[0],
-										g: clearColor[1],
-										b: clearColor[2],
-										a: clearColor[3]
-									},
-									loadOp: clear ? 'clear' : 'load',
-									storeOp: preserve ? 'store' : 'discard'
-								}
-							]
-						});
-					}
-				});
-
-				if (step.needsSwap) {
-					const previousSource = slots.source;
-					slots.source = slots.target;
-					slots.target = previousSource;
-				}
-			}
-
-			if (graphPlan.finalOutput !== 'canvas') {
-				const finalSurface = graphPlan.finalOutput === 'source' ? slots.source : slots.target;
-				blitToCanvas(commandEncoder, finalSurface.view, slots.canvas.view, clearColor);
-			}
-		}
-
-		device.queue.submit([commandEncoder.finish()]);
-	};
 
 		return {
 			render,

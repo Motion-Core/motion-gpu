@@ -16,7 +16,8 @@
 		"format": "prettier --write ."
 	},
 	"dependencies": {
-		"@motion-core/motion-gpu": "workspace:*"
+		"@motion-core/motion-gpu": "workspace:*",
+		"shiki": "^4.0.0"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",

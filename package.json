@@ -21,5 +21,8 @@
 		"lint:web": "bun run --cwd apps/web lint",
 		"lint:motion-gpu": "bun run --cwd packages/motion-gpu lint",
 		"format": "bun run --cwd apps/web format && bun run --cwd packages/motion-gpu format"
+	},
+	"dependencies": {
+		"carbon-icons-svelte": "^13.8.0"
 	}
 }

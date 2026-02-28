@@ -25,10 +25,12 @@
 }
 
 :root {
-	--color-background: oklch(0.9702 0 0);
-	--color-background-muted: oklch(0.934 0 0);
+	--color-background: oklch(0.934 0 0);
+	--color-background-muted: oklch(0.8699 0 0);
+	--color-background-dark: oklch(0.2686 0 0);
 	--color-foreground: oklch(0.2686 0 0);
 	--color-card: oklch(0.9672 0 0);
+	--color-accent: oklch(0.6996 0.201959 44.4414);
 }
 
 @theme {
@@ -37,12 +39,14 @@
 	--font-fono: 'Aeonik Fono';
 	--color-background: var(--background);
 	--color-background-muted: var(--background-muted);
+	--color-background-dark: var(--background-dark);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
+	--color-accent: var(--accent);
 }
 
 @layer base {
 	body {
-		@apply bg-background font-sans text-foreground;
+		@apply bg-background font-sans font-[350] text-foreground;
 	}
 }

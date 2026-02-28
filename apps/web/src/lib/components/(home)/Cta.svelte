@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import Button from '../ui/Button.svelte';
 </script>
 
 <section
@@ -13,20 +14,22 @@
 			Start with the docs to learn the API, then explore the repository for examples and internals.
 		</p>
 		<div class="mt-2 flex flex-wrap justify-center gap-3">
-			<a
+			<Button
 				href={resolve('/docs' as '/')}
-				class="bg-background px-5 py-2 font-fono text-sm text-foreground"
+				variant="secondary"
+				class="bg-background text-foreground"
 			>
 				Open docs
-			</a>
-			<a
+			</Button>
+			<Button
 				href="https://github.com/motion-core/motion-gpu"
 				target="_blank"
 				rel="noreferrer"
-				class="border border-background/35 px-5 py-2 font-fono text-sm"
+				variant="outline"
+				class="border-background/35 text-background hover:bg-background/10"
 			>
 				View GitHub
-			</a>
+			</Button>
 		</div>
 	</div>
 </section>

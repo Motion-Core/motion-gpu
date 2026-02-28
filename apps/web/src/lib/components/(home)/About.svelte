@@ -48,6 +48,7 @@
 				waviness={0.0}
 				speed={0.5}
 				rods={3}
+				aria-hidden="true"
 			/>
 		</div>
 	</div>

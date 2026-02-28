@@ -6,7 +6,7 @@
 		A <span class="text-accent">Svelte-first</span> pipeline for modern
 		<span class="text-accent">GPU visuals.</span>
 	</h1>
-	<h1 class="max-w-2xl text-center font-fono text-base text-balance text-foreground-muted">
+	<p class="max-w-2xl text-center font-fono text-base text-balance text-foreground-muted">
 		If you need performance, clarity, and composability in WebGPU for Svelte, this is the stack.
-	</h1>
+	</p>
 </section>

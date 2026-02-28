@@ -17,7 +17,10 @@
 	},
 	"dependencies": {
 		"@motion-core/motion-gpu": "workspace:*",
-		"shiki": "^4.0.0"
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"shiki": "^4.0.0",
+		"tailwind-merge": "^3.5.0"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",

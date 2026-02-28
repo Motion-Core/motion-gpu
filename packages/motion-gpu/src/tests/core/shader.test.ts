@@ -116,11 +116,11 @@ describe('buildShaderSource', () => {
 			.filter((entry) => entry.location !== null);
 
 		expect(mappedLines.length).toBe(5);
-		expect(formatShaderSourceLocation(mappedLines[0]?.location ?? null)).toContain('define "USE_TONE"');
+		expect(formatShaderSourceLocation(mappedLines[0]?.location ?? null)).toContain(
+			'define "USE_TONE"'
+		);
 		expect(
 			formatShaderSourceLocation(mappedLines[mappedLines.length - 1]?.location ?? null)
-		).toContain(
-			'user fragment line 3'
-		);
+		).toContain('user fragment line 3');
 	});
 });

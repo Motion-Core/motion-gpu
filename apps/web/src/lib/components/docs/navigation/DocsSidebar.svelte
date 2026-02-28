@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { docsManifest, getDocHref } from '$lib/docs/manifest';
+	import { docsRouteGroups, getDocHref } from '$lib/docs/manifest';
 	import SearchTrigger from '../search/SearchTrigger.svelte';
 	import { cn } from '$lib/utils/cn';
 
@@ -21,24 +21,31 @@
 	</div>
 
 	<nav class="flex-1 overflow-y-auto px-2 py-3">
-		<ul class="grid gap-1">
-			{#each docsManifest as doc (doc.slug)}
-				{@const href = getDocHref(doc.slug)}
-				{@const isActive = currentPath === href}
-				<li>
-					<a
-						href={resolve(href as '/')}
-						class={cn(
-							'block px-2 py-2 text-sm tracking-tight transition-colors',
-							isActive
-								? 'bg-background-muted text-foreground'
-								: 'text-foreground-muted hover:bg-background-muted/55 hover:text-foreground'
-						)}
-					>
-						{doc.title}
-					</a>
-				</li>
-			{/each}
-		</ul>
+		{#each docsRouteGroups as group (group.id)}
+			<section class="mt-5 first:mt-0">
+				<p class="px-2 pb-1 font-fono text-[10px] text-foreground-muted uppercase">
+					{group.title}
+				</p>
+				<ul class="grid gap-1 px-2">
+					{#each group.entries as doc (doc.slug)}
+						{@const href = getDocHref(doc.slug)}
+						{@const isActive = currentPath === href}
+						<li>
+							<a
+								href={resolve(href as '/')}
+								class={cn(
+									'block px-2 py-2 text-sm tracking-tight transition-colors',
+									isActive
+										? 'bg-background-muted text-foreground'
+										: 'text-foreground-muted hover:bg-background-muted/55 hover:text-foreground'
+								)}
+							>
+								{doc.title}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/each}
 	</nav>
 </aside>

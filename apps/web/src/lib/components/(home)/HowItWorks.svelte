@@ -33,7 +33,7 @@
 			number: '03',
 			title: 'Drive Runtime State',
 			description:
-				'Use useFrame and context APIs to update uniforms or textures with predictable scheduling behavior.',
+				'Use useFrame and context APIs to update uniforms or textures with deterministic scheduling behavior.',
 			icon: 'runtime'
 		},
 		{
@@ -60,7 +60,7 @@
 			<h2
 				class="col-span-3 max-w-2xl text-2xl tracking-tight text-balance sm:col-span-2 sm:text-5xl"
 			>
-				<span class="block">A predictable pipeline.</span>
+				<span class="block">A transparent pipeline.</span>
 				<span class="block">Step by step.</span>
 			</h2>
 			<p class="col-span-3 font-fono text-sm text-foreground-muted sm:col-span-1">

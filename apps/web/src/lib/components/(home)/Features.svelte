@@ -40,11 +40,11 @@
 <LandingSection id="features">
 	<LandingSectionHeader
 		badge="Features"
-		description="From a single fullscreen fragment shader to multi-pass effects, Motion GPU gives you strict contracts and predictable runtime behavior."
+		description="From a single fullscreen fragment shader to multi-pass effects, Motion GPU gives you strict contracts and deterministic runtime behavior."
 		gridClass="grid w-full grid-cols-3 gap-3"
 	>
 		<span class="block">Strict contracts.</span>
-		<span class="block">Predictable rendering.</span>
+		<span class="block">Deterministic rendering.</span>
 	</LandingSectionHeader>
 	<div class="mt-6 grid w-full grid-cols-1 gap-6 sm:mt-12 xl:grid-cols-3">
 		{#each cards as card (card.number)}

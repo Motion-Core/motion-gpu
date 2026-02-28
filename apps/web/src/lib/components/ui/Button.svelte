@@ -5,7 +5,7 @@
 	import { cn } from '$lib/utils/cn';
 
 	const buttonVariants = cva(
-		'inline-flex items-center justify-center gap-2 whitespace-nowrap font-fono text-sm transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+		'inline-flex items-center justify-center gap-2 whitespace-nowrap font-fono font-normal text-sm transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background',
 		{
 			variants: {
 				variant: {

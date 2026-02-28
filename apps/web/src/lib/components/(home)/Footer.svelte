@@ -30,13 +30,15 @@
 					<li>
 						<a
 							href={resolve(item.route as '/')}
-							class="text-foreground-muted transition-colors hover:text-foreground"
+							class="text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 							>&#8627; {item.label}</a
 						>
 					</li>
 				{/each}
 				<li>
-					<a href="#features" class="text-foreground-muted transition-colors hover:text-foreground"
+					<a
+						href="#features"
+						class="text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 						>&#8627; Features</a
 					>
 				</li>
@@ -52,7 +54,7 @@
 							href={item.href}
 							target="_blank"
 							rel="external noreferrer"
-							class="text-foreground-muted transition-colors hover:text-foreground"
+							class="text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 							>&#8627; {item.label}</a
 						>
 					</li>
@@ -67,7 +69,7 @@
 				href="https://github.com/motion-core/motion-gpu/blob/main/LICENSE"
 				target="_blank"
 				rel="noreferrer"
-				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground"
+				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 				>&#8627; License</a
 			>
 		</div>
@@ -78,14 +80,14 @@
 				href="https://github.com/motion-core/motion-gpu/issues"
 				target="_blank"
 				rel="noreferrer"
-				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground"
+				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 				>Issues</a
 			>
 			<a
 				href="https://github.com/motion-core/motion-gpu/discussions"
 				target="_blank"
 				rel="noreferrer"
-				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground"
+				class="w-fit font-fono text-sm text-foreground-muted transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 				>Discussions</a
 			>
 		</div>

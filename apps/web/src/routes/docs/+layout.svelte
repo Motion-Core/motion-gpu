@@ -47,7 +47,7 @@
 		</div>
 	</aside>
 
-	<div id="docs-content-container" class="pt-14 lg:pt-0">
+	<div id="docs-content-container" class="pt-20 lg:pt-0">
 		<div class="mx-auto w-full max-w-5xl px-4 py-8 sm:px-8 sm:py-10">
 			{#if data.currentDoc}
 				<header class="space-y-3 border-b border-background-muted/90 pb-6">

@@ -10,7 +10,7 @@
 
 <a
 	href="#main-content"
-	class="sr-only fixed top-3 left-3 z-[100] bg-foreground px-4 py-2 font-fono text-sm text-background focus:not-sr-only focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+	class="sr-only fixed top-3 left-3 z-100 bg-foreground px-4 py-2 font-fono text-sm text-background focus:not-sr-only focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 >
 	Skip to main content
 </a>

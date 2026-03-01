@@ -27,6 +27,9 @@ type FileTreeRow = {
 	depth: number;
 };
 
+let sharedShikiHighlighter: ShikiHighlighter | null = null;
+let isShikiMonacoConfigured = false;
+
 export const createPlaygroundController = () => {
 	let webcontainer: WebContainerInstance | null = null;
 	let devProcess: WebContainerProcess | null = null;
@@ -46,6 +49,8 @@ export const createPlaygroundController = () => {
 	let openFilePaths = $state<string[]>(['src/App.svelte']);
 	let collapsedDirs = $state<Record<string, boolean>>({ 'packages/motion-gpu/dist': true });
 	const maxOpenTabs = 3;
+	let isBootingRuntime = false;
+	let isStartingDevServer = false;
 
 	let monacoApi: MonacoModule | null = null;
 	const monacoModelsByPath: Record<string, MonacoModel> = {};
@@ -558,6 +563,16 @@ export const createPlaygroundController = () => {
 		scheduleSyncFlush();
 	};
 
+	const queueOpenFileSyncs = () => {
+		for (const filePath of openFilePaths) {
+			if (!(filePath in fileContents)) continue;
+			if (!dirtyPaths.includes(filePath)) {
+				dirtyPaths.push(filePath);
+			}
+		}
+		scheduleSyncFlush();
+	};
+
 	const registerSvelteLanguage = (monaco: MonacoModule) => {
 		if (monaco.languages.getLanguages().some((language) => language.id === 'svelte')) {
 			return;
@@ -652,6 +667,31 @@ export const createPlaygroundController = () => {
 
 	const mount = () => {
 		let isDisposed = false;
+		const startDevServer = async () => {
+			if (!webcontainer || devProcess || isStartingDevServer) return;
+			isStartingDevServer = true;
+			try {
+				status = 'Starting dev server...';
+				devProcess = await webcontainer.spawn('npm', [
+					'run',
+					'dev',
+					'--',
+					'--clearScreen',
+					'false'
+				]);
+				const currentProcess = devProcess;
+				streamProcessOutput(currentProcess);
+				void currentProcess.exit.then((code) => {
+					if (isDisposed) return;
+					if (devProcess === currentProcess) {
+						devProcess = null;
+						status = code === 0 ? 'Dev server stopped' : `Dev server stopped (exit code ${code})`;
+					}
+				});
+			} finally {
+				isStartingDevServer = false;
+			}
+		};
 
 		const setupMonacoEditor = async () => {
 			if (!editorHost) {
@@ -671,14 +711,20 @@ export const createPlaygroundController = () => {
 					return;
 				}
 
-				shikiHighlighter = await shiki.createHighlighter({
-					themes: ['github-light'],
-					langs: ['svelte', 'html', 'css', 'javascript', 'typescript', 'json', 'bash']
-				});
+				if (!sharedShikiHighlighter) {
+					sharedShikiHighlighter = await shiki.createHighlighter({
+						themes: ['github-light'],
+						langs: ['svelte', 'html', 'css', 'javascript', 'typescript', 'json', 'bash']
+					});
+				}
+				shikiHighlighter = sharedShikiHighlighter;
 				if (isDisposed || !editorHost) {
 					return;
 				}
-				shikiMonaco.shikiToMonaco(shikiHighlighter, monaco);
+				if (!isShikiMonacoConfigured) {
+					shikiMonaco.shikiToMonaco(shikiHighlighter, monaco);
+					isShikiMonacoConfigured = true;
+				}
 				monaco.editor.setTheme('github-light');
 				const fontReadyDocument = document as FontReadyDocument;
 				await fontReadyDocument.fonts?.ready;
@@ -730,10 +776,13 @@ export const createPlaygroundController = () => {
 		};
 
 		const startWebcontainer = async () => {
+			if (webcontainer || isBootingRuntime) return;
+			isBootingRuntime = true;
 			if (!crossOriginIsolated) {
 				errorMessage =
 					'WebContainer requires cross-origin isolation (COOP/COEP). Refresh /playground directly once.';
 				status = 'Runtime blocked';
+				isBootingRuntime = false;
 				return;
 			}
 
@@ -852,24 +901,43 @@ export const createPlaygroundController = () => {
 					);
 				}
 
-				status = 'Starting dev server...';
-				devProcess = await wc.spawn('npm', ['run', 'dev', '--', '--clearScreen', 'false']);
-				streamProcessOutput(devProcess);
+				await startDevServer();
 			} catch (error) {
 				if (isDisposed) {
+					isBootingRuntime = false;
 					return;
 				}
 				errorMessage =
 					error instanceof Error ? error.message : 'Could not start WebContainer runtime.';
 				status = 'Runtime failed';
+			} finally {
+				isBootingRuntime = false;
+			}
+		};
+
+		const onVisibilityResume = () => {
+			if (document.visibilityState !== 'visible') return;
+			if (monacoApi) {
+				monacoApi.editor.remeasureFonts();
+			}
+			editorInstance?.layout();
+			queueOpenFileSyncs();
+			if (webcontainer) {
+				void startDevServer();
+			} else {
+				void startWebcontainer();
 			}
 		};
 
 		void setupMonacoEditor();
 		void startWebcontainer();
+		document.addEventListener('visibilitychange', onVisibilityResume);
+		window.addEventListener('focus', onVisibilityResume);
 
 		return () => {
 			isDisposed = true;
+			document.removeEventListener('visibilitychange', onVisibilityResume);
+			window.removeEventListener('focus', onVisibilityResume);
 			if (syncTimer) {
 				clearTimeout(syncTimer);
 				syncTimer = null;
@@ -886,7 +954,6 @@ export const createPlaygroundController = () => {
 			editorInstance?.dispose();
 			editorInstance = null;
 			monacoApi = null;
-			shikiHighlighter?.dispose?.();
 			shikiHighlighter = null;
 			webcontainer?.teardown();
 			devProcess = null;

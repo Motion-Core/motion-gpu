@@ -40,7 +40,7 @@
 <LandingSection id="features">
 	<LandingSectionHeader
 		badge="Features"
-		description="From a single fullscreen fragment shader to multi-pass effects, Motion GPU gives you strict contracts and deterministic runtime behavior."
+		description="From a single fullscreen fragment shader to multi-pass effects, MotionGPU gives you strict contracts and deterministic runtime behavior."
 		gridClass="grid w-full grid-cols-3 gap-3"
 	>
 		<span class="block">Strict contracts.</span>

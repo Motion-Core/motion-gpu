@@ -24,7 +24,7 @@
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html Logo}
 				</span>
-				<p class="text-xl tracking-tight">Motion GPU</p>
+				<p class="text-xl tracking-tight">MotionGPU</p>
 			</div>
 			<p class="text-base text-foreground-muted">Svelte-first WebGPU Runtime</p>
 		</div>

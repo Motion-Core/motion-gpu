@@ -1,6 +1,6 @@
 <div align="center">
 
-# Motion GPU
+# MotionGPU
 
 **Svelte 5 + WebGPU runtime for fullscreen WGSL rendering, frame scheduling, and post-processing pipelines**
 

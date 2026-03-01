@@ -21,7 +21,7 @@
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html Logo}
 				</span>
-				<p class="text-sm font-normal tracking-tight">Motion GPU</p>
+				<p class="text-sm font-normal tracking-tight">MotionGPU</p>
 			</div>
 			<span class="text-xs text-foreground-muted">Docs</span>
 		</a>

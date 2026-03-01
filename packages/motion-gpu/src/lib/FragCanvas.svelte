@@ -507,6 +507,8 @@
 		margin: 0;
 		padding: 1rem;
 		border: 1px solid var(--motiongpu-color-border);
+		max-width: calc(100vw - 2rem);
+		box-sizing: border-box;
 		font-size: 0.875rem;
 		font-weight: 400;
 		line-height: 1.45;
@@ -526,10 +528,10 @@
 		align-items: center;
 		margin: 0;
 		font-size: 0.67rem;
-		letter-spacing: 0.06em;
+		letter-spacing: 0.025em;
 		line-height: 1;
 		font-weight: 400;
-		text-transform: capitalize;
+		text-transform: uppercase;
 		color: var(--motiongpu-color-foreground-muted);
 	}
 
@@ -641,6 +643,7 @@
 		font-size: 0.77rem;
 		font-weight: 400;
 		line-height: 1.3;
+		border-right: 1px solid var(--motiongpu-color-border);
 		color: var(--motiongpu-color-foreground-muted);
 		text-align: left;
 	}

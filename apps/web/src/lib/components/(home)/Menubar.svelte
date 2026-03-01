@@ -137,7 +137,7 @@
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html Logo}
 				</span>
-				<span class="font-normal">Motion GPU</span>
+				<span class="font-normal">MotionGPU</span>
 			</a>
 
 			<div

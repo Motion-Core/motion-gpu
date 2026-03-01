@@ -223,7 +223,7 @@
 					{@html Logo}
 				</span>
 				<h1 class="text-lg tracking-tight text-balance sm:text-2xl lg:text-3xl">
-					Motion GPU <span class="text-accent">playground</span>
+					MotionGPU <span class="text-accent">playground</span>
 				</h1>
 			</div>
 		</header>

@@ -195,13 +195,16 @@
 					<div class="grid min-w-max font-mono text-xs leading-5 [grid-template-areas:'preview']">
 						{#key activeFile.id}
 							<div class="grid min-w-max grid-cols-[3.25rem_auto] [grid-area:preview]">
-								<div class="py-3 text-right text-xs text-foreground" aria-hidden="true">
+								<div
+									class="border-r border-border py-0.5 text-right text-xs text-[#BABBBC]"
+									aria-hidden="true"
+								>
 									{#each activeFile.lines as lineText, lineIndex (`line-${lineIndex}-${lineText.length}`)}
-										<div class="px-3 py-0.5">{lineIndex + 1}</div>
+										<div class="px-3 py-0.5 text-center">{lineIndex + 1}</div>
 									{/each}
 								</div>
 
-								<div class="py-3">
+								<div class="py-0.5">
 									<div>
 										<div>
 											{#if activeLines.length > 0}

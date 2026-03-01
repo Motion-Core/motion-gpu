@@ -44,7 +44,7 @@
 							<a
 								href={resolve(href as '/')}
 								class={cn(
-									'block px-2 py-2 text-sm tracking-tight transition-colors ',
+									'flex h-8 items-center justify-start px-2.5 text-sm tracking-tight transition-colors ',
 									isActive
 										? 'bg-background-muted text-foreground'
 										: 'text-foreground-muted hover:bg-background-muted/55 hover:text-foreground'

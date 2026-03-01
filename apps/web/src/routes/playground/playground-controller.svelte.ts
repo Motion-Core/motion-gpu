@@ -514,6 +514,10 @@ export const createPlaygroundController = () => {
 		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
 	};
 
+	const layoutEditor = () => {
+		editorInstance?.layout();
+	};
+
 	const syncFile = async (filePath: string) => {
 		if (!webcontainer || !(filePath in fileContents)) {
 			return;
@@ -699,9 +703,6 @@ export const createPlaygroundController = () => {
 					tabSize: 2
 				});
 				monaco.editor.remeasureFonts();
-				requestAnimationFrame(() => {
-					editorInstance?.layout();
-				});
 
 				editorChangeSubscription = editorInstance.onDidChangeModelContent(() => {
 					const currentModel = editorInstance?.getModel() ?? null;
@@ -712,11 +713,6 @@ export const createPlaygroundController = () => {
 					fileContents = { ...fileContents, [filePath]: nextValue };
 					queueSync(filePath);
 				});
-
-				resizeListener = () => {
-					editorInstance?.layout();
-				};
-				window.addEventListener('resize', resizeListener);
 			} catch (error) {
 				errorMessage =
 					error instanceof Error ? error.message : 'Could not initialize Monaco editor.';
@@ -927,6 +923,7 @@ export const createPlaygroundController = () => {
 			return visibleFileTreeRows;
 		},
 		closeFile,
+		layoutEditor,
 		mount,
 		openFile,
 		switchToFile,

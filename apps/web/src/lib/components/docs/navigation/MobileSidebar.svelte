@@ -192,7 +192,7 @@
 									href={resolve(href as '/')}
 									onclick={handleMenuLinkSelect}
 									class={cn(
-										'block px-3 py-2 text-sm tracking-tight transition-colors',
+										'flex h-8 items-center justify-start px-2.5 text-sm tracking-tight transition-colors',
 										isActive
 											? 'bg-background text-foreground'
 											: 'text-foreground-muted hover:bg-background/75 hover:text-foreground'

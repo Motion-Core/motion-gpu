@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import Book from 'carbon-icons-svelte/lib/Book.svelte';
+	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 	import Button from '../ui/Button.svelte';
 </script>
 
@@ -19,7 +21,8 @@
 				variant="secondary"
 				class="bg-background text-foreground"
 			>
-				Open docs
+				<Book size={16} />
+				<span>Open docs</span>
 			</Button>
 			<Button
 				href="https://github.com/motion-core/motion-gpu"
@@ -28,7 +31,8 @@
 				variant="outline"
 				class="border-border text-background hover:bg-background/10"
 			>
-				View GitHub
+				<LogoGithub size={16} />
+				<span>View GitHub</span>
 			</Button>
 		</div>
 	</div>

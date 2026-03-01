@@ -3,7 +3,9 @@
 	import { onMount, tick } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fade, fly } from 'svelte/transition';
+	import Book from 'carbon-icons-svelte/lib/Book.svelte';
 	import Close from 'carbon-icons-svelte/lib/Close.svelte';
+	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 	import Menu from 'carbon-icons-svelte/lib/Menu.svelte';
 	import Button from '../ui/Button.svelte';
 	import Logo from '$lib/assets/motiongpu-logo.svg?raw';
@@ -166,7 +168,10 @@
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
-				<Button href={resolve(docsRoute as '/')} size="sm">Docs</Button>
+				<Button href={resolve(docsRoute as '/')} size="sm">
+					<Book size={16} />
+					<span>Docs</span>
+				</Button>
 				<Button
 					href="https://github.com/motion-core/motion-gpu"
 					target="_blank"
@@ -174,7 +179,8 @@
 					variant="outline"
 					size="sm"
 				>
-					GitHub
+					<LogoGithub size={16} />
+					<span>GitHub</span>
 				</Button>
 			</div>
 
@@ -227,7 +233,7 @@
 			size="none"
 			class="justify-start rounded-xl px-3 py-2"
 		>
-			Home
+			<span>Home</span>
 		</Button>
 		<Button
 			href="#about"
@@ -236,7 +242,7 @@
 			size="none"
 			class="justify-start rounded-xl px-3 py-2"
 		>
-			About
+			<span>About</span>
 		</Button>
 		<Button
 			href="#features"
@@ -245,7 +251,7 @@
 			size="none"
 			class="justify-start rounded-xl px-3 py-2"
 		>
-			Features
+			<span>Features</span>
 		</Button>
 		<Button
 			href="#how-it-works"
@@ -254,7 +260,7 @@
 			size="none"
 			class="justify-start rounded-xl px-3 py-2"
 		>
-			Pipeline
+			<span>Pipeline</span>
 		</Button>
 
 		<div class="mt-1 grid grid-cols-2 gap-2">
@@ -263,7 +269,8 @@
 				onclick={handleMenuLinkSelect}
 				class="justify-center"
 			>
-				Docs
+				<Book size={16} />
+				<span>Docs</span>
 			</Button>
 			<Button
 				href="https://github.com/motion-core/motion-gpu"
@@ -273,7 +280,8 @@
 				variant="outline"
 				class="justify-center"
 			>
-				GitHub
+				<LogoGithub size={16} />
+				<span>GitHub</span>
 			</Button>
 		</div>
 	</div>

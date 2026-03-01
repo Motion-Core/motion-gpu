@@ -54,7 +54,7 @@
 </script>
 
 <LandingSection id="how-it-works">
-	<div class="flex w-full flex-col items-start justify-center gap-6">
+	<div class="flex w-full flex-col items-start justify-center gap-3">
 		<Badge>How It Works</Badge>
 		<div class="grid w-full grid-cols-3 gap-3">
 			<h2

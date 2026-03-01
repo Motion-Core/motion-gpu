@@ -159,7 +159,7 @@
 								: 'border-t-border/40 border-r-border bg-background text-foreground/70 hover:bg-background hover:text-foreground'
 						}`}
 					>
-						{file.label}
+						<span>{file.label}</span>
 					</Button>
 				</div>
 			{/each}

@@ -454,6 +454,24 @@ export interface RendererOptions {
 		define?: string;
 	} | null>;
 	/**
+	 * Original material fragment source before preprocessing.
+	 */
+	fragmentSource: string;
+	/**
+	 * Include sources used while preprocessing material fragment.
+	 */
+	includeSources: Record<string, string>;
+	/**
+	 * Optional material callsite/source metadata for diagnostics.
+	 */
+	materialSource?: {
+		component?: string;
+		file?: string;
+		line?: number;
+		column?: number;
+		functionName?: string;
+	} | null;
+	/**
 	 * Resolved uniform layout.
 	 */
 	uniformLayout: UniformLayout;

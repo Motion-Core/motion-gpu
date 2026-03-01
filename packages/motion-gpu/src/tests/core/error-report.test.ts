@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { attachShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
 import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 
 describe('error report', () => {
@@ -30,6 +31,34 @@ describe('error report', () => {
 			'line 9: identifiers must not start with two or more underscores',
 			"line 12: expected ';'"
 		]);
+	});
+
+	it('builds source snippet from structured shader diagnostics', () => {
+		const error = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\nmissing return at end of function'),
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 112,
+						message: 'missing return at end of function',
+						linePos: 5,
+						lineLength: 6,
+						sourceLocation: { kind: 'fragment', line: 3 }
+					}
+				],
+				fragmentSource: ['fn frag(uv: vec2f) -> vec4f {', '\tlet x = uv.x;', '\tuv.x;', '}'].join('\n'),
+				includeSources: {},
+				materialSource: { component: 'GlassPaneScene.svelte' }
+			}
+		);
+
+		const report = toMotionGPUErrorReport(error, 'render');
+		expect(report.message).toBe('missing return at end of function');
+		expect(report.source).not.toBeNull();
+		expect(report.source?.location).toContain('GlassPaneScene.svelte');
+		expect(report.source?.line).toBe(3);
+		expect(report.source?.snippet.some((line) => line.highlight && line.number === 3)).toBe(true);
 	});
 
 	it('classifies device lost errors', () => {

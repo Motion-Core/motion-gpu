@@ -12,7 +12,12 @@ const material = defineMaterial({
 	uniforms: { ... },
 	textures: { ... },
 	defines: { ... },
-	includes: { ... }
+	includes: { ... },
+	source: {
+		component: 'MyScene.svelte',
+		line: 62,
+		column: 1
+	}
 });
 ```
 

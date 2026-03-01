@@ -1,7 +1,29 @@
+import { getShaderCompilationDiagnostics } from './error-diagnostics';
+
 /**
  * Runtime phase in which an error occurred.
  */
 export type MotionGPUErrorPhase = 'initialization' | 'render';
+
+/**
+ * One source-code line displayed in diagnostics snippet.
+ */
+export interface MotionGPUErrorSourceLine {
+	number: number;
+	code: string;
+	highlight: boolean;
+}
+
+/**
+ * Structured source context displayed for shader compilation errors.
+ */
+export interface MotionGPUErrorSource {
+	component: string;
+	location: string;
+	line: number;
+	column?: number;
+	snippet: MotionGPUErrorSourceLine[];
+}
 
 /**
  * Structured error payload used by UI diagnostics.
@@ -35,6 +57,10 @@ export interface MotionGPUErrorReport {
 	 * Runtime phase where the error occurred.
 	 */
 	phase: MotionGPUErrorPhase;
+	/**
+	 * Optional source context for shader-related diagnostics.
+	 */
+	source: MotionGPUErrorSource | null;
 }
 
 /**
@@ -45,6 +71,79 @@ function splitLines(value: string): string[] {
 		.split('\n')
 		.map((line) => line.trim())
 		.filter((line) => line.length > 0);
+}
+
+function toDisplayName(path: string): string {
+	const normalized = path.split(/[?#]/)[0] ?? path;
+	const chunks = normalized.split(/[\\/]/);
+	const last = chunks[chunks.length - 1];
+	return last && last.length > 0 ? last : path;
+}
+
+function toSnippet(source: string, line: number, radius = 3): MotionGPUErrorSourceLine[] {
+	const lines = source.replace(/\r\n?/g, '\n').split('\n');
+	if (lines.length === 0) {
+		return [];
+	}
+
+	const targetLine = Math.min(Math.max(1, line), lines.length);
+	const start = Math.max(1, targetLine - radius);
+	const end = Math.min(lines.length, targetLine + radius);
+	const snippet: MotionGPUErrorSourceLine[] = [];
+
+	for (let index = start; index <= end; index += 1) {
+		snippet.push({
+			number: index,
+			code: lines[index - 1] ?? '',
+			highlight: index === targetLine
+		});
+	}
+
+	return snippet;
+}
+
+function buildSourceFromDiagnostics(error: unknown): MotionGPUErrorSource | null {
+	const diagnostics = getShaderCompilationDiagnostics(error);
+	if (!diagnostics || diagnostics.diagnostics.length === 0) {
+		return null;
+	}
+
+	const primary = diagnostics.diagnostics.find((entry) => {
+		const location = entry.sourceLocation;
+		return location?.kind === 'fragment' || location?.kind === 'include';
+	});
+	if (!primary?.sourceLocation) {
+		return null;
+	}
+
+	const location = primary.sourceLocation;
+	const column = primary.linePos && primary.linePos > 0 ? primary.linePos : undefined;
+
+	if (location.kind === 'fragment') {
+		const component =
+			diagnostics.materialSource?.component ??
+			(diagnostics.materialSource?.file
+				? toDisplayName(diagnostics.materialSource.file)
+				: 'User shader fragment');
+		return {
+			component,
+			location: `${component} (fragment line ${location.line})`,
+			line: location.line,
+			...(column !== undefined ? { column } : {}),
+			snippet: toSnippet(diagnostics.fragmentSource, location.line)
+		};
+	}
+
+	const includeName = location.include ?? 'unknown';
+	const includeSource = diagnostics.includeSources[includeName] ?? '';
+	const component = `#include <${includeName}>`;
+	return {
+		component,
+		location: `${component} (line ${location.line})`,
+		line: location.line,
+		...(column !== undefined ? { column } : {}),
+		snippet: toSnippet(includeSource, location.line)
+	};
 }
 
 /**
@@ -124,6 +223,7 @@ export function toMotionGPUErrorReport(
 	error: unknown,
 	phase: MotionGPUErrorPhase
 ): MotionGPUErrorReport {
+	const shaderDiagnostics = getShaderCompilationDiagnostics(error);
 	const rawMessage =
 		error instanceof Error
 			? error.message
@@ -131,8 +231,16 @@ export function toMotionGPUErrorReport(
 				? error
 				: 'Unknown FragCanvas error';
 	const rawLines = splitLines(rawMessage);
-	const message = rawLines[0] ?? rawMessage;
-	const details = rawLines.slice(1);
+	const defaultMessage = rawLines[0] ?? rawMessage;
+	const defaultDetails = rawLines.slice(1);
+	const source = buildSourceFromDiagnostics(error);
+	const message =
+		shaderDiagnostics && shaderDiagnostics.diagnostics[0]
+			? shaderDiagnostics.diagnostics[0].message
+			: defaultMessage;
+	const details = shaderDiagnostics
+		? shaderDiagnostics.diagnostics.slice(1).map((entry) => entry.message)
+		: defaultDetails;
 	const stack =
 		error instanceof Error && error.stack
 			? splitLines(error.stack).filter((line) => line !== message)
@@ -146,6 +254,7 @@ export function toMotionGPUErrorReport(
 		details,
 		stack,
 		rawMessage,
-		phase
+		phase,
+		source
 	};
 }

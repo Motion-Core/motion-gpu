@@ -24,6 +24,7 @@ Phases:
 | `stack` | Stack trace lines when available |
 | `rawMessage` | Original unsanitized message |
 | `phase` | `initialization` or `render` |
+| `source` | Optional structured source context (`component`, `line`, `snippet[]`) for shader compile errors |
 
 ## Built-in classification patterns
 
@@ -54,13 +55,52 @@ Even when overlay is disabled, `onError` is still called.
 
 `renderer.ts` reads `GPUShaderModule.getCompilationInfo()` and maps lines using material/shader source maps.
 
-Location labels can point to:
+Location mapping can point to:
 
 - `user fragment line X`
 - `include "name" line X`
 - `define "NAME"`
 
-This greatly reduces time to locate shader authoring mistakes.
+For WGSL compilation failures, MotionGPU attaches structured diagnostics payload to the thrown error.
+`toMotionGPUErrorReport` uses this payload to build:
+
+- primary `message` from first compiler error,
+- `details` as additional compiler messages,
+- `source` block with component/include location and highlighted code snippet.
+
+The overlay uses structured source diagnostics instead of raw mapped strings like:
+
+- `line 112 -> user fragment line 62: ...`
+
+Instead it renders an explicit `Source` frame with line-highlighted context.
+
+## Source metadata and component mapping
+
+`defineMaterial` accepts optional source metadata:
+
+```ts
+defineMaterial({
+	fragment: `...`,
+	source: {
+		component: 'GlassPaneScene.svelte',
+		file: '/abs/path/GlassPaneScene.svelte',
+		line: 62,
+		column: 1
+	}
+});
+```
+
+If `source` is omitted, MotionGPU attempts best-effort callsite capture from stack trace and uses that in diagnostics UI.
+
+## Overlay Source panel behavior
+
+When `report.source` is available, the built-in overlay shows:
+
+- active source tab (`ComponentName (fragment line X, col Y)`),
+- source snippet centered around the failing line,
+- highlighted failing line.
+
+`details` remain available as collapsible "Additional diagnostics" for extra compiler messages.
 
 ## Device loss and uncaptured errors
 

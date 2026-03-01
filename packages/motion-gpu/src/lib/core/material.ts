@@ -1,4 +1,5 @@
 import { normalizeTextureDefinition } from './textures';
+import type { MaterialSourceMetadata } from './error-diagnostics';
 import {
 	assertUniformName,
 	assertUniformValueForType,
@@ -76,6 +77,10 @@ export interface FragMaterialInput {
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	includes?: MaterialIncludes;
+	/**
+	 * Optional source metadata shown in diagnostics UI.
+	 */
+	source?: MaterialSourceMetadata;
 }
 
 /**
@@ -102,6 +107,10 @@ export interface FragMaterial {
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	readonly includes: Readonly<MaterialIncludes>;
+	/**
+	 * Source metadata used for diagnostics.
+	 */
+	readonly source: Readonly<MaterialSourceMetadata> | null;
 }
 
 /**
@@ -136,6 +145,18 @@ export interface ResolvedMaterial {
 	 * Deterministic JSON signature for cache invalidation.
 	 */
 	signature: string;
+	/**
+	 * Original user fragment source before preprocessing.
+	 */
+	fragmentSource: string;
+	/**
+	 * Normalized include sources map.
+	 */
+	includeSources: MaterialIncludes;
+	/**
+	 * Source metadata used for diagnostics.
+	 */
+	source: Readonly<MaterialSourceMetadata> | null;
 }
 
 /**
@@ -148,6 +169,89 @@ const FRAGMENT_CONTRACT_PATTERN = /\bfn\s+frag\s*\(\s*uv\s*:\s*vec2f\s*\)\s*->\s
  */
 const resolvedMaterialCache = new WeakMap<FragMaterial, ResolvedMaterial>();
 const preprocessedFragmentCache = new WeakMap<FragMaterial, PreprocessedMaterialFragment>();
+
+const STACK_TRACE_CHROME_PATTERN = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
+const STACK_TRACE_FIREFOX_PATTERN = /^(.*?)@(.+?):(\d+):(\d+)$/;
+
+function getPathBasename(path: string): string {
+	const normalized = path.split(/[?#]/)[0] ?? path;
+	const parts = normalized.split(/[\\/]/);
+	const last = parts[parts.length - 1];
+	return last && last.length > 0 ? last : path;
+}
+
+function captureMaterialSourceFromStack(): MaterialSourceMetadata | null {
+	const stack = new Error().stack;
+	if (!stack) {
+		return null;
+	}
+
+	const stackLines = stack.split('\n').slice(1);
+	for (const rawLine of stackLines) {
+		const line = rawLine.trim();
+		if (line.length === 0) {
+			continue;
+		}
+
+		const chromeMatch = line.match(STACK_TRACE_CHROME_PATTERN);
+		const firefoxMatch = line.match(STACK_TRACE_FIREFOX_PATTERN);
+		const functionName = chromeMatch?.[1] ?? firefoxMatch?.[1] ?? undefined;
+		const file = chromeMatch?.[2] ?? firefoxMatch?.[2];
+		const lineValue = chromeMatch?.[3] ?? firefoxMatch?.[3];
+		const columnValue = chromeMatch?.[4] ?? firefoxMatch?.[4];
+
+		if (!file || !lineValue || !columnValue) {
+			continue;
+		}
+
+		if (file.includes('/core/material') || file.includes('\\core\\material')) {
+			continue;
+		}
+
+		const parsedLine = Number.parseInt(lineValue, 10);
+		const parsedColumn = Number.parseInt(columnValue, 10);
+		if (!Number.isFinite(parsedLine) || !Number.isFinite(parsedColumn)) {
+			continue;
+		}
+
+		return {
+			component: getPathBasename(file),
+			file,
+			line: parsedLine,
+			column: parsedColumn,
+			...(functionName ? { functionName } : {})
+		};
+	}
+
+	return null;
+}
+
+function resolveSourceMetadata(source: MaterialSourceMetadata | undefined): MaterialSourceMetadata | null {
+	const captured = captureMaterialSourceFromStack();
+	const component = source?.component ?? captured?.component;
+	const file = source?.file ?? captured?.file;
+	const line = source?.line ?? captured?.line;
+	const column = source?.column ?? captured?.column;
+	const functionName = source?.functionName ?? captured?.functionName;
+
+	if (
+		component === undefined &&
+		file === undefined &&
+		line === undefined &&
+		column === undefined &&
+		functionName === undefined
+	) {
+		return null;
+	}
+
+	return {
+		...(component !== undefined ? { component } : {}),
+		...(file !== undefined ? { file } : {}),
+		...(line !== undefined ? { line } : {}),
+		...(column !== undefined ? { column } : {}),
+		...(functionName !== undefined ? { functionName } : {})
+	};
+}
 
 /**
  * Asserts that material has been normalized by {@link defineMaterial}.
@@ -369,6 +473,7 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
 	const textures = Object.freeze(resolveTextures(input.textures));
 	const defines = Object.freeze(resolveDefines(input.defines));
 	const includes = Object.freeze(resolveIncludes(input.includes));
+	const source = Object.freeze(resolveSourceMetadata(input.source));
 
 	const preprocessed = preprocessMaterialFragment({
 		fragment,
@@ -381,7 +486,8 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
 		uniforms,
 		textures,
 		defines,
-		includes
+		includes,
+		source
 	});
 
 	preprocessedFragmentCache.set(material, preprocessed);
@@ -430,7 +536,10 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 		textures,
 		uniformLayout,
 		textureKeys,
-		signature
+		signature,
+		fragmentSource: material.fragment,
+		includeSources: material.includes as MaterialIncludes,
+		source: material.source
 	};
 
 	resolvedMaterialCache.set(material, resolved);

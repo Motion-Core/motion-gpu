@@ -1,6 +1,7 @@
 import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets';
 import { planRenderGraph } from './render-graph';
-import { buildShaderSourceWithMap, formatShaderSourceLocation, type ShaderLineMap } from './shader';
+import { buildShaderSourceWithMap, type ShaderLineMap } from './shader';
+import { attachShaderCompilationDiagnostics } from './error-diagnostics';
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
@@ -115,7 +116,18 @@ function resizeCanvas(
  */
 async function assertCompilation(
 	module: GPUShaderModule,
-	options?: { lineMap?: ShaderLineMap }
+	options?: {
+		lineMap?: ShaderLineMap;
+		fragmentSource?: string;
+		includeSources?: Record<string, string>;
+		materialSource?: {
+			component?: string;
+			file?: string;
+			line?: number;
+			column?: number;
+			functionName?: string;
+		} | null;
+	}
 ): Promise<void> {
 	const info = await module.getCompilationInfo();
 	const errors = info.messages.filter((message: GPUCompilationMessage) => message.type === 'error');
@@ -124,16 +136,23 @@ async function assertCompilation(
 		return;
 	}
 
-	const summary = errors
-		.map((message: GPUCompilationMessage) => {
-			const sourceLocation = formatShaderSourceLocation(
-				options?.lineMap?.[message.lineNum] ?? null
-			);
-			const locationSuffix = sourceLocation ? ` -> ${sourceLocation}` : '';
-			return `line ${message.lineNum}${locationSuffix}: ${message.message}`;
-		})
-		.join('\n');
-	throw new Error(`WGSL compilation failed:\n${summary}`);
+	const diagnostics = errors.map((message: GPUCompilationMessage) => ({
+		generatedLine: message.lineNum,
+		message: message.message,
+		linePos: message.linePos,
+		lineLength: message.length,
+		sourceLocation: options?.lineMap?.[message.lineNum] ?? null
+	}));
+
+	const summary = diagnostics.map((diagnostic) => diagnostic.message).join('\n');
+	const error = new Error(`WGSL compilation failed:\n${summary}`);
+	throw attachShaderCompilationDiagnostics(error, {
+		kind: 'shader-compilation',
+		diagnostics,
+		fragmentSource: options?.fragmentSource ?? '',
+		includeSources: options?.includeSources ?? {},
+		materialSource: options?.materialSource ?? null
+	});
 }
 
 /**
@@ -468,7 +487,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 		);
 		const shaderModule = device.createShaderModule({ code: builtShader.code });
-		await assertCompilation(shaderModule, { lineMap: builtShader.lineMap });
+		await assertCompilation(shaderModule, {
+			lineMap: builtShader.lineMap,
+			fragmentSource: options.fragmentSource,
+			includeSources: options.includeSources,
+			materialSource: options.materialSource ?? null
+		});
 
 		const normalizedTextureDefinitions = normalizeTextureDefinitions(
 			options.textureDefinitions,

@@ -64,6 +64,7 @@ layout: docs
 | `textures` | `TextureDefinitionMap` | no |
 | `defines` | `MaterialDefines` | no |
 | `includes` | `MaterialIncludes` | no |
+| `source` | `{ component?, file?, line?, column?, functionName? }` | no |
 
 ### Output
 
@@ -163,3 +164,15 @@ useMotionGPUUserContext(namespace, value, options?)
 | Passes | `RenderPass`, `RenderPassContext`, `RenderTargetDefinitionMap` |
 | Scheduler | `RenderMode`, `FrameState`, `FrameInvalidationToken`, `FrameRunTimings` |
 | Diagnostics | `MotionGPUErrorReport`, `MotionGPUErrorPhase` |
+
+`MotionGPUErrorReport` includes optional `source` for shader compile diagnostics:
+
+```ts
+{
+	component: string;
+	location: string;
+	line: number;
+	column?: number;
+	snippet: Array<{ number: number; code: string; highlight: boolean }>;
+} | null
+```

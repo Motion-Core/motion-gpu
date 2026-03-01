@@ -33,7 +33,6 @@ export const createPlaygroundController = () => {
 	let editorHost: HTMLDivElement | null = null;
 	let editorInstance: MonacoEditor | null = null;
 	let editorChangeSubscription: MonacoDisposable | null = null;
-	let resizeListener: (() => void) | null = null;
 	let shikiHighlighter: ShikiHighlighter | null = null;
 	let previewUrl = $state('');
 	let errorMessage = $state('');
@@ -51,6 +50,7 @@ export const createPlaygroundController = () => {
 	let monacoApi: MonacoModule | null = null;
 	const monacoModelsByPath: Record<string, MonacoModel> = {};
 	const dirtyPaths: string[] = [];
+	let isSyncFlushRunning = false;
 
 	const closeScriptTag = '</' + 'script>';
 	const editorFontStack =
@@ -366,17 +366,6 @@ export const createPlaygroundController = () => {
 
 	const fileTree = buildFileTree(Object.keys(initialWorkerFiles));
 	const visibleFileTreeRows = $derived(collectTreeRows(fileTree, collapsedDirs));
-	const runtimeStateLabel = $derived(
-		errorMessage
-			? 'Runtime failed'
-			: isSyncing
-				? syncingPath
-					? `Syncing ${syncingPath}...`
-					: 'Syncing changes...'
-				: previewUrl
-					? 'Preview ready'
-					: status
-	);
 	const getLanguageFromPath = (filePath: string) => {
 		if (filePath.endsWith('.svelte')) return 'svelte';
 		if (filePath.endsWith('.ts')) return 'typescript';
@@ -514,37 +503,41 @@ export const createPlaygroundController = () => {
 		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
 	};
 
-	const layoutEditor = () => {
-		editorInstance?.layout();
-	};
-
-	const syncFile = async (filePath: string) => {
-		if (!webcontainer || !(filePath in fileContents)) {
+	const flushQueuedSyncs = async () => {
+		if (isSyncFlushRunning || !webcontainer || dirtyPaths.length === 0) {
 			return;
 		}
 
+		isSyncFlushRunning = true;
 		isSyncing = true;
-		syncingPath = filePath;
 		syncError = '';
 
 		try {
-			await webcontainer.fs.writeFile(filePath, fileContents[filePath] ?? '');
-			const dirtyIndex = dirtyPaths.indexOf(filePath);
-			if (dirtyIndex !== -1) {
-				dirtyPaths.splice(dirtyIndex, 1);
+			while (webcontainer && dirtyPaths.length > 0) {
+				const filePath = dirtyPaths[0]!;
+				syncingPath = filePath;
+				await webcontainer.fs.writeFile(filePath, fileContents[filePath] ?? '');
+				dirtyPaths.shift();
 			}
 		} catch (error) {
-			syncError = error instanceof Error ? error.message : `Could not sync ${filePath} to preview.`;
+			const failedPath = dirtyPaths[0] ?? '';
+			syncError =
+				error instanceof Error
+					? error.message
+					: failedPath
+						? `Could not sync ${failedPath} to preview.`
+						: 'Could not sync changes to preview.';
 		} finally {
 			isSyncing = false;
 			syncingPath = '';
+			isSyncFlushRunning = false;
+			if (webcontainer && dirtyPaths.length > 0) {
+				scheduleSyncFlush();
+			}
 		}
 	};
 
-	const queueSync = (filePath: string) => {
-		if (!dirtyPaths.includes(filePath)) {
-			dirtyPaths.push(filePath);
-		}
+	const scheduleSyncFlush = () => {
 		if (!webcontainer) {
 			return;
 		}
@@ -553,8 +546,16 @@ export const createPlaygroundController = () => {
 			clearTimeout(syncTimer);
 		}
 		syncTimer = setTimeout(() => {
-			void syncFile(filePath);
+			syncTimer = null;
+			void flushQueuedSyncs();
 		}, 220);
+	};
+
+	const queueSync = (filePath: string) => {
+		if (!dirtyPaths.includes(filePath)) {
+			dirtyPaths.push(filePath);
+		}
+		scheduleSyncFlush();
 	};
 
 	const registerSvelteLanguage = (monaco: MonacoModule) => {
@@ -674,11 +675,17 @@ export const createPlaygroundController = () => {
 					themes: ['github-light'],
 					langs: ['svelte', 'html', 'css', 'javascript', 'typescript', 'json', 'bash']
 				});
+				if (isDisposed || !editorHost) {
+					return;
+				}
 				shikiMonaco.shikiToMonaco(shikiHighlighter, monaco);
 				monaco.editor.setTheme('github-light');
 				const fontReadyDocument = document as FontReadyDocument;
 				await fontReadyDocument.fonts?.ready;
 				monaco.editor.remeasureFonts();
+				if (isDisposed || !editorHost) {
+					return;
+				}
 
 				const initialModel = ensureMonacoModel(activeFilePath);
 				if (!initialModel) {
@@ -714,6 +721,9 @@ export const createPlaygroundController = () => {
 					queueSync(filePath);
 				});
 			} catch (error) {
+				if (isDisposed) {
+					return;
+				}
 				errorMessage =
 					error instanceof Error ? error.message : 'Could not initialize Monaco editor.';
 			}
@@ -740,18 +750,26 @@ export const createPlaygroundController = () => {
 
 				webcontainer = wc;
 				wc.on('error', (error) => {
+					if (isDisposed) {
+						return;
+					}
 					errorMessage = error.message;
 				});
 				wc.on('server-ready', (_, url) => {
+					if (isDisposed) {
+						return;
+					}
 					previewUrl = url;
 					status = 'Live preview ready';
 				});
 
 				await wc.mount(files);
+				if (isDisposed) {
+					wc.teardown();
+					return;
+				}
 				if (dirtyPaths.length > 0) {
-					for (const filePath of [...dirtyPaths]) {
-						await syncFile(filePath);
-					}
+					await flushQueuedSyncs();
 				}
 
 				runtimeLog = '';
@@ -838,6 +856,9 @@ export const createPlaygroundController = () => {
 				devProcess = await wc.spawn('npm', ['run', 'dev', '--', '--clearScreen', 'false']);
 				streamProcessOutput(devProcess);
 			} catch (error) {
+				if (isDisposed) {
+					return;
+				}
 				errorMessage =
 					error instanceof Error ? error.message : 'Could not start WebContainer runtime.';
 				status = 'Runtime failed';
@@ -851,6 +872,7 @@ export const createPlaygroundController = () => {
 			isDisposed = true;
 			if (syncTimer) {
 				clearTimeout(syncTimer);
+				syncTimer = null;
 			}
 			devProcess?.kill();
 			editorChangeSubscription?.dispose();
@@ -864,10 +886,6 @@ export const createPlaygroundController = () => {
 			editorInstance?.dispose();
 			editorInstance = null;
 			monacoApi = null;
-			if (resizeListener) {
-				window.removeEventListener('resize', resizeListener);
-			}
-			resizeListener = null;
 			shikiHighlighter?.dispose?.();
 			shikiHighlighter = null;
 			webcontainer?.teardown();
@@ -907,9 +925,6 @@ export const createPlaygroundController = () => {
 		get runtimeLogTail() {
 			return runtimeLogTail;
 		},
-		get runtimeStateLabel() {
-			return runtimeStateLabel;
-		},
 		get status() {
 			return status;
 		},
@@ -923,7 +938,6 @@ export const createPlaygroundController = () => {
 			return visibleFileTreeRows;
 		},
 		closeFile,
-		layoutEditor,
 		mount,
 		openFile,
 		switchToFile,

@@ -13,41 +13,16 @@
 	import type { PlaygroundController } from './playground-controller.svelte';
 
 	let { controller }: { controller: PlaygroundController } = $props();
-	type LayoutPanel = 'tree' | 'editor' | 'preview';
-	let visiblePanels = $state<Record<LayoutPanel, boolean>>({
-		tree: true,
-		editor: true,
-		preview: true
-	});
-	let layoutSyncTimer: ReturnType<typeof setTimeout> | null = null;
+	let isTreeVisible = $state(true);
 
 	const isSvelteFile = (path: string) => path.endsWith('.svelte');
 
-	const workspaceColumns = $derived.by(() => {
-		const { tree, editor, preview } = visiblePanels;
-
-		if (tree && !editor && !preview) return 'minmax(0,1fr) 0rem 0rem';
-		if (!tree && editor && !preview) return '0rem minmax(0,1fr) 0rem';
-		if (!tree && !editor && preview) return '0rem 0rem minmax(0,1fr)';
-		if (tree && editor && !preview) return '16rem minmax(0,1fr) 0rem';
-		if (tree && !editor && preview) return '16rem 0rem minmax(0,1fr)';
-		if (!tree && editor && preview) return '0rem minmax(0,1fr) minmax(0,0.92fr)';
-		return '16rem minmax(0,1fr) minmax(0,0.92fr)';
-	});
-	const togglePanel = (panel: LayoutPanel) => {
-		visiblePanels = {
-			...visiblePanels,
-			[panel]: !visiblePanels[panel]
-		};
+	const workspaceColumns = $derived(
+		isTreeVisible ? '16rem minmax(0,1fr) minmax(0,0.92fr)' : '0rem minmax(0,1fr) minmax(0,0.92fr)'
+	);
+	const toggleTree = () => {
+		isTreeVisible = !isTreeVisible;
 	};
-
-	$effect(() => {
-		return () => {
-			if (layoutSyncTimer) {
-				clearTimeout(layoutSyncTimer);
-			}
-		};
-	});
 </script>
 
 <main class="h-dvh overflow-hidden p-2 sm:p-4 lg:p-8">
@@ -75,12 +50,12 @@
 				<div class="flex items-center gap-1">
 					<button
 						type="button"
-						class={`layout-toggle ${visiblePanels.tree ? 'layout-toggle--active' : ''}`}
-						onclick={() => togglePanel('tree')}
+						class={`layout-toggle ${isTreeVisible ? 'layout-toggle--active' : ''}`}
+						onclick={toggleTree}
 						aria-label="Toggle file tree"
 						title="Toggle file tree"
 					>
-						{#if visiblePanels.tree}
+						{#if isTreeVisible}
 							<OpenPanelFilledLeft size={16} />
 						{:else}
 							<OpenPanelLeft size={16} />
@@ -95,7 +70,7 @@
 			>
 				<aside
 					class={`flex min-h-0 flex-col overflow-hidden bg-card lg:max-h-none ${
-						visiblePanels.tree ? 'lg:border-r lg:border-border' : 'lg:border-r-0'
+						isTreeVisible ? 'lg:border-r lg:border-border' : 'lg:border-r-0'
 					}`}
 				>
 					<div class="border-b border-border px-3 py-2">

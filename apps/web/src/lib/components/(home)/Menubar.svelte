@@ -170,6 +170,10 @@
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
+				<Button variant="brand" href={resolve(playgroundRoute as '/playground')} size="sm">
+					<WatsonHealth3DPrintMesh size={16} />
+					<span>Playground</span>
+				</Button>
 				<Button href={resolve(docsRoute as '/')} size="sm">
 					<Book size={16} />
 					<span>Docs</span>
@@ -183,10 +187,6 @@
 				>
 					<LogoGithub size={16} />
 					<span>GitHub</span>
-				</Button>
-				<Button variant="brand" href={resolve(playgroundRoute as '/playground')} size="sm">
-					<WatsonHealth3DPrintMesh size={16} />
-					<span>Playground</span>
 				</Button>
 			</div>
 
@@ -270,6 +270,10 @@
 		</Button>
 
 		<div class="mt-1 grid grid-cols-2 gap-2">
+			<Button variant="brand" href={resolve(playgroundRoute as '/playground')}>
+				<WatsonHealth3DPrintMesh size={16} />
+				<span>Playground</span>
+			</Button>
 			<Button
 				href={resolve(docsRoute as '/')}
 				onclick={handleMenuLinkSelect}
@@ -278,25 +282,17 @@
 				<Book size={16} />
 				<span>Docs</span>
 			</Button>
+
 			<Button
 				href="https://github.com/motion-core/motion-gpu"
 				target="_blank"
 				rel="noreferrer"
 				onclick={handleMenuLinkSelect}
 				variant="outline"
-				class="justify-center"
+				class="col-span-2 justify-center"
 			>
 				<LogoGithub size={16} />
 				<span>GitHub</span>
-			</Button>
-			<Button
-				class="col-span-2"
-				variant="brand"
-				href={resolve(playgroundRoute as '/playground')}
-				size="sm"
-			>
-				<WatsonHealth3DPrintMesh size={16} />
-				<span>Playground</span>
 			</Button>
 		</div>
 	</div>

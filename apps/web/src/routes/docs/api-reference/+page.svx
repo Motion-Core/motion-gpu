@@ -64,7 +64,6 @@ layout: docs
 | `textures` | `TextureDefinitionMap` | no |
 | `defines` | `MaterialDefines` | no |
 | `includes` | `MaterialIncludes` | no |
-| `source` | `{ component?, file?, line?, column?, functionName? }` | no |
 
 ### Output
 

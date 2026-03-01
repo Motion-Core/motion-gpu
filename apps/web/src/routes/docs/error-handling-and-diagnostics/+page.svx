@@ -76,21 +76,7 @@ Instead it renders an explicit `Source` frame with line-highlighted context.
 
 ## Source metadata and component mapping
 
-`defineMaterial` accepts optional source metadata:
-
-```ts
-defineMaterial({
-	fragment: `...`,
-	source: {
-		component: 'GlassPaneScene.svelte',
-		file: '/abs/path/GlassPaneScene.svelte',
-		line: 62,
-		column: 1
-	}
-});
-```
-
-If `source` is omitted, MotionGPU attempts best-effort callsite capture from stack trace and uses that in diagnostics UI.
+MotionGPU performs best-effort callsite capture from stack trace and uses it in diagnostics UI.
 
 ## Overlay Source panel behavior
 

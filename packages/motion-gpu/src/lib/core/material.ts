@@ -77,10 +77,6 @@ export interface FragMaterialInput {
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	includes?: MaterialIncludes;
-	/**
-	 * Optional source metadata shown in diagnostics UI.
-	 */
-	source?: MaterialSourceMetadata;
 }
 
 /**
@@ -107,10 +103,6 @@ export interface FragMaterial {
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	readonly includes: Readonly<MaterialIncludes>;
-	/**
-	 * Source metadata used for diagnostics.
-	 */
-	readonly source: Readonly<MaterialSourceMetadata> | null;
 }
 
 /**
@@ -169,6 +161,7 @@ const FRAGMENT_CONTRACT_PATTERN = /\bfn\s+frag\s*\(\s*uv\s*:\s*vec2f\s*\)\s*->\s
  */
 const resolvedMaterialCache = new WeakMap<FragMaterial, ResolvedMaterial>();
 const preprocessedFragmentCache = new WeakMap<FragMaterial, PreprocessedMaterialFragment>();
+const materialSourceMetadataCache = new WeakMap<FragMaterial, MaterialSourceMetadata | null>();
 
 const STACK_TRACE_CHROME_PATTERN = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
 const STACK_TRACE_FIREFOX_PATTERN = /^(.*?)@(.+?):(\d+):(\d+)$/;
@@ -473,7 +466,7 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
 	const textures = Object.freeze(resolveTextures(input.textures));
 	const defines = Object.freeze(resolveDefines(input.defines));
 	const includes = Object.freeze(resolveIncludes(input.includes));
-	const source = Object.freeze(resolveSourceMetadata(input.source));
+	const source = Object.freeze(resolveSourceMetadata(undefined));
 
 	const preprocessed = preprocessMaterialFragment({
 		fragment,
@@ -486,11 +479,11 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
 		uniforms,
 		textures,
 		defines,
-		includes,
-		source
+		includes
 	});
 
 	preprocessedFragmentCache.set(material, preprocessed);
+	materialSourceMetadataCache.set(material, source);
 	return material;
 }
 
@@ -539,7 +532,7 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 		signature,
 		fragmentSource: material.fragment,
 		includeSources: material.includes as MaterialIncludes,
-		source: material.source
+		source: materialSourceMetadataCache.get(material) ?? null
 	};
 
 	resolvedMaterialCache.set(material, resolved);

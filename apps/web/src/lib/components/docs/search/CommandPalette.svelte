@@ -7,6 +7,7 @@
 	import { searchState } from '$lib/stores/search.svelte';
 	import { searchDocs } from '$lib/utils/docs-search';
 	import { cn } from '$lib/utils/cn';
+	import Search from 'carbon-icons-svelte/lib/Search.svelte';
 
 	let query = $state('');
 	let selectedIndex = $state(0);
@@ -28,9 +29,9 @@
 	function selectResult(index: number) {
 		const result = results[index];
 		if (!result) return;
-		const href = resolve(result.href as '/');
-		if (result.anchor) void goto(`${href}${result.anchor}`, { noScroll: true });
-		else void goto(href);
+		if (result.anchor)
+			void goto(resolve((`${result.href}${result.anchor}`) as '/'), { noScroll: true });
+		else void goto(resolve(result.href as '/'));
 		close();
 	}
 
@@ -141,19 +142,7 @@
 			}}
 		>
 			<div class="flex items-center gap-2 border-b border-border px-3">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					aria-hidden="true"
-					width="20"
-					height="20"
-					fill="currentColor"
-					viewBox="0 0 256 256"
-					class="text-foreground-muted"
-				>
-					<path
-						d="M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z"
-					></path>
-				</svg>
+				<Search size={20} class="text-foreground-muted" aria-hidden="true" />
 				<input
 					bind:this={inputRef}
 					bind:value={query}
@@ -161,7 +150,7 @@
 					placeholder="Search MotionGPU docs"
 					aria-label="Search MotionGPU docs"
 				/>
-				<span class="border border-border px-1.5 py-0.5 font-mono text-[10px] text-foreground-muted"
+				<span class="border border-border px-1.5 py-0.5 font-mono text-[10px] text-foreground-muted bg-background"
 					>ESC</span
 				>
 			</div>

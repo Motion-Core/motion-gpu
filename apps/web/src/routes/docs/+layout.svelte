@@ -64,7 +64,7 @@
 		</div>
 	</div>
 
-	<aside class="hidden border-l border-border bg-background xl:block">
+	<aside class="hidden xl:block">
 		<div class="sticky top-0 h-dvh overflow-y-auto py-8">
 			<TableOfContents />
 		</div>

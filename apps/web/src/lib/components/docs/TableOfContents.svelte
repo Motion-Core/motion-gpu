@@ -41,7 +41,7 @@
 
 	const ACTIVE_OFFSET = 140;
 	const VISIBLE_BUFFER = 24;
-	const CORNER_RADIUS = 0;
+	const CORNER_RADIUS = 1;
 	const linkRefs = new SvelteMap<string, HTMLAnchorElement>();
 	const linkPositions = new SvelteMap<string, { top: number; height: number }>();
 	const headingOrder = new SvelteMap<string, number>();
@@ -481,7 +481,7 @@
 </script>
 
 {#if headings.length > 0}
-	<nav class="sticky top-2 flex flex-col items-center px-3">
+	<nav class="sticky top-2 flex flex-col items-start px-3">
 		<div>
 			<p class="mb-3 text-xs tracking-wide text-foreground-muted uppercase">On this page</p>
 			<div class="relative flex px-1">

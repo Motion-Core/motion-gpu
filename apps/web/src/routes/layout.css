@@ -21,10 +21,10 @@
 	--color-background-muted: oklch(0.8699 0 0);
 	--color-background-dark: oklch(0.2686 0 0);
 	--color-foreground: oklch(0.2686 0 0);
-	--color-foreground-muted: oklch(0.559 0 0);
+	--color-foreground-muted: oklch(0.509 0 0);
 	--color-card: oklch(0.9672 0 0);
 	--color-accent: oklch(0.6996 0.201959 44.4414);
-	--color-border: oklch(0.5292 0 0 / 0.15);
+	--color-border: oklch(0.4592 0 0 / 0.15);
 }
 
 @theme {
@@ -54,4 +54,12 @@ html {
 	html {
 		scroll-behavior: auto;
 	}
+}
+
+button,
+[role='button'],
+input[type='submit'],
+input[type='button'],
+input[type='reset'] {
+	cursor: pointer;
 }

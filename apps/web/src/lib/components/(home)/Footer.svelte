@@ -34,7 +34,7 @@
 		class="w-full border-b border-border px-2 py-6 sm:px-6 sm:py-8 lg:grid lg:grid-cols-4 lg:gap-6"
 	>
 		<div class="grid gap-2">
-			<h3 class="font-mono text-xs tracking-wide uppercase">Menu</h3>
+			<h3 class="text-xs tracking-wide uppercase">Menu</h3>
 			<ul class="grid gap-1 tracking-tight">
 				{#each menu as item (item.label)}
 					<li>
@@ -56,7 +56,7 @@
 		</div>
 
 		<div class="mt-6 grid gap-2 lg:mt-0">
-			<h3 class="font-mono text-xs tracking-wide uppercase">Follow</h3>
+			<h3 class="text-xs tracking-wide uppercase">Follow</h3>
 			<ul class="grid gap-1 tracking-tight">
 				{#each follow as item (item.label)}
 					<li>
@@ -73,7 +73,7 @@
 		</div>
 
 		<div class="mt-6 grid gap-2 lg:mt-0">
-			<h3 class="font-mono text-xs tracking-wide uppercase">Project</h3>
+			<h3 class="text-xs tracking-wide uppercase">Project</h3>
 			<p class="text-sm text-foreground-muted">MIT licensed and open source.</p>
 			<a
 				href="https://github.com/motion-core/motion-gpu/blob/main/LICENSE"
@@ -85,7 +85,7 @@
 		</div>
 
 		<div class="mt-6 grid gap-2 lg:mt-0">
-			<h3 class="font-mono text-xs tracking-wide uppercase">Contact</h3>
+			<h3 class="text-xs tracking-wide uppercase">Contact</h3>
 			<a
 				href="https://github.com/motion-core/motion-gpu/issues"
 				target="_blank"

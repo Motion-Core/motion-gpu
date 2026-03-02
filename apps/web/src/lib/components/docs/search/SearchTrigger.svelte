@@ -32,7 +32,7 @@
 	</svg>
 	<span class="text-sm text-foreground-muted">Search docs...</span>
 	<span
-		class="ml-auto hidden border border-border px-1.5 py-0.5 text-[10px] text-foreground-muted sm:inline"
+		class="ml-auto hidden border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground-muted sm:inline"
 		>⌘K</span
 	>
 </button>

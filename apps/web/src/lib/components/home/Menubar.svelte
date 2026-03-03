@@ -10,7 +10,6 @@
 	import Logo from '$lib/assets/motiongpu-logo.svg?raw';
 
 	const homeRoute = '/' as const;
-	const docsRoute = '/docs' as const;
 	const focusableSelectors = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 	let mobileOpen = $state(false);

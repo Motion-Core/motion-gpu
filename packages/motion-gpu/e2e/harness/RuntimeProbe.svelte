@@ -18,13 +18,10 @@
 	let { onFrame, onReady }: Props = $props();
 	const context = useMotionGPU();
 	let frameCount = 0;
-	let pulse = 0;
 
 	useFrame(
-		(state) => {
+		() => {
 			frameCount += 1;
-			pulse = (pulse + 0.03125) % 1;
-			state.setUniform('uPulse', pulse);
 			onFrame(frameCount);
 		},
 		{ autoInvalidate: false }

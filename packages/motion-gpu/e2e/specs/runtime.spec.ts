@@ -1,23 +1,10 @@
-import { createHash } from 'node:crypto';
-import { expect, test, type Page } from '@playwright/test';
-
-function toNumber(value: string | null): number {
-	const parsed = Number(value ?? '');
-	if (!Number.isFinite(parsed)) {
-		throw new Error(`Expected numeric value, got: ${String(value)}`);
-	}
-
-	return parsed;
-}
-
-async function getCanvasHash(page: Page): Promise<string> {
-	const image = await page.locator('.canvas-shell canvas').screenshot();
-	return createHash('sha1').update(image).digest('hex');
-}
+import { expect, test } from '@playwright/test';
+import { getCanvasHash, toNumber } from './helpers';
 
 test.describe('motion-gpu runtime e2e', () => {
 	test('renders frames and obeys render mode controls', async ({ page }) => {
-		await page.goto('/');
+		await page.goto('/?scenario=runtime');
+		await expect(page.getByTestId('scenario')).toHaveText('runtime');
 		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
 		await expect(page.getByTestId('last-error')).toHaveText('none');
@@ -62,7 +49,8 @@ test.describe('motion-gpu runtime e2e', () => {
 	});
 
 	test('keeps rendering after output color space toggle', async ({ page }) => {
-		await page.goto('/');
+		await page.goto('/?scenario=runtime');
+		await expect(page.getByTestId('scenario')).toHaveText('runtime');
 		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
 		await expect(page.getByTestId('output-color-space')).toHaveText('srgb');

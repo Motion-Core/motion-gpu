@@ -131,6 +131,56 @@ describe('useTexture', () => {
 		expect(aborts).toContain(1);
 	});
 
+	it('starts a fresh load when reload is called after a previous request settled', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => {
+				if (url === '/assets/initial.png') {
+					return {
+						ok: true,
+						status: 200,
+						blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+					};
+				}
+
+				return {
+					ok: false,
+					status: 404,
+					blob: async () => new Blob([new Uint8Array([0])], { type: 'text/plain' })
+				};
+			})
+		);
+
+		const onProbe = vi.fn();
+		const view = render(TextureHookProbe, {
+			props: {
+				urls: ['/assets/initial.png'],
+				onProbe
+			}
+		});
+
+		await waitFor(() => {
+			const result = onProbe.mock.calls[0]?.[0] as UseTextureResult;
+			expect(result.loading.current).toBe(false);
+			expect(result.error.current).toBeNull();
+			expect(result.textures.current).toHaveLength(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as UseTextureResult;
+		await view.rerender({
+			urls: ['/assets/missing.png'],
+			onProbe
+		});
+		await result.reload();
+
+		await waitFor(() => {
+			expect(result.loading.current).toBe(false);
+			expect(result.textures.current).toBeNull();
+			expect(result.error.current?.message).toContain('/assets/missing.png');
+		});
+		expect(fetch).toHaveBeenCalledWith('/assets/missing.png', expect.any(Object));
+	});
+
 	it('cancels in-flight load and disposes bitmaps on unmount', async () => {
 		let aborted = false;
 		vi.stubGlobal(

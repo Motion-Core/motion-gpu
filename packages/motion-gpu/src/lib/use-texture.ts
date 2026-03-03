@@ -183,12 +183,13 @@ export function useTexture(
 		}
 
 		const pending = runLoadLoop();
-		runningLoad = pending.finally(() => {
-			if (runningLoad === pending) {
+		const trackedPending = pending.finally(() => {
+			if (runningLoad === trackedPending) {
 				runningLoad = null;
 			}
 		});
-		return runningLoad;
+		runningLoad = trackedPending;
+		return trackedPending;
 	};
 
 	void load();

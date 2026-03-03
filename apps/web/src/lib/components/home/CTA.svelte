@@ -17,7 +17,14 @@
 		deterministic frame scheduling.
 	</p>
 	<div class="flex items-center gap-2">
-		<Button variant="default" href={resolve(playgroundRoute as '/playground')} size="md">
+		<Button
+			variant="default"
+			href={resolve(playgroundRoute as '/playground')}
+			size="md"
+			data-sveltekit-reload
+			data-sveltekit-preload-data="off"
+			data-sveltekit-preload-code="off"
+		>
 			<WatsonHealth3DPrintMesh size={16} />
 			<span>Playground</span>
 		</Button>

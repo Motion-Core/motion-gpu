@@ -58,8 +58,17 @@ export const createPlaygroundController = () => {
 	let isSyncFlushRunning = false;
 
 	const closeScriptTag = '</' + 'script>';
+	const isolationReloadStorageKey = 'motiongpu-playground-isolation-reload';
+	const installTimeoutMs = 180_000;
 	const editorFontStack =
 		'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+	const packageLockContent = String(
+		import.meta.glob('./runtime-template/package-lock.json', {
+			query: '?raw',
+			import: 'default',
+			eager: true
+		})['./runtime-template/package-lock.json'] ?? ''
+	);
 	const motionGpuPackageJsonRaw = String(
 		import.meta.glob('../../../../../packages/motion-gpu/package.json', {
 			query: '?raw',
@@ -188,7 +197,8 @@ export const createPlaygroundController = () => {
 			devDependencies: {
 				'@sveltejs/vite-plugin-svelte':
 					'https://registry.npmjs.org/@sveltejs/vite-plugin-svelte/-/vite-plugin-svelte-6.2.4.tgz',
-				vite: 'https://registry.npmjs.org/vite/-/vite-7.3.1.tgz'
+				vite: 'https://registry.npmjs.org/vite/-/vite-7.3.1.tgz',
+				yaml: 'https://registry.npmjs.org/yaml/-/yaml-2.8.2.tgz'
 			}
 		},
 		null,
@@ -267,6 +277,7 @@ export const createPlaygroundController = () => {
 
 	const initialWorkerFiles: Record<string, string> = {
 		'package.json': packageJsonContent,
+		'package-lock.json': packageLockContent,
 		'vite.config.js': viteConfigContent,
 		'index.html': indexHtmlContent,
 		'src/main.js': mainJsContent,
@@ -382,7 +393,8 @@ export const createPlaygroundController = () => {
 		return 'plaintext';
 	};
 
-	const files: FileSystemTree = buildDirectoryTree(initialWorkerFiles) as FileSystemTree;
+	const createRuntimeFileTree = (flatFiles: Record<string, string>): FileSystemTree =>
+		buildDirectoryTree(flatFiles) as FileSystemTree;
 	const ESC = String.fromCharCode(27);
 	const BEL = String.fromCharCode(7);
 
@@ -665,8 +677,59 @@ export const createPlaygroundController = () => {
 		};
 	};
 
+	let startRuntime: (() => Promise<void>) | null = null;
+
+	const teardownRuntime = () => {
+		if (syncTimer) {
+			clearTimeout(syncTimer);
+			syncTimer = null;
+		}
+		devProcess?.kill();
+		devProcess = null;
+		isStartingDevServer = false;
+		previewUrl = '';
+		try {
+			webcontainer?.teardown();
+		} catch {
+			// Ignore teardown errors during restart/unmount.
+		}
+		webcontainer = null;
+	};
+
+	const retryRuntime = () => {
+		if (!startRuntime || isBootingRuntime) return;
+		errorMessage = '';
+		syncError = '';
+		status = 'Retrying runtime...';
+		teardownRuntime();
+		void startRuntime();
+	};
+
 	const mount = () => {
 		let isDisposed = false;
+		const runProcessWithTimeout = async (
+			process: WebContainerProcess,
+			label: string,
+			timeoutMs = installTimeoutMs
+		) => {
+			streamProcessOutput(process);
+			let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+			const timeoutPromise = new Promise<number>((_resolve, reject) => {
+				timeoutHandle = setTimeout(() => {
+					process.kill();
+					reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+				}, timeoutMs);
+			});
+
+			try {
+				return await Promise.race([process.exit, timeoutPromise]);
+			} finally {
+				if (timeoutHandle) {
+					clearTimeout(timeoutHandle);
+				}
+			}
+		};
+
 		const startDevServer = async () => {
 			if (!webcontainer || devProcess || isStartingDevServer) return;
 			isStartingDevServer = true;
@@ -778,15 +841,40 @@ export const createPlaygroundController = () => {
 		const startWebcontainer = async () => {
 			if (webcontainer || isBootingRuntime) return;
 			isBootingRuntime = true;
-			if (!crossOriginIsolated) {
-				errorMessage =
-					'WebContainer requires cross-origin isolation (COOP/COEP). Refresh /playground directly once.';
-				status = 'Runtime blocked';
-				isBootingRuntime = false;
-				return;
-			}
 
 			try {
+				if (!crossOriginIsolated) {
+					let canAttemptReload = true;
+					try {
+						canAttemptReload = sessionStorage.getItem(isolationReloadStorageKey) !== '1';
+					} catch {
+						canAttemptReload = false;
+					}
+					if (canAttemptReload) {
+						try {
+							sessionStorage.setItem(isolationReloadStorageKey, '1');
+						} catch {
+							// Ignore if sessionStorage is not available.
+						}
+						status = 'Reloading for runtime isolation...';
+						window.location.reload();
+						return;
+					}
+
+					errorMessage =
+						'WebContainer requires cross-origin isolation (COOP/COEP). Open /playground directly.';
+					status = 'Runtime blocked';
+					return;
+				}
+				try {
+					sessionStorage.removeItem(isolationReloadStorageKey);
+				} catch {
+					// Ignore if sessionStorage is not available.
+				}
+				if (!packageLockContent.trim()) {
+					throw new Error('Missing runtime lockfile for the playground.');
+				}
+
 				const { WebContainer } = await import('@webcontainer/api');
 
 				status = 'Booting WebContainer...';
@@ -812,7 +900,7 @@ export const createPlaygroundController = () => {
 					status = 'Live preview ready';
 				});
 
-				await wc.mount(files);
+				await wc.mount(createRuntimeFileTree(fileContents));
 				if (isDisposed) {
 					wc.teardown();
 					return;
@@ -823,11 +911,11 @@ export const createPlaygroundController = () => {
 
 				runtimeLog = '';
 				const installBaseArgs = [
-					'install',
+					'ci',
 					'--no-audit',
 					'--no-fund',
 					'--progress=false',
-					'--prefer-online',
+					'--prefer-offline',
 					'--fetch-retries=5',
 					'--fetch-retry-mintimeout=3000',
 					'--fetch-retry-maxtimeout=120000',
@@ -836,7 +924,7 @@ export const createPlaygroundController = () => {
 				type InstallAttempt = { label: string; args: string[]; beforeArgs?: string[] };
 				const installAttempts: InstallAttempt[] = [
 					{
-						label: 'Installing dependencies...',
+						label: 'Installing dependencies from lockfile...',
 						args: installBaseArgs
 					},
 					{
@@ -845,12 +933,8 @@ export const createPlaygroundController = () => {
 						args: [...installBaseArgs, '--registry=https://registry.npmjs.org/']
 					},
 					{
-						label: 'Retrying install with legacy peer deps...',
-						args: [
-							...installBaseArgs,
-							'--legacy-peer-deps',
-							'--registry=https://registry.npmjs.org/'
-						]
+						label: 'Retrying install with online preference...',
+						args: [...installBaseArgs, '--prefer-online', '--registry=https://registry.npmjs.org/']
 					}
 				];
 
@@ -862,15 +946,21 @@ export const createPlaygroundController = () => {
 					if (attempt.beforeArgs) {
 						appendLog(`\n[playground] npm ${attempt.beforeArgs.join(' ')}\n`);
 						const prepProcess = await wc.spawn('npm', attempt.beforeArgs);
-						streamProcessOutput(prepProcess);
-						await prepProcess.exit;
+						await runProcessWithTimeout(
+							prepProcess,
+							`npm ${attempt.beforeArgs.join(' ')}`,
+							installTimeoutMs / 2
+						);
 					}
 
 					appendLog(`\n[playground] npm ${attempt.args.join(' ')}\n`);
 
 					const installProcess = await wc.spawn('npm', attempt.args);
-					streamProcessOutput(installProcess);
-					installExitCode = await installProcess.exit;
+					installExitCode = await runProcessWithTimeout(
+						installProcess,
+						`npm ${attempt.args.join(' ')}`,
+						installTimeoutMs
+					);
 
 					if (installExitCode === 0) {
 						break;
@@ -896,15 +986,25 @@ export const createPlaygroundController = () => {
 					const logTail = runtimeLog.split('\n').slice(-60).join('\n').trim();
 					throw new Error(
 						logTail
-							? `npm install failed (exit code ${installExitCode})\n${logTail}`
-							: `npm install failed (exit code ${installExitCode})`
+							? `npm ci failed (exit code ${installExitCode})\n${logTail}`
+							: `npm ci failed (exit code ${installExitCode})`
 					);
 				}
 
 				await startDevServer();
 			} catch (error) {
+				if (webcontainer) {
+					try {
+						webcontainer.teardown();
+					} catch {
+						// Ignore teardown errors after failed boot/install.
+					}
+				}
+				webcontainer = null;
+				devProcess?.kill();
+				devProcess = null;
+				previewUrl = '';
 				if (isDisposed) {
-					isBootingRuntime = false;
 					return;
 				}
 				errorMessage =
@@ -914,6 +1014,8 @@ export const createPlaygroundController = () => {
 				isBootingRuntime = false;
 			}
 		};
+
+		startRuntime = startWebcontainer;
 
 		const onVisibilityResume = () => {
 			if (document.visibilityState !== 'visible') return;
@@ -938,11 +1040,8 @@ export const createPlaygroundController = () => {
 			isDisposed = true;
 			document.removeEventListener('visibilitychange', onVisibilityResume);
 			window.removeEventListener('focus', onVisibilityResume);
-			if (syncTimer) {
-				clearTimeout(syncTimer);
-				syncTimer = null;
-			}
-			devProcess?.kill();
+			startRuntime = null;
+			teardownRuntime();
 			editorChangeSubscription?.dispose();
 			editorChangeSubscription = null;
 			for (const model of Object.values(monacoModelsByPath)) {
@@ -955,9 +1054,6 @@ export const createPlaygroundController = () => {
 			editorInstance = null;
 			monacoApi = null;
 			shikiHighlighter = null;
-			webcontainer?.teardown();
-			devProcess = null;
-			webcontainer = null;
 		};
 	};
 
@@ -1007,6 +1103,7 @@ export const createPlaygroundController = () => {
 		closeFile,
 		mount,
 		openFile,
+		retryRuntime,
 		switchToFile,
 		toggleDirectory
 	};

@@ -7,6 +7,7 @@
 		{ label: 'Docs', route: '/docs' },
 		{ label: 'Playground', route: '/playground' }
 	] as const;
+	const isPlaygroundRoute = (route: (typeof menu)[number]['route']) => route === '/playground';
 
 	const follow = [
 		{ label: 'GitHub', href: 'https://github.com/motion-core/motion-gpu' },
@@ -41,6 +42,9 @@
 					<li>
 						<a
 							href={resolve(item.route as '/')}
+							data-sveltekit-reload={isPlaygroundRoute(item.route) ? '' : undefined}
+							data-sveltekit-preload-data={isPlaygroundRoute(item.route) ? 'off' : undefined}
+							data-sveltekit-preload-code={isPlaygroundRoute(item.route) ? 'off' : undefined}
 							class="w-fit text-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
 							>&#8627; {item.label}</a
 						>

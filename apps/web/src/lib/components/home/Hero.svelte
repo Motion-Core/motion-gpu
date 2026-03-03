@@ -30,7 +30,14 @@
 			If you need performance, clarity, and composability in WebGPU for Svelte, this is the stack.
 		</p>
 		<div class="flex items-center gap-2">
-			<Button variant="default" href={resolve(playgroundRoute as '/playground')} size="lg">
+			<Button
+				variant="default"
+				href={resolve(playgroundRoute as '/playground')}
+				size="lg"
+				data-sveltekit-reload
+				data-sveltekit-preload-data="off"
+				data-sveltekit-preload-code="off"
+			>
 				<WatsonHealth3DPrintMesh size={16} />
 				<span>Playground</span>
 			</Button>

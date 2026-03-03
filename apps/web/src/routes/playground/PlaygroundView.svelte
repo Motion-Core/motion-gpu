@@ -440,14 +440,16 @@
 
 		<section class="flex min-h-0 flex-col overflow-hidden bg-background">
 			<div class="relative min-h-0 flex-1 bg-background">
-				{#if controller.previewUrl}
-					<iframe
-						title="WebContainer preview"
-						src={controller.previewUrl}
-						class="h-full w-full border-0"
-						loading="eager"
-					></iframe>
-				{:else}
+					{#if controller.previewUrl}
+						<iframe
+							title="WebContainer preview"
+							src={controller.previewUrl}
+							class="h-full w-full border-0"
+							loading="eager"
+							sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+							referrerpolicy="no-referrer"
+						></iframe>
+					{:else}
 					<div
 						class="flex h-full w-full items-center justify-center p-6 text-center text-sm text-foreground-muted"
 					>
@@ -456,16 +458,22 @@
 				{/if}
 			</div>
 
-			{#if controller.errorMessage}
-				<p
-					class="border-t border-border bg-background px-3 py-2 font-mono text-xs whitespace-pre-wrap text-red-500"
-					role="alert"
-				>
-					{controller.errorMessage}
-				</p>
-			{/if}
-		</section>
-	</div>
+				{#if controller.errorMessage}
+					<div class="border-t border-border bg-background px-3 py-2">
+						<p class="font-mono text-xs whitespace-pre-wrap text-red-500" role="alert">
+							{controller.errorMessage}
+						</p>
+						<button
+							type="button"
+							class="mt-2 inline-flex items-center rounded border border-border px-2 py-1 text-xs text-foreground transition-colors duration-150 ease-out hover:bg-background-inset"
+							onclick={controller.retryRuntime}
+						>
+							Retry runtime
+						</button>
+					</div>
+				{/if}
+			</section>
+		</div>
 </main>
 
 <style>

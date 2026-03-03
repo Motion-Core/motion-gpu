@@ -1,7 +1,78 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlitPass, CopyPass, ShaderPass } from '../../lib/passes';
+import type { RenderPassContext, RenderTarget } from '../../lib/core/types';
+
+function createTarget(key: string): RenderTarget {
+	return {
+		texture: { key } as unknown as GPUTexture,
+		view: { key: `${key}-view` } as unknown as GPUTextureView,
+		width: 32,
+		height: 32,
+		format: 'rgba8unorm'
+	};
+}
+
+function createFakeDevice() {
+	return {
+		createSampler: vi.fn(() => ({ type: 'sampler' }) as unknown as GPUSampler),
+		createBindGroupLayout: vi.fn(
+			() => ({ type: 'bind-group-layout' }) as unknown as GPUBindGroupLayout
+		),
+		createShaderModule: vi.fn(() => ({ type: 'shader-module' }) as unknown as GPUShaderModule),
+		createPipelineLayout: vi.fn(
+			() => ({ type: 'pipeline-layout' }) as unknown as GPUPipelineLayout
+		),
+		createRenderPipeline: vi.fn(() => ({ type: 'pipeline' }) as unknown as GPURenderPipeline),
+		createBindGroup: vi.fn(() => ({ type: 'bind-group' }) as unknown as GPUBindGroup)
+	} satisfies Partial<GPUDevice>;
+}
+
+function createPassContext(overrides?: Partial<RenderPassContext>): RenderPassContext {
+	const source = createTarget('source');
+	const target = createTarget('target');
+	const canvas = createTarget('canvas');
+
+	return {
+		clear: false,
+		clearColor: [0, 0, 0, 1],
+		preserve: true,
+		device: createFakeDevice() as unknown as GPUDevice,
+		commandEncoder: {
+			copyTextureToTexture: vi.fn()
+		} as unknown as GPUCommandEncoder,
+		source,
+		target,
+		canvas,
+		input: source,
+		output: target,
+		targets: {},
+		time: 0,
+		delta: 0.016,
+		width: 32,
+		height: 32,
+		beginRenderPass: vi.fn(
+			() =>
+				({
+					setPipeline: vi.fn(),
+					setBindGroup: vi.fn(),
+					draw: vi.fn(),
+					end: vi.fn()
+				}) as unknown as GPURenderPassEncoder
+		),
+		...overrides
+	};
+}
 
 describe('built-in passes', () => {
+	beforeEach(() => {
+		vi.stubGlobal('GPUShaderStage', { FRAGMENT: 0x10 });
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
 	it('configures default BlitPass flow', () => {
 		const pass = new BlitPass();
 		expect(pass.enabled).toBe(true);
@@ -38,5 +109,87 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 `
 		});
 		expect(pass.getFragment()).toContain('fn shade(inputColor: vec4f, uv: vec2f)');
+	});
+
+	it('uses direct GPU copy path when CopyPass surfaces are compatible', () => {
+		const pass = new CopyPass();
+		const context = createPassContext();
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).toHaveBeenCalledTimes(1);
+		expect(fallbackRender).not.toHaveBeenCalled();
+	});
+
+	it('falls back to blit when CopyPass cannot use direct copy', () => {
+		const pass = new CopyPass();
+		const context = createPassContext({ clear: true });
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(fallbackRender).toHaveBeenCalledTimes(1);
+	});
+
+	it('disposes internal blit pass when CopyPass is disposed', () => {
+		const pass = new CopyPass();
+		const disposeSpy = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'dispose'
+		);
+		pass.dispose();
+		expect(disposeSpy).toHaveBeenCalledTimes(1);
+	});
+
+	it('reuses ShaderPass pipeline cache and invalidates it after setFragment', () => {
+		const pass = new ShaderPass({
+			fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
+}
+`
+		});
+		const context = createPassContext();
+		const device = context.device as unknown as ReturnType<typeof createFakeDevice>;
+
+		pass.render(context);
+		pass.render(context);
+		expect(device.createRenderPipeline).toHaveBeenCalledTimes(1);
+
+		pass.setFragment(`
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rg, uv.x, inputColor.a);
+}
+`);
+		pass.render(context);
+		expect(device.createRenderPipeline).toHaveBeenCalledTimes(2);
+	});
+
+	it('resets ShaderPass GPU caches when rendering with a different device', () => {
+		const pass = new ShaderPass({
+			fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb, inputColor.a);
+}
+`
+		});
+		const firstContext = createPassContext();
+		const secondContext = createPassContext();
+		const firstDevice = firstContext.device as unknown as ReturnType<typeof createFakeDevice>;
+		const secondDevice = secondContext.device as unknown as ReturnType<typeof createFakeDevice>;
+
+		pass.render(firstContext);
+		pass.render(secondContext);
+
+		expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
 	});
 });

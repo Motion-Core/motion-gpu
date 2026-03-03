@@ -175,4 +175,111 @@ describe('useTexture', () => {
 			expect(bitmap.close).toHaveBeenCalledTimes(1);
 		}
 	});
+
+	it('shares in-flight blob requests across concurrent hook instances', async () => {
+		let resolveFetch: (() => void) | null = null;
+		const fetchPromise = new Promise<{
+			ok: boolean;
+			status: number;
+			blob: () => Promise<Blob>;
+		}>((resolve) => {
+			resolveFetch = () =>
+				resolve({
+					ok: true,
+					status: 200,
+					blob: async () => new Blob([new Uint8Array([9, 8, 7, 6])], { type: 'image/png' })
+				});
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(() => fetchPromise)
+		);
+
+		const onProbeA = vi.fn();
+		const onProbeB = vi.fn();
+		render(TextureHookProbe, {
+			props: {
+				urls: ['/assets/shared-hook.png'],
+				onProbe: onProbeA
+			}
+		});
+		render(TextureHookProbe, {
+			props: {
+				urls: ['/assets/shared-hook.png'],
+				onProbe: onProbeB
+			}
+		});
+
+		await waitFor(() => {
+			expect(fetch).toHaveBeenCalledTimes(1);
+		});
+		resolveFetch?.();
+
+		await waitFor(() => {
+			const resultA = onProbeA.mock.calls[0]?.[0] as UseTextureResult;
+			const resultB = onProbeB.mock.calls[0]?.[0] as UseTextureResult;
+			expect(resultA.loading.current).toBe(false);
+			expect(resultB.loading.current).toBe(false);
+			expect(resultA.textures.current).toHaveLength(1);
+			expect(resultB.textures.current).toHaveLength(1);
+		});
+		expect(createImageBitmap).toHaveBeenCalledTimes(2);
+	});
+
+	it('supports merged abort signal fallback when AbortSignal.any is unavailable', async () => {
+		const abortSignalRef = AbortSignal as unknown as { any?: typeof AbortSignal.any };
+		const originalAny = abortSignalRef.any;
+		abortSignalRef.any = undefined;
+
+		try {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn((_: string, requestInit?: RequestInit) => {
+					const signal = requestInit?.signal as AbortSignal | undefined;
+					return new Promise((resolve, reject) => {
+						if (signal?.aborted) {
+							reject(createAbortError());
+							return;
+						}
+
+						const onAbort = (): void => reject(createAbortError());
+						signal?.addEventListener('abort', onAbort, { once: true });
+						setTimeout(() => {
+							signal?.removeEventListener('abort', onAbort);
+							resolve({
+								ok: true,
+								status: 200,
+								blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+							});
+						}, 500);
+					});
+				})
+			);
+
+			let result: UseTextureResult | null = null;
+			const onProbe = vi.fn((value: UseTextureResult) => {
+				result = value;
+			});
+			const controller = new AbortController();
+			render(TextureHookProbe, {
+				props: {
+					urls: ['/assets/fallback-abort.png'],
+					options: {
+						signal: controller.signal
+					},
+					onProbe
+				}
+			});
+			controller.abort();
+
+			await waitFor(() => {
+				expect(result).not.toBeNull();
+				expect(result?.loading.current).toBe(false);
+			});
+			expect(result?.error.current).toBeNull();
+			expect(result?.textures.current).toBeNull();
+		} finally {
+			abortSignalRef.any = originalAny;
+		}
+	});
 });

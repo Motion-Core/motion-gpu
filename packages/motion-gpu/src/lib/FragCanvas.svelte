@@ -373,6 +373,7 @@
 				frameId = requestAnimationFrame(renderFrame);
 			} catch (error) {
 				setError(error, 'initialization');
+				frameId = requestAnimationFrame(renderFrame);
 			}
 		})();
 

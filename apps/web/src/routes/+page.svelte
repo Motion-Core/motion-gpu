@@ -5,6 +5,7 @@
 	import Hero from '$lib/components/home/Hero.svelte';
 	import HowItWorks from '$lib/components/home/HowItWorks.svelte';
 	import Preview from '$lib/components/home/Preview.svelte';
+	import Menubar from '$lib/components/home/Menubar.svelte';
 </script>
 
 <a
@@ -14,6 +15,7 @@
 	Skip to main content
 </a>
 
+<Menubar />
 <main
 	id="main-content"
 	tabindex="-1"

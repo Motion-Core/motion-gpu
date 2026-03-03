@@ -5,7 +5,6 @@
 	import { fade, fly } from 'svelte/transition';
 	import Book from 'carbon-icons-svelte/lib/Book.svelte';
 	import Close from 'carbon-icons-svelte/lib/Close.svelte';
-	import WatsonHealth3DPrintMesh from 'carbon-icons-svelte/lib/WatsonHealth3DPrintMesh.svelte';
 	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 	import Menu from 'carbon-icons-svelte/lib/Menu.svelte';
 	import Button from '../ui/Button.svelte';
@@ -13,7 +12,6 @@
 
 	const homeRoute = '/' as const;
 	const docsRoute = '/docs' as const;
-	const playgroundRoute = '/playground' as const;
 	const focusableSelectors = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 	let mobileOpen = $state(false);
@@ -120,11 +118,8 @@
 	});
 </script>
 
-<nav
-	aria-label="Primary navigation"
-	class="fixed top-3 left-1/2 z-60 w-full -translate-x-1/2 px-4 sm:px-8"
->
-	<div class="rounded-lg border border-border bg-white">
+<nav aria-label="Primary navigation" class="fixed top-0 z-60 w-full">
+	<div class="mx-auto max-w-6xl border border-border bg-white">
 		<div class="relative flex items-center justify-between gap-3 px-3 py-2 sm:px-4">
 			<a
 				href={resolve(homeRoute)}
@@ -150,12 +145,6 @@
 					Home
 				</a>
 				<a
-					href="#about"
-					class="inline-flex items-center gap-2 px-2 py-2 text-sm tracking-tight text-foreground/70 transition-colors duration-150 ease-out hover:text-foreground"
-				>
-					About
-				</a>
-				<a
 					href="#features"
 					class="inline-flex items-center gap-2 px-2 py-2 text-sm tracking-tight text-foreground/70 transition-colors duration-150 ease-out hover:text-foreground"
 				>
@@ -170,11 +159,7 @@
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
-				<Button variant="default" href={resolve(playgroundRoute as '/playground')} size="sm">
-					<WatsonHealth3DPrintMesh size={16} />
-					<span>Playground</span>
-				</Button>
-				<Button href={resolve(docsRoute as '/')} size="sm">
+				<Button href={resolve(docsRoute as '/')} size="sm" variant="default">
 					<Book size={16} />
 					<span>Docs</span>
 				</Button>
@@ -182,7 +167,7 @@
 					href="https://github.com/motion-core/motion-gpu"
 					target="_blank"
 					rel="noreferrer"
-					variant="outline"
+					variant="secondary"
 					size="sm"
 				>
 					<LogoGithub size={16} />
@@ -192,7 +177,7 @@
 
 			<button
 				type="button"
-				class="hover:bg-background-inset inline-flex size-10 items-center justify-center gap-2 text-sm whitespace-nowrap text-foreground transition-colors duration-150 ease-out sm:hidden"
+				class="inline-flex size-10 items-center justify-center gap-2 text-sm whitespace-nowrap text-foreground transition-colors duration-150 ease-out hover:bg-background-inset sm:hidden"
 				aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
 				aria-expanded={mobileOpen}
 				aria-controls="mobile-menubar-panel"
@@ -213,7 +198,7 @@
 {#if mobileOpen}
 	<button
 		type="button"
-		class="bg-background-inset/80 fixed inset-0 z-40 backdrop-blur-sm sm:hidden"
+		class="fixed inset-0 z-40 bg-background-inset/80 backdrop-blur-sm sm:hidden"
 		aria-label="Close mobile navigation overlay"
 		onclick={() => closeMobileMenu()}
 		in:fade={{ duration: reducedMotion ? 0 : 180 }}
@@ -226,7 +211,7 @@
 		aria-modal="true"
 		aria-label="Mobile navigation"
 		tabindex="-1"
-		class="fixed top-20 left-1/2 z-50 grid w-[min(92vw,30rem)] -translate-x-1/2 gap-2 rounded-lg border border-border bg-white p-3 sm:hidden"
+		class="fixed top-16 left-1/2 z-50 grid w-[min(92vw,30rem)] -translate-x-1/2 gap-2 rounded-lg border border-border bg-white p-3 sm:hidden"
 		onkeydown={handleMobilePanelKeydown}
 		bind:this={mobilePanel}
 		in:fly={{
@@ -250,15 +235,6 @@
 			<span>Home</span>
 		</Button>
 		<Button
-			href="#about"
-			onclick={handleMenuLinkSelect}
-			variant="ghost"
-			size="none"
-			class="justify-start px-3 py-2"
-		>
-			<span>About</span>
-		</Button>
-		<Button
 			href="#features"
 			onclick={handleMenuLinkSelect}
 			variant="ghost"
@@ -277,12 +253,9 @@
 			<span>Pipeline</span>
 		</Button>
 
-		<div class="mt-1 grid grid-cols-2 gap-2">
-			<Button variant="default" href={resolve(playgroundRoute as '/playground')}>
-				<WatsonHealth3DPrintMesh size={16} />
-				<span>Playground</span>
-			</Button>
+		<div class="mt-1 grid grid-cols-1 gap-2">
 			<Button
+				variant="default"
 				href={resolve(docsRoute as '/')}
 				onclick={handleMenuLinkSelect}
 				class="justify-center"
@@ -296,7 +269,7 @@
 				target="_blank"
 				rel="noreferrer"
 				onclick={handleMenuLinkSelect}
-				variant="outline"
+				variant="secondary"
 				class="col-span-2 justify-center"
 			>
 				<LogoGithub size={16} />

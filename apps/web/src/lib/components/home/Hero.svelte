@@ -14,7 +14,7 @@
 	id="home"
 	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 sm:min-h-[50vh] lg:min-h-[70vh]"
 >
-	<div class="flex w-full flex-col items-center justify-center gap-4">
+	<div class="flex w-full flex-col items-center justify-center gap-4 pt-16 sm:pt-10">
 		<span
 			class="inline-flex shrink-0 items-center text-accent [&>svg]:size-16 [&>svg]:fill-current"
 			aria-hidden="true"

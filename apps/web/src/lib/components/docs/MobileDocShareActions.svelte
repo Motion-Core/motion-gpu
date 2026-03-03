@@ -184,10 +184,10 @@
 	});
 
 	const buttonClass =
-		"border border-border relative inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-background px-4 py-2 text-sm font-medium whitespace-nowrap text-foreground shadow-sm transition-[background-color] duration-150 ease-out hover:bg-background-inset disabled:pointer-events-none disabled:opacity-50 has-[>svg]:px-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 flex-1";
+		"border border-border relative inline-flex h-9 shrink-0 overflow-hidden items-center justify-center gap-2 rounded-md bg-background px-4 py-2 text-sm font-medium whitespace-nowrap text-foreground shadow-sm transition-[background-color] duration-150 ease-out hover:bg-background-inset disabled:pointer-events-none disabled:opacity-50 has-[>svg]:px-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 flex-1";
 </script>
 
-<div class="relative z-20 mt-8 flex w-full gap-2 overflow-hidden lg:hidden">
+<div class="relative z-20 mt-8 flex w-full gap-2 lg:hidden">
 	<button
 		type="button"
 		onclick={handleCopy}

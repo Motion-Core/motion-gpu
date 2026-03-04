@@ -86,5 +86,4 @@
 </svelte:head>
 
 <CommandPalette />
-
 {@render children()}

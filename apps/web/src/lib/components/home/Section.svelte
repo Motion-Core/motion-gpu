@@ -3,7 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import { cn } from '$lib/utils/cn';
 
-	const sectionVariants = cva('w-full border-t border-border', {
+	const sectionVariants = cva('w-full border-t border-border border-dashed', {
 		variants: {
 			variant: {
 				default: '',
@@ -38,6 +38,7 @@
 		<div
 			class={cn(
 				'relative mx-auto flex w-full max-w-5xl flex-col justify-start border-x border-border px-4 py-8 sm:px-8 sm:py-16',
+				variant !== 'muted' && 'border-dashed',
 				className
 			)}
 		>
@@ -48,19 +49,3 @@
 		{/if}
 	</div>
 </section>
-
-<style>
-	.bg-dashed {
-		background-image: linear-gradient(
-			45deg,
-			var(--color-border) 12.5%,
-			transparent 12.5%,
-			transparent 50%,
-			var(--color-border) 50%,
-			var(--color-border) 62.5%,
-			transparent 62.5%,
-			transparent 100%
-		);
-		background-size: 0.25rem 0.25rem;
-	}
-</style>

@@ -8,8 +8,12 @@
 	import Button from '../ui/Button.svelte';
 </script>
 
-<Section variant="muted" id="cta" class="flex flex-col items-center justify-center gap-4">
-	<h2 class="text-center text-2xl tracking-tight text-balance sm:text-4xl">
+<Section
+	variant="muted"
+	id="cta"
+	class="flex flex-col items-center justify-center gap-4 bg-[radial-gradient(125%_125%_at_50%_0%,transparent_60%,color-mix(in_srgb,var(--color-accent)_50%,transparent))]"
+>
+	<h2 class="text-center text-2xl tracking-tight text-balance text-foreground sm:text-4xl">
 		Bring your shader pipeline to production.
 	</h2>
 	<p class="text-center text-base text-pretty text-foreground-muted sm:w-2/3">

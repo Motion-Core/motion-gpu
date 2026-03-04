@@ -7,7 +7,7 @@
 <Section
 	variant="default"
 	id="home"
-	class="relative flex h-72 w-full flex-col items-center justify-center gap-4 sm:h-144"
+	class="bg-dashed relative flex h-72 w-full flex-col items-center justify-center gap-4 sm:h-144"
 >
 	<div
 		class="inset-shadow absolute! inset-x-4 -top-32 bottom-4 min-h-72 overflow-hidden rounded-xl border border-border bg-background-inset p-2 sm:inset-x-8 sm:bottom-8 sm:min-h-144"

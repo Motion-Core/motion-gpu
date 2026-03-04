@@ -123,7 +123,7 @@
 		<ScrollArea
 			id="docs-content-container"
 			class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
-			viewportClass="rounded-lg"
+			viewportClass="rounded-lg shadow-md overscroll-none"
 		>
 			<div
 				class="flex flex-col gap-8 rounded-lg border border-border bg-background px-4 py-8 lg:px-8"

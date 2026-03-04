@@ -31,7 +31,7 @@
 	</div>
 
 	<div class="mt-auto grid gap-4">
-		<h3 class="text-xl tracking-tight">{title}</h3>
+		<h3 class="text-xl tracking-tight text-foreground">{title}</h3>
 		<p class="text-base text-foreground-muted">{description}</p>
 	</div>
 </article>

@@ -12,7 +12,7 @@
 <Section
 	variant="default"
 	id="home"
-	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 sm:min-h-[50vh] lg:min-h-[70vh]"
+	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 bg-[radial-gradient(125%_125%_at_50%_0%,transparent_50%,color-mix(in_srgb,var(--color-accent)_70%,transparent))] sm:min-h-[50vh] lg:min-h-[70vh]"
 >
 	<div class="flex w-full flex-col items-center justify-center gap-4 pt-16 sm:pt-10">
 		<span
@@ -22,7 +22,9 @@
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html Logo}
 		</span>
-		<h1 class="max-w-3xl text-center text-2xl tracking-tight text-balance sm:text-5xl">
+		<h1
+			class="max-w-3xl text-center text-2xl tracking-tight text-balance text-foreground sm:text-5xl"
+		>
 			A <span class="text-accent">Svelte-first</span> pipeline for modern
 			<span class="text-accent">GPU visuals.</span>
 		</h1>

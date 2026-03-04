@@ -29,14 +29,14 @@
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html Logo}
 				</span>
-				<p class="text-xl tracking-tight">MotionGPU</p>
+				<p class="text-xl tracking-tight text-foreground">MotionGPU</p>
 			</div>
 		</div>
 	</div>
 
 	<div class="w-full border-b border-border px-4 py-8 sm:grid sm:grid-cols-4 sm:gap-6 sm:px-8">
 		<div class="flex flex-col gap-2">
-			<h3 class="text-xs tracking-wide uppercase">Menu</h3>
+			<h3 class="text-xs tracking-wide text-foreground uppercase">Menu</h3>
 			<ul class="grid gap-1 tracking-tight">
 				{#each menu as item (item.label)}
 					<li>
@@ -54,7 +54,7 @@
 		</div>
 
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
-			<h3 class="text-xs tracking-wide uppercase">Follow</h3>
+			<h3 class="text-xs tracking-wide text-foreground uppercase">Follow</h3>
 			<ul class="grid gap-1 tracking-tight">
 				{#each follow as item (item.label)}
 					<li>
@@ -71,7 +71,7 @@
 		</div>
 
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
-			<h3 class="text-xs tracking-wide uppercase">Contact</h3>
+			<h3 class="text-xs tracking-wide text-foreground uppercase">Contact</h3>
 			<a
 				href="https://github.com/motion-core/motion-gpu/issues"
 				target="_blank"
@@ -89,7 +89,7 @@
 		</div>
 
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
-			<h3 class="text-xs tracking-wide uppercase">Project</h3>
+			<h3 class="text-xs tracking-wide text-foreground uppercase">Project</h3>
 			<a
 				href="https://github.com/motion-core/motion-gpu/blob/main/LICENSE"
 				target="_blank"

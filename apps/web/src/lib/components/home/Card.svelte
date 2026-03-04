@@ -15,7 +15,7 @@
 
 <article
 	class={cn(
-		'grid h-72 rounded-lg border border-border bg-background p-4 shadow-md sm:p-8',
+		'grid h-54 rounded-lg border border-border bg-background p-4 shadow-md sm:h-72 sm:p-6',
 		className
 	)}
 >

@@ -93,7 +93,7 @@
 
 		{@const typedStepCard = stepCard as import('svelte').Snippet<[Step]>}
 
-		<div class="space-y-4 sm:hidden">
+		<div class="space-y-2 sm:hidden">
 			{#each steps as step (step.number)}
 				{@render typedStepCard(step)}
 			{/each}

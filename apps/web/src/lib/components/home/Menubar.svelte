@@ -154,6 +154,12 @@
 				>
 					Pipeline
 				</a>
+				<a
+					href="#faq"
+					class="inline-flex items-center gap-2 px-2 py-2 text-sm tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
+				>
+					FAQ
+				</a>
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
@@ -245,6 +251,15 @@
 			class="justify-start px-3 py-2"
 		>
 			<span>Pipeline</span>
+		</Button>
+		<Button
+			href="#faq"
+			onclick={handleMenuLinkSelect}
+			variant="ghost"
+			size="none"
+			class="justify-start px-3 py-2"
+		>
+			<span>FAQ</span>
 		</Button>
 
 		<div class="mt-1 grid grid-cols-1 gap-2">

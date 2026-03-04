@@ -4,6 +4,7 @@
 	import Footer from '$lib/components/home/Footer.svelte';
 	import Hero from '$lib/components/home/Hero.svelte';
 	import HowItWorks from '$lib/components/home/HowItWorks.svelte';
+	import FAQ from '$lib/components/home/FAQ.svelte';
 	import Preview from '$lib/components/home/Preview.svelte';
 	import Menubar from '$lib/components/home/Menubar.svelte';
 </script>
@@ -25,6 +26,7 @@
 	<Preview />
 	<Features />
 	<HowItWorks />
+	<FAQ />
 	<CTA />
 	<div class="w-full border-t border-border">
 		<div class="mx-auto w-full max-w-5xl border-x border-border">

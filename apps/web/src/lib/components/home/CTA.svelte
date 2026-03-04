@@ -9,7 +9,7 @@
 </script>
 
 <Section
-	variant="muted"
+	variant="default"
 	id="cta"
 	class="flex flex-col items-center justify-center gap-4 bg-[radial-gradient(125%_125%_at_50%_0%,transparent_60%,color-mix(in_srgb,var(--color-accent)_50%,transparent))]"
 >

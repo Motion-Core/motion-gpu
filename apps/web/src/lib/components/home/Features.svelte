@@ -40,7 +40,7 @@
 	<h2 class="text-center text-2xl tracking-tight text-balance text-foreground sm:text-4xl">
 		Strict contracts. Deterministic rendering.
 	</h2>
-	<p class="text-center text-sm text-pretty text-foreground-muted sm:w-1/2 sm:text-base">
+	<p class="text-center text-base text-pretty text-foreground-muted sm:w-1/2">
 		From a single fullscreen fragment shader to multi-pass effects, MotionGPU gives you strict
 		contracts and deterministic runtime behavior.
 	</p>

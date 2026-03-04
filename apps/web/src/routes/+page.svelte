@@ -28,8 +28,8 @@
 	<HowItWorks />
 	<FAQ />
 	<CTA />
-	<div class="w-full border-t border-border">
-		<div class="mx-auto w-full max-w-5xl border-x border-border">
+	<div class="w-full border-t border-border bg-dashed">
+		<div class="mx-auto w-full max-w-5xl border-x border-border bg-background">
 			<Footer />
 		</div>
 	</div>

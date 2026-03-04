@@ -69,11 +69,11 @@
 	<InsetShadowContainer class="mt-8">
 		<div class="grid gap-2">
 			{#each faqItems as item, index (item.question)}
-				<article class="rounded-lg border border-border bg-background px-4 py-4 shadow-md sm:px-6">
+				<article class="rounded-lg border border-border bg-background shadow-md">
 					<button
 						type="button"
 						id={`faq-trigger-${index}`}
-						class="flex w-full cursor-pointer items-start justify-between gap-4 text-left text-base tracking-tight text-foreground"
+						class="flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-4 text-left text-base tracking-tight text-foreground sm:px-6"
 						aria-expanded={isOpen(item.question)}
 						aria-controls={`faq-panel-${index}`}
 						onclick={() => toggle(item.question)}
@@ -92,9 +92,10 @@
 							id={`faq-panel-${index}`}
 							role="region"
 							aria-labelledby={`faq-trigger-${index}`}
+							class="px-4 pb-4 sm:px-6"
 							transition:slide={{ duration: 220 }}
 						>
-							<p class="pt-3 text-sm text-pretty text-foreground-muted sm:text-base">
+							<p class="text-sm text-pretty text-foreground-muted sm:text-base">
 								{item.answer}
 							</p>
 						</div>

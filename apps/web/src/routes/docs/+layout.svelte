@@ -123,42 +123,38 @@
 		<ScrollArea
 			id="docs-content-container"
 			class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
-			viewportClass="rounded-lg shadow-md overscroll-none"
+			viewportClass="rounded-lg shadow-md overscroll-none flex flex-col gap-8 rounded-lg border border-border bg-background px-4 py-8 lg:px-8"
 		>
-			<div
-				class="flex flex-col gap-8 rounded-lg border border-border bg-background px-4 py-8 lg:px-8"
-			>
-				<section class="min-w-0 flex-1 space-y-8">
-					{#if metadata}
-						<div class="space-y-4">
-							{#if currentDoc?.category}
-								<p class="mb-2 text-sm font-medium text-foreground/45 capitalize">
-									{currentDoc.category}
-								</p>
-							{/if}
-							<h1 class="font-display scroll-m-20 text-3xl font-medium text-foreground">
-								{metadata.name || metadata.title}
-							</h1>
-							{#if metadata.description}
-								<p class="max-w-4xl text-base text-foreground-muted">
-									{metadata.description}
-								</p>
-							{/if}
+			<section class="min-w-0 flex-1 space-y-8">
+				{#if metadata}
+					<div class="space-y-4">
+						{#if currentDoc?.category}
+							<p class="mb-2 text-sm font-medium text-foreground/45 capitalize">
+								{currentDoc.category}
+							</p>
+						{/if}
+						<h1 class="font-display scroll-m-20 text-3xl font-medium text-foreground">
+							{metadata.name || metadata.title}
+						</h1>
+						{#if metadata.description}
+							<p class="max-w-4xl text-base text-foreground-muted">
+								{metadata.description}
+							</p>
+						{/if}
 
-							{#if metadata && rawPath && rawUrl && githubUrl}
-								<MobileDocShareActions {rawPath} {rawUrl} {githubUrl} />
-							{/if}
-						</div>
-						<hr class="text-border" />
-					{/if}
-
-					<div>
-						{@render renderChildren?.()}
-
-						<DocNavigation previous={previousLink} next={nextLink} />
+						{#if metadata && rawPath && rawUrl && githubUrl}
+							<MobileDocShareActions {rawPath} {rawUrl} {githubUrl} />
+						{/if}
 					</div>
-				</section>
-			</div>
+					<hr class="text-border" />
+				{/if}
+
+				<div>
+					{@render renderChildren?.()}
+
+					<DocNavigation previous={previousLink} next={nextLink} />
+				</div>
+			</section>
 		</ScrollArea>
 	</div>
 

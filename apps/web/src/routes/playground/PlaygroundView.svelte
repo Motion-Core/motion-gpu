@@ -10,6 +10,7 @@
 	import Return from 'carbon-icons-svelte/lib/Return.svelte';
 	import OpenPanelFilledLeft from 'carbon-icons-svelte/lib/OpenPanelFilledLeft.svelte';
 	import OpenPanelLeft from 'carbon-icons-svelte/lib/OpenPanelLeft.svelte';
+	import { brandingConfig } from '$lib/config/branding';
 
 	import 'monaco-editor/min/vs/editor/editor.main.css';
 	import type { PlaygroundController } from './playground-controller.svelte';
@@ -297,10 +298,10 @@
 					aria-hidden="true"
 				>
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html Logo}
+					{@html brandingConfig.logoRaw}
 				</span>
-				<span class="font-medium"
-					>MotionGPU <span class="text-xs text-accent">playground</span></span
+				<span class="font-medium text-foreground"
+					>{brandingConfig.name} <span class="text-xs text-accent">playground</span></span
 				>
 			</div>
 			<div class="min-h-0 flex-1 overflow-auto py-1">
@@ -440,16 +441,16 @@
 
 		<section class="flex min-h-0 flex-col overflow-hidden bg-background">
 			<div class="relative min-h-0 flex-1 bg-background">
-					{#if controller.previewUrl}
-						<iframe
-							title="WebContainer preview"
-							src={controller.previewUrl}
-							class="h-full w-full border-0"
-							loading="eager"
-							sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-							referrerpolicy="no-referrer"
-						></iframe>
-					{:else}
+				{#if controller.previewUrl}
+					<iframe
+						title="WebContainer preview"
+						src={controller.previewUrl}
+						class="h-full w-full border-0"
+						loading="eager"
+						sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+						referrerpolicy="no-referrer"
+					></iframe>
+				{:else}
 					<div
 						class="flex h-full w-full items-center justify-center p-6 text-center text-sm text-foreground-muted"
 					>
@@ -458,22 +459,22 @@
 				{/if}
 			</div>
 
-				{#if controller.errorMessage}
-					<div class="border-t border-border bg-background px-3 py-2">
-						<p class="font-mono text-xs whitespace-pre-wrap text-red-500" role="alert">
-							{controller.errorMessage}
-						</p>
-						<button
-							type="button"
-							class="mt-2 inline-flex items-center rounded border border-border px-2 py-1 text-xs text-foreground transition-colors duration-150 ease-out hover:bg-background-inset"
-							onclick={controller.retryRuntime}
-						>
-							Retry runtime
-						</button>
-					</div>
-				{/if}
-			</section>
-		</div>
+			{#if controller.errorMessage}
+				<div class="border-t border-border bg-background px-3 py-2">
+					<p class="font-mono text-xs whitespace-pre-wrap text-red-500" role="alert">
+						{controller.errorMessage}
+					</p>
+					<button
+						type="button"
+						class="mt-2 inline-flex items-center rounded border border-border px-2 py-1 text-xs text-foreground transition-colors duration-150 ease-out hover:bg-background-inset"
+						onclick={controller.retryRuntime}
+					>
+						Retry runtime
+					</button>
+				</div>
+			{/if}
+		</section>
+	</div>
 </main>
 
 <style>

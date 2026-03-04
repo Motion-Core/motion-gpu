@@ -207,6 +207,61 @@ describe('FragCanvas runtime', () => {
 		});
 	});
 
+	it('does not enqueue duplicate renderer rebuild while previous rebuild is pending', async () => {
+		let resolveRenderer: ((renderer: MockRenderer) => void) | null = null;
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockImplementation(
+			() =>
+				new Promise<MockRenderer>((resolve) => {
+					resolveRenderer = resolve;
+				})
+		);
+
+		render(FragCanvas, {
+			props: {
+				material,
+				showErrorOverlay: false
+			}
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(createRendererMock).toHaveBeenCalledTimes(1);
+
+		resolveRenderer?.(renderer);
+		await Promise.resolve();
+		await Promise.resolve();
+		await flushFrame(48);
+		await waitFor(() => {
+			expect(renderer.render).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it('stops frame processing after component unmount', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const view = render(FragCanvas, {
+			props: {
+				material,
+				showErrorOverlay: false
+			}
+		});
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+
+		view.unmount();
+		await flushFrame(48);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+	});
+
 	it('renders shader diagnostics source, details and stack in overlay', async () => {
 		const diagnosticsError = attachShaderCompilationDiagnostics(
 			new Error('WGSL compilation failed:\nmissing return'),
@@ -262,6 +317,67 @@ describe('FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
 	});
 
+	it('renders diagnostics source header without column and preserves blank snippet lines', async () => {
+		const diagnosticsError = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\nmissing return'),
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 31,
+						message: 'missing return',
+						sourceLocation: { kind: 'fragment', line: 3 }
+					}
+				],
+				fragmentSource: [
+					'fn frag(uv: vec2f) -> vec4f {',
+					'',
+					'\treturn vec4f(uv, 0.0, 1.0);',
+					'}'
+				].join('\n'),
+				includeSources: {},
+				materialSource: { component: 'NoColumnScene.svelte' }
+			}
+		);
+		diagnosticsError.stack = '';
+		createRendererMock.mockResolvedValue({
+			render: vi.fn(() => {
+				throw diagnosticsError;
+			}),
+			destroy: vi.fn()
+		} satisfies MockRenderer);
+
+		render(FragCanvas, { props: { material } });
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const overlay = await screen.findByTestId('motiongpu-error');
+		expect(overlay.textContent).toContain('NoColumnScene.svelte (fragment line 3)');
+		expect(overlay.textContent).not.toContain(', col');
+		const snippetLines = Array.from(overlay.querySelectorAll('.motiongpu-error-source-code'));
+		expect(snippetLines.some((line) => line.textContent === ' ')).toBe(true);
+	});
+
+	it('shows technical details section when source diagnostics are unavailable', async () => {
+		const genericError = new Error('top-level failure\ndetail line one');
+		genericError.stack = '';
+		createRendererMock.mockResolvedValue({
+			render: vi.fn(() => {
+				throw genericError;
+			}),
+			destroy: vi.fn()
+		} satisfies MockRenderer);
+
+		render(FragCanvas, { props: { material } });
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const overlay = await screen.findByTestId('motiongpu-error');
+		expect(overlay.textContent).toContain('Technical details');
+		expect(overlay.textContent).toContain('detail line one');
+		expect(overlay.textContent).not.toContain('Stack trace');
+	});
+
 	it('applies frame uniform/texture writes and clears stale runtime maps after material change', async () => {
 		const created: MockRenderer[] = [];
 		createRendererMock.mockImplementation(async () => {
@@ -288,6 +404,10 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(32);
 		await waitFor(() => {
 			expect(created[0]?.render).toHaveBeenCalledTimes(1);
+		});
+		await flushFrame(40);
+		await waitFor(() => {
+			expect(created[0]?.render).toHaveBeenCalledTimes(2);
 		});
 
 		const firstRenderInput = created[0]?.render.mock.calls[0]?.[0] as

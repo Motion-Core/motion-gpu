@@ -18,13 +18,17 @@
 	}: ComponentProps = $props();
 </script>
 
-<div class="inset-shadow rounded-lg bg-background-inset p-1">
+<div
+	class={cn(
+		'group',
+		align === 'right' && 'sm:text-right',
+		forceSecondColumn && 'inset-shadow rounded-lg bg-background-inset p-1 sm:col-start-2'
+	)}
+>
 	<a
 		{href}
 		class={cn(
-			'group relative flex flex-col rounded-md border border-border bg-background px-4 py-3 shadow-md transition-[background-color] duration-150 ease-out hover:bg-background-inset',
-			align === 'right' && 'sm:text-right',
-			forceSecondColumn && 'sm:col-start-2'
+			'group relative flex flex-col rounded-md border border-border bg-background px-4 py-3 shadow-md transition-[background-color] duration-150 ease-out hover:bg-background-inset'
 		)}
 	>
 		<span class="text-xs tracking-wide text-foreground/45 uppercase">

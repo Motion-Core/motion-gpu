@@ -27,9 +27,12 @@
 	</code>
 {:else}
 	<div
-		class="inset-shadow relative inline-block w-fit rounded-sm border border-border bg-background-inset px-1.5 py-0.5 font-mono text-xs font-medium whitespace-nowrap text-foreground"
+		class="inset-shadow relative inline-block w-fit rounded-sm border border-border bg-background-inset px-px py-1 font-mono text-xs font-medium whitespace-nowrap text-foreground"
 	>
-		<code {...restProps} class={cn('', className)}>
+		<code
+			{...restProps}
+			class={cn('rounded border border-border bg-background px-1.5 py-0.5 shadow-md', className)}
+		>
 			{@render children?.()}
 		</code>
 	</div>

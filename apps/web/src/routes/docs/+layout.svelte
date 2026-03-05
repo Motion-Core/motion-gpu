@@ -118,12 +118,12 @@
 	</aside>
 
 	<div
-		class="inset-shadow relative mx-auto h-full w-full max-w-4xl overflow-hidden border border-border bg-background-inset pt-12 md:overflow-visible lg:ml-88 lg:max-h-[calc(100dvh-2rem)] lg:rounded-xl lg:pt-0 xl:mr-88"
+		class="relative mx-auto h-full w-full max-w-4xl overflow-hidden border border-border bg-background-inset pt-12 md:overflow-visible lg:ml-88 lg:max-h-[calc(100dvh-2rem)] lg:rounded-xl lg:pt-0 xl:mr-88"
 	>
 		<ScrollArea
 			id="docs-content-container"
 			class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
-			viewportClass="rounded-lg shadow-md overscroll-none flex flex-col gap-8  px-4 py-8 lg:px-8"
+			viewportClass="rounded-lg overscroll-none flex flex-col gap-8  px-4 py-8 lg:px-8"
 		>
 			<section class="min-w-0 flex-1 space-y-8">
 				{#if metadata}

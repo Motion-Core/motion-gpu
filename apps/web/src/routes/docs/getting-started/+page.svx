@@ -232,13 +232,17 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 ## Advanced entrypoint
 
-For namespaced shared user state across nested runtime helpers:
+For power-user APIs (namespaced shared user state and scheduler tooling):
 
 ```ts
-import { useMotionGPUUserContext } from '@motion-core/motion-gpu/advanced';
+import {
+  useMotionGPUUserContext,
+  applySchedulerPreset,
+  captureSchedulerDebugSnapshot
+} from '@motion-core/motion-gpu/advanced';
 ```
 
-See [User Context (Advanced)](/docs/user-context) for details.
+See [User Context (Advanced)](/docs/user-context) and [Render Modes and Scheduling](/docs/render-modes) for details.
 
 ## Next steps
 

@@ -332,3 +332,27 @@ fn frag(uv: vec2f) -> vec4f {
 **Notes:**
 - `autoRender = false` stops all rendering regardless of render mode.
 - The RAF loop still runs (for scheduler tasks), but no GPU work happens.
+
+## 10. Advanced scheduler preset + debug snapshot
+
+```ts
+import { useMotionGPU } from '@motion-core/motion-gpu';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+
+const gpu = useMotionGPU();
+
+// Quick default for profiling/debug sessions
+applySchedulerPreset(gpu.scheduler, 'debug');
+
+// Optional override
+applySchedulerPreset(gpu.scheduler, 'balanced', { profilingWindow: 180 });
+
+const snapshot = captureSchedulerDebugSnapshot(gpu.scheduler);
+console.table(snapshot.schedule.stages);
+console.log(snapshot.lastRunTimings);
+console.log(snapshot.profilingSnapshot);
+```
+
+**Notes:**
+- Presets: `'performance'`, `'balanced'`, `'debug'`.
+- In current runtime internals, diagnostics and profiling toggles share one state path.

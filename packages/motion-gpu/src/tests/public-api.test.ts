@@ -22,6 +22,8 @@ describe('public api contract', () => {
 			'CopyPass',
 			'FragCanvas',
 			'ShaderPass',
+			'applySchedulerPreset',
+			'captureSchedulerDebugSnapshot',
 			'defineMaterial',
 			'useFrame',
 			'useMotionGPU',

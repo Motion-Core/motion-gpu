@@ -5,7 +5,14 @@
  * minimal root API surface.
  */
 export * from './index';
+export { applySchedulerPreset, captureSchedulerDebugSnapshot } from './advanced-scheduler';
 export { useMotionGPUUserContext } from './use-motiongpu-user-context';
+export type {
+	ApplySchedulerPresetOptions,
+	SchedulerDebugSnapshot,
+	SchedulerPreset,
+	SchedulerPresetConfig
+} from './advanced-scheduler';
 export type { MotionGPUUserContext, MotionGPUUserNamespace } from './motiongpu-context';
 export type {
 	FrameProfilingSnapshot,

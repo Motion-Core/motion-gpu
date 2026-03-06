@@ -12,6 +12,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | Area | What is tested |
 | --- | --- |
 | **Public API** | Root and advanced export contracts — every public symbol is verified to exist and have the correct type. |
+| **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
 | **FragCanvas** | WebGPU-unavailable behaviour, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, prop validation. |
 | **Context hooks** | `useMotionGPU` and `useFrame` throw when called outside `FragCanvas`. Context shape and exposed controls. |
 | **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes. |
@@ -71,6 +72,7 @@ These notes are for maintainers working on the library internals:
 - The scheduler stores last-run timings and an optional rolling window of frame times.
 - `setDiagnosticsEnabled(false)` clears all timing state.
 - Profiling snapshot computes `avg`, `min`, `max` from the rolling window.
+- `applySchedulerPreset(...)` and `captureSchedulerDebugSnapshot(...)` are covered in dedicated advanced helper tests.
 
 ## Build and validation commands
 

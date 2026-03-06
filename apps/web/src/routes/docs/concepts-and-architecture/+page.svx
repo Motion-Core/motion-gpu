@@ -21,7 +21,8 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 ```
 packages/motion-gpu/src/lib/
 ├── index.ts                        # Public root exports
-├── advanced.ts                     # Advanced exports (user context, extended types)
+├── advanced.ts                     # Advanced exports (user context + scheduler helpers + extended types)
+├── advanced-scheduler.ts           # Scheduler presets + debug snapshot helpers
 ├── FragCanvas.svelte               # Runtime entry component
 ├── MotionGPUErrorOverlay.svelte    # Default error-overlay UI component
 ├── Portal.svelte                   # DOM portal utility for error overlay
@@ -122,7 +123,7 @@ The scheduler is a DAG-based execution engine:
 | **Dependencies** | `before` / `after` on both tasks and stages. Resolved via topological sort — cycles and missing references throw. |
 | **Render modes** | `always` (continuous), `on-demand` (invalidation-driven), `manual` (explicit `advance()` only). |
 
-The scheduler exposes its resolved execution order via `getSchedule()` for debugging.
+The scheduler exposes its resolved execution order via `getSchedule()` for debugging. The advanced entrypoint helper `captureSchedulerDebugSnapshot(...)` bundles schedule, last-run timings, and profiling snapshot into one payload for debug tooling.
 
 ## Render graph architecture
 

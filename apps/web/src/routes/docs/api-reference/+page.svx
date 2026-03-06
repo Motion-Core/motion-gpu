@@ -33,7 +33,13 @@ Re-exports everything from root, plus:
 
 | Export | Kind | Summary |
 | --- | --- | --- |
+| `applySchedulerPreset` | function | Applies named scheduler timing preset with optional overrides. |
+| `captureSchedulerDebugSnapshot` | function | Returns aggregate scheduler debug payload (`schedule`, timings, profiling snapshot). |
 | `useMotionGPUUserContext` | hook | Namespaced shared runtime user state. See [User Context](/docs/user-context). |
+| `SchedulerPreset` | type | Preset name union: `'performance' \| 'balanced' \| 'debug'`. |
+| `SchedulerPresetConfig` | type | Resolved diagnostics/profiling settings after preset apply. |
+| `ApplySchedulerPresetOptions` | type | Optional override fields for preset application. |
+| `SchedulerDebugSnapshot` | type | Snapshot shape returned by `captureSchedulerDebugSnapshot`. |
 | `MotionGPUUserContext` | type | Writable user context store type. |
 | `MotionGPUUserNamespace` | type | Namespace key type (`string \| symbol`). |
 | `SetMotionGPUUserContextOptions` | type | Conflict strategy options. |
@@ -132,6 +138,57 @@ Dependency validation is strict: cyclic graphs and missing `before` / `after` re
 | `advance` | `() => void` |
 | `scheduler` | Scheduler API |
 
+## `applySchedulerPreset` signature
+
+```ts
+applySchedulerPreset(
+  scheduler: MotionGPUScheduler,
+  preset: SchedulerPreset,
+  options?: ApplySchedulerPresetOptions
+): SchedulerPresetConfig
+```
+
+### `SchedulerPreset`
+
+```ts
+'performance' | 'balanced' | 'debug'
+```
+
+### `ApplySchedulerPresetOptions`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `diagnosticsEnabled` | `boolean` | Must match `profilingEnabled` in the current runtime |
+| `profilingEnabled` | `boolean` | Must match `diagnosticsEnabled` in the current runtime |
+| `profilingWindow` | `number` | Finite, `> 0`, rounded down to integer |
+
+### `SchedulerPresetConfig`
+
+| Field | Type |
+| --- | --- |
+| `diagnosticsEnabled` | `boolean` |
+| `profilingEnabled` | `boolean` |
+| `profilingWindow` | `number` |
+
+## `captureSchedulerDebugSnapshot` signature
+
+```ts
+captureSchedulerDebugSnapshot(
+  scheduler: MotionGPUScheduler
+): SchedulerDebugSnapshot
+```
+
+### `SchedulerDebugSnapshot`
+
+| Field | Type |
+| --- | --- |
+| `diagnosticsEnabled` | `boolean` |
+| `profilingEnabled` | `boolean` |
+| `profilingWindow` | `number` |
+| `schedule` | `FrameScheduleSnapshot` |
+| `lastRunTimings` | `FrameRunTimings \| null` |
+| `profilingSnapshot` | `FrameProfilingSnapshot \| null` |
+
 ## `useTexture(urlInput, options?)` signature
 
 ### URL input
@@ -222,6 +279,10 @@ Pass-slot constraints:
 | `FrameInvalidationToken` | `string \| number \| symbol` |
 | `FrameRunTimings` | Single-frame measurement |
 | `FrameProfilingSnapshot` | Rolling stats (`last`, `avg`, `min`, `max`, `count`) |
+| `SchedulerPreset` | `'performance' \| 'balanced' \| 'debug'` |
+| `SchedulerPresetConfig` | Resolved diagnostics/profiling/window values |
+| `ApplySchedulerPresetOptions` | Optional diagnostics/profiling/window overrides |
+| `SchedulerDebugSnapshot` | Aggregate debug payload from `captureSchedulerDebugSnapshot` |
 
 ### Diagnostics
 

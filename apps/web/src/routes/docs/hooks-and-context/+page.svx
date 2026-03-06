@@ -60,6 +60,12 @@ Must be called inside a `<FragCanvas>` component tree. Calling it outside throws
 | `gpu.scheduler.getProfilingSnapshot()` | Aggregate profiling stats |
 | `gpu.scheduler.resetProfiling()` | Clear profiling history |
 
+For higher-level scheduler configuration and debug snapshots, use the advanced helper exports:
+
+```ts
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+```
+
 ## The CurrentWritable / CurrentReadable pattern
 
 Standard Svelte stores require subscription to read values. In `useFrame` callbacks (which run 60 times per second), subscribing and unsubscribing per read is wasteful.

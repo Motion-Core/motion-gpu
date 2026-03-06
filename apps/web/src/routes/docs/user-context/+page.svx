@@ -11,6 +11,8 @@ This hook is exported from the **advanced entrypoint**:
 import { useMotionGPUUserContext } from '@motion-core/motion-gpu/advanced';
 ```
 
+The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
+
 ## Why use user context?
 
 Standard Svelte context (`setContext` / `getContext`) is **read-only once set** and tightly coupled to component hierarchy. `useMotionGPUUserContext` provides:

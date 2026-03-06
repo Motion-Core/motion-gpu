@@ -24,7 +24,7 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 | Entrypoint | Key exports |
 | --- | --- |
 | `@motion-core/motion-gpu` | `FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass` |
-| `@motion-core/motion-gpu/advanced` | Everything above **plus** `useMotionGPUUserContext` and extended scheduler / user-context types |
+| `@motion-core/motion-gpu/advanced` | Everything above **plus** `useMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`, and extended scheduler / user-context types |
 
 The export contract is verified in `src/tests/public-api.test.ts`.
 
@@ -107,5 +107,5 @@ These are enforced at runtime and will throw immediately if violated:
 ## Scope and boundaries
 
 - This package targets **fullscreen fragment workflows** in Svelte 5 — it is not a general-purpose scene graph or 3D engine.
-- The main runtime works without the advanced entrypoint; `@motion-core/motion-gpu/advanced` adds namespaced user state and extended type ergonomics.
+- The main runtime works without the advanced entrypoint; `@motion-core/motion-gpu/advanced` adds namespaced user state, scheduler presets/debug helpers, and extended type ergonomics.
 - All documentation references behaviours currently implemented in the repository, including edge cases verified by the test suite.

@@ -213,15 +213,38 @@ scheduler.setProfilingWindow(120); // Track last 120 frames
 // Read aggregate stats
 const snapshot = scheduler.getProfilingSnapshot();
 // {
-//   last: 0.41,
-//   avg: 0.38,
-//   min: 0.22,
-//   max: 0.65,
-//   count: 120
+//   window: 120,
+//   frameCount: 120,
+//   total: { last, avg, min, max, count },
+//   stages: { ... }
 // }
 
 // Reset history
 scheduler.resetProfiling();
 ```
 
-Both diagnostics and profiling share the same underlying timing measurement. `setDiagnosticsEnabled(false)` clears timing state.
+### Advanced scheduler helpers
+
+For common tuning profiles and one-call debug capture, use the advanced entrypoint:
+
+```ts
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+
+const scheduler = gpu.scheduler;
+
+// Presets: 'performance' | 'balanced' | 'debug'
+applySchedulerPreset(scheduler, 'balanced');
+applySchedulerPreset(scheduler, 'debug', { profilingWindow: 300 });
+
+const debugSnapshot = captureSchedulerDebugSnapshot(scheduler);
+// {
+//   diagnosticsEnabled,
+//   profilingEnabled,
+//   profilingWindow,
+//   schedule,
+//   lastRunTimings,
+//   profilingSnapshot
+// }
+```
+
+Both diagnostics and profiling share the same underlying timing measurement in the current runtime implementation. `setDiagnosticsEnabled(false)` clears timing state, and `applySchedulerPreset(...)` keeps diagnostics/profiling toggles aligned.

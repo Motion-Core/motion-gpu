@@ -1,6 +1,6 @@
 import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets';
 import { planRenderGraph } from './render-graph';
-import { buildShaderSourceWithMap, type ShaderLineMap } from './shader';
+import { buildShaderSourceWithMap, formatShaderSourceLocation, type ShaderLineMap } from './shader';
 import { attachShaderCompilationDiagnostics } from './error-diagnostics';
 import {
 	getTextureMipLevelCount,
@@ -124,6 +124,7 @@ async function assertCompilation(
 		lineMap?: ShaderLineMap;
 		fragmentSource?: string;
 		includeSources?: Record<string, string>;
+		defineBlockSource?: string;
 		materialSource?: {
 			component?: string;
 			file?: string;
@@ -148,13 +149,28 @@ async function assertCompilation(
 		sourceLocation: options?.lineMap?.[message.lineNum] ?? null
 	}));
 
-	const summary = diagnostics.map((diagnostic) => diagnostic.message).join('\n');
+	const summary = diagnostics
+		.map((diagnostic) => {
+			const sourceLabel = formatShaderSourceLocation(diagnostic.sourceLocation);
+			const generatedLineLabel =
+				diagnostic.generatedLine > 0 ? `generated WGSL line ${diagnostic.generatedLine}` : null;
+			const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
+			if (contextLabel.length === 0) {
+				return diagnostic.message;
+			}
+
+			return `[${contextLabel.join(' | ')}] ${diagnostic.message}`;
+		})
+		.join('\n');
 	const error = new Error(`WGSL compilation failed:\n${summary}`);
 	throw attachShaderCompilationDiagnostics(error, {
 		kind: 'shader-compilation',
 		diagnostics,
 		fragmentSource: options?.fragmentSource ?? '',
 		includeSources: options?.includeSources ?? {},
+		...(options?.defineBlockSource !== undefined
+			? { defineBlockSource: options.defineBlockSource }
+			: {}),
 		materialSource: options?.materialSource ?? null
 	});
 }
@@ -499,6 +515,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			lineMap: builtShader.lineMap,
 			fragmentSource: options.fragmentSource,
 			includeSources: options.includeSources,
+			...(options.defineBlockSource !== undefined
+				? { defineBlockSource: options.defineBlockSource }
+				: {}),
 			materialSource: options.materialSource ?? null
 		});
 

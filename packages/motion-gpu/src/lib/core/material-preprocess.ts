@@ -47,6 +47,10 @@ export interface PreprocessedMaterialFragment {
 	 * 1-based generated-line source map.
 	 */
 	lineMap: MaterialLineMap;
+	/**
+	 * Deterministic WGSL define block used to build the final fragment source.
+	 */
+	defineBlockSource: string;
 }
 
 function normalizeTypedDefine(
@@ -242,11 +246,20 @@ export function preprocessMaterialFragment(input: {
 	);
 	const defineEntries = Object.entries(normalizedDefines).sort(([a], [b]) => a.localeCompare(b));
 	const lines: string[] = [];
+	const defineLines: string[] = [];
 	const mapEntries: Array<MaterialSourceLocation | null> = [];
 
-	for (const [name, value] of defineEntries) {
-		lines.push(toDefineLine(name, value));
-		mapEntries.push({ kind: 'define', line: 1, define: name });
+	for (let index = 0; index < defineEntries.length; index += 1) {
+		const entry = defineEntries[index];
+		if (!entry) {
+			continue;
+		}
+
+		const [name, value] = entry;
+		const defineLine = toDefineLine(name, value);
+		lines.push(defineLine);
+		defineLines.push(defineLine);
+		mapEntries.push({ kind: 'define', line: index + 1, define: name });
 	}
 
 	if (defineEntries.length > 0) {
@@ -260,6 +273,7 @@ export function preprocessMaterialFragment(input: {
 	const lineMap: MaterialLineMap = [null, ...mapEntries];
 	return {
 		fragment: lines.join('\n'),
-		lineMap
+		lineMap,
+		defineBlockSource: defineLines.join('\n')
 	};
 }

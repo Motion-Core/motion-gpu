@@ -146,6 +146,10 @@ export interface ResolvedMaterial {
 	 */
 	includeSources: MaterialIncludes;
 	/**
+	 * Deterministic define block source used for diagnostics mapping.
+	 */
+	defineBlockSource: string;
+	/**
 	 * Source metadata used for diagnostics.
 	 */
 	source: Readonly<MaterialSourceMetadata> | null;
@@ -154,7 +158,9 @@ export interface ResolvedMaterial {
 /**
  * Strict fragment contract used by MotionGPU.
  */
-const FRAGMENT_CONTRACT_PATTERN = /\bfn\s+frag\s*\(\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/;
+const FRAGMENT_FUNCTION_SIGNATURE_PATTERN =
+	/\bfn\s+frag\s*\(\s*([^)]*?)\s*\)\s*->\s*([A-Za-z_][A-Za-z0-9_<>\s]*)\s*(?:\{|$)/m;
+const FRAGMENT_FUNCTION_NAME_PATTERN = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 /**
  * Cache of resolved material snapshots keyed by immutable material instance.
@@ -171,6 +177,23 @@ function getPathBasename(path: string): string {
 	const parts = normalized.split(/[\\/]/);
 	const last = parts[parts.length - 1];
 	return last && last.length > 0 ? last : path;
+}
+
+function normalizeSignaturePart(value: string): string {
+	return value.replace(/\s+/g, ' ').trim();
+}
+
+function listFunctionNames(fragment: string): string[] {
+	const names = new Set<string>();
+	for (const match of fragment.matchAll(FRAGMENT_FUNCTION_NAME_PATTERN)) {
+		const name = match[1];
+		if (!name) {
+			continue;
+		}
+		names.add(name);
+	}
+
+	return Array.from(names);
 }
 
 function captureMaterialSourceFromStack(): MaterialSourceMetadata | null {
@@ -325,9 +348,31 @@ function resolveFragment(fragment: string): string {
 		throw new Error('Material fragment shader must be a non-empty WGSL string.');
 	}
 
-	if (!FRAGMENT_CONTRACT_PATTERN.test(fragment)) {
+	const signature = fragment.match(FRAGMENT_FUNCTION_SIGNATURE_PATTERN);
+	if (!signature) {
+		const discoveredFunctions = listFunctionNames(fragment).slice(0, 4);
+		const discoveredLabel =
+			discoveredFunctions.length > 0
+				? `Found: ${discoveredFunctions.map((name) => `\`${name}(...)\``).join(', ')}.`
+				: 'No WGSL function declarations were found.';
+
 		throw new Error(
-			'Material fragment must declare `fn frag(uv: vec2f) -> vec4f` for fullscreen rendering.'
+			`Material fragment contract mismatch: missing entrypoint \`fn frag(uv: vec2f) -> vec4f\`. ${discoveredLabel}`
+		);
+	}
+
+	const params = normalizeSignaturePart(signature[1] ?? '');
+	const returnType = normalizeSignaturePart(signature[2] ?? '');
+
+	if (params !== 'uv: vec2f') {
+		throw new Error(
+			`Material fragment contract mismatch for \`frag\`: expected parameter list \`(uv: vec2f)\`, received \`(${params || '...'})\`.`
+		);
+	}
+
+	if (returnType !== 'vec4f') {
+		throw new Error(
+			`Material fragment contract mismatch for \`frag\`: expected return type \`vec4f\`, received \`${returnType}\`.`
 		);
 	}
 
@@ -534,6 +579,7 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 		signature,
 		fragmentSource: material.fragment,
 		includeSources: material.includes as MaterialIncludes,
+		defineBlockSource: preprocessed.defineBlockSource,
 		source: materialSourceMetadataCache.get(material) ?? null
 	};
 

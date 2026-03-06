@@ -70,7 +70,10 @@ describe('material preprocess', () => {
 		const [first, second] = preprocessed.fragment.split('\n');
 		expect(first).toContain('const ALPHA: bool = true;');
 		expect(second).toContain('const ZED: bool = false;');
-		expect(preprocessed.lineMap[1]).toMatchObject({ kind: 'define', define: 'ALPHA' });
-		expect(preprocessed.lineMap[2]).toMatchObject({ kind: 'define', define: 'ZED' });
+		expect(preprocessed.lineMap[1]).toMatchObject({ kind: 'define', define: 'ALPHA', line: 1 });
+		expect(preprocessed.lineMap[2]).toMatchObject({ kind: 'define', define: 'ZED', line: 2 });
+		expect(preprocessed.defineBlockSource).toBe(
+			['const ALPHA: bool = true;', 'const ZED: bool = false;'].join('\n')
+		);
 	});
 });

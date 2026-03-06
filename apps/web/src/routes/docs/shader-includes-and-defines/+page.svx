@@ -189,9 +189,9 @@ This is deterministic and part of the material signature, meaning changing a def
 
 When a WGSL compilation error occurs, MotionGPU uses the line map to report the original source location:
 
-- **Fragment line errors** → reported as `user fragment line X`
-- **Include errors** → reported as `include "name" line X`
-- **Define errors** → reported as `define "NAME"`
+- **Fragment line errors** → reported as `fragment line X`
+- **Include errors** → reported as `include <name> line X`
+- **Define errors** → reported as `define "NAME" line X`
 
 This means you see meaningful error locations even when your fragment expands to hundreds of generated WGSL lines. See [Error Handling and Diagnostics](/docs/error-handling) for the full error report structure.
 

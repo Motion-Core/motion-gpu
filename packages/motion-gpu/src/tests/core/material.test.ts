@@ -139,6 +139,18 @@ describe('material', () => {
 
 		expect(() =>
 			defineMaterial({
+				fragment: 'fn frag(coords: vec2f) -> vec4f { return vec4f(coords, 0.0, 1.0); }'
+			})
+		).toThrow(/\(uv: vec2f\).+coords: vec2f/);
+
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec3f { return vec3f(uv, 0.0); }'
+			})
+		).toThrow(/expected return type `vec4f`, received `vec3f`/);
+
+		expect(() =>
+			defineMaterial({
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 				defines: { BROKEN: Number.NaN }
 			})

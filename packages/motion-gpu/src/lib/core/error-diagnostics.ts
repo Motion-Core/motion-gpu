@@ -30,6 +30,7 @@ export interface ShaderCompilationDiagnosticsPayload {
 	diagnostics: ShaderCompilationDiagnostic[];
 	fragmentSource: string;
 	includeSources: Record<string, string>;
+	defineBlockSource?: string;
 	materialSource: MaterialSourceMetadata | null;
 }
 
@@ -144,6 +145,9 @@ export function getShaderCompilationDiagnostics(
 	if (typeof record.fragmentSource !== 'string') {
 		return null;
 	}
+	if (record.defineBlockSource !== undefined && typeof record.defineBlockSource !== 'string') {
+		return null;
+	}
 	if (record.includeSources === null || typeof record.includeSources !== 'object') {
 		return null;
 	}
@@ -160,6 +164,9 @@ export function getShaderCompilationDiagnostics(
 		diagnostics: record.diagnostics as ShaderCompilationDiagnostic[],
 		fragmentSource: record.fragmentSource,
 		includeSources: includeSources as Record<string, string>,
+		...(record.defineBlockSource !== undefined
+			? { defineBlockSource: record.defineBlockSource as string }
+			: {}),
 		materialSource: (record.materialSource ?? null) as MaterialSourceMetadata | null
 	};
 }

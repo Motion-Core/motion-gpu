@@ -102,7 +102,8 @@ describe('error diagnostics', () => {
 				functionName: 'createToneMaterial',
 				line: 12,
 				column: 8
-			}
+			},
+			defineBlockSource: ['const USE_TONE: bool = true;', 'const TONE_GAIN: f32 = 1.0;'].join('\n')
 		});
 
 		const payload = getShaderCompilationDiagnostics(error);
@@ -121,6 +122,7 @@ describe('error diagnostics', () => {
 			file: '/app/scenes/ToneScene.svelte',
 			functionName: 'createToneMaterial'
 		});
+		expect(payload?.defineBlockSource).toContain('const USE_TONE: bool = true;');
 	});
 
 	it('rejects invalid optional diagnostics and material metadata fields', () => {
@@ -195,6 +197,20 @@ describe('error diagnostics', () => {
 				materialSource: {
 					functionName: 5
 				}
+			},
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 6,
+						message: 'bad define block source',
+						sourceLocation: { kind: 'define', define: 'USE_TONE', line: 1 }
+					}
+				],
+				fragmentSource: 'fn frag() -> vec4f { return vec4f(0.0); }',
+				includeSources: {},
+				defineBlockSource: 7,
+				materialSource: null
 			}
 		];
 

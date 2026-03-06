@@ -1,4 +1,8 @@
-import { getShaderCompilationDiagnostics } from './error-diagnostics';
+import {
+	getShaderCompilationDiagnostics,
+	type ShaderCompilationDiagnostic
+} from './error-diagnostics';
+import { formatShaderSourceLocation } from './shader';
 
 /**
  * Runtime phase in which an error occurred.
@@ -108,10 +112,7 @@ function buildSourceFromDiagnostics(error: unknown): MotionGPUErrorSource | null
 		return null;
 	}
 
-	const primary = diagnostics.diagnostics.find((entry) => {
-		const location = entry.sourceLocation;
-		return location?.kind === 'fragment' || location?.kind === 'include';
-	});
+	const primary = diagnostics.diagnostics.find((entry) => entry.sourceLocation !== null);
 	if (!primary?.sourceLocation) {
 		return null;
 	}
@@ -125,25 +126,54 @@ function buildSourceFromDiagnostics(error: unknown): MotionGPUErrorSource | null
 			(diagnostics.materialSource?.file
 				? toDisplayName(diagnostics.materialSource.file)
 				: 'User shader fragment');
+		const locationLabel = formatShaderSourceLocation(location) ?? `fragment line ${location.line}`;
 		return {
 			component,
-			location: `${component} (fragment line ${location.line})`,
+			location: `${component} (${locationLabel})`,
 			line: location.line,
 			...(column !== undefined ? { column } : {}),
 			snippet: toSnippet(diagnostics.fragmentSource, location.line)
 		};
 	}
 
-	const includeName = location.include ?? 'unknown';
-	const includeSource = diagnostics.includeSources[includeName] ?? '';
-	const component = `#include <${includeName}>`;
+	if (location.kind === 'include') {
+		const includeName = location.include ?? 'unknown';
+		const includeSource = diagnostics.includeSources[includeName] ?? '';
+		const component = `#include <${includeName}>`;
+		const locationLabel = formatShaderSourceLocation(location) ?? `include <${includeName}>`;
+		return {
+			component,
+			location: `${component} (${locationLabel})`,
+			line: location.line,
+			...(column !== undefined ? { column } : {}),
+			snippet: toSnippet(includeSource, location.line)
+		};
+	}
+
+	const defineName = location.define ?? 'unknown';
+	const defineLine = Math.max(1, location.line);
+	const component = `#define ${defineName}`;
+	const locationLabel =
+		formatShaderSourceLocation(location) ?? `define "${defineName}" line ${defineLine}`;
 	return {
 		component,
-		location: `${component} (line ${location.line})`,
-		line: location.line,
+		location: `${component} (${locationLabel})`,
+		line: defineLine,
 		...(column !== undefined ? { column } : {}),
-		snippet: toSnippet(includeSource, location.line)
+		snippet: toSnippet(diagnostics.defineBlockSource ?? '', defineLine, 2)
 	};
+}
+
+function formatDiagnosticMessage(entry: ShaderCompilationDiagnostic): string {
+	const sourceLabel = formatShaderSourceLocation(entry.sourceLocation);
+	const generatedLineLabel =
+		entry.generatedLine > 0 ? `generated WGSL line ${entry.generatedLine}` : null;
+	const labels = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
+	if (labels.length === 0) {
+		return entry.message;
+	}
+
+	return `[${labels.join(' | ')}] ${entry.message}`;
 }
 
 /**
@@ -236,10 +266,10 @@ export function toMotionGPUErrorReport(
 	const source = buildSourceFromDiagnostics(error);
 	const message =
 		shaderDiagnostics && shaderDiagnostics.diagnostics[0]
-			? shaderDiagnostics.diagnostics[0].message
+			? formatDiagnosticMessage(shaderDiagnostics.diagnostics[0])
 			: defaultMessage;
 	const details = shaderDiagnostics
-		? shaderDiagnostics.diagnostics.slice(1).map((entry) => entry.message)
+		? shaderDiagnostics.diagnostics.slice(1).map((entry) => formatDiagnosticMessage(entry))
 		: defaultDetails;
 	const stack =
 		error instanceof Error && error.stack

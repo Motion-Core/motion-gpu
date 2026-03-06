@@ -247,12 +247,12 @@ export function formatShaderSourceLocation(location: MaterialSourceLocation | nu
 	}
 
 	if (location.kind === 'fragment') {
-		return `user fragment line ${location.line}`;
+		return `fragment line ${location.line}`;
 	}
 
 	if (location.kind === 'include') {
-		return `include "${location.include}" line ${location.line}`;
+		return `include <${location.include}> line ${location.line}`;
 	}
 
-	return `define "${location.define}"`;
+	return `define "${location.define}" line ${location.line}`;
 }

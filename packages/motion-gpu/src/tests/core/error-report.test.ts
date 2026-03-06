@@ -56,9 +56,12 @@ describe('error report', () => {
 		);
 
 		const report = toMotionGPUErrorReport(error, 'render');
-		expect(report.message).toBe('missing return at end of function');
+		expect(report.message).toBe(
+			'[fragment line 3 | generated WGSL line 112] missing return at end of function'
+		);
 		expect(report.source).not.toBeNull();
 		expect(report.source?.location).toContain('GlassPaneScene.svelte');
+		expect(report.source?.location).toContain('fragment line 3');
 		expect(report.source?.line).toBe(3);
 		expect(report.source?.snippet.some((line) => line.highlight && line.number === 3)).toBe(true);
 	});
@@ -86,7 +89,44 @@ describe('error report', () => {
 		);
 
 		const report = toMotionGPUErrorReport(error, 'render');
+		expect(report.message).toBe(
+			'[include <tone> line 2 | generated WGSL line 25] unknown function call'
+		);
 		expect(report.source?.component).toBe('#include <tone>');
+		expect(report.source?.location).toContain('include <tone> line 2');
+		expect(report.source?.line).toBe(2);
+		expect(report.source?.snippet.some((line) => line.highlight && line.number === 2)).toBe(true);
+	});
+
+	it('builds define source snippet when diagnostics point to define block', () => {
+		const error = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\ninvalid const literal'),
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 2,
+						message: 'invalid const literal',
+						linePos: 3,
+						lineLength: 5,
+						sourceLocation: { kind: 'define', define: 'USE_GLOW', line: 2 }
+					}
+				],
+				fragmentSource: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				includeSources: {},
+				defineBlockSource: ['const ENABLE_FX: bool = true;', 'const USE_GLOW: f32 = bad;'].join(
+					'\n'
+				),
+				materialSource: null
+			}
+		);
+
+		const report = toMotionGPUErrorReport(error, 'render');
+		expect(report.message).toBe(
+			'[define "USE_GLOW" line 2 | generated WGSL line 2] invalid const literal'
+		);
+		expect(report.source?.component).toBe('#define USE_GLOW');
+		expect(report.source?.location).toContain('define "USE_GLOW" line 2');
 		expect(report.source?.line).toBe(2);
 		expect(report.source?.snippet.some((line) => line.highlight && line.number === 2)).toBe(true);
 	});

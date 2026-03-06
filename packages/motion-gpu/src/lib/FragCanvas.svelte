@@ -257,6 +257,7 @@
 								fragmentLineMap: materialState.fragmentLineMap,
 								fragmentSource: materialState.fragmentSource,
 								includeSources: materialState.includeSources,
+								defineBlockSource: materialState.defineBlockSource,
 								materialSource: materialState.source,
 								uniformLayout: materialState.uniformLayout,
 								textureKeys: materialState.textureKeys,

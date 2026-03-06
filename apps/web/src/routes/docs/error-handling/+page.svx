@@ -127,9 +127,9 @@ The line map tracks which generated WGSL line corresponds to which original sour
 
 | Map entry type | Reported as |
 | --- | --- |
-| User fragment | `user fragment line X` |
-| Include chunk | `include "name" line X` |
-| Define constant | `define "NAME"` |
+| User fragment | `fragment line X` |
+| Include chunk | `include <name> line X` |
+| Define constant | `define "NAME" line X` |
 
 ### Structured diagnostics payload
 
@@ -145,17 +145,26 @@ interface ShaderCompilationDiagnostic {
 }
 ```
 
+```ts
+interface ShaderCompilationDiagnosticsPayload {
+  diagnostics: ShaderCompilationDiagnostic[];
+  fragmentSource: string;
+  includeSources: Record<string, string>;
+  defineBlockSource?: string;
+}
+```
+
 `toMotionGPUErrorReport` uses this to build:
 
-- **`message`** — from the first compiler error.
-- **`details`** — additional compiler messages.
+- **`message`** — first compiler error enriched with source label and generated-line context (when available).
+- **`details`** — additional compiler messages with the same contextual labels.
 - **`source`** — component location, line number, and highlighted code snippet.
 
 ### Overlay Source panel
 
 When `report.source` is available, the overlay shows:
 
-- Active source tab: `ComponentName (fragment line X, col Y)`
+- Active source tab: source label + location metadata (fragment/include/define), with optional column.
 - Source snippet centred around the failing line
 - Highlighted failing line
 - Additional diagnostics in a collapsible section

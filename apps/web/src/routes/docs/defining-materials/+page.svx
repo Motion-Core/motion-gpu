@@ -37,13 +37,15 @@ The fragment source **must** contain this function signature:
 fn frag(uv: vec2f) -> vec4f
 ```
 
-The regex that validates this is: `/\bfn\s+frag\s*\(\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/`
+`defineMaterial` validates this contract semantically and throws immediately with targeted errors:
 
-If the signature is not found, `defineMaterial` throws immediately with a descriptive error.
+- missing `frag` entrypoint
+- wrong parameter list (must be exactly `uv: vec2f`)
+- wrong return type (must be `vec4f`)
 
 ## What `defineMaterial` does internally
 
-1. **Validates the fragment contract** — checks for `fn frag(uv: vec2f) -> vec4f`.
+1. **Validates the fragment contract** — checks entrypoint name, parameter contract, and return type.
 2. **Normalizes uniforms** — validates identifier names, infers types from values, sorts alphabetically.
 3. **Normalizes textures** — validates identifier names, applies default config values.
 4. **Normalizes defines** — validates identifier names, checks value constraints (finite numbers, integer checks for `i32`/`u32`, non-negative for `u32`).

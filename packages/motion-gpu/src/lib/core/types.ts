@@ -467,6 +467,10 @@ export interface RendererOptions {
 	 */
 	includeSources: Record<string, string>;
 	/**
+	 * Deterministic define block source used for diagnostics mapping.
+	 */
+	defineBlockSource?: string;
+	/**
 	 * Optional material callsite/source metadata for diagnostics.
 	 */
 	materialSource?: {

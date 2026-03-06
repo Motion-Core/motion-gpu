@@ -121,6 +121,6 @@ describe('buildShaderSource', () => {
 		);
 		expect(
 			formatShaderSourceLocation(mappedLines[mappedLines.length - 1]?.location ?? null)
-		).toContain('user fragment line 3');
+		).toContain('fragment line 3');
 	});
 });

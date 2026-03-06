@@ -256,14 +256,19 @@ export interface RenderTarget {
 export type RenderTargetDefinitionMap = Record<string, RenderTargetDefinition>;
 
 /**
+ * User-defined render slot name (mapped to `renderTargets` keys).
+ */
+export type RenderPassNamedSlot = string & {};
+
+/**
  * Built-in render graph source slots.
  */
-export type RenderPassInputSlot = 'source' | 'target';
+export type RenderPassInputSlot = 'source' | 'target' | RenderPassNamedSlot;
 
 /**
  * Built-in render graph output slots.
  */
-export type RenderPassOutputSlot = 'source' | 'target' | 'canvas';
+export type RenderPassOutputSlot = 'source' | 'target' | 'canvas' | RenderPassNamedSlot;
 
 /**
  * Per-pass render flags controlling attachment behavior.

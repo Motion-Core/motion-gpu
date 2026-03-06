@@ -31,6 +31,15 @@ test.describe('motion-gpu passes e2e', () => {
 
 		await expectCanvasHashStable(page, invertHash, 220);
 
+		await page.getByTestId('set-pass-named').click();
+		await expect(page.getByTestId('pass-mode')).toHaveText('named');
+		await page.getByTestId('advance-once').click();
+		const namedHash = await waitForCanvasHashChange(page, invertHash);
+		expect(namedHash).not.toBe(baseHash);
+		expect(namedHash).not.toBe(invertHash);
+
+		await expectCanvasHashStable(page, namedHash, 220);
+
 		await page.getByTestId('set-pass-none').click();
 		await expect(page.getByTestId('pass-mode')).toHaveText('none');
 		await page.getByTestId('advance-once').click();

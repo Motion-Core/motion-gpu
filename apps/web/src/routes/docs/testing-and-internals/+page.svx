@@ -19,7 +19,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Uniforms** | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection. |
 | **Textures** | Defaults (`flipY: true`, `filter: 'linear'`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behaviour, `ImageBitmap` disposal. |
-| **Render graph** | Slot validation rules, plan generation for various pass configurations, disabled pass skipping. |
+| **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support. |
 | **Error report** | Classification pattern matching, normalized output shape, source block extraction for WGSL errors, hint generation. |
 | **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
@@ -34,7 +34,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | `useTexture` abort/reload semantics are race-safe | Prevents stale async results from overwriting fresh texture data. |
 | `ShaderPass` contract enforcement | Keeps the `fn shade(inputColor, uv)` interface stable and validated upfront. |
 | Uniform layout follows consistent sorted order | Ensures buffer packing is deterministic across material instances with the same shape. |
-| Render graph validates slot usage | Prevents nonsensical pass configurations (e.g., reading `target` before anything writes to it). |
+| Render graph validates slot usage | Prevents nonsensical pass configurations (e.g., reading `target` or named targets before write, using undeclared named targets, or reading from `canvas`). |
 | Define and include name validation | Catches invalid WGSL identifiers at definition time, not at shader compile time. |
 
 ## Internal implementation details

@@ -593,6 +593,80 @@ describe('createRenderer', () => {
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
 	});
 
+	it('maps named target slots into pass context', async () => {
+		const runtime = createWebGpuRuntime();
+		const passWrite: RenderPass = {
+			needsSwap: false,
+			output: 'fxMain',
+			render: vi.fn()
+		};
+		const passRead: RenderPass = {
+			needsSwap: false,
+			input: 'fxMain',
+			output: 'canvas',
+			render: vi.fn()
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			renderTargets: {
+				fxMain: { width: 7, height: 7, format: 'rgba8unorm' }
+			},
+			passes: [passWrite, passRead]
+		});
+		const bindGroupCallsBeforeRender = runtime.device.createBindGroup.mock.calls.length;
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(passWrite.render).toHaveBeenCalledTimes(1);
+		expect(passRead.render).toHaveBeenCalledTimes(1);
+		expect(passRead.render).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ width: 7, height: 7 }),
+				output: expect.objectContaining({ width: 10, height: 10 }),
+				targets: expect.objectContaining({
+					fxMain: expect.objectContaining({ width: 7, height: 7 })
+				})
+			})
+		);
+		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender);
+	});
+
+	it('blits final named target slot to canvas when pass graph ends offscreen', async () => {
+		const runtime = createWebGpuRuntime();
+		const pass: RenderPass = {
+			needsSwap: false,
+			output: 'fxMain',
+			render: vi.fn()
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			renderTargets: {
+				fxMain: { width: 7, height: 7, format: 'rgba8unorm' }
+			},
+			passes: [pass]
+		});
+		const bindGroupCallsBeforeRender = runtime.device.createBindGroup.mock.calls.length;
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(pass.render).toHaveBeenCalledTimes(1);
+		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
+	});
+
 	it('disposes live render targets and texture bindings on renderer destroy', async () => {
 		const runtime = createWebGpuRuntime();
 		const source = document.createElement('canvas');

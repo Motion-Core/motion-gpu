@@ -125,15 +125,24 @@ The scheduler exposes its resolved execution order via `getSchedule()` for debug
 
 ## Render graph architecture
 
-Post-processing uses a **ping-pong buffer model** with three slots:
+Post-processing uses a **slot graph** with built-in ping-pong slots plus optional named render-target slots:
 
 | Slot | Purpose |
 | --- | --- |
 | `source` | Current scene/result surface |
 | `target` | Ping-pong companion surface (allocated when needed) |
 | `canvas` | Presentation surface (the actual visible canvas) |
+| `<targetName>` | Named off-screen surface resolved from `renderTargets[targetName]` |
 
-Without any passes, the base shader renders directly to `canvas`. When passes are added, `planRenderGraph(...)` validates the pass sequence, resolves clear/preserve flags, and produces an immutable execution plan. After all passes execute, the final result is blitted to the canvas for presentation.
+Without any passes, the base shader renders directly to `canvas`. When passes are added, `planRenderGraph(...)` validates the pass sequence, resolves clear/preserve flags, and produces an immutable execution plan.
+
+Validation includes:
+- `needsSwap: true` is only valid for `source -> target`.
+- `canvas` is output-only.
+- Named slot reads/writes must reference declared `renderTargets`.
+- Inputs must be written before first read (`target` and named targets are tracked per frame).
+
+After all passes execute, if final output is not `canvas`, the renderer blits the resolved final surface (`source`, `target`, or named target) to `canvas`.
 
 ## Diagnostics model
 

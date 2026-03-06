@@ -13,6 +13,7 @@ import { packUniformsInto } from './uniforms';
 import type {
 	RenderPass,
 	RenderPassInputSlot,
+	RenderPassOutputSlot,
 	RenderMode,
 	RenderTarget,
 	Renderer,
@@ -1028,7 +1029,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const passes = resolvePasses();
 			const clearColor = options.getClearColor();
 			syncPassLifecycle(passes, width, height);
-			const graphPlan = planRenderGraph(passes, clearColor);
+			const runtimeTargets = syncRenderTargets(width, height);
+			const graphPlan = planRenderGraph(passes, clearColor, Object.keys(runtimeTargets));
 			const canvasTexture = context.getCurrentTexture();
 			const canvasSurface: RenderTarget = {
 				texture: canvasTexture,
@@ -1037,7 +1039,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				height,
 				format
 			};
-			const runtimeTargets = syncRenderTargets(width, height);
 			const slots =
 				graphPlan.steps.length > 0
 					? {
@@ -1070,14 +1071,32 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			scenePass.end();
 
 			if (slots) {
+				const resolveStepSurface = (
+					slot: RenderPassInputSlot | RenderPassOutputSlot
+				): RenderTarget => {
+					if (slot === 'source') {
+						return slots.source;
+					}
+
+					if (slot === 'target') {
+						return slots.target;
+					}
+
+					if (slot === 'canvas') {
+						return slots.canvas;
+					}
+
+					const named = runtimeTargets[slot];
+					if (!named) {
+						throw new Error(`Render graph references unknown runtime target "${slot}".`);
+					}
+
+					return named;
+				};
+
 				for (const step of graphPlan.steps) {
-					const input = slots[step.input];
-					const output =
-						step.output === 'canvas'
-							? slots.canvas
-							: step.output === 'source'
-								? slots.source
-								: slots.target;
+					const input = resolveStepSurface(step.input);
+					const output = resolveStepSurface(step.output);
 
 					step.pass.render({
 						device,
@@ -1126,7 +1145,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 
 				if (graphPlan.finalOutput !== 'canvas') {
-					const finalSurface = graphPlan.finalOutput === 'source' ? slots.source : slots.target;
+					const finalSurface = resolveStepSurface(graphPlan.finalOutput);
 					blitToCanvas(commandEncoder, finalSurface.view, slots.canvas.view, clearColor);
 				}
 			}

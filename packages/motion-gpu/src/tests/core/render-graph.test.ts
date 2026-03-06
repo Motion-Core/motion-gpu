@@ -58,6 +58,40 @@ describe('render graph planner', () => {
 		expect(plan.finalOutput).toBe('canvas');
 	});
 
+	it('supports named target flow and tracks named final output', () => {
+		const plan = planRenderGraph(
+			[createPass({ needsSwap: false, output: 'fxMain' })],
+			[0, 0, 0, 1],
+			['fxMain']
+		);
+
+		expect(plan.steps).toHaveLength(1);
+		expect(plan.steps[0]).toMatchObject({
+			input: 'source',
+			output: 'fxMain',
+			needsSwap: false
+		});
+		expect(plan.finalOutput).toBe('fxMain');
+	});
+
+	it('supports reading from named target after write', () => {
+		const plan = planRenderGraph(
+			[
+				createPass({ needsSwap: false, output: 'fxMain' }),
+				createPass({ needsSwap: false, input: 'fxMain', output: 'canvas' })
+			],
+			[0, 0, 0, 1],
+			['fxMain']
+		);
+
+		expect(plan.steps).toHaveLength(2);
+		expect(plan.steps[1]).toMatchObject({
+			input: 'fxMain',
+			output: 'canvas'
+		});
+		expect(plan.finalOutput).toBe('canvas');
+	});
+
 	it('clones clear color values to avoid shared mutable references', () => {
 		const clearColor: [number, number, number, number] = [0.2, 0.3, 0.4, 1];
 		const plan = planRenderGraph([createPass({ clear: true, clearColor })], [0, 0, 0, 1]);
@@ -90,6 +124,31 @@ describe('render graph planner', () => {
 			planRenderGraph(
 				[createPass({ needsSwap: false, input: 'target', output: 'canvas' })],
 				[0, 0, 0, 1]
+			)
+		).toThrow(/before it is written/);
+	});
+
+	it('rejects writing unknown named targets', () => {
+		expect(() =>
+			planRenderGraph([createPass({ needsSwap: false, output: 'fxMain' })], [0, 0, 0, 1])
+		).toThrow(/writes unknown target "fxMain"/);
+	});
+
+	it('rejects reading unknown named targets', () => {
+		expect(() =>
+			planRenderGraph(
+				[createPass({ needsSwap: false, input: 'fxMain', output: 'canvas' })],
+				[0, 0, 0, 1]
+			)
+		).toThrow(/reads unknown target "fxMain"/);
+	});
+
+	it('rejects reading named target before it is written', () => {
+		expect(() =>
+			planRenderGraph(
+				[createPass({ needsSwap: false, input: 'fxMain', output: 'canvas' })],
+				[0, 0, 0, 1],
+				['fxMain']
 			)
 		).toThrow(/before it is written/);
 	});

@@ -202,8 +202,15 @@ useMotionGPUUserContext<T>(namespace: MotionGPUUserNamespace, factory: () => T, 
 | Type | Description |
 | --- | --- |
 | `RenderPass` | Interface with `render(context)`, `setSize(w, h)`, `dispose()` |
+| `RenderPassInputSlot` | `'source' \| 'target' \| <targetName>` |
+| `RenderPassOutputSlot` | `'source' \| 'target' \| 'canvas' \| <targetName>` |
 | `RenderPassContext` | Context object passed to `render()` |
 | `RenderTargetDefinitionMap` | `Record<string, { width?, height?, scale?, format? }>` |
+
+Pass-slot constraints:
+- `needsSwap: true` requires `input: 'source'` and `output: 'target'`.
+- `canvas` is output-only.
+- `<targetName>` must be declared in `renderTargets`.
 
 ### Scheduler
 

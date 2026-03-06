@@ -3,7 +3,7 @@
 	import FragCanvas from '../../../src/lib/FragCanvas.svelte';
 	import { defineMaterial } from '../../../src/lib/core/material';
 	import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-	import type { RenderPass } from '../../../src/lib/core/types';
+	import type { RenderPass, RenderTargetDefinitionMap } from '../../../src/lib/core/types';
 	import { ShaderPass } from '../../../src/lib/passes';
 	import RuntimeProbe, { type RuntimeControls } from '../RuntimeProbe.svelte';
 
@@ -23,10 +23,36 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 `
 	});
 
+	const namedWritePass = new ShaderPass({
+		needsSwap: false,
+		output: 'fxMain',
+		fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb * vec3f(uv.x + 0.2, uv.y + 0.3, 0.8), inputColor.a);
+}
+`
+	});
+
+	const namedReadPass = new ShaderPass({
+		needsSwap: false,
+		input: 'fxMain',
+		output: 'canvas',
+		fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.bgr, inputColor.a);
+}
+`
+	});
+
+	const renderTargets: RenderTargetDefinitionMap = {
+		fxMain: { scale: 1 }
+	};
+
 	let gpuStatus = $state<'checking' | 'unavailable' | 'no-adapter' | 'ready'>('checking');
 	let controls = $state<RuntimeControls | null>(null);
 	let frameCount = $state(0);
 	let passes = $state<RenderPass[]>([]);
+	let passMode = $state<'none' | 'invert' | 'named'>('none');
 	let renderMode = $state<'always' | 'on-demand' | 'manual'>('manual');
 	let lastError = $state('none');
 
@@ -56,12 +82,13 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		<div data-testid="frame-count">{frameCount}</div>
 		<div data-testid="render-mode">{renderMode}</div>
 		<div data-testid="last-error">{lastError}</div>
-		<div data-testid="pass-mode">{passes.length === 0 ? 'none' : 'invert'}</div>
+		<div data-testid="pass-mode">{passMode}</div>
 
 		<button
 			data-testid="set-pass-none"
 			onclick={() => {
 				passes = [];
+				passMode = 'none';
 			}}
 		>
 			no pass
@@ -70,15 +97,25 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			data-testid="set-pass-invert"
 			onclick={() => {
 				passes = [invertPass];
+				passMode = 'invert';
 			}}
 		>
 			invert pass
+		</button>
+		<button
+			data-testid="set-pass-named"
+			onclick={() => {
+				passes = [namedWritePass, namedReadPass];
+				passMode = 'named';
+			}}
+		>
+			named pass
 		</button>
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
 	</section>
 
 	<div class="canvas-shell">
-		<FragCanvas {material} {passes} showErrorOverlay={false} onError={handleError}>
+		<FragCanvas {material} {passes} {renderTargets} showErrorOverlay={false} onError={handleError}>
 			<RuntimeProbe
 				onFrame={(count) => {
 					frameCount = count;

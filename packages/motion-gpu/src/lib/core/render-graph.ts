@@ -66,9 +66,11 @@ function cloneClearColor(
  */
 export function planRenderGraph(
 	passes: RenderPass[] | undefined,
-	defaultClearColor: [number, number, number, number]
+	defaultClearColor: [number, number, number, number],
+	renderTargetSlots?: Iterable<string>
 ): RenderGraphPlan {
 	const steps: RenderGraphStep[] = [];
+	const declaredTargets = new Set(renderTargetSlots ?? []);
 	const availableSlots = new Set<RenderPassInputSlot | RenderPassOutputSlot>(['source']);
 	let finalOutput: RenderPassOutputSlot = 'canvas';
 	let enabledIndex = 0;
@@ -81,6 +83,20 @@ export function planRenderGraph(
 		const needsSwap = pass.needsSwap ?? true;
 		const input: RenderPassInputSlot = pass.input ?? 'source';
 		const output: RenderPassOutputSlot = pass.output ?? (needsSwap ? 'target' : 'source');
+
+		if (input === 'canvas') {
+			throw new Error(`Render pass #${enabledIndex} cannot read from "canvas".`);
+		}
+
+		const inputIsNamed = input !== 'source' && input !== 'target';
+		if (inputIsNamed && !declaredTargets.has(input)) {
+			throw new Error(`Render pass #${enabledIndex} reads unknown target "${input}".`);
+		}
+
+		const outputIsNamed = output !== 'source' && output !== 'target' && output !== 'canvas';
+		if (outputIsNamed && !declaredTargets.has(output)) {
+			throw new Error(`Render pass #${enabledIndex} writes unknown target "${output}".`);
+		}
 
 		if (needsSwap && (input !== 'source' || output !== 'target')) {
 			throw new Error(

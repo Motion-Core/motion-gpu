@@ -3,7 +3,7 @@ title: Render Passes
 description: Building post-processing pipelines with the render graph and built-in pass types.
 ---
 
-MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers. This page covers the render graph model, slot semantics, and the three built-in pass types.
+MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, and the three built-in pass types.
 
 For named render targets, see [Render Targets](/docs/render-targets).
 
@@ -13,7 +13,7 @@ When you add passes to `FragCanvas`, the renderer builds an execution plan:
 
 1. The **base shader** renders your material's `fn frag(...)` into the `source` slot.
 2. Each **pass** reads from an input slot, processes the image, and writes to an output slot.
-3. After all passes execute, the **final output** is presented to the canvas.
+3. After all passes execute, the **final output** is presented to the canvas (direct if output is `canvas`, otherwise via blit from `source`, `target`, or named target).
 
 ```svelte
 <FragCanvas {material} passes={[passA, passB, passC]} />
@@ -28,6 +28,9 @@ Without any passes, the base shader renders directly to the canvas.
 | `source` | Current scene/result surface |
 | `target` | Ping-pong companion (allocated when needed) |
 | `canvas` | Presentation surface (the user-visible canvas) |
+| `<targetName>` | Named off-screen surface declared in `renderTargets` |
+
+`canvas` is **output-only** (cannot be used as a pass input).
 
 ### Default ping-pong flow
 
@@ -55,6 +58,31 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 });
 ```
 
+You can also route through named targets:
+
+```ts
+const pre = new ShaderPass({
+  needsSwap: false,
+  output: 'fxMain',
+  fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+  return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
+}
+`
+});
+
+const composite = new ShaderPass({
+  needsSwap: false,
+  input: 'fxMain',
+  output: 'canvas',
+  fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+  return vec4f(inputColor.bgr, inputColor.a);
+}
+`
+});
+```
+
 ## Validation rules
 
 `planRenderGraph(...)` validates the pass sequence before execution:
@@ -63,6 +91,10 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 | --- | --- |
 | `needsSwap: true` must use `source → target` | Any other slot pairing with swap enabled |
 | Input slot must be available | Reading `target` before any pass has written to it |
+| `canvas` cannot be input | Any pass with `input: 'canvas'` |
+| Named input must exist | Reading undeclared target name |
+| Named output must exist | Writing undeclared target name |
+| Named input must be available | Reading declared named target before first write in frame |
 | Disabled passes (`enabled: false`) | Fully skipped from the plan |
 
 ## Built-in passes
@@ -83,8 +115,8 @@ const blit = new BlitPass({
 | --- | --- | --- |
 | `enabled` | `true` | Whether this pass is active |
 | `needsSwap` | `true` | Whether to swap source/target after render |
-| `input` | `'source'` | Input slot |
-| `output` | `'target'` (if swap) | Output slot |
+| `input` | `'source'` | Input slot (`source`, `target`, or named target key) |
+| `output` | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, or named target key) |
 | `clear` | `false` | Clear output before drawing |
 | `clearColor` | `[0,0,0,1]` | RGBA clear colour |
 | `preserve` | `true` | Preserve output after pass ends |

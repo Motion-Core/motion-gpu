@@ -15,7 +15,7 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 | **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
 | **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
 | **Frame scheduler** | `frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling. |
-| **Pass system** | `render-graph.ts` + `passes/*` | Implements a ping-pong source/target model with optional canvas output and three built-in pass types. |
+| **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, and three built-in pass types. |
 | **Texture loading** | `texture-loader.ts` + `use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive Svelte store state. |
 | **Diagnostics** | `error-report.ts` + `error-diagnostics.ts` | Maps low-level WebGPU and WGSL errors to structured reports with hints and source snippets. |
 
@@ -54,6 +54,7 @@ These are enforced at runtime and will throw immediately if violated:
 | `renderMode` must be `'always'`, `'on-demand'`, or `'manual'` | Scheduler runtime |
 | `maxDelta > 0` and `profilingWindow > 0` | Scheduler assertions |
 | Render target `scale`, `width`, `height` must be finite and `> 0` | Render-target resolver |
+| Pass slots must reference valid surfaces (`canvas` output-only, named slots must exist in `renderTargets`) | Render graph planner |
 
 ## Defaults worth knowing
 

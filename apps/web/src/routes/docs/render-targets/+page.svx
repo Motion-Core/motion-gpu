@@ -22,6 +22,29 @@ Render targets are declared as a `renderTargets` prop on `FragCanvas`:
 
 The map keys become the names used to access targets in passes.
 
+## Using named targets as pass slots
+
+Named target keys can be used directly in `RenderPass.input` and `RenderPass.output`:
+
+```ts
+const passes = [
+  new ShaderPass({
+    needsSwap: false,
+    output: 'bloom'
+  }),
+  new ShaderPass({
+    needsSwap: false,
+    input: 'bloom',
+    output: 'canvas'
+  })
+];
+```
+
+Rules:
+- Named slots must exist in `renderTargets`.
+- Named outputs are only valid with `needsSwap: false`.
+- `needsSwap: true` is reserved for `source -> target`.
+
 ## RenderTargetDefinition fields
 
 | Field | Type | Default | Description |
@@ -62,6 +85,9 @@ Target keys must be WGSL-safe identifiers: `[A-Za-z_][A-Za-z0-9_]*`. Invalid nam
 | `width <= 0` or `height <= 0` | Throws |
 | `width` / `height` is `NaN` or `Infinity` | Throws |
 | Invalid key identifier | Throws |
+| Pass writes undeclared named slot | Throws during render-graph planning |
+| Pass reads undeclared named slot | Throws during render-graph planning |
+| Pass reads named slot before first write | Throws during render-graph planning |
 
 ## Accessing targets in passes
 

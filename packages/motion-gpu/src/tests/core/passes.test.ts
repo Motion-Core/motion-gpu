@@ -93,6 +93,29 @@ describe('built-in passes', () => {
 		expect(pass.preserve).toBe(true);
 	});
 
+	it('supports named input/output slots for non-swap passes', () => {
+		const blit = new BlitPass({ needsSwap: false, input: 'fxMain', output: 'fxBloom' });
+		expect(blit.input).toBe('fxMain');
+		expect(blit.output).toBe('fxBloom');
+
+		const copy = new CopyPass({ needsSwap: false, input: 'fxBloom', output: 'fxFinal' });
+		expect(copy.input).toBe('fxBloom');
+		expect(copy.output).toBe('fxFinal');
+
+		const shader = new ShaderPass({
+			needsSwap: false,
+			input: 'fxFinal',
+			output: 'canvas',
+			fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
+}
+`
+		});
+		expect(shader.input).toBe('fxFinal');
+		expect(shader.output).toBe('canvas');
+	});
+
 	it('validates ShaderPass fragment contract', () => {
 		expect(
 			() =>

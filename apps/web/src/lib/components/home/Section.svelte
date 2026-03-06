@@ -33,7 +33,7 @@
 		)}
 	>
 		{#if variant === 'muted'}
-			<div class="bg-dashed hidden h-full min-h-20 items-center justify-start px-3 sm:flex"></div>
+			<div class="hidden h-full min-h-20 items-center justify-start bg-dashed px-3 sm:flex"></div>
 		{/if}
 		<div
 			class={cn(
@@ -45,7 +45,7 @@
 			{@render children?.()}
 		</div>
 		{#if variant === 'muted'}
-			<div class="bg-dashed hidden h-full min-h-20 items-center justify-start px-3 sm:flex"></div>
+			<div class="hidden h-full min-h-20 items-center justify-start bg-dashed px-3 sm:flex"></div>
 		{/if}
 	</div>
 </section>

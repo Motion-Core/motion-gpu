@@ -3,7 +3,9 @@ import type { Handle } from '@sveltejs/kit';
 import { handle } from './hooks.server';
 
 const invokeHandle = async (pathname: string) => {
-	const event = { url: new URL(`https://motion-gpu.dev${pathname}`) } as Parameters<Handle>[0]['event'];
+	const event = {
+		url: new URL(`https://motion-gpu.dev${pathname}`)
+	} as Parameters<Handle>[0]['event'];
 	return handle({
 		event,
 		resolve: async () => new Response('ok')

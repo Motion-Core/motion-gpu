@@ -2,3 +2,4 @@ node_modules/
 dist/
 .svelte-kit/
 .DS_Store
+packages/motion-gpu/benchmarks/results/*.json

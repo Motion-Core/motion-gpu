@@ -1,0 +1,12 @@
+{
+	"schemaVersion": 1,
+	"updatedAt": "2026-03-06T21:51:41.911Z",
+	"metrics": {
+		"resolve_material_cached_hz": 13576720.539540457,
+		"resolve_material_uncached_hz": 162243.3941586483,
+		"pack_uniforms_into_64_vec4_hz": 566647.669038811,
+		"plan_render_graph_16_passes_hz": 1140292.657984718,
+		"resolve_render_targets_8_hz": 5765314.467202079,
+		"frame_registry_run_64_tasks_hz": 5915912.719893062
+	}
+}

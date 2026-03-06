@@ -28,6 +28,12 @@
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",
 		"e2e:serve": "vite --config e2e/vite.config.ts",
+		"perf:core": "bun run ./scripts/perf/core-benchmark.ts",
+		"perf:core:check": "bun run ./scripts/perf/core-benchmark.ts --strict",
+		"perf:core:baseline": "bun run ./scripts/perf/core-benchmark.ts --update-baseline",
+		"perf:runtime": "bun run ./scripts/perf/runtime-benchmark.ts",
+		"perf:runtime:check": "bun run ./scripts/perf/runtime-benchmark.ts --strict",
+		"perf:runtime:baseline": "bun run ./scripts/perf/runtime-benchmark.ts --update-baseline",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write ."
 	},

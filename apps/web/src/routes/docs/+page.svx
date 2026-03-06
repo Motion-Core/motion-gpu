@@ -11,7 +11,7 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 
 | Area | Source of truth | What it does |
 | --- | --- | --- |
-| **Runtime component** | `FragCanvas.svelte` | Owns the `<canvas>`, manages the WebGPU renderer lifecycle, runs the scheduler, and shows the error overlay. |
+| **Runtime component** | `FragCanvas.svelte` | Owns the `<canvas>`, manages the WebGPU renderer lifecycle, runs the scheduler, and emits normalized error reports to either the default overlay or a custom error renderer. |
 | **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
 | **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
 | **Frame scheduler** | `frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling. |

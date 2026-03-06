@@ -253,9 +253,9 @@ const orbit = useMotionGPUUserContext<{ enabled: boolean; speed: number }>('orbi
 - `existing: 'skip'` means "don't overwrite if already set" — safe for multiple initializers.
 - Use `'replace'` to force-set, or `'merge'` for partial updates.
 
-## 8. Error reporting with custom handler
+## 8. Error reporting with custom handler/UI
 
-Capture and log errors without the built-in overlay:
+Capture and log errors with your own UI renderer:
 
 ```svelte
 <script lang="ts">
@@ -290,15 +290,24 @@ fn frag(uv: vec2f) -> vec4f {
   }
 </script>
 
+{#snippet errorBanner(report: import('@motion-core/motion-gpu').MotionGPUErrorReport)}
+  <aside class="error-banner">
+    <strong>{report.title}</strong>
+    <p>{report.message}</p>
+  </aside>
+{/snippet}
+
 <FragCanvas
   {material}
+  errorRenderer={errorBanner}
   onError={handleError}
-  showErrorOverlay={false}
 />
 ```
 
 **Notes:**
 - `onError` fires even when `showErrorOverlay` is `true`.
+- `errorRenderer` replaces the default overlay when enabled.
+- `showErrorOverlay={false}` hides both default and custom error UI.
 - `report.source` is only present for shader compile errors.
 - `report.phase` is `'initialization'` or `'render'`.
 

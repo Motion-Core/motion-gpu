@@ -63,7 +63,8 @@ import { FragCanvas } from '@motion-core/motion-gpu';
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `showErrorOverlay` | `boolean` | `true` | Shows the built-in error overlay on failure. |
+| `showErrorOverlay` | `boolean` | `true` | Enables error UI rendering (`errorRenderer` or default overlay). |
+| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` | `undefined` | Custom error renderer snippet. When set, replaces the default `MotionGPUErrorOverlay`. |
 | `onError` | `(report: MotionGPUErrorReport) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling). |
 
 ### Styling and children
@@ -104,10 +105,20 @@ The physical size (GPU resolution) is `containerSize × dpr`.
   renderTargets={{ halfRes: { scale: 0.5 } }}
   adapterOptions={{ powerPreference: 'high-performance' }}
   showErrorOverlay={true}
+  errorRenderer={myErrorRenderer}
   onError={(report) => sendToTelemetry(report)}
   class="my-canvas-container"
   style="border-radius: 12px; overflow: hidden;"
 >
   <Runtime />
 </FragCanvas>
+```
+
+```svelte
+{#snippet myErrorRenderer(report: import('@motion-core/motion-gpu').MotionGPUErrorReport)}
+  <aside class="my-error-banner">
+    <strong>{report.title}</strong>
+    <p>{report.message}</p>
+  </aside>
+{/snippet}
 ```

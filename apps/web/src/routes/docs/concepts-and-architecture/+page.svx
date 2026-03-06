@@ -14,7 +14,7 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 | **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, and texture bindings — not from live values. This makes rebuild triggers predictable. |
 | **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behaviour except what you explicitly opt into via `useFrame` invalidation policies. |
 | **Minimal hidden magic** | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop. |
-| **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with a title, hint, and optional source snippet. The built-in overlay is opt-out. |
+| **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with a title, hint, and optional source snippet. The default overlay is opt-out and can be replaced with a custom renderer. |
 
 ## Package layout
 
@@ -23,6 +23,7 @@ packages/motion-gpu/src/lib/
 ├── index.ts                        # Public root exports
 ├── advanced.ts                     # Advanced exports (user context, extended types)
 ├── FragCanvas.svelte               # Runtime entry component
+├── MotionGPUErrorOverlay.svelte    # Default error-overlay UI component
 ├── Portal.svelte                   # DOM portal utility for error overlay
 ├── current-writable.ts             # CurrentWritable<T> reactive store
 ├── frame-context.ts                # Scheduler registry + useFrame hook
@@ -167,4 +168,7 @@ All initialization and render failures are normalized into a stable `MotionGPUEr
 }
 ```
 
-The built-in overlay displays this information automatically. You can disable it with `showErrorOverlay={false}` and handle errors yourself via the `onError` callback.
+The default overlay displays this information automatically. You can:
+- disable all error UI with `showErrorOverlay={false}`,
+- keep UI off-canvas and handle reports only via `onError`,
+- provide `errorRenderer` to replace the default `MotionGPUErrorOverlay` while preserving the same report payload.

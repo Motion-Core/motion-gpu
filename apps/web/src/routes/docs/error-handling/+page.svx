@@ -3,7 +3,7 @@ title: Error Handling
 description: Understanding the error normalization pipeline, structured reports, and diagnostics.
 ---
 
-MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, overlay behaviour, shader compile diagnostics, device loss handling, and retry strategy.
+MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behaviour, shader compile diagnostics, device loss handling, and retry strategy.
 
 ## Error normalization pipeline
 
@@ -70,17 +70,19 @@ The normalizer matches error messages against known patterns and assigns appropr
 
 ## Overlay behaviour
 
-By default, `FragCanvas` displays runtime errors as a fullscreen overlay rendered via `Portal.svelte`:
+By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.svelte` (rendered via `Portal.svelte`):
 
 | Prop | Default | Effect |
 | --- | --- | --- |
-| `showErrorOverlay` | `true` | Toggles the built-in visual overlay |
+| `showErrorOverlay` | `true` | Enables all error UI rendering |
+| `errorRenderer` | `undefined` | Optional custom renderer snippet that replaces the default overlay UI |
 | `onError` | `undefined` | Callback invoked with the normalized report |
 
 ### Key behaviours
 
-- Even when `showErrorOverlay` is `false`, the `onError` callback is still called.
-- The overlay renders above all canvas content using a DOM portal.
+- Even when `showErrorOverlay` is `false`, `onError` is still called.
+- With `errorRenderer` set and `showErrorOverlay=true`, custom UI is rendered instead of the default overlay.
+- The default overlay renders above canvas content using a DOM portal.
 - Multiple errors display the most recent one.
 
 ### Minimal error handling
@@ -93,6 +95,25 @@ By default, `FragCanvas` displays runtime errors as a fullscreen overlay rendere
     if (report.hint) console.info(`Hint: ${report.hint}`);
   }}
   showErrorOverlay={false}
+/>
+```
+
+### Custom error renderer
+
+```svelte
+{#snippet myErrorRenderer(report: import('@motion-core/motion-gpu').MotionGPUErrorReport)}
+  <aside class="error-banner">
+    <strong>{report.title}</strong>
+    <p>{report.message}</p>
+  </aside>
+{/snippet}
+
+<FragCanvas
+  {material}
+  errorRenderer={myErrorRenderer}
+  onError={(report) => {
+    console.error(report);
+  }}
 />
 ```
 
@@ -168,7 +189,7 @@ Retry state **resets** when the pipeline signature changes (e.g., when you fix a
 ## Production recommendations
 
 1. **Always provide `onError`** — send reports to your logging/telemetry system.
-2. **Keep overlay enabled in dev/staging** — it surfaces WGSL errors with line-level precision.
-3. **Disable overlay in production only** if you provide custom fallback UI.
+2. **Keep default overlay enabled in dev/staging** — it surfaces WGSL errors with line-level precision.
+3. **Use `errorRenderer` in production** when you need branded/error-system-integrated UI.
 4. **Surface `phase` and `title`** prominently in alerting — they are the most actionable fields.
 5. **Use `hint`** for contextual guidance — each error classification provides a specific suggestion.

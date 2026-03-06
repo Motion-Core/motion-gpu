@@ -228,7 +228,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 2. **Define uniform names and types upfront** in `defineMaterial`. Mismatches throw.
 3. **Pick render mode intentionally** — `always` burns battery; `on-demand` is better for interactive UIs.
 4. **Set `maxDelta`** if your callbacks can become unstable when the browser throttles background-inset tabs (default is `0.1s`).
-5. **Wire `onError`** for telemetry and disable the overlay only when you provide your own fallback UX.
+5. **Wire `onError`** for telemetry and decide error UI strategy explicitly: default overlay, custom `errorRenderer`, or no UI (`showErrorOverlay={false}`).
 
 ## Advanced entrypoint
 

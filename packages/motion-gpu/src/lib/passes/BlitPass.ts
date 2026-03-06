@@ -61,6 +61,7 @@ export class BlitPass implements RenderPass {
 	private bindGroupLayout: GPUBindGroupLayout | null = null;
 	private shaderModule: GPUShaderModule | null = null;
 	private readonly pipelineByFormat = new Map<GPUTextureFormat, GPURenderPipeline>();
+	private bindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 	constructor(options: BlitPassOptions = {}) {
 		this.enabled = options.enabled ?? true;
@@ -87,6 +88,7 @@ export class BlitPass implements RenderPass {
 			this.bindGroupLayout = null;
 			this.shaderModule = null;
 			this.pipelineByFormat.clear();
+			this.bindGroupByView = new WeakMap();
 		}
 
 		if (!this.sampler) {
@@ -163,13 +165,18 @@ export class BlitPass implements RenderPass {
 			context.device,
 			context.output.format
 		);
-		const bindGroup = context.device.createBindGroup({
-			layout: bindGroupLayout,
-			entries: [
-				{ binding: 0, resource: sampler },
-				{ binding: 1, resource: context.input.view }
-			]
-		});
+		const inputView = context.input.view;
+		let bindGroup = this.bindGroupByView.get(inputView);
+		if (!bindGroup) {
+			bindGroup = context.device.createBindGroup({
+				layout: bindGroupLayout,
+				entries: [
+					{ binding: 0, resource: sampler },
+					{ binding: 1, resource: inputView }
+				]
+			});
+			this.bindGroupByView.set(inputView, bindGroup);
+		}
 		const pass = context.beginRenderPass();
 		pass.setPipeline(pipeline);
 		pass.setBindGroup(0, bindGroup);
@@ -183,5 +190,6 @@ export class BlitPass implements RenderPass {
 		this.bindGroupLayout = null;
 		this.shaderModule = null;
 		this.pipelineByFormat.clear();
+		this.bindGroupByView = new WeakMap();
 	}
 }

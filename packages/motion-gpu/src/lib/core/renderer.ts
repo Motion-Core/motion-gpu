@@ -644,6 +644,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			addressModeU: 'clamp-to-edge',
 			addressModeV: 'clamp-to-edge'
 		});
+		let blitBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		const frameBuffer = device.createBuffer({
 			size: 16,
@@ -937,13 +938,17 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			canvasView: GPUTextureView,
 			clearColor: [number, number, number, number]
 		): void => {
-			const bindGroup = device.createBindGroup({
-				layout: blitBindGroupLayout,
-				entries: [
-					{ binding: 0, resource: blitSampler },
-					{ binding: 1, resource: sourceView }
-				]
-			});
+			let bindGroup = blitBindGroupByView.get(sourceView);
+			if (!bindGroup) {
+				bindGroup = device.createBindGroup({
+					layout: blitBindGroupLayout,
+					entries: [
+						{ binding: 0, resource: blitSampler },
+						{ binding: 1, resource: sourceView }
+					]
+				});
+				blitBindGroupByView.set(sourceView, bindGroup);
+			}
 
 			const pass = commandEncoder.beginRenderPass({
 				colorAttachments: [
@@ -1205,6 +1210,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					binding.texture?.destroy();
 					binding.fallbackTexture.destroy();
 				}
+				blitBindGroupByView = new WeakMap();
 			}
 		};
 	} catch (error) {

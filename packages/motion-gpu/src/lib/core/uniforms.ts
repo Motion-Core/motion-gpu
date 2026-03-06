@@ -198,21 +198,42 @@ export function resolveUniformLayout(uniforms: UniformMap): UniformLayout {
 }
 
 /**
- * Converts a validated uniform value to a plain number array for packing.
+ * Writes one validated uniform value directly into the output float buffer.
  */
-function toNumberArray(type: UniformType, value: UniformValue): number[] {
+function writeUniformValue(
+	type: UniformType,
+	value: UniformValue,
+	data: Float32Array,
+	base: number
+): void {
 	const input = isTypedUniformValue(value) ? value.value : value;
 	assertUniformValueForType(type, value);
 
 	if (type === 'f32') {
-		return [input as number];
+		data[base] = input as number;
+		return;
 	}
 
 	if (type === 'mat4x4f') {
-		return Array.from(input as UniformMat4Value);
+		const matrix = input as UniformMat4Value;
+		if (matrix instanceof Float32Array) {
+			for (let index = 0; index < 16; index += 1) {
+				data[base + index] = matrix[index] ?? 0;
+			}
+			return;
+		}
+
+		for (let index = 0; index < 16; index += 1) {
+			data[base + index] = matrix[index] ?? 0;
+		}
+		return;
 	}
 
-	return [...(input as number[])];
+	const tuple = input as number[];
+	const length = type === 'vec2f' ? 2 : type === 'vec3f' ? 3 : 4;
+	for (let index = 0; index < length; index += 1) {
+		data[base + index] = tuple[index] ?? 0;
+	}
 }
 
 /**
@@ -255,10 +276,7 @@ export function packUniformsInto(
 			continue;
 		}
 
-		const normalized = toNumberArray(entry.type, raw);
 		const base = entry.offset / 4;
-		for (let index = 0; index < normalized.length; index += 1) {
-			data[base + index] = normalized[index] ?? 0;
-		}
+		writeUniformValue(entry.type, raw, data, base);
 	}
 }

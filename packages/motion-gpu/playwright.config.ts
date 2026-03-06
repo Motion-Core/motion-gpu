@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const isCi = Boolean(process.env['CI']);
+
 export default defineConfig({
 	testDir: './e2e/specs',
 	timeout: 30_000,
@@ -7,8 +9,8 @@ export default defineConfig({
 		timeout: 5_000
 	},
 	fullyParallel: false,
-	retries: process.env['CI'] ? 2 : 0,
-	workers: process.env['CI'] ? 1 : undefined,
+	retries: isCi ? 2 : 0,
+	...(isCi ? { workers: 1 } : {}),
 	use: {
 		baseURL: 'http://127.0.0.1:4175',
 		trace: 'retain-on-failure',

@@ -227,7 +227,7 @@ describe('useTexture', () => {
 	});
 
 	it('shares in-flight blob requests across concurrent hook instances', async () => {
-		let resolveFetch: (() => void) | null = null;
+		let resolveFetch!: () => void;
 		const fetchPromise = new Promise<{
 			ok: boolean;
 			status: number;
@@ -263,7 +263,7 @@ describe('useTexture', () => {
 		await waitFor(() => {
 			expect(fetch).toHaveBeenCalledTimes(1);
 		});
-		resolveFetch?.();
+		resolveFetch();
 
 		await waitFor(() => {
 			const resultA = onProbeA.mock.calls[0]?.[0] as UseTextureResult;
@@ -277,7 +277,9 @@ describe('useTexture', () => {
 	});
 
 	it('supports merged abort signal fallback when AbortSignal.any is unavailable', async () => {
-		const abortSignalRef = AbortSignal as unknown as { any?: typeof AbortSignal.any };
+		const abortSignalRef = AbortSignal as unknown as {
+			any: ((signals: AbortSignal[]) => AbortSignal) | undefined;
+		};
 		const originalAny = abortSignalRef.any;
 		abortSignalRef.any = undefined;
 
@@ -306,7 +308,7 @@ describe('useTexture', () => {
 				})
 			);
 
-			let result: UseTextureResult | null = null;
+			let result: UseTextureResult | undefined;
 			const onProbe = vi.fn((value: UseTextureResult) => {
 				result = value;
 			});
@@ -326,8 +328,12 @@ describe('useTexture', () => {
 				expect(result).not.toBeNull();
 				expect(result?.loading.current).toBe(false);
 			});
-			expect(result?.error.current).toBeNull();
-			expect(result?.textures.current).toBeNull();
+			const resolvedResult = result;
+			if (!resolvedResult) {
+				throw new Error('Expected hook result');
+			}
+			expect(resolvedResult.error.current).toBeNull();
+			expect(resolvedResult.textures.current).toBeNull();
 		} finally {
 			abortSignalRef.any = originalAny;
 		}

@@ -15,10 +15,10 @@ describe('material preprocess', () => {
 			GAIN: { type: 'f32', value: 4 }
 		});
 
-		expect(toDefineLine('USE_COLOR', defines.USE_COLOR)).toBe('const USE_COLOR: bool = true;');
-		expect(toDefineLine('ITER', defines.ITER)).toBe('const ITER: i32 = 2;');
-		expect(toDefineLine('MASK', defines.MASK)).toBe('const MASK: u32 = 3u;');
-		expect(toDefineLine('GAIN', defines.GAIN)).toBe('const GAIN: f32 = 4.0;');
+		expect(toDefineLine('USE_COLOR', defines.USE_COLOR!)).toBe('const USE_COLOR: bool = true;');
+		expect(toDefineLine('ITER', defines.ITER!)).toBe('const ITER: i32 = 2;');
+		expect(toDefineLine('MASK', defines.MASK!)).toBe('const MASK: u32 = 3u;');
+		expect(toDefineLine('GAIN', defines.GAIN!)).toBe('const GAIN: f32 = 4.0;');
 	});
 
 	it('rejects malformed include and define contracts', () => {

@@ -11,14 +11,9 @@
 		showErrorOverlay?: boolean;
 	}
 
-	let {
-		material,
-		mode = 'none',
-		onError = undefined,
-		showErrorOverlay = false
-	}: Props = $props();
+	let { material, mode = 'none', onError = undefined, showErrorOverlay = false }: Props = $props();
 </script>
 
-<FragCanvas {material} {onError} {showErrorOverlay}>
+<FragCanvas {material} {showErrorOverlay} {...onError ? { onError } : {}}>
 	<FrameMutationProbe {mode} />
 </FragCanvas>

@@ -208,7 +208,7 @@ describe('FragCanvas runtime', () => {
 	});
 
 	it('does not enqueue duplicate renderer rebuild while previous rebuild is pending', async () => {
-		let resolveRenderer: ((renderer: MockRenderer) => void) | null = null;
+		let resolveRenderer!: (renderer: MockRenderer) => void;
 		const renderer: MockRenderer = {
 			render: vi.fn(),
 			destroy: vi.fn()
@@ -231,7 +231,7 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(32);
 		expect(createRendererMock).toHaveBeenCalledTimes(1);
 
-		resolveRenderer?.(renderer);
+		resolveRenderer(renderer);
 		await Promise.resolve();
 		await Promise.resolve();
 		await flushFrame(48);
@@ -291,9 +291,10 @@ describe('FragCanvas runtime', () => {
 				materialSource: { component: 'OverlayScene.svelte' }
 			}
 		);
-		diagnosticsError.stack = ['Error: WGSL compilation failed', 'at render (Renderer.ts:42:7)'].join(
-			'\n'
-		);
+		diagnosticsError.stack = [
+			'Error: WGSL compilation failed',
+			'at render (Renderer.ts:42:7)'
+		].join('\n');
 		const throwingRenderer: MockRenderer = {
 			render: vi.fn(() => {
 				throw diagnosticsError;
@@ -542,7 +543,7 @@ describe('FragCanvas runtime', () => {
 	});
 
 	it('disposes late-created renderer when component unmounts mid-initialization', async () => {
-		let resolveRenderer: ((renderer: MockRenderer) => void) | null = null;
+		let resolveRenderer!: (renderer: MockRenderer) => void;
 		createRendererMock.mockImplementation(
 			() =>
 				new Promise<MockRenderer>((resolve) => {
@@ -563,7 +564,7 @@ describe('FragCanvas runtime', () => {
 
 		await flushFrame(16);
 		view.unmount();
-		resolveRenderer?.(lateRenderer);
+		resolveRenderer(lateRenderer);
 		await Promise.resolve();
 		await Promise.resolve();
 

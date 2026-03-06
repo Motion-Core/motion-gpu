@@ -494,11 +494,11 @@ export interface RendererOptions {
 	/**
 	 * Dynamic render targets provider.
 	 */
-	getRenderTargets?: () => RenderTargetDefinitionMap;
+	getRenderTargets?: () => RenderTargetDefinitionMap | undefined;
 	/**
 	 * Dynamic render passes provider.
 	 */
-	getPasses?: () => RenderPass[];
+	getPasses?: () => RenderPass[] | undefined;
 	/**
 	 * Requested output color space.
 	 */

@@ -6,6 +6,7 @@ import {
 	packUniforms,
 	resolveUniformLayout
 } from '../../lib/core/uniforms';
+import type { UniformValue } from '../../lib/core/types';
 
 describe('uniform helpers', () => {
 	it('infers uniform types from scalar, tuple and typed values', () => {
@@ -14,7 +15,7 @@ describe('uniform helpers', () => {
 		expect(inferUniformType([1, 2, 3])).toBe('vec3f');
 		expect(inferUniformType([1, 2, 3, 4])).toBe('vec4f');
 		expect(inferUniformType({ type: 'mat4x4f', value: new Float32Array(16) })).toBe('mat4x4f');
-		expect(() => inferUniformType([1, 2, 3, 4, 5] as unknown as number[])).toThrow(
+		expect(() => inferUniformType([1, 2, 3, 4, 5] as unknown as UniformValue)).toThrow(
 			/Uniform value must resolve/
 		);
 	});

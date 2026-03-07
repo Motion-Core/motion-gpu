@@ -57,18 +57,27 @@ export const createPlaygroundController = () => {
 	const dirtyPaths: string[] = [];
 	let isSyncFlushRunning = false;
 
-	const closeScriptTag = '</' + 'script>';
 	const isolationReloadStorageKey = 'motiongpu-playground-isolation-reload';
 	const installTimeoutMs = 180_000;
 	const editorFontStack =
 		'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-	const packageLockContent = String(
-		import.meta.glob('./runtime-template/package-lock.json', {
-			query: '?raw',
-			import: 'default',
-			eager: true
-		})['./runtime-template/package-lock.json'] ?? ''
+	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/**/*', {
+		query: '?raw',
+		import: 'default',
+		eager: true
+	}) as Record<string, string>;
+	const runtimeTemplateFiles = Object.fromEntries(
+		Object.entries(runtimeTemplateRawModules)
+			.map(([path, source]) => {
+				const marker = '/runtime-template/';
+				const markerIndex = path.lastIndexOf(marker);
+				if (markerIndex === -1) return null;
+				const relativePath = path.slice(markerIndex + marker.length);
+				return [relativePath, source] as const;
+			})
+			.filter((entry): entry is readonly [string, string] => entry !== null)
 	);
+	const packageLockContent = runtimeTemplateFiles['package-lock.json'] ?? '';
 	const motionGpuPackageJsonRaw = String(
 		import.meta.glob('../../../../../packages/motion-gpu/package.json', {
 			query: '?raw',
@@ -182,106 +191,8 @@ export const createPlaygroundController = () => {
 		return root;
 	};
 
-	const packageJsonContent = JSON.stringify(
-		{
-			name: 'svelte-playground',
-			private: true,
-			type: 'module',
-			scripts: {
-				dev: 'vite --host 0.0.0.0 --port 4173'
-			},
-			dependencies: {
-				svelte: 'https://registry.npmjs.org/svelte/-/svelte-5.51.0.tgz',
-				'@motion-core/motion-gpu': 'file:./packages/motion-gpu'
-			},
-			devDependencies: {
-				'@sveltejs/vite-plugin-svelte':
-					'https://registry.npmjs.org/@sveltejs/vite-plugin-svelte/-/vite-plugin-svelte-6.2.4.tgz',
-				vite: 'https://registry.npmjs.org/vite/-/vite-7.3.1.tgz',
-				yaml: 'https://registry.npmjs.org/yaml/-/yaml-2.8.2.tgz'
-			}
-		},
-		null,
-		2
-	);
-	const viteConfigContent = [
-		"import { defineConfig } from 'vite';",
-		"import { svelte } from '@sveltejs/vite-plugin-svelte';",
-		'',
-		'export default defineConfig({',
-		'\tplugins: [svelte()]',
-		'});'
-	].join('\n');
-	const indexHtmlContent = [
-		'<!doctype html>',
-		'<html lang="en">',
-		'<head>',
-		'\t<meta charset="UTF-8" />',
-		'\t<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-		'<style>html,body,#app{width:100%;height:100%;margin:0;overflow:hidden;background:#E9E9E9;}</style>',
-		'\t<title>Svelte Playground</title>',
-		'</head>',
-		'<body>',
-		'\t<div id="app"></div>',
-		`\t<script type="module" src="/src/main.js">${closeScriptTag}`,
-		'</body>',
-		'</html>'
-	].join('\n');
-	const mainJsContent = [
-		"import { mount } from 'svelte';",
-		"import App from './App.svelte';",
-		'',
-		"mount(App, { target: document.getElementById('app') });"
-	].join('\n');
-	const initialAppCode = [
-		'<script>',
-		"\timport { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';",
-		'',
-		'\tconst material = defineMaterial({',
-		'\t\tfragment: `',
-		'fn frag(uv: vec2f) -> vec4f {',
-		'\tlet r = motiongpuFrame.resolution;',
-		'\tlet p = vec2f(uv.x * r.x + 0.5, uv.y * r.y + 0.5);',
-		'',
-		'\tvar h = vec3f(0.0);',
-		'\tvar c = vec3f(1.0);',
-		'\tvar A = 0.0;',
-		'\tvar l = 0.0;',
-		'\tvar a = 0.0;',
-		'',
-		'\tfor (var i = 0.6; i > 0.1; i -= 0.1) {',
-		'\t\ta = (motiongpuFrame.time + i) * 4.0;',
-		'\t\ta -= sin(a);',
-		'\t\ta -= sin(a);',
-		'',
-		'\t\tlet t = cos(a / 4.0 + vec2f(0.0, 11.0));',
-		'\t\tlet R = mat2x2f(vec2f(t.x, t.y), vec2f(-t.y, t.x));',
-		'',
-		'\t\tvar u = (p * 2.0 - r) / r.y / 0.5;',
-		'\t\tlet ur = transpose(R) * u;',
-		'\t\tu -= R * clamp(ur, -vec2f(i), vec2f(i));',
-		'',
-		'\t\tl = max(length(u), 0.1);',
-		'\t\tA = min((l - 0.1) * r.y / 5.0, 1.0);',
-		'\t\th = sin(i * 10.0 + a / 3.0 + vec3f(1.0, 3.0, 5.0)) / 5.0 + 0.8;',
-		'\t\tc = mix(h, c, A) * mix(vec3f(1.0), h + A * u.y / l / 2.0, 0.1 / l);',
-		'\t}',
-		'',
-		'\treturn vec4f(tanh(c * c), 1.0);',
-		'}`',
-		'\t});',
-		closeScriptTag,
-		'',
-		'<FragCanvas {material} />'
-	].join('\n');
-
 	const initialWorkerFiles: Record<string, string> = {
-		'package.json': packageJsonContent,
-		'package-lock.json': packageLockContent,
-		'vite.config.js': viteConfigContent,
-		'index.html': indexHtmlContent,
-		'src/main.js': mainJsContent,
-		'src/App.svelte': initialAppCode,
+		...runtimeTemplateFiles,
 		'packages/motion-gpu/package.json': motionGpuPackageJson,
 		...Object.fromEntries(
 			Object.entries(motionGpuDistFiles).map(([path, contents]) => [

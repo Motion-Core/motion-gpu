@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="93" height="93" viewBox="0 0 93 93" fill="none"><g clip-path="url(#clip0_4_2)">
+<path d="M0 44H30.3431C33.9652 44 37.4388 42.5612 40 40C42.5612 37.4388 44 33.9652 44 30.3431V0H36V30.3438L14.5439 8.8877L8.8877 14.5439L30.3438 36H0V44Z" fill="#FF6900"></path>
+<path d="M93 49H62.6569C59.0348 49 55.5612 50.4388 53 53C50.4388 55.5612 49 59.0348 49 62.6569V93H57V62.6562L78.4561 84.1123L84.1123 78.4561L62.6563 57H93V49Z" fill="#FF6900"></path>
+<path d="M49 0V30.3431C49 33.9652 50.4388 37.4388 53 40C55.5612 42.5612 59.0348 44 62.6569 44H93V36H62.6563L84.1123 14.5439L78.4561 8.8877L57 30.3438V0H49Z" fill="#FF6900"></path>
+<path d="M44 93V62.6569C44 59.0348 42.5612 55.5612 40 53C37.4388 50.4388 33.9652 49 30.3431 49H0V57H30.3438L8.8877 78.4561L14.5439 84.1123L36 62.6562V93H44Z" fill="#FF6900"></path>
+</g><defs>
+<clipPath id="clip0_4_2">
+<rect width="93" height="93" fill="white"></rect>
+</clipPath>
+</defs><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+@media (prefers-color-scheme: dark) { :root { filter: none; } }
+</style></svg>

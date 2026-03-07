@@ -61,7 +61,7 @@
 <Section variant="muted" id="faq" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<Help size={16} />
+			<Help class="text-accent" size={16} />
 			<span>FAQ</span>
 		</span>
 	</Badge>

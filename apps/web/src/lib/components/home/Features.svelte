@@ -39,7 +39,7 @@
 <Section variant="muted" id="features" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<DataViewAlt size={16} />
+			<DataViewAlt class="text-accent" size={16} />
 			<span>Features</span>
 		</span>
 	</Badge>

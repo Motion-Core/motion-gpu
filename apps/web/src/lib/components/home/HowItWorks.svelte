@@ -66,7 +66,7 @@
 >
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<Flow size={16} />
+			<Flow class="text-accent" size={16} />
 			<span>How It Works</span>
 		</span>
 	</Badge>

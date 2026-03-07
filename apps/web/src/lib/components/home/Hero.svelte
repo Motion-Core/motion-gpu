@@ -12,7 +12,7 @@
 <Section
 	variant="muted"
 	id="home"
-	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4  sm:min-h-[50vh] lg:min-h-[70vh]"
+	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 sm:min-h-[50vh] lg:min-h-[70vh]"
 >
 	<div class="flex w-full flex-col items-center justify-center gap-4 pt-16 sm:pt-10">
 		<span
@@ -23,7 +23,7 @@
 			{@html Logo}
 		</span>
 		<h1
-			class="max-w-3xl text-center text-2xl tracking-tight text-balance text-foreground sm:text-5xl"
+			class="max-w-3xl text-center text-3xl tracking-tight text-balance text-foreground sm:text-5xl"
 		>
 			A <span class="text-accent">Svelte-first</span> pipeline for modern
 			<span class="text-accent">GPU visuals.</span>

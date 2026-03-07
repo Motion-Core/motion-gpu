@@ -17,7 +17,7 @@
 				<GlassPane
 					{image}
 					distortion={0.25}
-					chromaticAberration={0.005}
+					chromaticAberration={0.0025}
 					waviness={0.0}
 					speed={0.5}
 					rods={3}

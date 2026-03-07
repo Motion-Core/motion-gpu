@@ -23,7 +23,7 @@ html {
 :root {
 	--base-hue: 285;
 
-	--radius-base: 0.175rem;
+	--radius-base: 0.275rem;
 
 	--color-background-inset: oklch(0.9674 0.0013 var(--base-hue));
 	--color-background: oklch(1 0 0);

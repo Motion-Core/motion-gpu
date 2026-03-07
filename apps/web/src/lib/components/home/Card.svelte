@@ -14,17 +14,17 @@
 </script>
 
 <div
-	class="inset-shadow relative overflow-hidden rounded-xl border border-border bg-background-inset p-1"
+	class="inset-shadow relative overflow-hidden rounded-lg border border-border bg-background-inset p-1"
 >
 	<article
 		class={cn(
-			'grid h-54 rounded-lg border border-border bg-background p-4 shadow-md sm:h-72 sm:p-6',
+			'grid h-54 rounded-md border border-border bg-background p-4 shadow-md sm:h-72 sm:p-6',
 			className
 		)}
 	>
 		<div class={cn('flex items-start', number ? 'justify-between' : 'justify-start')}>
 			<div
-				class="inset-shadow grid size-12 place-items-center rounded-md border border-border bg-background-inset text-accent"
+				class="inset-shadow grid size-12 place-items-center rounded-sm border border-border bg-background-inset text-accent"
 			>
 				{@render icon?.()}
 			</div>

@@ -86,7 +86,7 @@
 								<a
 									{href}
 									class={cn(
-										'block rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ease-out',
+										'block rounded-sm px-3 py-1.5 text-sm transition-all duration-150 ease-out',
 										isActive
 											? 'bg-accent/10 text-accent'
 											: 'text-foreground-muted hover:bg-background-inset hover:text-foreground'
@@ -103,7 +103,7 @@
 					<a
 						{href}
 						class={cn(
-							'block rounded-lg px-3 py-1.5 text-sm transition-all duration-150 ease-out',
+							'block rounded-sm px-3 py-1.5 text-sm transition-all duration-150 ease-out',
 							isActive
 								? 'bg-accent/10 text-accent'
 								: 'text-foreground-muted hover:bg-background-inset hover:text-foreground'
@@ -118,7 +118,7 @@
 
 	<div class="flex items-center gap-2 p-4">
 		<a
-			class="inline-flex size-7 items-center justify-center gap-2 rounded-md text-sm font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-inset hover:text-foreground"
+			class="inline-flex size-7 items-center justify-center gap-2 rounded-sm text-sm font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-inset hover:text-foreground"
 			href={githubUrl}
 			target="_blank"
 			rel="noreferrer"

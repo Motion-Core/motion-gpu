@@ -31,7 +31,7 @@
 	>
 		<code
 			{...restProps}
-			class={cn('rounded border border-border bg-background px-1.5 py-0.5 shadow-md', className)}
+			class={cn('rounded-xs border border-border bg-background px-1.5 py-0.5 shadow-md', className)}
 		>
 			{@render children?.()}
 		</code>

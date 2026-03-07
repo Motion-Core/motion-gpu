@@ -60,7 +60,7 @@
 
 <Section variant="muted" id="faq" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
-		<span class="inline-flex items-center gap-1.5">
+		<span class="flex items-center gap-1.5">
 			<Help size={16} />
 			<span>FAQ</span>
 		</span>
@@ -75,38 +75,42 @@
 	<InsetShadowContainer class="mt-8">
 		<div class="grid gap-2">
 			{#each faqItems as item, index (item.question)}
-				<article class="rounded-lg border border-border bg-background shadow-md">
-					<button
-						type="button"
-						id={`faq-trigger-${index}`}
-						class="flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-4 text-left text-base tracking-tight text-foreground sm:px-6"
-						aria-expanded={isOpen(item.question)}
-						aria-controls={`faq-panel-${index}`}
-						onclick={() => toggle(item.question)}
-					>
-						<span>{item.question}</span>
-						<span
-							aria-hidden="true"
-							class="inline-flex text-foreground-muted transition-transform duration-150"
-							class:rotate-45={isOpen(item.question)}
+				<div
+					class="inset-shadow relative overflow-hidden rounded-xl border border-border bg-background-inset p-1"
+				>
+					<article class="rounded-lg border border-border bg-background shadow-md">
+						<button
+							type="button"
+							id={`faq-trigger-${index}`}
+							class="flex w-full cursor-pointer items-start justify-between gap-4 px-4 py-4 text-left text-base tracking-tight text-foreground sm:px-6"
+							aria-expanded={isOpen(item.question)}
+							aria-controls={`faq-panel-${index}`}
+							onclick={() => toggle(item.question)}
 						>
-							<Add size={24} />
-						</span>
-					</button>
-					{#if isOpen(item.question)}
-						<div
-							id={`faq-panel-${index}`}
-							role="region"
-							aria-labelledby={`faq-trigger-${index}`}
-							class="px-4 pb-4 sm:px-6"
-							transition:slide={{ duration: 220 }}
-						>
-							<p class="text-sm text-pretty text-foreground-muted sm:text-base">
-								{item.answer}
-							</p>
-						</div>
-					{/if}
-				</article>
+							<span>{item.question}</span>
+							<span
+								aria-hidden="true"
+								class="inline-flex text-foreground-muted transition-transform duration-150"
+								class:rotate-45={isOpen(item.question)}
+							>
+								<Add size={24} />
+							</span>
+						</button>
+						{#if isOpen(item.question)}
+							<div
+								id={`faq-panel-${index}`}
+								role="region"
+								aria-labelledby={`faq-trigger-${index}`}
+								class="px-4 pb-4 sm:px-6"
+								transition:slide={{ duration: 220 }}
+							>
+								<p class="text-sm text-pretty text-foreground-muted sm:text-base">
+									{item.answer}
+								</p>
+							</div>
+						{/if}
+					</article>
+				</div>
 			{/each}
 		</div>
 	</InsetShadowContainer>

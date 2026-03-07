@@ -65,7 +65,7 @@
 	class="flex flex-col items-center justify-center gap-4"
 >
 	<Badge>
-		<span class="inline-flex items-center gap-1.5">
+		<span class="flex items-center gap-1.5">
 			<Flow size={16} />
 			<span>How It Works</span>
 		</span>

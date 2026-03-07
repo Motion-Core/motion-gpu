@@ -13,25 +13,31 @@
 	let { number, title, description, class: className = '', icon }: Props = $props();
 </script>
 
-<article
-	class={cn(
-		'grid h-54 rounded-lg border border-border bg-background p-4 shadow-md sm:h-72 sm:p-6',
-		className
-	)}
+<div
+	class="inset-shadow relative overflow-hidden rounded-xl border border-border bg-background-inset p-1"
 >
-	<div class={cn('flex items-start', number ? 'justify-between' : 'justify-start')}>
-		<div class="grid size-12 place-items-center text-accent">
-			{@render icon?.()}
-		</div>
-		{#if number}
-			<div class="font-mono text-base text-foreground-muted">
-				{number}
+	<article
+		class={cn(
+			'grid h-54 rounded-lg border border-border bg-background p-4 shadow-md sm:h-72 sm:p-6',
+			className
+		)}
+	>
+		<div class={cn('flex items-start', number ? 'justify-between' : 'justify-start')}>
+			<div
+				class="inset-shadow grid size-12 place-items-center rounded-md border border-border bg-background-inset text-accent"
+			>
+				{@render icon?.()}
 			</div>
-		{/if}
-	</div>
+			{#if number}
+				<div class="font-mono text-base text-foreground-muted">
+					{number}
+				</div>
+			{/if}
+		</div>
 
-	<div class="mt-auto grid gap-4">
-		<h3 class="text-xl tracking-tight text-foreground">{title}</h3>
-		<p class="text-base text-foreground-muted">{description}</p>
-	</div>
-</article>
+		<div class="mt-auto grid gap-4">
+			<h3 class="text-xl tracking-tight text-foreground">{title}</h3>
+			<p class="text-base text-foreground-muted">{description}</p>
+		</div>
+	</article>
+</div>

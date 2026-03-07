@@ -91,7 +91,7 @@
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
 			<h3 class="text-xs tracking-wide text-foreground uppercase">Project</h3>
 			<a
-				href="https://github.com/motion-core/motion-gpu/blob/main/LICENSE"
+				href="https://github.com/motion-core/motion-gpu/blob/master/LICENSE"
 				target="_blank"
 				rel="noreferrer"
 				class="w-fit text-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"

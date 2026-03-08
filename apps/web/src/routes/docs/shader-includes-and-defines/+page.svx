@@ -1,6 +1,6 @@
 ---
 title: Shader Includes & Defines
-description: Using #include directives and compile-time defines for reusable and configurable shader code.
+description: "Using #include directives and compile-time defines for reusable and configurable shader code."
 ---
 
 MotionGPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics.

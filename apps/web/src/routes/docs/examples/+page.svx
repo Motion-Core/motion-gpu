@@ -1,6 +1,6 @@
 ---
 title: Examples
-description: Concept-first MotionGPU examples for the core workflow: materials, uniforms, frame updates, textures, and passes.
+description: "Concept-first MotionGPU examples for the core workflow: materials, uniforms, frame updates, textures, and passes."
 ---
 
 These examples focus on the core MotionGPU mental model from [Getting Started](/docs/getting-started):

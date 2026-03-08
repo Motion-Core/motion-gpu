@@ -6,12 +6,13 @@
 	import DataViewAlt from 'carbon-icons-svelte/lib/DataViewAlt.svelte';
 	import Blockchain from 'carbon-icons-svelte/lib/Blockchain.svelte';
 	import Chart_3D from 'carbon-icons-svelte/lib/Chart_3D.svelte';
+	import WarningAlt from 'carbon-icons-svelte/lib/WarningAlt.svelte';
 	import Badge from '../ui/Badge.svelte';
 
 	type FeatureCard = {
 		title: string;
 		description: string;
-		icon: 'chart' | 'stack' | 'pulse';
+		icon: 'chart' | 'stack' | 'pulse' | 'diagnostics';
 	};
 
 	const cards: FeatureCard[] = [
@@ -27,13 +28,19 @@
 				'Orchestrate deterministic frame flow with explicit ordering, stages, and invalidation behavior tailored to your scene.',
 			icon: 'stack'
 		},
-		{
-			title: 'Post Processing',
-			description:
-				'Compose render passes and named render targets to scale from one fullscreen shader to full visual pipelines.',
-			icon: 'pulse'
-		}
-	];
+			{
+				title: 'Post Processing',
+				description:
+					'Compose render passes and named render targets to scale from one fullscreen shader to full visual pipelines.',
+				icon: 'pulse'
+			},
+			{
+				title: 'Error Diagnostics',
+				description:
+					'Normalize WebGPU and WGSL failures into structured reports with source snippets, actionable hints, and production-ready error handling.',
+				icon: 'diagnostics'
+			}
+		];
 </script>
 
 <Section variant="muted" id="features" class="flex flex-col items-center justify-center gap-4">
@@ -54,15 +61,17 @@
 		{#each cards as card (card.title)}
 			<Card title={card.title} description={card.description}>
 				{#snippet icon()}
-					{#if card.icon === 'chart'}
-						<Blockchain size={32} />
-					{:else if card.icon === 'stack'}
-						<Layers size={32} />
-					{:else}
-						<Chart_3D size={32} />
-					{/if}
-				{/snippet}
-			</Card>
+						{#if card.icon === 'chart'}
+							<Blockchain size={32} />
+						{:else if card.icon === 'stack'}
+							<Layers size={32} />
+						{:else if card.icon === 'pulse'}
+							<Chart_3D size={32} />
+						{:else}
+							<WarningAlt size={32} />
+						{/if}
+					{/snippet}
+				</Card>
 		{/each}
 	</InsetShadowContainer>
 </Section>

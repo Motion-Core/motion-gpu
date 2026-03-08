@@ -495,14 +495,16 @@
 		<section class="flex min-h-0 flex-col overflow-hidden bg-background">
 			<div class="relative min-h-0 flex-1 bg-background">
 				{#if controller.previewUrl}
-					<iframe
-						title="WebContainer preview"
-						src={controller.previewUrl}
-						class="h-full w-full border-0"
-						loading="eager"
-						sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-						referrerpolicy="no-referrer"
-					></iframe>
+					{#key controller.previewFrameKey}
+						<iframe
+							title="WebContainer preview"
+							src={controller.previewUrl}
+							class="h-full w-full border-0"
+							loading="eager"
+							sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+							referrerpolicy="no-referrer"
+						></iframe>
+					{/key}
 				{:else}
 					<div
 						class="flex h-full w-full items-center justify-center p-6 text-center text-sm text-foreground-muted"

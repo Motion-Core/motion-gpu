@@ -43,6 +43,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let editorChangeSubscription: MonacoDisposable | null = null;
 	let shikiHighlighter: ShikiHighlighter | null = null;
 	let previewUrl = $state('');
+	let previewReloadToken = $state(0);
 	let errorMessage = $state('');
 	let syncError = $state('');
 	let runtimeLog = $state('');
@@ -58,6 +59,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	const maxOpenTabs = 3;
 	let isBootingRuntime = false;
 	let isStartingDevServer = false;
+	let hiddenStartedAt = 0;
+	let isResumeRecoveryRunning = false;
 
 	let monacoApi: MonacoModule | null = null;
 	const monacoModelsByPath: Record<string, MonacoModel> = {};
@@ -65,6 +68,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let isSyncFlushRunning = false;
 
 	const isolationReloadStorageKey = 'motiongpu-playground-isolation-reload';
+	const longHiddenThresholdMs = 45_000;
+	const runtimeHealthcheckTimeoutMs = 3_500;
 	const installTimeoutMs = 180_000;
 	const editorFontStack =
 		'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -681,6 +686,39 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	};
 
 	let startRuntime: (() => Promise<void>) | null = null;
+	const bumpPreviewReloadToken = () => {
+		previewReloadToken += 1;
+	};
+	const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string) => {
+		let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+		const timeoutPromise = new Promise<T>((_resolve, reject) => {
+			timeoutHandle = setTimeout(() => {
+				reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+			}, timeoutMs);
+		});
+
+		try {
+			return await Promise.race([promise, timeoutPromise]);
+		} finally {
+			if (timeoutHandle) {
+				clearTimeout(timeoutHandle);
+			}
+		}
+	};
+	const checkRuntimeHealth = async () => {
+		if (!webcontainer) return false;
+
+		try {
+			await withTimeout(
+				webcontainer.fs.readFile('package.json', 'utf-8'),
+				runtimeHealthcheckTimeoutMs,
+				'WebContainer health check'
+			);
+			return true;
+		} catch {
+			return false;
+		}
+	};
 
 	const teardownRuntime = () => {
 		if (syncTimer) {
@@ -691,6 +729,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		devProcess = null;
 		isStartingDevServer = false;
 		previewUrl = '';
+		previewReloadToken = 0;
 		try {
 			webcontainer?.teardown();
 		} catch {
@@ -1018,31 +1057,124 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 			}
 		};
 
+		const restartDevServer = async (nextStatus: string) => {
+			if (!webcontainer) return;
+			status = nextStatus;
+			if (devProcess) {
+				try {
+					devProcess.kill();
+				} catch {
+					// Ignore process termination errors during recovery.
+				}
+				devProcess = null;
+			}
+			await startDevServer();
+			bumpPreviewReloadToken();
+			queueOpenFileSyncs();
+		};
+
 		startRuntime = startWebcontainer;
 
-		const onVisibilityResume = () => {
-			if (document.visibilityState !== 'visible') return;
+		const refreshEditorAfterVisibilityResume = () => {
 			if (monacoApi) {
 				monacoApi.editor.remeasureFonts();
 			}
 			editorInstance?.layout();
-			queueOpenFileSyncs();
-			if (webcontainer) {
-				void startDevServer();
-			} else {
+		};
+
+		const recoverAfterVisibilityResume = async () => {
+			if (document.visibilityState !== 'visible') return;
+			if (isResumeRecoveryRunning) return;
+
+			refreshEditorAfterVisibilityResume();
+
+			if (!webcontainer) {
+				queueOpenFileSyncs();
 				void startWebcontainer();
+				return;
 			}
+
+			const hiddenDuration = hiddenStartedAt > 0 ? Date.now() - hiddenStartedAt : 0;
+			const shouldRunDeepRecovery = hiddenDuration >= longHiddenThresholdMs;
+			hiddenStartedAt = 0;
+
+			if (!shouldRunDeepRecovery) {
+				queueOpenFileSyncs();
+				if (!devProcess) {
+					void startDevServer();
+				}
+				return;
+			}
+
+			isResumeRecoveryRunning = true;
+			try {
+				status = 'Checking runtime after tab inactivity...';
+				const isHealthy = await checkRuntimeHealth();
+				if (!isHealthy) {
+					status = 'Runtime disconnected. Rebooting...';
+					teardownRuntime();
+					await startWebcontainer();
+					return;
+				}
+
+				await restartDevServer('Refreshing preview runtime...');
+			} catch (error) {
+				if (!isDisposed) {
+					appendLog(
+						`\n[playground] failed to recover runtime after backgrounding: ${
+							error instanceof Error ? error.message : String(error)
+						}\n`
+					);
+				}
+				teardownRuntime();
+				await startWebcontainer();
+			} finally {
+				isResumeRecoveryRunning = false;
+			}
+		};
+
+		const onVisibilityChange = () => {
+			if (document.visibilityState === 'hidden') {
+				hiddenStartedAt = Date.now();
+				return;
+			}
+			void recoverAfterVisibilityResume();
+		};
+
+		const onWindowFocus = () => {
+			if (document.visibilityState !== 'visible') return;
+			void recoverAfterVisibilityResume();
+		};
+
+		const onWindowBlur = () => {
+			hiddenStartedAt = Date.now();
+		};
+
+		const onWindowPageHide = () => {
+			hiddenStartedAt = Date.now();
+		};
+
+		const onWindowPageshow = () => {
+			if (document.visibilityState !== 'visible') return;
+			queueOpenFileSyncs();
+			void recoverAfterVisibilityResume();
 		};
 
 		void setupMonacoEditor();
 		void startWebcontainer();
-		document.addEventListener('visibilitychange', onVisibilityResume);
-		window.addEventListener('focus', onVisibilityResume);
+		document.addEventListener('visibilitychange', onVisibilityChange);
+		window.addEventListener('focus', onWindowFocus);
+		window.addEventListener('blur', onWindowBlur);
+		window.addEventListener('pagehide', onWindowPageHide);
+		window.addEventListener('pageshow', onWindowPageshow);
 
 		return () => {
 			isDisposed = true;
-			document.removeEventListener('visibilitychange', onVisibilityResume);
-			window.removeEventListener('focus', onVisibilityResume);
+			document.removeEventListener('visibilitychange', onVisibilityChange);
+			window.removeEventListener('focus', onWindowFocus);
+			window.removeEventListener('blur', onWindowBlur);
+			window.removeEventListener('pagehide', onWindowPageHide);
+			window.removeEventListener('pageshow', onWindowPageshow);
 			startRuntime = null;
 			teardownRuntime();
 			editorChangeSubscription?.dispose();
@@ -1090,6 +1222,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		},
 		get previewUrl() {
 			return previewUrl;
+		},
+		get previewFrameKey() {
+			return `${previewUrl}:${previewReloadToken}`;
 		},
 		get runtimeLog() {
 			return runtimeLog;

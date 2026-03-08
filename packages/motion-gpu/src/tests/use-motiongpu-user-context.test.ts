@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CurrentReadable } from '../lib/current-writable';
 import MotionGPUUserOutside from './fixtures/MotionGPUUserOutside.svelte';
 import MotionGPUWithUserProbe from './fixtures/MotionGPUWithUserProbe.svelte';
+import MotionGPUWithUserSubscribeProbe from './fixtures/MotionGPUWithUserSubscribeProbe.svelte';
 
 describe('useMotionGPUUserContext', () => {
 	it('throws when used outside <FragCanvas>', () => {
@@ -53,5 +54,47 @@ describe('useMotionGPUUserContext', () => {
 		expect(result.contextRefs.afterMerged).not.toBe(result.contextRefs.afterSkipped);
 		expect(result.contextRefs.afterReplaced).not.toBe(result.contextRefs.afterMerged);
 		expect(result.contextRefs.afterSkippedAfterReplace).toBe(result.contextRefs.afterReplaced);
+	});
+
+	it('emits updates via all-store and scoped-store subscriptions and stops after unsubscribe', async () => {
+		const onProbe = vi.fn();
+		render(MotionGPUWithUserSubscribeProbe, { props: { onProbe } });
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as {
+			allEvents: Array<Record<string | symbol, unknown>>;
+			pluginEvents: unknown[];
+			beforeUnsubscribeCounts: { all: number; plugin: number };
+			mergedFallback: Record<string, unknown>;
+			currentPlugin: Record<string, unknown>;
+		};
+
+		expect(result.beforeUnsubscribeCounts).toEqual({ all: 5, plugin: 5 });
+		expect(result.allEvents).toHaveLength(5);
+		expect(result.pluginEvents).toEqual([
+			undefined,
+			{ mode: 'first' },
+			{ mode: 'first', enabled: true },
+			7,
+			{ mode: 'fallback' }
+		]);
+		expect(result.currentPlugin).toEqual({ mode: 'after-unsubscribe' });
+	});
+
+	it('falls back to replace semantics when merge mode receives a non-object existing value', async () => {
+		const onProbe = vi.fn();
+		render(MotionGPUWithUserSubscribeProbe, { props: { onProbe } });
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as {
+			mergedFallback: Record<string, unknown>;
+		};
+		expect(result.mergedFallback).toEqual({ mode: 'fallback' });
 	});
 });

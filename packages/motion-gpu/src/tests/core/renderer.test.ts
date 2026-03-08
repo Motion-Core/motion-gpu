@@ -398,6 +398,67 @@ describe('createRenderer', () => {
 		);
 	});
 
+	it('invalidates cached graph plan when pass clear semantics change between frames', async () => {
+		const runtime = createWebGpuRuntime();
+		const beginDescriptors: GPURenderPassDescriptor[] = [];
+
+		runtime.device.createCommandEncoder.mockImplementation(() => {
+			const passEncoder = {
+				setPipeline: vi.fn(),
+				setBindGroup: vi.fn(),
+				draw: vi.fn(),
+				end: vi.fn()
+			};
+			return {
+				copyTextureToTexture: vi.fn(),
+				beginRenderPass: vi.fn((descriptor: GPURenderPassDescriptor) => {
+					beginDescriptors.push(descriptor);
+					return passEncoder as unknown as GPURenderPassEncoder;
+				}),
+				finish: vi.fn(() => ({}) as unknown as GPUCommandBuffer)
+			} as unknown as GPUCommandEncoder;
+		});
+
+		const pass: RenderPass = {
+			needsSwap: false,
+			input: 'source',
+			output: 'canvas',
+			clear: false,
+			preserve: true,
+			render: vi.fn((context) => {
+				const renderPass = context.beginRenderPass();
+				renderPass.end();
+			})
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		pass.clear = true;
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const firstPassAttachment = beginDescriptors[1]?.colorAttachments?.[0];
+		const secondPassAttachment = beginDescriptors[3]?.colorAttachments?.[0];
+		expect(firstPassAttachment?.loadOp).toBe('load');
+		expect(secondPassAttachment?.loadOp).toBe('clear');
+	});
+
 	it('attaches shader diagnostics and cleans up listeners when compilation fails', async () => {
 		const runtime = createWebGpuRuntime();
 		runtime.device.createShaderModule.mockReturnValueOnce({
@@ -568,6 +629,58 @@ describe('createRenderer', () => {
 		);
 	});
 
+	it('uses DOM canvas fallback for mipmap generation when OffscreenCanvas is unavailable', async () => {
+		const runtime = createWebGpuRuntime();
+		const source = document.createElement('canvas');
+		source.width = 8;
+		source.height = 8;
+		const drawImage = vi.fn();
+		const originalCreateElement = document.createElement.bind(document);
+		const createElementSpy = vi
+			.spyOn(document, 'createElement')
+			.mockImplementation(((tagName: string) => {
+				if (tagName === 'canvas') {
+					return {
+						width: 0,
+						height: 0,
+						getContext: vi.fn((kind: string) =>
+							kind === '2d'
+								? ({
+										drawImage
+									} as unknown as CanvasRenderingContext2D)
+								: null
+						)
+					} as unknown as HTMLCanvasElement;
+				}
+
+				return originalCreateElement(tagName);
+			}) as typeof document.createElement);
+		vi.stubGlobal('OffscreenCanvas', undefined);
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: {
+				uTex: {
+					source,
+					generateMipmaps: true
+				}
+			}
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(createElementSpy).toHaveBeenCalledWith('canvas');
+		expect(drawImage).toHaveBeenCalled();
+		expect(runtime.device.queue.copyExternalImageToTexture.mock.calls.length).toBeGreaterThan(1);
+	});
+
 	it('blits final source slot to canvas when pass graph ends offscreen', async () => {
 		const runtime = createWebGpuRuntime();
 		const pass: RenderPass = {
@@ -636,6 +749,30 @@ describe('createRenderer', () => {
 			})
 		);
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender);
+	});
+
+	it('throws when render graph references unknown runtime target slot', async () => {
+		const runtime = createWebGpuRuntime();
+		const pass: RenderPass = {
+			needsSwap: false,
+			output: 'missingTarget',
+			render: vi.fn()
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass]
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(/unknown target "missingTarget"/i);
 	});
 
 	it('blits final named target slot to canvas when pass graph ends offscreen', async () => {

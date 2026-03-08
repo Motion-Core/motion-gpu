@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	applyMaterialDefines,
 	buildDefinesBlock,
@@ -7,6 +7,23 @@ import {
 } from '../../lib/core/material';
 
 describe('material', () => {
+	function withMockedStack<T>(stack: string, run: () => T): T {
+		const OriginalError = globalThis.Error;
+		class MockError extends OriginalError {
+			constructor(message?: string) {
+				super(message);
+				this.stack = stack;
+			}
+		}
+
+		vi.stubGlobal('Error', MockError);
+		try {
+			return run();
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	}
+
 	it('creates immutable material snapshots with normalized defaults', () => {
 		const input = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
@@ -219,6 +236,54 @@ fn colorize(uv: vec2f) -> vec4f {
 		const first = resolveMaterial(material);
 		const second = resolveMaterial(material);
 		expect(first).toBe(second);
+	});
+
+	it('captures source metadata from chrome-like stack traces', () => {
+		const resolved = withMockedStack(
+			[
+				'Error',
+				'    at resolveSourceMetadata (/workspace/src/lib/core/material.ts:249:15)',
+				'    at createOceanMaterial (/app/routes/Ocean.svelte:48:9)'
+			].join('\n'),
+			() =>
+				resolveMaterial(
+					defineMaterial({
+						fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+					})
+				)
+		);
+
+		expect(resolved.source).toMatchObject({
+			component: 'Ocean.svelte',
+			file: '/app/routes/Ocean.svelte',
+			line: 48,
+			column: 9,
+			functionName: 'createOceanMaterial'
+		});
+	});
+
+	it('captures source metadata from firefox-like stack traces', () => {
+		const resolved = withMockedStack(
+			[
+				'Error',
+				'resolveSourceMetadata@http://localhost/src/lib/core/material.ts:249:15',
+				'buildScene@http://localhost/src/routes/+page.svelte:88:12'
+			].join('\n'),
+			() =>
+				resolveMaterial(
+					defineMaterial({
+						fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+					})
+				)
+		);
+
+		expect(resolved.source).toMatchObject({
+			component: '+page.svelte',
+			file: 'http://localhost/src/routes/+page.svelte',
+			line: 88,
+			column: 12,
+			functionName: 'buildScene'
+		});
 	});
 
 	it('throws when resolving non-normalized material objects', () => {

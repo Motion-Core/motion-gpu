@@ -174,6 +174,30 @@ describe('error report', () => {
 		expect(report.hint).toContain('GPU command failed asynchronously');
 	});
 
+	it('classifies adapter unavailable errors', () => {
+		const report = toMotionGPUErrorReport(new Error('Unable to acquire WebGPU adapter'), 'render');
+		expect(report.title).toBe('WebGPU adapter unavailable');
+		expect(report.hint).toContain('adapter request failed');
+	});
+
+	it('classifies canvas context errors', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Canvas does not support webgpu context'),
+			'initialization'
+		);
+		expect(report.title).toBe('Canvas cannot create WebGPU context');
+		expect(report.hint).toContain('canvas is attached to DOM');
+	});
+
+	it('classifies copy-destination texture usage errors', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Destination texture needs to have CopyDst usage'),
+			'render'
+		);
+		expect(report.title).toBe('Invalid texture usage flags');
+		expect(report.hint).toContain('must include CopyDst');
+	});
+
 	it('classifies bind group mismatch errors and removes duplicate stack message line', () => {
 		const error = new Error('CreateBindGroup failed due to bind group layout mismatch');
 		error.stack = [

@@ -253,4 +253,102 @@ describe('texture-loader', () => {
 		expect(a).toBe(b);
 		expect(a).not.toBe(c);
 	});
+
+	it('fingerprints request body variants in cache key generation', () => {
+		const url = '/assets/body.png';
+		const formData = new FormData();
+		formData.set('name', 'motion');
+		const blob = new Blob(['hello'], { type: 'text/plain' });
+		const arrayBuffer = new Uint8Array([1, 2, 3]).buffer;
+		const view = new Uint8Array([4, 5, 6]);
+		const opaqueBody = { raw: true } as unknown as BodyInit;
+
+		const cases = [
+			{
+				label: 'string',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: 'abc' }
+				}),
+				expectedBody: 'string:abc'
+			},
+			{
+				label: 'urlsearchparams',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: new URLSearchParams('a=1&b=2') }
+				}),
+				expectedBody: 'urlsearchparams:a=1&b=2'
+			},
+			{
+				label: 'formdata',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: formData }
+				}),
+				expectedBody: 'formdata:name:motion'
+			},
+			{
+				label: 'blob',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: blob }
+				}),
+				expectedBody: 'blob:text/plain:5'
+			},
+			{
+				label: 'arraybuffer',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: arrayBuffer }
+				}),
+				expectedBody: 'arraybuffer:3'
+			},
+			{
+				label: 'view',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: view }
+				}),
+				expectedBody: 'view:3'
+			},
+			{
+				label: 'opaque',
+				key: buildTextureResourceCacheKey(url, {
+					requestInit: { method: 'POST', body: opaqueBody }
+				}),
+				expectedBody: 'opaque:[object Object]'
+			}
+		];
+
+		for (const entry of cases) {
+			const parsed = JSON.parse(entry.key) as {
+				requestInit: {
+					body: string;
+				};
+			};
+			expect(parsed.requestInit.body, entry.label).toBe(entry.expectedBody);
+		}
+	});
+
+	it('aborts pending shared fetch requests when texture blob cache is cleared', async () => {
+		let abortCount = 0;
+		const fetchMock = vi.fn((_: string, requestInit?: RequestInit) => {
+			const signal = requestInit?.signal as AbortSignal | undefined;
+			return new Promise((resolve, reject) => {
+				signal?.addEventListener(
+					'abort',
+					() => {
+						abortCount += 1;
+						reject(new DOMException('Aborted', 'AbortError'));
+					},
+					{ once: true }
+				);
+				void resolve;
+			});
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const pending = loadTextureFromUrl('/assets/pending-clear.png');
+		clearTextureBlobCache();
+
+		await expect(pending).rejects.toSatisfy((error: unknown) => isAbortError(error));
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(abortCount).toBe(1);
+		expect(createImageBitmap).not.toHaveBeenCalled();
+	});
 });

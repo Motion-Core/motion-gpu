@@ -215,4 +215,62 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
 		expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
 	});
+
+	it('forwards CopyPass setSize to fallback blit implementation', () => {
+		const pass = new CopyPass();
+		const setSizeSpy = vi.spyOn((pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit, 'setSize');
+
+		pass.setSize(320, 240);
+
+		expect(setSizeSpy).toHaveBeenCalledWith(320, 240);
+	});
+
+	it('supports setSize/dispose smoke flow for BlitPass and ShaderPass', () => {
+		const blit = new BlitPass();
+		const shader = new ShaderPass({
+			fragment: `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
+}
+`
+		});
+		const passEncoders: Array<{
+			setPipeline: ReturnType<typeof vi.fn>;
+			setBindGroup: ReturnType<typeof vi.fn>;
+			draw: ReturnType<typeof vi.fn>;
+			end: ReturnType<typeof vi.fn>;
+		}> = [];
+		const context = createPassContext({
+			beginRenderPass: vi.fn(() => {
+				const encoder = {
+					setPipeline: vi.fn(),
+					setBindGroup: vi.fn(),
+					draw: vi.fn(),
+					end: vi.fn()
+				};
+				passEncoders.push(encoder);
+				return encoder as unknown as GPURenderPassEncoder;
+			})
+		});
+
+		expect(() => blit.setSize(1920, 1080)).not.toThrow();
+		expect(() => shader.setSize(1920, 1080)).not.toThrow();
+
+		blit.render(context);
+		shader.render(context);
+
+		blit.dispose();
+		shader.dispose();
+
+		expect(() => blit.render(context)).not.toThrow();
+		expect(() => shader.render(context)).not.toThrow();
+
+		expect(passEncoders).toHaveLength(4);
+		for (const encoder of passEncoders) {
+			expect(encoder.setPipeline).toHaveBeenCalledTimes(1);
+			expect(encoder.setBindGroup).toHaveBeenCalledTimes(1);
+			expect(encoder.draw).toHaveBeenCalledWith(3);
+			expect(encoder.end).toHaveBeenCalledTimes(1);
+		}
+	});
 });

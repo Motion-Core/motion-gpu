@@ -4,7 +4,7 @@
 [![Svelte](https://img.shields.io/badge/Svelte-5-orange.svg)](https://svelte.dev)
 [![WebGPU](https://img.shields.io/badge/Shaders-WGSL-blueviolet.svg)](https://gpuweb.github.io/gpuweb/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org)
-[![npm](https://img.shields.io/badge/npm-@motion--core%2Fmotion--gpu-red.svg)](https://www.npmjs.com)
+[![npm](https://img.shields.io/badge/npm-@motion--core%2Fmotion--gpu-red.svg)](https://www.npmjs.com/package/@motion-core/motion-gpu)
 
 </div>
 
@@ -77,19 +77,19 @@ npm i @motion-core/motion-gpu
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
 
-  const material = defineMaterial({
-    fragment: `
+	const material = defineMaterial({
+		fragment: `
 fn frag(uv: vec2f) -> vec4f {
   return vec4f(uv.x, uv.y, 0.25, 1.0);
 }
 `
-  });
+	});
 </script>
 
 <div style="width: 100vw; height: 100vh;">
-  <FragCanvas {material} />
+	<FragCanvas {material} />
 </div>
 ```
 
@@ -98,35 +98,35 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
-  import Runtime from './Runtime.svelte';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import Runtime from './Runtime.svelte';
 
-  const material = defineMaterial({
-    fragment: `
+	const material = defineMaterial({
+		fragment: `
 fn frag(uv: vec2f) -> vec4f {
   let wave = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
   return vec4f(vec3f(wave), 1.0);
 }
 `,
-    uniforms: {
-      uTime: 0
-    }
-  });
+		uniforms: {
+			uTime: 0
+		}
+	});
 </script>
 
 <FragCanvas {material}>
-  <Runtime />
+	<Runtime />
 </FragCanvas>
 ```
 
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+	import { useFrame } from '@motion-core/motion-gpu';
 
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-  });
+	useFrame((state) => {
+		state.setUniform('uTime', state.time);
+	});
 </script>
 ```
 

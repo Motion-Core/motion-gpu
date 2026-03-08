@@ -47,7 +47,25 @@ describe('material', () => {
 		const canvas = document.createElement('canvas');
 		canvas.width = 16;
 		canvas.height = 8;
-		const texturePayload = { source: canvas, width: 16, height: 8 };
+		const texturePayload: {
+			source: HTMLCanvasElement;
+			width: number;
+			height: number;
+			colorSpace: 'srgb' | 'linear';
+			flipY: boolean;
+			premultipliedAlpha: boolean;
+			generateMipmaps: boolean;
+			update: 'once' | 'onInvalidate' | 'perFrame';
+		} = {
+			source: canvas,
+			width: 16,
+			height: 8,
+			colorSpace: 'linear',
+			flipY: false,
+			premultipliedAlpha: true,
+			generateMipmaps: true,
+			update: 'onInvalidate'
+		};
 
 		const material = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
@@ -63,6 +81,11 @@ describe('material', () => {
 		tint[0] = 0;
 		matrix[0] = 9;
 		texturePayload.width = 2;
+		texturePayload.colorSpace = 'srgb';
+		texturePayload.flipY = true;
+		texturePayload.premultipliedAlpha = false;
+		texturePayload.generateMipmaps = false;
+		texturePayload.update = 'once';
 
 		expect(material.uniforms.uTint).toEqual([1, 0.5, 0.25, 1]);
 		expect(
@@ -71,6 +94,27 @@ describe('material', () => {
 		expect(
 			(material.textures.uMain?.source as { source: HTMLCanvasElement; width?: number }).width
 		).toBe(16);
+		expect(
+			(
+				material.textures.uMain?.source as {
+					colorSpace?: 'srgb' | 'linear';
+					flipY?: boolean;
+					premultipliedAlpha?: boolean;
+					generateMipmaps?: boolean;
+					update?: 'once' | 'onInvalidate' | 'perFrame';
+				}
+			).colorSpace
+		).toBe('linear');
+		expect(
+			(material.textures.uMain?.source as { flipY?: boolean; premultipliedAlpha?: boolean }).flipY
+		).toBe(false);
+		expect(
+			(material.textures.uMain?.source as { premultipliedAlpha?: boolean }).premultipliedAlpha
+		).toBe(true);
+		expect((material.textures.uMain?.source as { generateMipmaps?: boolean }).generateMipmaps).toBe(
+			true
+		);
+		expect((material.textures.uMain?.source as { update?: string }).update).toBe('onInvalidate');
 	});
 
 	it('builds and applies define blocks', () => {

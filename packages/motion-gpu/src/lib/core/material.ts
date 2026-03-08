@@ -333,7 +333,14 @@ function cloneTextureValue(value: TextureValue | undefined): TextureValue {
 		return {
 			source: data.source,
 			...(data.width !== undefined ? { width: data.width } : {}),
-			...(data.height !== undefined ? { height: data.height } : {})
+			...(data.height !== undefined ? { height: data.height } : {}),
+			...(data.colorSpace !== undefined ? { colorSpace: data.colorSpace } : {}),
+			...(data.flipY !== undefined ? { flipY: data.flipY } : {}),
+			...(data.premultipliedAlpha !== undefined
+				? { premultipliedAlpha: data.premultipliedAlpha }
+				: {}),
+			...(data.generateMipmaps !== undefined ? { generateMipmaps: data.generateMipmaps } : {}),
+			...(data.update !== undefined ? { update: data.update } : {})
 		};
 	}
 

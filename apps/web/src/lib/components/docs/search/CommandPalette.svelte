@@ -138,7 +138,7 @@
 				<input
 					bind:this={inputRef}
 					bind:value={query}
-					class="flex h-12 w-full bg-transparent text-base text-foreground placeholder:text-foreground/45 focus:outline-none focus-visible:border-none! focus-visible:ring-0! focus-visible:ring-offset-0! focus-visible:outline-none!"
+					class="command-palette-input flex h-12 w-full bg-transparent text-base text-foreground placeholder:text-foreground/45 focus:outline-none focus-visible:border-none! focus-visible:ring-0! focus-visible:ring-offset-0! focus-visible:outline-none!"
 					placeholder="Search documentation..."
 					aria-label="Search documentation"
 				/>
@@ -231,3 +231,13 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.command-palette-input:focus,
+	.command-palette-input:focus-visible {
+		outline: none !important;
+		outline-color: transparent !important;
+		outline-offset: 0 !important;
+		box-shadow: none !important;
+	}
+</style>

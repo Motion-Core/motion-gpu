@@ -77,7 +77,7 @@
 
 	.btn-primary {
 		overflow: hidden;
-		color: var(--color-background);
+		color: var(--color-white-fixed);
 		transition:
 			filter 150ms ease-out,
 			box-shadow 150ms ease-out;
@@ -134,7 +134,7 @@
 			box-shadow 150ms ease-out;
 		background:
 			radial-gradient(ellipse at -20px top, rgb(255 255 255 / 0.22), rgb(255 255 255 / 0)),
-			linear-gradient(180deg, var(--color-foreground), var(--color-foreground));
+			linear-gradient(180deg, var(--color-foreground), var(--color-foreground-muted));
 		box-shadow:
 			inset 0 1px 0 rgb(255 255 255 / 0.22),
 			var(--shadow-md);

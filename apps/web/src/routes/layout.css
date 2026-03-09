@@ -28,10 +28,11 @@ html {
 	--color-background-inset: oklch(0.9674 0.0013 var(--base-hue));
 	--color-background: oklch(1 0 0);
 	--color-foreground: oklch(0.2408 0.0044 var(--base-hue));
+	--color-white-fixed: oklch(1 0 0);
 	--color-foreground-muted: oklch(0.2408 0.0044 var(--base-hue) / 0.6);
 	--color-accent: oklch(0.6996 0.201959 44.4414);
 	--color-accent-secondary: oklch(0.5096 0.151959 44.4414);
-	--color-border: oklch(0.92 0.004 var(--base-hue));
+	--color-border: oklch(0.328 0.01 var(--base-hue) / 0.1);
 
 	--shadow-xs: 0px 1px 1px -0.5px rgba(0, 0, 0, 0.06);
 	--shadow-sm: 0px 1px 1px -0.5px rgba(0, 0, 0, 0.06), 0px 3px 3px -1.5px rgba(0, 0, 0, 0.06);
@@ -51,6 +52,17 @@ html {
 		0px 24px 24px -12px rgba(0, 0, 0, 0.05), 0px 48px 48px -24px rgba(0, 0, 0, 0.06);
 }
 
+.dark {
+	--color-background-inset: oklch(0.18 0.0044 var(--base-hue));
+	--color-background: oklch(0.21 0.0065 var(--base-hue));
+	--color-foreground: oklch(0.95 0.0013 var(--base-hue));
+	--color-foreground-muted: oklch(0.95 0.0013 var(--base-hue) / 0.6);
+	--color-white-fixed: oklch(0.95 0.0013 var(--base-hue));
+	--color-accent: oklch(0.6996 0.201959 44.4414);
+	--color-accent-secondary: oklch(0.5096 0.151959 44.4414);
+	--color-border: oklch(0.828 0.01 var(--base-hue) / 0.05);
+}
+
 @theme {
 	--font-sans: 'Aeonik Pro';
 	--font-mono: 'Aeonik font-mono';
@@ -59,6 +71,7 @@ html {
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-foreground-muted: var(--foreground-muted);
+	--color-white-fixed: var(--white-fixed);
 	--color-accent: var(--accent);
 	--color-accent-secoundary: var(--accent-secondary);
 	--color-border: var(--border);

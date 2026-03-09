@@ -36,7 +36,7 @@
 
 	const activeCommand = $derived(commands[packageManagerStore.active]);
 
-	let highlightedCommands = $state<Record<PackageManager, { light: string } | null>>({
+	let highlightedCommands = $state<Record<PackageManager, { light: string; dark: string } | null>>({
 		npm: null,
 		pnpm: null,
 		bun: null,
@@ -51,6 +51,10 @@
 					light: highlighter.codeToHtml(cmd, {
 						lang: 'bash',
 						theme: 'github-light'
+					}),
+					dark: highlighter.codeToHtml(cmd, {
+						lang: 'bash',
+						theme: 'github-dark'
 					})
 				};
 			}
@@ -88,6 +92,7 @@
 				<ShikiCodeBlock
 					code=""
 					htmlLight={highlightedCommands[packageManagerStore.active]!.light}
+					htmlDark={highlightedCommands[packageManagerStore.active]!.dark}
 					unstyled={true}
 				/>
 			{:else}

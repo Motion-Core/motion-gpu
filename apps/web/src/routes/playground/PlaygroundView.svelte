@@ -12,6 +12,7 @@
 	import OpenPanelLeft from 'carbon-icons-svelte/lib/OpenPanelLeft.svelte';
 	import { brandingConfig } from '$lib/config/branding';
 	import Select from '$lib/components/ui/Select.svelte';
+	import { themeStore } from '$lib/stores/theme.svelte';
 
 	import 'monaco-editor/min/vs/editor/editor.main.css';
 	import type { PlaygroundController } from './playground-controller.svelte';
@@ -280,6 +281,9 @@
 			recomputeMobileTreeHeight();
 		});
 	});
+	$effect(() => {
+		controller.setEditorTheme(themeStore.isDark ? 'dark' : 'light');
+	});
 </script>
 
 <main class="flex h-dvh min-h-0 flex-col overflow-hidden">
@@ -420,7 +424,7 @@
 					{#each controller.openFilePaths as filePath (filePath)}
 						<div
 							class={`group inline-flex shrink-0 items-center border-r border-border ${
-								controller.activeFilePath === filePath ? 'bg-white' : 'bg-background-inset'
+								controller.activeFilePath === filePath ? 'bg-background' : 'bg-background-inset'
 							}`}
 						>
 							<button
@@ -454,7 +458,7 @@
 
 			<div
 				bind:this={controller.editorHost}
-				class="min-h-0 flex-1 bg-white"
+				class="min-h-0 flex-1 bg-background"
 				aria-label="Svelte component editor"
 			></div>
 
@@ -474,7 +478,7 @@
 							Runtime log ({controller.status})
 						</summary>
 						<pre
-							class="h-32 overflow-auto border-t border-border bg-background px-3 py-2 font-mono text-[11px] leading-5 whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
+							class="h-32 overflow-auto border-t border-border bg-background-inset px-3 py-2 font-mono text-[11px] leading-5 whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
 					</details>
 				{:else}
 					<p class="border-t border-border px-3 py-2 font-mono text-xs text-foreground-muted">
@@ -631,5 +635,32 @@
 			'liga' 0,
 			'calt' 0;
 		text-rendering: geometricPrecision;
+	}
+
+	:global(.monaco-editor),
+	:global(.monaco-editor .margin),
+	:global(.monaco-editor-background) {
+		background-color: var(--playground-editor-bg) !important;
+	}
+
+	:global(.monaco-editor) {
+		--vscode-editor-lineHighlightBackground: var(--playground-editor-active-line-bg) !important;
+		--vscode-editor-lineHighlightBorder: transparent !important;
+	}
+
+	:global(.monaco-editor .view-overlays .current-line),
+	:global(.monaco-editor .margin-view-overlays .current-line) {
+		background-color: var(--playground-editor-active-line-bg) !important;
+		border-color: transparent !important;
+	}
+
+	:global(html:not(.dark)) {
+		--playground-editor-bg: var(--color-background);
+		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
+	}
+
+	:global(html.dark) {
+		--playground-editor-bg: var(--color-background-inset);
+		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 14%, transparent);
 	}
 </style>

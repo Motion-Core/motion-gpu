@@ -96,7 +96,8 @@ const tableCellFormatter = () => {
 };
 
 const themes = {
-	light: 'github-light'
+	light: 'github-light',
+	dark: 'github-dark'
 };
 const highlighter = await createHighlighter({
 	themes: Object.values(themes),
@@ -127,10 +128,17 @@ const config = {
 							theme: themes.light
 						})
 					);
+					const darkHtml = escapeSvelte(
+						highlighter.codeToHtml(code, {
+							lang,
+							theme: themes.dark
+						})
+					);
 					const htmlLightProp = JSON.stringify(lightHtml);
+					const htmlDarkProp = JSON.stringify(darkHtml);
 					const langProp = JSON.stringify(lang);
 					const rawProp = JSON.stringify(code);
-					return `<svelte:component this={Reflect.get(globalThis, "__MarkdownPre")} lang={${langProp}} htmlLight={${htmlLightProp}} raw={${rawProp}} />`;
+					return `<svelte:component this={Reflect.get(globalThis, "__MarkdownPre")} lang={${langProp}} htmlLight={${htmlLightProp}} htmlDark={${htmlDarkProp}} raw={${rawProp}} />`;
 				}
 			}
 		}),

@@ -20,6 +20,8 @@ type MonacoEditor = import('monaco-editor').editor.IStandaloneCodeEditor;
 type MonacoDisposable = import('monaco-editor').IDisposable;
 type MonacoModel = import('monaco-editor').editor.ITextModel;
 type MonacoWorkerConstructor = new () => Worker;
+type MonacoThemeMode = 'light' | 'dark';
+type MonacoTheme = 'github-light' | 'github-dark';
 type ShikiHighlighter = Awaited<ReturnType<(typeof import('shiki'))['createHighlighter']>>;
 type FontReadyDocument = Document & { fonts?: { ready: Promise<unknown> } };
 type FileTreeNode =
@@ -61,6 +63,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let isStartingDevServer = false;
 	let hiddenStartedAt = 0;
 	let isResumeRecoveryRunning = false;
+	let activeMonacoTheme: MonacoTheme = 'github-light';
 
 	let monacoApi: MonacoModule | null = null;
 	const monacoModelsByPath: Record<string, MonacoModel> = {};
@@ -358,6 +361,24 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 				// Drop standalone carriage returns used for in-place terminal updates.
 				.replace(/\r/g, '')
 		);
+
+	const resolveMonacoTheme = (mode: MonacoThemeMode): MonacoTheme =>
+		mode === 'dark' ? 'github-dark' : 'github-light';
+
+	const applyMonacoTheme = () => {
+		if (!monacoApi) return;
+		monacoApi.editor.setTheme(activeMonacoTheme);
+	};
+
+	const setEditorTheme = (mode: MonacoThemeMode) => {
+		const nextTheme = resolveMonacoTheme(mode);
+		if (activeMonacoTheme === nextTheme) {
+			return;
+		}
+
+		activeMonacoTheme = nextTheme;
+		applyMonacoTheme();
+	};
 
 	const compactLogForDisplay = (value: string) =>
 		value
@@ -818,7 +839,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 				if (!sharedShikiHighlighter) {
 					sharedShikiHighlighter = await shiki.createHighlighter({
-						themes: ['github-light'],
+						themes: ['github-light', 'github-dark'],
 						langs: ['svelte', 'html', 'css', 'javascript', 'typescript', 'json', 'bash']
 					});
 				}
@@ -830,7 +851,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 					shikiMonaco.shikiToMonaco(shikiHighlighter, monaco);
 					isShikiMonacoConfigured = true;
 				}
-				monaco.editor.setTheme('github-light');
+				applyMonacoTheme();
 				const fontReadyDocument = document as FontReadyDocument;
 				await fontReadyDocument.fonts?.ready;
 				monaco.editor.remeasureFonts();
@@ -845,7 +866,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 				editorInstance = monaco.editor.create(editorHost, {
 					model: initialModel,
-					theme: 'github-light',
+					theme: activeMonacoTheme,
 					fontFamily: editorFontStack,
 					fontWeight: '400',
 					fontSize: 13,
@@ -1250,7 +1271,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		retryRuntime,
 		switchDemo,
 		switchToFile,
-		toggleDirectory
+		toggleDirectory,
+		setEditorTheme
 	};
 };
 

@@ -7,6 +7,7 @@
 	import { cn } from '$lib/utils/cn';
 	import SearchTrigger from '../search/SearchTrigger.svelte';
 	import ScrollArea from '$lib/components/ui/ScrollArea.svelte';
+	import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
 	import ChevronRight from 'carbon-icons-svelte/lib/ChevronRight.svelte';
 	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 
@@ -116,9 +117,10 @@
 		</nav>
 	</ScrollArea>
 
-	<div class="flex items-center gap-2 p-4">
+	<div class="flex items-center gap-1 p-4">
+		<ThemeToggle />
 		<a
-			class="inline-flex size-7 items-center justify-center gap-2 rounded-sm text-sm font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-inset hover:text-foreground"
+			class="group transition-scale inset-shadow relative inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-background-inset text-foreground duration-150 ease-out active:scale-[0.95]"
 			href={githubUrl}
 			target="_blank"
 			rel="noreferrer"

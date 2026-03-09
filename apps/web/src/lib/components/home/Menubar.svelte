@@ -7,6 +7,7 @@
 	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 	import Menu from 'carbon-icons-svelte/lib/Menu.svelte';
 	import Button from '../ui/Button.svelte';
+	import ThemeToggle from '../ui/ThemeToggle.svelte';
 	import { brandingConfig } from '$lib/config/branding';
 
 	const homeRoute = '/' as const;
@@ -163,6 +164,7 @@
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
+				<ThemeToggle />
 				<Button
 					href="https://github.com/motion-core/motion-gpu"
 					target="_blank"
@@ -274,6 +276,7 @@
 				<LogoGithub size={16} />
 				<span>GitHub</span>
 			</Button>
+			<ThemeToggle class="col-span-2 size-8 sm:hidden" />
 		</div>
 	</div>
 {/if}

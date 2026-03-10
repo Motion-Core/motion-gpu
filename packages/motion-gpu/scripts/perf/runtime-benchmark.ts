@@ -27,9 +27,9 @@ const MANUAL_ADVANCE_INTERVAL_MS = 16;
 const METRIC_RULES = {
 	always_scheduler_hz: { direction: 'higher', maxRegressionPct: 18 },
 	always_render_hz: { direction: 'higher', maxRegressionPct: 18 },
-	on_demand_idle_scheduler_hz: { direction: 'higher', maxRegressionPct: 18 },
+	on_demand_idle_scheduler_hz: { direction: 'lower', maxRegressionPct: 30 },
 	on_demand_idle_render_hz: { direction: 'lower', maxRegressionPct: 30 },
-	manual_idle_scheduler_hz: { direction: 'higher', maxRegressionPct: 18 },
+	manual_idle_scheduler_hz: { direction: 'lower', maxRegressionPct: 30 },
 	manual_idle_render_hz: { direction: 'lower', maxRegressionPct: 30 },
 	manual_advance_scheduler_hz: { direction: 'higher', maxRegressionPct: 20 },
 	manual_advance_render_hz: { direction: 'higher', maxRegressionPct: 20 }

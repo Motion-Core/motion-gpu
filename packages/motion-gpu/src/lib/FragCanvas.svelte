@@ -12,6 +12,7 @@
 	import { createRenderer } from './core/renderer';
 	import { buildRendererPipelineSignature } from './core/recompile-policy';
 	import type {
+		FrameInvalidationToken,
 		OutputColorSpace,
 		RenderPass,
 		RenderMode,
@@ -88,6 +89,18 @@
 
 	const registry = createFrameRegistry({ maxDelta: 0.1 });
 	provideFrameRegistry(registry);
+	let requestFrameSignal: (() => void) | null = null;
+	const requestFrame = (): void => {
+		requestFrameSignal?.();
+	};
+	const invalidateFrame = (token?: FrameInvalidationToken): void => {
+		registry.invalidate(token);
+		requestFrame();
+	};
+	const advanceFrame = (): void => {
+		registry.advance();
+		requestFrame();
+	};
 	const size = currentWritable({ width: 0, height: 0 });
 	const dprState = currentWritable(initialDpr);
 	const maxDeltaState = currentWritable<number>(0.1, registry.setMaxDelta);
@@ -105,8 +118,8 @@
 		renderMode: renderModeState,
 		autoRender: autoRenderState,
 		user: userState,
-		invalidate: registry.invalidate,
-		advance: registry.advance,
+		invalidate: () => invalidateFrame(),
+		advance: advanceFrame,
 		scheduler: {
 			createStage: registry.createStage,
 			getStage: registry.getStage,
@@ -125,18 +138,22 @@
 
 	$effect(() => {
 		renderModeState.set(renderMode);
+		requestFrame();
 	});
 
 	$effect(() => {
 		autoRenderState.set(autoRender);
+		requestFrame();
 	});
 
 	$effect(() => {
 		maxDeltaState.set(maxDelta);
+		requestFrame();
 	});
 
 	$effect(() => {
 		dprState.set(dpr);
+		requestFrame();
 	});
 
 	onMount(() => {
@@ -156,7 +173,7 @@
 		}
 
 		const canvasElement = canvas;
-		let frameId = 0;
+		let frameId: number | null = null;
 		let renderer: Renderer | null = null;
 		let isDisposed = false;
 		let previousTime = performance.now() / 1000;
@@ -181,6 +198,17 @@
 		const renderUniforms: Record<string, UniformValue> = {};
 		const renderTextures: TextureMap = {};
 		const canvasSize = { width: 0, height: 0 };
+		let shouldContinueAfterFrame = false;
+
+		const scheduleFrame = (): void => {
+			if (isDisposed || frameId !== null) {
+				return;
+			}
+
+			frameId = requestAnimationFrame(renderFrame);
+		};
+
+		requestFrameSignal = scheduleFrame;
 
 		const resetRuntimeMaps = (): void => {
 			for (const key of Object.keys(runtimeUniforms)) {
@@ -261,6 +289,7 @@
 		};
 
 		const renderFrame = (timestamp: number): void => {
+			frameId = null;
 			if (isDisposed) {
 				return;
 			}
@@ -270,9 +299,11 @@
 				materialState = resolveActiveMaterial();
 			} catch (error) {
 				setError(error, 'initialization');
-				frameId = requestAnimationFrame(renderFrame);
+				scheduleFrame();
 				return;
 			}
+
+			shouldContinueAfterFrame = false;
 
 			const rendererSignature = buildRendererPipelineSignature({
 				materialSignature: materialState.signature,
@@ -291,7 +322,7 @@
 					failedRendererSignature === rendererSignature &&
 					performance.now() < nextRendererRetryAt
 				) {
-					frameId = requestAnimationFrame(renderFrame);
+					scheduleFrame();
 					return;
 				}
 
@@ -333,16 +364,16 @@
 						} catch (error) {
 							failedRendererSignature = rendererSignature;
 							failedRendererAttempts += 1;
-							nextRendererRetryAt =
-								performance.now() + getRendererRetryDelayMs(failedRendererAttempts);
+							const retryDelayMs = getRendererRetryDelayMs(failedRendererAttempts);
+							nextRendererRetryAt = performance.now() + retryDelayMs;
 							setError(error, 'initialization');
 						} finally {
 							rendererRebuildPromise = null;
+							scheduleFrame();
 						}
 					})();
 				}
 
-				frameId = requestAnimationFrame(renderFrame);
 				return;
 			}
 
@@ -365,14 +396,19 @@
 					delta,
 					setUniform,
 					setTexture,
-					invalidate: registry.invalidate,
-					advance: registry.advance,
+					invalidate: invalidateFrame,
+					advance: advanceFrame,
 					renderMode: registry.getRenderMode(),
 					autoRender: registry.getAutoRender(),
 					canvas: canvasElement
 				});
 
-				if (registry.shouldRender()) {
+				const shouldRenderFrame = registry.shouldRender();
+				shouldContinueAfterFrame =
+					registry.getRenderMode() === 'always' ||
+					(registry.getRenderMode() === 'on-demand' && shouldRenderFrame);
+
+				if (shouldRenderFrame) {
 					for (const key of uniformKeys) {
 						const runtimeValue = runtimeUniforms[key];
 						renderUniforms[key] =
@@ -404,7 +440,9 @@
 				registry.endFrame();
 			}
 
-			frameId = requestAnimationFrame(renderFrame);
+			if (shouldContinueAfterFrame) {
+				scheduleFrame();
+			}
 		};
 
 		(async () => {
@@ -412,16 +450,20 @@
 				const initialMaterial = resolveActiveMaterial();
 				syncMaterialRuntimeState(initialMaterial);
 				activeRendererSignature = '';
-				frameId = requestAnimationFrame(renderFrame);
+				scheduleFrame();
 			} catch (error) {
 				setError(error, 'initialization');
-				frameId = requestAnimationFrame(renderFrame);
+				scheduleFrame();
 			}
 		})();
 
 		return () => {
 			isDisposed = true;
-			cancelAnimationFrame(frameId);
+			requestFrameSignal = null;
+			if (frameId !== null) {
+				cancelAnimationFrame(frameId);
+				frameId = null;
+			}
 			renderer?.destroy();
 			registry.clear();
 		};

@@ -228,13 +228,14 @@ describe('FragCanvas runtime', () => {
 		});
 
 		await flushFrame(16);
-		await flushFrame(32);
 		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
 
 		resolveRenderer(renderer);
 		await Promise.resolve();
 		await Promise.resolve();
-		await flushFrame(48);
+		expect(rafQueue.length).toBeGreaterThan(0);
+		await flushFrame(32);
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalledTimes(1);
 		});

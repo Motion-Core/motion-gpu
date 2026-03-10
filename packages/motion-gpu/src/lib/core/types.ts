@@ -528,6 +528,12 @@ export interface RendererOptions {
 	 * Optional device descriptor.
 	 */
 	deviceDescriptor?: GPUDeviceDescriptor | undefined;
+	/**
+	 * Internal test hook invoked when an initialization cleanup is registered.
+	 *
+	 * @internal
+	 */
+	__onInitializationCleanupRegistered?: (() => void) | undefined;
 }
 
 /**

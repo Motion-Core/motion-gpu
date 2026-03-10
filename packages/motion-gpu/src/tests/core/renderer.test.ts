@@ -398,6 +398,46 @@ describe('createRenderer', () => {
 		);
 	});
 
+	it('does not register initialization cleanups after startup during runtime texture reallocations', async () => {
+		const runtime = createWebGpuRuntime();
+		const sourceA = document.createElement('canvas');
+		sourceA.width = 4;
+		sourceA.height = 4;
+		const sourceB = document.createElement('canvas');
+		sourceB.width = 8;
+		sourceB.height = 8;
+
+		let cleanupRegistrations = 0;
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: { uTex: {} },
+			__onInitializationCleanupRegistered: () => {
+				cleanupRegistrations += 1;
+			}
+		});
+
+		const registrationsDuringStartup = cleanupRegistrations;
+		expect(registrationsDuringStartup).toBeGreaterThan(0);
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceA }
+		});
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceB }
+		});
+
+		expect(cleanupRegistrations).toBe(registrationsDuringStartup);
+	});
+
 	it('invalidates cached graph plan when pass clear semantics change between frames', async () => {
 		const runtime = createWebGpuRuntime();
 		const beginDescriptors: GPURenderPassDescriptor[] = [];

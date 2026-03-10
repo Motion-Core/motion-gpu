@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import FragCanvas from '../lib/FragCanvas.svelte';
 import { attachShaderCompilationDiagnostics } from '../lib/core/error-diagnostics';
 import { defineMaterial } from '../lib/core/material';
+import type { MotionGPUContext } from '../lib/motiongpu-context';
 import FragCanvasFrameMutationHarness from './fixtures/FragCanvasFrameMutationHarness.svelte';
+import MotionGPUWithControlProbe from './fixtures/MotionGPUWithControlProbe.svelte';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -239,6 +241,105 @@ describe('FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalledTimes(1);
 		});
+	});
+
+	it('stops scheduling frames in manual mode while idle and wakes on advance()', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const onProbe = vi.fn();
+		render(MotionGPUWithControlProbe, {
+			props: {
+				onProbe,
+				renderMode: 'manual'
+			}
+		});
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+		const context = onProbe.mock.calls[0]?.[0] as MotionGPUContext;
+
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(renderer.render).toHaveBeenCalledTimes(0);
+		expect(rafQueue).toHaveLength(0);
+
+		context.advance();
+		expect(rafQueue).toHaveLength(1);
+		await flushFrame(48);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
+	});
+
+	it('stops scheduling frames in on-demand idle and wakes on invalidate()', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const onProbe = vi.fn();
+		render(MotionGPUWithControlProbe, {
+			props: {
+				onProbe,
+				renderMode: 'on-demand'
+			}
+		});
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+		const context = onProbe.mock.calls[0]?.[0] as MotionGPUContext;
+
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(1);
+
+		await flushFrame(48);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
+
+		context.invalidate();
+		expect(rafQueue).toHaveLength(1);
+		await flushFrame(64);
+		expect(renderer.render).toHaveBeenCalledTimes(2);
+	});
+
+	it('wakes frame loop when context renderMode switches to always from manual idle', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const onProbe = vi.fn();
+		render(MotionGPUWithControlProbe, {
+			props: {
+				onProbe,
+				renderMode: 'manual'
+			}
+		});
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+		const context = onProbe.mock.calls[0]?.[0] as MotionGPUContext;
+
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(rafQueue).toHaveLength(0);
+		expect(renderer.render).toHaveBeenCalledTimes(0);
+
+		context.renderMode.set('always');
+		expect(rafQueue).toHaveLength(1);
+		await flushFrame(48);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(rafQueue.length).toBeGreaterThan(0);
 	});
 
 	it('stops frame processing after component unmount', async () => {

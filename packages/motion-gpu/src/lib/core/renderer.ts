@@ -499,6 +499,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		if (!acceptInitializationCleanups) {
 			return;
 		}
+		options.__onInitializationCleanupRegistered?.();
 		initializationCleanups.push(cleanup);
 	};
 

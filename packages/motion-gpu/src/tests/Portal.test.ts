@@ -53,4 +53,23 @@ describe('Portal', () => {
 
 		target.remove();
 	});
+
+	it('moves mounted content when target changes at runtime', async () => {
+		const firstTarget = document.createElement('section');
+		const secondTarget = document.createElement('section');
+		document.body.appendChild(firstTarget);
+		document.body.appendChild(secondTarget);
+
+		const view = render(PortalHarness, { props: { target: firstTarget } });
+		const content = await screen.findByTestId('portal-content');
+		expect(content.parentElement?.parentElement).toBe(firstTarget);
+
+		await view.rerender({ target: secondTarget });
+		expect(content.parentElement?.parentElement).toBe(secondTarget);
+
+		view.unmount();
+		expect(content.isConnected).toBe(false);
+		firstTarget.remove();
+		secondTarget.remove();
+	});
 });

@@ -1,7 +1,9 @@
 <script>
 	//
-	// Original Shader by mrange
-	// Licensed under CC0
+	// Original Shader by @mrange
+	// Licensed under CC0 1.0 Universal
+	// SPDX-License-Identifier: CC0-1.0
+	// Source:
 	// https://www.shadertoy.com/view/3lVczV
 	//
 	import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu';

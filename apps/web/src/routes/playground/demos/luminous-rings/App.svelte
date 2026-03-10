@@ -1,7 +1,9 @@
 <script>
 	//
 	// Original Shader by @XorDev
-	// Unknown License
+	// License: Unknown / not declared in source metadata
+	// SPDX-License-Identifier: NOASSERTION
+	// Source:
 	// https://www.shadertoy.com/view/ctGyWK
 	//
 	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';

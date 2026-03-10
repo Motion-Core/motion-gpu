@@ -1,7 +1,9 @@
 <script>
 	//
-	// Original Shader by Frostbyte
+	// Original Shader by @Frostbyte
 	// Licensed under CC BY-NC-SA 4.0
+	// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+	// Source:
 	// https://www.shadertoy.com/view/tXVcWR
 	//
 	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';

@@ -184,53 +184,55 @@
 	});
 
 	const buttonClass =
-		"border border-border relative inline-flex h-9 font-medium shrink-0 overflow-hidden items-center justify-center gap-2 rounded-sm bg-background px-4 py-2 text-sm whitespace-nowrap text-foreground shadow-sm transition-[background-color] duration-150 ease-out hover:bg-background-inset disabled:pointer-events-none disabled:opacity-50 has-[>svg]:px-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 flex-1";
+		"border border-border relative inline-flex h-9 w-full font-medium shrink-0 overflow-hidden items-center justify-center gap-2 rounded-sm bg-background px-4 py-2 text-sm whitespace-nowrap text-foreground shadow-sm transition-[background-color] duration-150 ease-out hover:bg-background-inset disabled:pointer-events-none disabled:opacity-50 has-[>svg]:px-3 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 flex-1";
 </script>
 
 <div class="relative z-20 mt-8 flex w-full gap-2 lg:hidden">
-	<button
-		type="button"
-		onclick={handleCopy}
-		aria-live="polite"
-		aria-disabled={copyState === 'success'}
-		class={buttonClass}
-	>
-		<span class="grid place-items-center" style="grid-template-areas: 'content';">
-			{#key copyState}
-				<span
-					class="flex items-center gap-2 will-change-transform"
-					style="grid-area: content;"
-					in:fly={{ y: 20, duration: 300, easing: backOut }}
-					out:fly={{ y: -20, duration: 200, easing: backOut }}
-				>
-					{#if copyState === 'success'}
-						<Checkmark class="size-4 flex-none" />
-					{:else}
-						<svg
-							role="img"
-							viewBox="0 0 24 24"
-							fill="none"
-							aria-hidden="true"
-							class="size-4 flex-none"
-						>
-							<title>Markdown</title>
-							<path
-								class="stroke-current"
-								d="M1.212 5.5h21.576c.407 0 .712.317.712.679v11.549a.695.695 0 0 1-.712.677H1.212a.695.695 0 0 1-.712-.678V6.18c0-.362.305-.679.712-.679Z"
-							/>
-							<path
-								class="fill-current"
-								d="M3.03 15.96V7.946h2.425l2.424 2.946 2.424-2.946h2.424v8.014h-2.424v-4.596L7.88 14.31l-2.424-2.946v4.596H3.03Zm15.152 0-3.636-3.89h2.424V7.947h2.424v4.125h2.424l-3.636 3.889Z"
-							/>
-						</svg>
-					{/if}
-					<span>{copyLabel}</span>
-				</span>
-			{/key}
-		</span>
-	</button>
+	<div class="inset-shadow w-full rounded-md border border-border bg-background-inset p-1">
+		<button
+			type="button"
+			onclick={handleCopy}
+			aria-live="polite"
+			aria-disabled={copyState === 'success'}
+			class={buttonClass}
+		>
+			<span class="grid place-items-center" style="grid-template-areas: 'content';">
+				{#key copyState}
+					<span
+						class="flex items-center gap-2 will-change-transform"
+						style="grid-area: content;"
+						in:fly={{ y: 20, duration: 300, easing: backOut }}
+						out:fly={{ y: -20, duration: 200, easing: backOut }}
+					>
+						{#if copyState === 'success'}
+							<Checkmark class="size-4 flex-none" />
+						{:else}
+							<svg
+								role="img"
+								viewBox="0 0 24 24"
+								fill="none"
+								aria-hidden="true"
+								class="size-4 flex-none"
+							>
+								<title>Markdown</title>
+								<path
+									class="stroke-current"
+									d="M1.212 5.5h21.576c.407 0 .712.317.712.679v11.549a.695.695 0 0 1-.712.677H1.212a.695.695 0 0 1-.712-.678V6.18c0-.362.305-.679.712-.679Z"
+								/>
+								<path
+									class="fill-current"
+									d="M3.03 15.96V7.946h2.425l2.424 2.946 2.424-2.946h2.424v8.014h-2.424v-4.596L7.88 14.31l-2.424-2.946v4.596H3.03Zm15.152 0-3.636-3.89h2.424V7.947h2.424v4.125h2.424l-3.636 3.889Z"
+								/>
+							</svg>
+						{/if}
+						<span>{copyLabel}</span>
+					</span>
+				{/key}
+			</span>
+		</button>
+	</div>
 
-	<div class="relative">
+	<div class="inset-shadow relative rounded-md border border-border bg-background-inset p-1">
 		<button
 			bind:this={triggerRef}
 			type="button"
@@ -248,7 +250,7 @@
 				use:portal
 				bind:this={dropdownRef}
 				style={dropdownStyle}
-				class="z-50 flex w-48 origin-top-right flex-col gap-0.5 rounded-lg border border-border bg-background p-1 shadow-lg"
+				class="z-50 flex w-48 origin-top-right flex-col gap-0.5 rounded-md border border-border bg-background p-1 shadow-lg"
 				in:fly={{ y: -5, duration: 200, easing: backOut }}
 				out:fly={{ y: -5, duration: 150, easing: backOut }}
 			>

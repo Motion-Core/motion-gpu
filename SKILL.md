@@ -17,6 +17,10 @@ Treat the public package contract as authoritative:
 - `@motion-core/motion-gpu/advanced` exports:
 everything above plus
 `useMotionGPUUserContext`, `setMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`
+- Import only from public entrypoints above. Do not import from internal package paths (`/src`, `/lib/core`, etc.).
+- Full documentation index for LLMs is available at:
+`http://motion-gpu.dev/llms.txt`
+- Use `llms.txt` when deeper reference is needed; it links to raw markdown docs for the full library.
 - Official docs sections to consult when uncertain:
 Getting Started, Defining Materials, Writing Shaders, Uniforms, Textures, Texture Loading, Render Passes, Render Targets, Render Modes, Frame Scheduler, Hooks and Context, Error Handling, FragCanvas Reference, API Reference.
 
@@ -39,6 +43,9 @@ Enforce these constraints without exceptions:
 8. Use explicit `{ type: 'mat4x4f', value: [...] }` for matrix uniforms.
 9. Keep `maxDelta > 0` and scheduler profiling window `> 0`.
 10. Build materials via `defineMaterial(...)`; never handcraft `FragMaterial`.
+11. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
+12. For `invalidation: { mode: 'on-change' }`, always provide `token`.
+13. Read/write named pass slots only when declared in `renderTargets`.
 
 ## Component Architecture Pattern
 
@@ -97,6 +104,12 @@ If using `on-demand`, define invalidation policy explicitly:
 - Keep `autoInvalidate: true` for frame-driven effects.
 - Use `autoInvalidate: false` + `invalidation: { mode: 'on-change', token: ... }` for state-driven redraws.
 
+Render-mode semantics to keep in mind:
+
+- `on-demand` renders one initial frame, then sleeps until invalidated.
+- Switching to `on-demand` triggers one frame.
+- `manual` ignores invalidation-only flow; require `advance()`.
+
 ### 4. Add error strategy at creation time
 
 Always wire `onError`.
@@ -105,7 +118,7 @@ Disable overlay only when user asks for silent/custom error handling.
 
 ### 5. Validate before finalizing
 
-Run checks available in the target project:
+Run checks available in the target application:
 
 ```bash
 npm run check
@@ -114,8 +127,9 @@ npm run lint
 ```
 
 If the project uses another package manager, use equivalent commands (`pnpm`/`yarn`/`bun`).
+If a script does not exist, run the closest available static/type/test checks and report exactly what was not run.
 
-If touching `.svelte` files, run:
+If touching `.svelte` files and `svelte-autofixer` is available, run:
 
 ```bash
 npx @sveltejs/mcp svelte-autofixer <path-to-file>
@@ -157,6 +171,15 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Use typed integer defines for integer loops:
 `{ type: 'i32', value: N }` or `{ type: 'u32', value: N }`.
 - Expect renderer rebuild when define/include output changes.
+
+### Scheduler and User Context
+
+- Use `applySchedulerPreset(...)` when selecting `performance`, `balanced`, or `debug` scheduler behavior.
+- Keep `diagnosticsEnabled` and `profilingEnabled` equal when overriding preset options.
+- Keep `profilingWindow` finite and `> 0`.
+- Use `setMotionGPUUserContext(namespace, value)` for shared canvas-subtree state.
+- Remember default `setMotionGPUUserContext` conflict behavior is `existing: 'skip'`; pass `existing: 'replace'` or `existing: 'merge'` intentionally.
+- Use `useMotionGPUUserContext(namespace?)` as read-only consumer API.
 
 ### Passes and Targets
 
@@ -263,6 +286,7 @@ Follow this order:
 - Verify `needsSwap`, input/output slots, and target declarations.
 5. No redraw in `on-demand`:
 - Check invalidation path and `autoInvalidate` settings.
+- If mode is `manual`, check `advance()` usage instead of invalidation.
 6. Texture issues:
 - Confirm source readiness (`readyState` for video).
 - Check update mode and source dimensions.
@@ -276,4 +300,5 @@ Ship only when all checks pass:
 3. Keep render mode and invalidation strategy intentional and documented in code.
 4. Keep error handling present (`onError` at minimum).
 5. Keep passes/targets slot routing valid.
-6. Keep checks/tests executed or report clearly what was not run.
+6. Keep only public entrypoint imports (`@motion-core/motion-gpu` or `/advanced`).
+7. Keep checks/tests executed or report clearly what was not run.

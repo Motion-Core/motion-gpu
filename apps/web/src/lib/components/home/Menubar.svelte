@@ -276,7 +276,7 @@
 				<LogoGithub size={16} />
 				<span>GitHub</span>
 			</Button>
-			<ThemeToggle class="col-span-2 size-8 sm:hidden" />
+			<ThemeToggle class="col-span-2 ml-auto size-8 sm:hidden" />
 		</div>
 	</div>
 {/if}

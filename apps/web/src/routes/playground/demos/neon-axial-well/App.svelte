@@ -14,7 +14,7 @@ fn frag(uv: vec2f) -> vec4f {
 	let resolution = motiongpuFrame.resolution;
 	let time = motiongpuFrame.time;
 
-	let q = vec2f(uv.x, 1.0 - uv.y);
+	let q = vec2f(uv.x, uv.y);
 	let pixel = vec2f(q.x * resolution.x + 0.5, q.y * resolution.y + 0.5);
 	let centered = (pixel - 0.5 * resolution) / resolution.y;
 	let axialGlow = vec4f(1.0, 1.0, 3.0, 1.0) / max(length(centered + vec2f(0.0, -0.7)), 1e-3);

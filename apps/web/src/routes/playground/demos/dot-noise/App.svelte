@@ -45,7 +45,7 @@ fn acesTonemap(o: vec3f) -> vec3f {
 fn frag(uv: vec2f) -> vec4f {
 	let resolution = motiongpuFrame.resolution;
 	let time = motiongpuFrame.time;
-	let q = vec2f(uv.x, 1.0 - uv.y);
+	let q = vec2f(uv.x, uv.y);
 	let fragCoord = q * resolution;
 	let d = normalize(vec3f(2.0 * fragCoord - resolution, -resolution.y));
 

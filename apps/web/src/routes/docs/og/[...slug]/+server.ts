@@ -48,7 +48,7 @@ type ResvgWasmState = {
 	initialized?: boolean;
 };
 
-const resvgState = (globalThis as typeof globalThis & { __motionGpuResvgWasmState?: ResvgWasmState });
+const resvgState = globalThis as typeof globalThis & { __motionGpuResvgWasmState?: ResvgWasmState };
 if (!resvgState.__motionGpuResvgWasmState) {
 	resvgState.__motionGpuResvgWasmState = {};
 }

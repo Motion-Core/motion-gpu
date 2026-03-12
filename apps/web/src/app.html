@@ -5,6 +5,7 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<script>
 			(() => {
+				document.documentElement.classList.add('js');
 				const storageKey = 'theme';
 				const storedTheme = localStorage.getItem(storageKey);
 				const isDark =

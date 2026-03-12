@@ -10,15 +10,30 @@
 	import Menubar from '$lib/components/home/Menubar.svelte';
 
 	let mainContent = $state<HTMLElement | null>(null);
+	let landingAnimationState = $state<'preparing' | 'ready'>('preparing');
 
 	onMount(() => {
 		let destroyAnimations = () => {};
 		let isActive = true;
 
-		void import('$lib/animations/landing').then(({ createLandingScrollAnimations }) => {
-			if (!isActive || !mainContent) return;
-			destroyAnimations = createLandingScrollAnimations(mainContent);
-		});
+		const setupAnimations = async () => {
+			if (!mainContent) {
+				landingAnimationState = 'ready';
+				return;
+			}
+
+			try {
+				const { createLandingScrollAnimations } = await import('$lib/animations/landing');
+				if (!isActive || !mainContent) return;
+				destroyAnimations = createLandingScrollAnimations(mainContent);
+			} finally {
+				if (isActive) {
+					landingAnimationState = 'ready';
+				}
+			}
+		};
+
+		void setupAnimations();
 
 		return () => {
 			isActive = false;
@@ -39,6 +54,8 @@
 	id="main-content"
 	bind:this={mainContent}
 	tabindex="-1"
+	data-landing-anim-root
+	data-landing-anim-state={landingAnimationState}
 	class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col items-center justify-center border-x border-border bg-background"
 >
 	<Hero />

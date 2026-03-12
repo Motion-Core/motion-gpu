@@ -168,3 +168,24 @@ html {
 	);
 	background-size: 0.25rem 0.25rem;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal='badge'],
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal='card'],
+	:root.js
+		[data-landing-anim-root][data-landing-anim-state='preparing']
+		[data-reveal='actions']
+		> *,
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal-section] h1,
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal-section] h2,
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal-section] h3,
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal-section] p,
+	:root.js [data-landing-anim-root][data-landing-anim-state='preparing'] [data-reveal-section] a,
+	:root.js
+		[data-landing-anim-root][data-landing-anim-state='preparing']
+		[data-reveal-section]
+		[data-reveal='text'] {
+		opacity: 0;
+		transform: translateY(15px);
+	}
+}

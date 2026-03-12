@@ -75,10 +75,10 @@ Motion GPU follows a simple three-step flow:
 - Runtime uniform and texture updates without rebuilding the pipeline
 - Frame scheduler with task ordering, stages, invalidation modes, diagnostics and profiling
 - Render graph with built-in post-process passes:
-
   - `ShaderPass`
   - `BlitPass`
   - `CopyPass`
+
 - Named render targets for multi-pass pipelines
 - Structured error normalization with built-in overlay UI and custom renderer support
 - Advanced runtime API for namespaced shared user context and scheduler presets

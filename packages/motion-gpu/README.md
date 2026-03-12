@@ -46,7 +46,7 @@ Motion GPU focuses on a much narrower problem: running fullscreen WGSL shader pi
 | ---------------- | --------------------- | ------------------------- |
 | Scope            | Full 3D engine        | Fullscreen shader runtime |
 | Shader language  | TSL / generated WGSL  | Native WGSL               |
-| Bundle size      | large                 | tiny                      |
+| Bundle size      | large                 | tiny (3.5-5x smaller)     |
 | Rendering model  | Scene graph           | GPU pipeline              |
 | Shader pipeline  | materials             | explicit passes           |
 | Multi-pass       | possible but indirect | first-class               |

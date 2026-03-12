@@ -9,6 +9,7 @@ dist
 build
 .svelte-kit
 .turbo
+.wrangler
 *.tsbuildinfo
 
 # environments

@@ -688,24 +688,44 @@
 	}
 
 	:global(html:not(.dark)) {
-		--playground-editor-bg: var(--color-background);
+		--playground-editor-bg: transparent;
+		--playground-editor-fg: #1f2328;
+		--playground-editor-gutter-fg: #6e7781;
+		--playground-editor-gutter-border: #d0d7de;
 		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
-		--playground-token-keyword: #7c3aed;
-		--playground-token-function: #0f766e;
-		--playground-token-string: #0369a1;
-		--playground-token-comment: #64748b;
-		--playground-token-number: #b45309;
-		--playground-token-type: #0f766e;
+		--playground-editor-selection-bg: rgb(9 105 218 / 20%);
+		--playground-editor-cursor: #1f2328;
+		--playground-token-keyword: #cf222e;
+		--playground-token-function: #8250df;
+		--playground-token-string: #0a3069;
+		--playground-token-comment: #6e7781;
+		--playground-token-number: #0550ae;
+		--playground-token-type: #953800;
+		--playground-token-tag: #116329;
+		--playground-token-property: #0550ae;
+		--playground-token-variable: #1f2328;
+		--playground-token-constant: #0550ae;
+		--playground-token-invalid: #cf222e;
 	}
 
 	:global(html.dark) {
-		--playground-editor-bg: var(--color-background-inset);
+		--playground-editor-bg: transparent;
+		--playground-editor-fg: #e6edf3;
+		--playground-editor-gutter-fg: #7d8590;
+		--playground-editor-gutter-border: #30363d;
 		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 14%, transparent);
-		--playground-token-keyword: #c4b5fd;
-		--playground-token-function: #67e8f9;
-		--playground-token-string: #7dd3fc;
-		--playground-token-comment: #94a3b8;
-		--playground-token-number: #fdba74;
-		--playground-token-type: #5eead4;
+		--playground-editor-selection-bg: rgb(47 129 247 / 20%);
+		--playground-editor-cursor: #e6edf3;
+		--playground-token-keyword: #ff7b72;
+		--playground-token-function: #d2a8ff;
+		--playground-token-string: #a5d6ff;
+		--playground-token-comment: #8b949e;
+		--playground-token-number: #79c0ff;
+		--playground-token-type: #ffa657;
+		--playground-token-tag: #7ee787;
+		--playground-token-property: #79c0ff;
+		--playground-token-variable: #e6edf3;
+		--playground-token-constant: #79c0ff;
+		--playground-token-invalid: #ff7b72;
 	}
 </style>

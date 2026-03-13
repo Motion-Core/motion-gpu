@@ -58,12 +58,23 @@ const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 
 const editorSyntaxTheme = syntaxHighlighting(
 	HighlightStyle.define([
-		{ tag: [t.keyword, t.modifier, t.operatorKeyword], color: 'var(--playground-token-keyword)' },
-		{ tag: [t.string, t.special(t.string)], color: 'var(--playground-token-string)' },
-		{ tag: [t.number, t.bool, t.null], color: 'var(--playground-token-number)' },
-		{ tag: [t.comment], color: 'var(--playground-token-comment)' },
-		{ tag: [t.typeName, t.className], color: 'var(--playground-token-type)' },
-		{ tag: [t.function(t.variableName), t.propertyName], color: 'var(--playground-token-function)' }
+		{
+			tag: [t.keyword, t.modifier, t.operatorKeyword, t.controlKeyword, t.definitionKeyword],
+			color: 'var(--playground-token-keyword)'
+		},
+		{ tag: [t.string, t.special(t.string), t.docString], color: 'var(--playground-token-string)' },
+		{ tag: [t.number, t.integer, t.float, t.bool, t.null, t.atom], color: 'var(--playground-token-number)' },
+		{ tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: 'var(--playground-token-comment)' },
+		{ tag: [t.typeName, t.className, t.namespace, t.macroName], color: 'var(--playground-token-type)' },
+		{
+			tag: [t.function(t.variableName), t.function(t.propertyName)],
+			color: 'var(--playground-token-function)'
+		},
+		{ tag: [t.tagName], color: 'var(--playground-token-tag)' },
+		{ tag: [t.propertyName, t.attributeName, t.labelName], color: 'var(--playground-token-property)' },
+		{ tag: [t.variableName, t.name], color: 'var(--playground-token-variable)' },
+		{ tag: [t.regexp, t.escape, t.special(t.variableName), t.url], color: 'var(--playground-token-constant)' },
+		{ tag: [t.invalid], color: 'var(--playground-token-invalid)' }
 	])
 );
 
@@ -74,7 +85,7 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 				height: '100%',
 				fontSize: '13px',
 				backgroundColor: 'var(--playground-editor-bg)',
-				color: 'var(--color-foreground)'
+				color: 'var(--playground-editor-fg)'
 			},
 			'.cm-scroller': {
 				fontFamily: editorFontStack,
@@ -88,8 +99,8 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 			},
 			'.cm-gutters': {
 				backgroundColor: 'var(--playground-editor-bg)',
-				borderRight: '1px solid var(--color-border)',
-				color: 'var(--color-foreground-muted)',
+				borderRight: '1px solid var(--playground-editor-gutter-border)',
+				color: 'var(--playground-editor-gutter-fg)',
 				minWidth: '44px'
 			},
 			'.cm-gutterElement': {
@@ -102,13 +113,13 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 				backgroundColor: 'var(--playground-editor-active-line-bg)'
 			},
 			'.cm-selectionBackground': {
-				backgroundColor: 'color-mix(in srgb, var(--color-accent) 24%, transparent) !important'
+				backgroundColor: 'var(--playground-editor-selection-bg) !important'
 			},
 			'&.cm-focused': {
 				outline: 'none'
 			},
 			'&.cm-focused .cm-cursor': {
-				borderLeftColor: 'var(--color-foreground)'
+				borderLeftColor: 'var(--playground-editor-cursor)'
 			}
 		},
 		{ dark: mode === 'dark' }

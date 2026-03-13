@@ -7,7 +7,7 @@
 	},
 	"dependencies": {
 		"svelte": "https://registry.npmjs.org/svelte/-/svelte-5.51.0.tgz",
-		"@motion-core/motion-gpu": "file:./packages/motion-gpu"
+		"@motion-core/motion-gpu": "0.1.0"
 	},
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "https://registry.npmjs.org/@sveltejs/vite-plugin-svelte/-/vite-plugin-svelte-6.2.4.tgz",

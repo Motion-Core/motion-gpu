@@ -57,7 +57,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let activeDemoId = $state(initialResolvedDemoId);
 	let activeFilePath = $state('src/App.svelte');
 	let openFilePaths = $state<string[]>(['src/App.svelte']);
-	let collapsedDirs = $state<Record<string, boolean>>({ 'packages/motion-gpu/dist': true });
+	let collapsedDirs = $state<Record<string, boolean>>({});
 	const maxOpenTabs = 3;
 	let isBootingRuntime = false;
 	let isStartingDevServer = false;
@@ -93,85 +93,6 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 			.filter((entry): entry is readonly [string, string] => entry !== null)
 	);
 	const packageLockContent = runtimeTemplateFiles['package-lock.json'] ?? '';
-	const motionGpuPackageJsonRaw = String(
-		import.meta.glob('../../../../../packages/motion-gpu/package.json', {
-			query: '?raw',
-			import: 'default',
-			eager: true
-		})['../../../../../packages/motion-gpu/package.json'] ?? ''
-	);
-	const motionGpuPackageJson = (() => {
-		try {
-			const parsed = JSON.parse(motionGpuPackageJsonRaw) as {
-				name?: string;
-				version?: string;
-				type?: string;
-				svelte?: string;
-				types?: string;
-				exports?: unknown;
-				peerDependencies?: Record<string, string>;
-			};
-
-			return JSON.stringify(
-				{
-					name: parsed.name ?? '@motion-core/motion-gpu',
-					version: parsed.version ?? '0.1.0',
-					type: parsed.type ?? 'module',
-					svelte: parsed.svelte ?? './dist/index.js',
-					types: parsed.types ?? './dist/index.d.ts',
-					exports: parsed.exports ?? {
-						'.': {
-							types: './dist/index.d.ts',
-							svelte: './dist/index.js',
-							default: './dist/index.js'
-						}
-					},
-					peerDependencies: parsed.peerDependencies ?? {
-						svelte: '^5.0.0'
-					}
-				},
-				null,
-				2
-			);
-		} catch {
-			return JSON.stringify(
-				{
-					name: '@motion-core/motion-gpu',
-					version: '0.1.0',
-					type: 'module',
-					svelte: './dist/index.js',
-					types: './dist/index.d.ts',
-					exports: {
-						'.': {
-							types: './dist/index.d.ts',
-							svelte: './dist/index.js',
-							default: './dist/index.js'
-						}
-					},
-					peerDependencies: {
-						svelte: '^5.0.0'
-					}
-				},
-				null,
-				2
-			);
-		}
-	})();
-	const motionGpuDistRawModules = import.meta.glob(
-		'../../../../../packages/motion-gpu/dist/**/*.{js,svelte,d.ts}',
-		{ query: '?raw', import: 'default', eager: true }
-	) as Record<string, string>;
-	const motionGpuDistFiles = Object.fromEntries(
-		Object.entries(motionGpuDistRawModules)
-			.map(([path, source]) => {
-				const marker = '/packages/motion-gpu/dist/';
-				const markerIndex = path.lastIndexOf(marker);
-				if (markerIndex === -1) return null;
-				const relativePath = path.slice(markerIndex + marker.length);
-				return [relativePath, source] as const;
-			})
-			.filter((entry): entry is readonly [string, string] => entry !== null)
-	);
 
 	type WebContainerNode =
 		| { file: { contents: string } }
@@ -207,14 +128,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	};
 
 	const baseWorkerFiles: Record<string, string> = {
-		...runtimeTemplateFiles,
-		'packages/motion-gpu/package.json': motionGpuPackageJson,
-		...Object.fromEntries(
-			Object.entries(motionGpuDistFiles).map(([path, contents]) => [
-				`packages/motion-gpu/dist/${path}`,
-				contents
-			])
-		)
+		...runtimeTemplateFiles
 	};
 	const demoAppPath = 'src/App.svelte';
 	const demoRuntimePath = 'src/runtime.svelte';

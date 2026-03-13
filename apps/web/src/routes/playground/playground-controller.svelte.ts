@@ -1,8 +1,14 @@
-import MonacoEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker&inline';
-import MonacoCssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker&inline';
-import MonacoHtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker&inline';
-import MonacoJsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker&inline';
-import MonacoTsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker&inline';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import { indentWithTab } from '@codemirror/commands';
+import { css as cssLanguage } from '@codemirror/lang-css';
+import { html as htmlLanguage } from '@codemirror/lang-html';
+import { javascript } from '@codemirror/lang-javascript';
+import { json as jsonLanguage } from '@codemirror/lang-json';
+import { HighlightStyle, indentUnit, syntaxHighlighting } from '@codemirror/language';
+import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
+import { tags as t } from '@lezer/highlight';
+import { svelte as svelteLanguage } from '@replit/codemirror-lang-svelte';
+import { basicSetup } from 'codemirror';
 import {
 	getPlaygroundDemoById,
 	playgroundDemos,
@@ -18,15 +24,7 @@ import {
 import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.html?raw';
 import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
-type MonacoModule = typeof import('monaco-editor');
-type MonacoEditor = import('monaco-editor').editor.IStandaloneCodeEditor;
-type MonacoDisposable = import('monaco-editor').IDisposable;
-type MonacoModel = import('monaco-editor').editor.ITextModel;
-type MonacoWorkerConstructor = new () => Worker;
-type MonacoThemeMode = 'light' | 'dark';
-type MonacoTheme = 'github-light' | 'github-dark';
-type ShikiHighlighter = Awaited<ReturnType<(typeof import('shiki'))['createHighlighter']>>;
-type FontReadyDocument = Document & { fonts?: { ready: Promise<unknown> } };
+type EditorThemeMode = 'light' | 'dark';
 type FileTreeNode =
 	| { kind: 'directory'; name: string; path: string; children: FileTreeNode[] }
 	| { kind: 'file'; name: string; path: string };
@@ -36,9 +34,6 @@ type FileTreeRow = {
 	path: string;
 	depth: number;
 };
-
-let sharedShikiHighlighter: ShikiHighlighter | null = null;
-let isShikiMonacoConfigured = false;
 
 const editorFontStack =
 	'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -61,13 +56,80 @@ const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 	return details || 'Bundle failed.';
 };
 
+const editorSyntaxTheme = syntaxHighlighting(
+	HighlightStyle.define([
+		{ tag: [t.keyword, t.modifier, t.operatorKeyword], color: 'var(--playground-token-keyword)' },
+		{ tag: [t.string, t.special(t.string)], color: 'var(--playground-token-string)' },
+		{ tag: [t.number, t.bool, t.null], color: 'var(--playground-token-number)' },
+		{ tag: [t.comment], color: 'var(--playground-token-comment)' },
+		{ tag: [t.typeName, t.className], color: 'var(--playground-token-type)' },
+		{ tag: [t.function(t.variableName), t.propertyName], color: 'var(--playground-token-function)' }
+	])
+);
+
+const createEditorTheme = (mode: EditorThemeMode) =>
+	EditorView.theme(
+		{
+			'&': {
+				height: '100%',
+				fontSize: '13px',
+				backgroundColor: 'var(--playground-editor-bg)',
+				color: 'var(--color-foreground)'
+			},
+			'.cm-scroller': {
+				fontFamily: editorFontStack,
+				lineHeight: '1.55'
+			},
+			'.cm-content': {
+				padding: '10px 0 12px'
+			},
+			'.cm-line': {
+				padding: '0 12px 0 14px'
+			},
+			'.cm-gutters': {
+				backgroundColor: 'var(--playground-editor-bg)',
+				borderRight: '1px solid var(--color-border)',
+				color: 'var(--color-foreground-muted)',
+				minWidth: '44px'
+			},
+			'.cm-gutterElement': {
+				padding: '0 10px 0 12px'
+			},
+			'.cm-activeLine': {
+				backgroundColor: 'var(--playground-editor-active-line-bg)'
+			},
+			'.cm-activeLineGutter': {
+				backgroundColor: 'var(--playground-editor-active-line-bg)'
+			},
+			'.cm-selectionBackground': {
+				backgroundColor: 'color-mix(in srgb, var(--color-accent) 24%, transparent) !important'
+			},
+			'&.cm-focused': {
+				outline: 'none'
+			},
+			'&.cm-focused .cm-cursor': {
+				borderLeftColor: 'var(--color-foreground)'
+			}
+		},
+		{ dark: mode === 'dark' }
+	);
+
+const languageExtensionForPath = (filePath: string): Extension => {
+	if (filePath.endsWith('.svelte')) return svelteLanguage();
+	if (filePath.endsWith('.ts') || filePath.endsWith('.d.ts')) {
+		return javascript({ typescript: true });
+	}
+	if (filePath.endsWith('.js')) return javascript();
+	if (filePath.endsWith('.json')) return jsonLanguage();
+	if (filePath.endsWith('.html')) return htmlLanguage();
+	if (filePath.endsWith('.css')) return cssLanguage();
+	return [];
+};
+
 export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let editorHost: HTMLDivElement | null = null;
-	let editorInstance: MonacoEditor | null = null;
-	let editorChangeSubscription: MonacoDisposable | null = null;
-	let shikiHighlighter: ShikiHighlighter | null = null;
-	let monacoApi: MonacoModule | null = null;
-	const monacoModelsByPath: Record<string, MonacoModel> = {};
+	let editorInstance: EditorView | null = null;
+	let suppressEditorUpdate = false;
 
 	let bundler: Bundler | null = null;
 	let bundleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -90,7 +152,10 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	let status = $state('Initializing playground...');
 	let isSyncing = $state(false);
 	let syncingPath = $state('');
-	let activeMonacoTheme: MonacoTheme = 'github-light';
+	let activeEditorTheme: EditorThemeMode = 'light';
+
+	const languageCompartment = new Compartment();
+	const themeCompartment = new Compartment();
 
 	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/src/**/*', {
 		query: '?raw',
@@ -244,17 +309,6 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		runtimeLog = (runtimeLog + chunk + '\n').slice(-50000);
 	};
 
-	const getLanguageFromPath = (filePath: string) => {
-		if (filePath.endsWith('.svelte')) return 'svelte';
-		if (filePath.endsWith('.ts')) return 'typescript';
-		if (filePath.endsWith('.d.ts')) return 'typescript';
-		if (filePath.endsWith('.js')) return 'javascript';
-		if (filePath.endsWith('.json')) return 'json';
-		if (filePath.endsWith('.html')) return 'html';
-		if (filePath.endsWith('.css')) return 'css';
-		return 'plaintext';
-	};
-
 	const toBundlerFiles = (flatFiles: Record<string, string>): PlaygroundFile[] =>
 		Object.entries(flatFiles)
 			.filter(([filePath]) => filePath.startsWith('src/'))
@@ -269,148 +323,89 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 				};
 			});
 
-	const registerSvelteLanguage = (monaco: MonacoModule) => {
-		if (monaco.languages.getLanguages().some((language) => language.id === 'svelte')) {
-			return;
-		}
-
-		monaco.languages.register({
-			id: 'svelte',
-			extensions: ['.svelte'],
-			aliases: ['Svelte', 'svelte'],
-			mimetypes: ['text/x-svelte']
-		});
-
-		monaco.languages.setLanguageConfiguration('svelte', {
-			comments: { blockComment: ['<!--', '-->'] },
-			brackets: [
-				['{', '}'],
-				['[', ']'],
-				['(', ')'],
-				['<', '>']
-			],
-			autoClosingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"' },
-				{ open: "'", close: "'" },
-				{ open: '`', close: '`' }
-			],
-			surroundingPairs: [
-				{ open: '{', close: '}' },
-				{ open: '[', close: ']' },
-				{ open: '(', close: ')' },
-				{ open: '"', close: '"' },
-				{ open: "'", close: "'" },
-				{ open: '`', close: '`' }
-			]
+	const applyEditorTheme = (mode: EditorThemeMode) => {
+		if (!editorInstance) return;
+		editorInstance.dispatch({
+			effects: themeCompartment.reconfigure([createEditorTheme(mode), editorSyntaxTheme])
 		});
 	};
 
-	const getMonacoWorkerConstructorByLabel = (label: string): MonacoWorkerConstructor => {
-		if (label === 'json') return MonacoJsonWorker as MonacoWorkerConstructor;
-		if (label === 'css' || label === 'scss' || label === 'less') {
-			return MonacoCssWorker as MonacoWorkerConstructor;
-		}
-		if (label === 'html' || label === 'handlebars' || label === 'razor') {
-			return MonacoHtmlWorker as MonacoWorkerConstructor;
-		}
-		if (label === 'typescript' || label === 'javascript') {
-			return MonacoTsWorker as MonacoWorkerConstructor;
-		}
-		return MonacoEditorWorker as MonacoWorkerConstructor;
-	};
+	const syncEditorWithActiveFile = () => {
+		if (!editorInstance) return;
 
-	const createMonacoWorker = (WorkerConstructor: MonacoWorkerConstructor) =>
-		new WorkerConstructor();
-
-	const configureMonacoWorkers = () => {
-		const globalAny = globalThis as typeof globalThis & {
-			MonacoEnvironment?: {
-				getWorker: (_moduleId: string, label: string) => Worker | Promise<Worker>;
-			};
-		};
-
-		globalAny.MonacoEnvironment = {
-			getWorker(_moduleId, label) {
-				const WorkerConstructor = getMonacoWorkerConstructorByLabel(label);
-				return createMonacoWorker(WorkerConstructor);
-			}
-		};
-	};
-
-	const resolveMonacoTheme = (mode: MonacoThemeMode): MonacoTheme =>
-		mode === 'dark' ? 'github-dark' : 'github-light';
-
-	const applyMonacoTheme = () => {
-		if (!monacoApi) return;
-		monacoApi.editor.setTheme(activeMonacoTheme);
-	};
-
-	const setEditorTheme = (mode: MonacoThemeMode) => {
-		const nextTheme = resolveMonacoTheme(mode);
-		if (activeMonacoTheme === nextTheme) {
-			return;
-		}
-
-		activeMonacoTheme = nextTheme;
-		applyMonacoTheme();
-	};
-
-	const getPathFromModel = (model: MonacoModel | null) =>
-		model ? model.uri.path.replace(/^\/+/, '') : '';
-
-	const ensureMonacoModel = (filePath: string) => {
-		if (!monacoApi) return null;
-
-		const existing = monacoModelsByPath[filePath];
-		if (existing) return existing;
-
-		const uri = monacoApi.Uri.parse(`file:///${filePath}`);
-		const shared = monacoApi.editor.getModel(uri);
-		if (shared) {
-			monacoModelsByPath[filePath] = shared;
-			return shared;
-		}
-
-		const model = monacoApi.editor.createModel(
-			fileContents[filePath] ?? '',
-			getLanguageFromPath(filePath),
-			uri
+		const nextContents = fileContents[activeFilePath] ?? '';
+		const previousContents = editorInstance.state.doc.toString();
+		const languageEffect = languageCompartment.reconfigure(
+			languageExtensionForPath(activeFilePath)
 		);
-		monacoModelsByPath[filePath] = model;
-		return model;
+
+		if (previousContents === nextContents) {
+			editorInstance.dispatch({ effects: languageEffect });
+			return;
+		}
+
+		suppressEditorUpdate = true;
+		try {
+			editorInstance.dispatch({
+				changes: {
+					from: 0,
+					to: previousContents.length,
+					insert: nextContents
+				},
+				effects: languageEffect
+			});
+		} finally {
+			suppressEditorUpdate = false;
+		}
 	};
 
-	const disposeMonacoModel = (filePath: string) => {
-		const model = monacoModelsByPath[filePath];
-		if (!model) return;
-
-		if (editorInstance?.getModel() === model) {
-			editorInstance.setModel(null);
-		}
-		model.dispose();
-		delete monacoModelsByPath[filePath];
+	const handleEditorUpdate = (update: ViewUpdate) => {
+		if (!update.docChanged || suppressEditorUpdate) return;
+		const nextValue = update.state.doc.toString();
+		const filePath = activeFilePath;
+		if ((fileContents[filePath] ?? '') === nextValue) return;
+		fileContents = { ...fileContents, [filePath]: nextValue };
+		syncingPath = filePath;
+		queueBundle();
 	};
 
-	const syncModelWithSource = (filePath: string, source: string) => {
-		const model = ensureMonacoModel(filePath);
-		if (!model) return;
-		if (model.getValue() !== source) {
-			model.setValue(source);
+	const ensureEditor = () => {
+		if (!editorHost || editorInstance) return;
+
+		try {
+			editorInstance = new EditorView({
+				parent: editorHost,
+				state: EditorState.create({
+					doc: fileContents[activeFilePath] ?? '',
+					extensions: [
+						basicSetup,
+						EditorState.tabSize.of(2),
+						indentUnit.of('  '),
+						EditorView.lineWrapping,
+						keymap.of([indentWithTab]),
+						languageCompartment.of(languageExtensionForPath(activeFilePath)),
+						themeCompartment.of([createEditorTheme(activeEditorTheme), editorSyntaxTheme]),
+						EditorView.updateListener.of(handleEditorUpdate)
+					]
+				})
+			});
+		} catch (error) {
+			errorMessage =
+				error instanceof Error ? error.message : 'Could not initialize CodeMirror editor.';
 		}
+	};
+
+	const destroyEditor = () => {
+		editorInstance?.destroy();
+		editorInstance = null;
 	};
 
 	const switchToFile = (filePath: string) => {
 		if (!(filePath in fileContents)) return;
 
 		activeFilePath = filePath;
-		const model = ensureMonacoModel(filePath);
-		if (editorInstance && model) {
-			editorInstance.setModel(model);
-			editorInstance.focus();
-		}
+		syncEditorWithActiveFile();
+		editorInstance?.focus();
 	};
 
 	const openFile = (filePath: string) => {
@@ -559,7 +554,13 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	};
 
 	const setEditorHost = (nextHost: HTMLDivElement | null) => {
+		if (editorHost === nextHost) return;
 		editorHost = nextHost;
+
+		if (!isMounted) return;
+
+		destroyEditor();
+		ensureEditor();
 	};
 
 	const setPreviewFrame = (nextFrame: HTMLIFrameElement | null) => {
@@ -612,101 +613,21 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		openFilePaths = [demoAppPath];
 		activeFilePath = demoAppPath;
 
-		syncModelWithSource(demoAppPath, demo.appSource);
-		if (typeof demo.runtimeSource === 'string') {
-			syncModelWithSource(demoRuntimePath, demo.runtimeSource);
-		} else {
-			disposeMonacoModel(demoRuntimePath);
-		}
-
-		switchToFile(demoAppPath);
+		syncEditorWithActiveFile();
+		editorInstance?.focus();
 		status = `Switched demo: ${demo.name}`;
 		queueBundle();
+	};
+
+	const setEditorTheme = (mode: EditorThemeMode) => {
+		if (activeEditorTheme === mode) return;
+		activeEditorTheme = mode;
+		applyEditorTheme(mode);
 	};
 
 	const mount = () => {
 		let isDisposed = false;
 		isMounted = true;
-
-		const setupMonacoEditor = async () => {
-			if (!editorHost) {
-				return;
-			}
-
-			try {
-				configureMonacoWorkers();
-				const monaco = (await import('monaco-editor')) as MonacoModule;
-				const shiki = await import('shiki');
-				const shikiMonaco = await import('@shikijs/monaco');
-
-				registerSvelteLanguage(monaco);
-				monacoApi = monaco;
-
-				if (isDisposed || !editorHost) {
-					return;
-				}
-
-				if (!sharedShikiHighlighter) {
-					sharedShikiHighlighter = await shiki.createHighlighter({
-						themes: ['github-light', 'github-dark'],
-						langs: ['svelte', 'html', 'css', 'javascript', 'typescript', 'json', 'bash']
-					});
-				}
-				shikiHighlighter = sharedShikiHighlighter;
-				if (isDisposed || !editorHost) {
-					return;
-				}
-				if (!isShikiMonacoConfigured) {
-					shikiMonaco.shikiToMonaco(shikiHighlighter, monaco);
-					isShikiMonacoConfigured = true;
-				}
-				applyMonacoTheme();
-				const fontReadyDocument = document as FontReadyDocument;
-				await fontReadyDocument.fonts?.ready;
-				monaco.editor.remeasureFonts();
-				if (isDisposed || !editorHost) {
-					return;
-				}
-
-				const initialModel = ensureMonacoModel(activeFilePath);
-				if (!initialModel) {
-					throw new Error('Could not initialize file model for Monaco.');
-				}
-
-				editorInstance = monaco.editor.create(editorHost, {
-					model: initialModel,
-					theme: activeMonacoTheme,
-					automaticLayout: true,
-					fontFamily: editorFontStack,
-					fontSize: 13,
-					minimap: { enabled: false },
-					lineNumbersMinChars: 3,
-					scrollBeyondLastLine: false,
-					wordWrap: 'on',
-					renderWhitespace: 'selection',
-					tabSize: 2,
-					insertSpaces: true,
-					padding: { top: 10, bottom: 12 }
-				});
-
-				editorChangeSubscription = editorInstance.onDidChangeModelContent(() => {
-					const currentModel = editorInstance?.getModel();
-					const filePath = getPathFromModel(currentModel ?? null);
-					if (!filePath) return;
-
-					const nextValue = currentModel?.getValue() ?? '';
-					fileContents = { ...fileContents, [filePath]: nextValue };
-					syncingPath = filePath;
-					queueBundle();
-				});
-			} catch (error) {
-				if (isDisposed) {
-					return;
-				}
-				errorMessage =
-					error instanceof Error ? error.message : 'Could not initialize Monaco editor.';
-			}
-		};
 
 		const setupBundler = () => {
 			bundler = new Bundler({
@@ -730,13 +651,10 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		const onVisibilityChange = () => {
 			if (document.visibilityState !== 'visible') return;
-			if (monacoApi) {
-				monacoApi.editor.remeasureFonts();
-			}
-			editorInstance?.layout();
+			editorInstance?.requestMeasure();
 		};
 
-		void setupMonacoEditor();
+		ensureEditor();
 		setupBundler();
 		connectPreviewProxy();
 		queueBundle();
@@ -753,18 +671,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 			disconnectPreviewProxy();
 			bundler?.destroy();
 			bundler = null;
-			editorChangeSubscription?.dispose();
-			editorChangeSubscription = null;
-			for (const model of Object.values(monacoModelsByPath)) {
-				model.dispose();
-			}
-			for (const filePath of Object.keys(monacoModelsByPath)) {
-				delete monacoModelsByPath[filePath];
-			}
-			editorInstance?.dispose();
-			editorInstance = null;
-			monacoApi = null;
-			shikiHighlighter = null;
+			destroyEditor();
 		};
 	};
 

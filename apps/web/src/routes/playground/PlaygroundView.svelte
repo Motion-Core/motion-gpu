@@ -14,7 +14,6 @@
 	import Select from '$lib/components/ui/Select.svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
 
-	import 'monaco-editor/min/vs/editor/editor.main.css';
 	import type { PlaygroundController } from './playground-controller.svelte';
 
 	let {
@@ -642,7 +641,10 @@
 		user-select: none;
 	}
 
-	:global(.monaco-editor, .monaco-editor .view-lines, .monaco-editor .inputarea) {
+	:global(.cm-editor),
+	:global(.cm-editor .cm-content),
+	:global(.cm-editor .cm-gutter),
+	:global(.cm-editor .cm-scroller) {
 		font-family:
 			'Aeonik Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
 			'Courier New', monospace !important;
@@ -654,30 +656,44 @@
 		text-rendering: geometricPrecision;
 	}
 
-	:global(.monaco-editor),
-	:global(.monaco-editor .margin),
-	:global(.monaco-editor-background) {
+	:global(.cm-editor),
+	:global(.cm-editor .cm-gutters) {
 		background-color: var(--playground-editor-bg) !important;
 	}
 
-	:global(.monaco-editor) {
-		--vscode-editor-lineHighlightBackground: var(--playground-editor-active-line-bg) !important;
-		--vscode-editor-lineHighlightBorder: transparent !important;
+	:global(.cm-editor) {
+		height: 100%;
 	}
 
-	:global(.monaco-editor .view-overlays .current-line),
-	:global(.monaco-editor .margin-view-overlays .current-line) {
+	:global(.cm-editor .cm-activeLine),
+	:global(.cm-editor .cm-activeLineGutter) {
 		background-color: var(--playground-editor-active-line-bg) !important;
 		border-color: transparent !important;
+	}
+
+	:global(.cm-editor .cm-lineNumbers .cm-gutterElement) {
+		min-width: 3ch;
 	}
 
 	:global(html:not(.dark)) {
 		--playground-editor-bg: var(--color-background);
 		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 10%, transparent);
+		--playground-token-keyword: #7c3aed;
+		--playground-token-function: #0f766e;
+		--playground-token-string: #0369a1;
+		--playground-token-comment: #64748b;
+		--playground-token-number: #b45309;
+		--playground-token-type: #0f766e;
 	}
 
 	:global(html.dark) {
 		--playground-editor-bg: var(--color-background-inset);
 		--playground-editor-active-line-bg: color-mix(in srgb, var(--color-accent) 14%, transparent);
+		--playground-token-keyword: #c4b5fd;
+		--playground-token-function: #67e8f9;
+		--playground-token-string: #7dd3fc;
+		--playground-token-comment: #94a3b8;
+		--playground-token-number: #fdba74;
+		--playground-token-type: #5eead4;
 	}
 </style>

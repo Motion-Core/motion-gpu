@@ -657,6 +657,18 @@
 	}
 
 	:global(.cm-editor),
+	:global(.cm-editor.cm-focused),
+	:global(.cm-editor:focus),
+	:global(.cm-editor:focus-visible),
+	:global(.cm-editor .cm-content),
+	:global(.cm-editor .cm-content:focus),
+	:global(.cm-editor .cm-content:focus-visible) {
+		outline: none !important;
+		outline-offset: 0 !important;
+		transition: none !important;
+	}
+
+	:global(.cm-editor),
 	:global(.cm-editor .cm-gutters) {
 		background-color: var(--playground-editor-bg) !important;
 	}

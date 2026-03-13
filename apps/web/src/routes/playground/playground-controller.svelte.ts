@@ -3,12 +3,11 @@ import type {
 	WebContainer as WebContainerInstance,
 	WebContainerProcess
 } from '@webcontainer/api';
-import { SvelteURL } from 'svelte/reactivity';
-import monacoEditorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&url';
-import monacoCssWorkerUrl from 'monaco-editor/esm/vs/language/css/css.worker?worker&url';
-import monacoHtmlWorkerUrl from 'monaco-editor/esm/vs/language/html/html.worker?worker&url';
-import monacoJsonWorkerUrl from 'monaco-editor/esm/vs/language/json/json.worker?worker&url';
-import monacoTsWorkerUrl from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker&url';
+import MonacoEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker&inline';
+import MonacoCssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker&inline';
+import MonacoHtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker&inline';
+import MonacoJsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker&inline';
+import MonacoTsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker&inline';
 import {
 	getPlaygroundDemoById,
 	playgroundDemos,
@@ -567,43 +566,21 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		});
 	};
 
-	const getMonacoWorkerUrlByLabel = (label: string) => {
-		if (label === 'json') return monacoJsonWorkerUrl;
-		if (label === 'css' || label === 'scss' || label === 'less') return monacoCssWorkerUrl;
-		if (label === 'html' || label === 'handlebars' || label === 'razor') return monacoHtmlWorkerUrl;
-		if (label === 'typescript' || label === 'javascript') return monacoTsWorkerUrl;
-		return monacoEditorWorkerUrl;
-	};
-
-	const loadMonacoWorkerConstructor = async (label: string): Promise<MonacoWorkerConstructor> => {
-		if (label === 'json') {
-			const workerModule = await import('monaco-editor/esm/vs/language/json/json.worker?worker');
-			return workerModule.default as MonacoWorkerConstructor;
-		}
+	const getMonacoWorkerConstructorByLabel = (label: string): MonacoWorkerConstructor => {
+		if (label === 'json') return MonacoJsonWorker as MonacoWorkerConstructor;
 		if (label === 'css' || label === 'scss' || label === 'less') {
-			const workerModule = await import('monaco-editor/esm/vs/language/css/css.worker?worker');
-			return workerModule.default as MonacoWorkerConstructor;
+			return MonacoCssWorker as MonacoWorkerConstructor;
 		}
 		if (label === 'html' || label === 'handlebars' || label === 'razor') {
-			const workerModule = await import('monaco-editor/esm/vs/language/html/html.worker?worker');
-			return workerModule.default as MonacoWorkerConstructor;
+			return MonacoHtmlWorker as MonacoWorkerConstructor;
 		}
 		if (label === 'typescript' || label === 'javascript') {
-			const workerModule =
-				await import('monaco-editor/esm/vs/language/typescript/ts.worker?worker');
-			return workerModule.default as MonacoWorkerConstructor;
+			return MonacoTsWorker as MonacoWorkerConstructor;
 		}
-		const workerModule = await import('monaco-editor/esm/vs/editor/editor.worker?worker');
-		return workerModule.default as MonacoWorkerConstructor;
+		return MonacoEditorWorker as MonacoWorkerConstructor;
 	};
 
-	const createMonacoWorker = (WorkerConstructor: MonacoWorkerConstructor, fallbackUrl: string) => {
-		try {
-			return new WorkerConstructor();
-		} catch {
-			return new Worker(new SvelteURL(fallbackUrl, window.location.href), { type: 'module' });
-		}
-	};
+	const createMonacoWorker = (WorkerConstructor: MonacoWorkerConstructor) => new WorkerConstructor();
 
 	const configureMonacoWorkers = () => {
 		const globalAny = globalThis as typeof globalThis & {
@@ -613,9 +590,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		};
 
 		globalAny.MonacoEnvironment = {
-			async getWorker(_moduleId, label) {
-				const WorkerConstructor = await loadMonacoWorkerConstructor(label);
-				return createMonacoWorker(WorkerConstructor, getMonacoWorkerUrlByLabel(label));
+			getWorker(_moduleId, label) {
+				const WorkerConstructor = getMonacoWorkerConstructorByLabel(label);
+				return createMonacoWorker(WorkerConstructor);
 			}
 		};
 	};

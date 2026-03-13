@@ -19,6 +19,10 @@
 		nextUrl.searchParams.set('demo', controller.activeDemoId);
 		window.history.replaceState(window.history.state, '', nextUrl);
 	};
+	const handleEditorHostChange = (host: HTMLDivElement | null) => {
+		if (!controller) return;
+		controller.editorHost = host;
+	};
 
 	onMount(() => {
 		let mounted = true;
@@ -54,5 +58,9 @@
 </script>
 
 {#if PlaygroundView && controller}
-	<PlaygroundView {controller} onSelectDemo={selectDemo} />
+	<PlaygroundView
+		{controller}
+		onSelectDemo={selectDemo}
+		onEditorHostChange={handleEditorHostChange}
+	/>
 {/if}

@@ -19,10 +19,12 @@
 
 	let {
 		controller,
-		onSelectDemo
+		onSelectDemo,
+		onEditorHostChange
 	}: {
 		controller: PlaygroundController;
 		onSelectDemo: (demoId: string) => void;
+		onEditorHostChange: (host: HTMLDivElement | null) => void;
 	} = $props();
 	let isTreeVisible = $state(true);
 	let workspaceHost: HTMLDivElement | null = null;
@@ -114,6 +116,14 @@
 		_collapsedDirs: Record<string, boolean>,
 		_rowCount: number
 	) => {};
+	const registerEditorHost = (node: HTMLDivElement) => {
+		onEditorHostChange(node);
+		return {
+			destroy() {
+				onEditorHostChange(null);
+			}
+		};
+	};
 	const recomputeMobileTreeHeight = () => {
 		if (typeof window === 'undefined') return;
 		if (!window.matchMedia('(max-width: 1023px)').matches || !isTreeVisible) {
@@ -457,7 +467,7 @@
 			</div>
 
 			<div
-				bind:this={controller.editorHost}
+				use:registerEditorHost
 				class="min-h-0 flex-1 bg-background-inset"
 				aria-label="Svelte component editor"
 			></div>

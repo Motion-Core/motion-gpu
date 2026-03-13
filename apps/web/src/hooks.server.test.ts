@@ -13,18 +13,18 @@ const invokeHandle = async (pathname: string) => {
 };
 
 describe('hooks.server handle', () => {
-	it('sets COOP/COEP headers for playground route', async () => {
+	it('does not set COOP/COEP headers for playground route', async () => {
 		const response = await invokeHandle('/playground');
 
-		expect(response.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin');
-		expect(response.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp');
+		expect(response.headers.get('Cross-Origin-Opener-Policy')).toBeNull();
+		expect(response.headers.get('Cross-Origin-Embedder-Policy')).toBeNull();
 	});
 
-	it('sets COOP/COEP headers for nested playground route', async () => {
+	it('does not set COOP/COEP headers for nested playground route', async () => {
 		const response = await invokeHandle('/playground/embed');
 
-		expect(response.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin');
-		expect(response.headers.get('Cross-Origin-Embedder-Policy')).toBe('require-corp');
+		expect(response.headers.get('Cross-Origin-Opener-Policy')).toBeNull();
+		expect(response.headers.get('Cross-Origin-Embedder-Policy')).toBeNull();
 	});
 
 	it('does not set COOP/COEP headers outside playground', async () => {

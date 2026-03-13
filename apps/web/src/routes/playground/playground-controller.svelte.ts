@@ -1,8 +1,3 @@
-import type {
-	FileSystemTree,
-	WebContainer as WebContainerInstance,
-	WebContainerProcess
-} from '@webcontainer/api';
 import MonacoEditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker&inline';
 import MonacoCssWorker from 'monaco-editor/esm/vs/language/css/css.worker?worker&inline';
 import MonacoHtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker&inline';
@@ -13,6 +8,15 @@ import {
 	playgroundDemos,
 	resolvePlaygroundDemoId
 } from './playground-demos';
+import {
+	Bundler,
+	ReplProxy,
+	buildEvalScript,
+	type BundleResult,
+	type PlaygroundFile
+} from '$lib/playground-engine';
+import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.html?raw';
+import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
 type MonacoModule = typeof import('monaco-editor');
 type MonacoEditor = import('monaco-editor').editor.IStandaloneCodeEditor;
@@ -36,118 +40,109 @@ type FileTreeRow = {
 let sharedShikiHighlighter: ShikiHighlighter | null = null;
 let isShikiMonacoConfigured = false;
 
+const editorFontStack =
+	'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+
+const compactLogForDisplay = (value: string) =>
+	value
+		.replace(/\n{3,}/g, '\n\n')
+		.replace(/^(?:[ \t]*\n)+/, '')
+		.replace(/[ \t]+\n/g, '\n');
+
+const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
+	const location =
+		error.filename && error.start
+			? `${error.filename}:${error.start.line}:${error.start.column}`
+			: error.filename
+				? error.filename
+				: '';
+	const frame = 'frame' in error && typeof error.frame === 'string' ? error.frame : '';
+	const details = [location, error.message, frame].filter(Boolean).join('\n');
+	return details || 'Bundle failed.';
+};
+
 export const createPlaygroundController = (initialDemoId?: string | null) => {
-	let webcontainer: WebContainerInstance | null = null;
-	let devProcess: WebContainerProcess | null = null;
 	let editorHost: HTMLDivElement | null = null;
 	let editorInstance: MonacoEditor | null = null;
 	let editorChangeSubscription: MonacoDisposable | null = null;
 	let shikiHighlighter: ShikiHighlighter | null = null;
-	let previewUrl = $state('');
+	let monacoApi: MonacoModule | null = null;
+	const monacoModelsByPath: Record<string, MonacoModel> = {};
+
+	let bundler: Bundler | null = null;
+	let bundleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let latestBundle: BundleResult | null = null;
+	let isBundleRunning = false;
+	let hasPendingBundle = false;
+	let lastResolvedSvelteVersion = 'latest';
+
+	let previewFrame: HTMLIFrameElement | null = null;
+	let previewProxy: ReplProxy | null = null;
+	let previewLoadCleanup: (() => void) | null = null;
+	let previewReady = false;
+	let isMounted = false;
+
 	let previewReloadToken = $state(0);
+	const previewSrcdoc = $state(previewSrcdocTemplate);
 	let errorMessage = $state('');
 	let syncError = $state('');
 	let runtimeLog = $state('');
-	let status = $state('Booting...');
+	let status = $state('Initializing playground...');
 	let isSyncing = $state(false);
 	let syncingPath = $state('');
-	let syncTimer: ReturnType<typeof setTimeout> | null = null;
+	let activeMonacoTheme: MonacoTheme = 'github-light';
+
+	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/src/**/*', {
+		query: '?raw',
+		import: 'default',
+		eager: true
+	}) as Record<string, string>;
+
+	const runtimeTemplateFiles = Object.fromEntries(
+		Object.entries(runtimeTemplateRawModules)
+			.map(([path, source]) => {
+				const marker = '/runtime-template/src/';
+				const markerIndex = path.lastIndexOf(marker);
+				if (markerIndex === -1) return null;
+				const relativePath = `src/${path.slice(markerIndex + marker.length)}`;
+				return [relativePath, source] as const;
+			})
+			.filter((entry): entry is readonly [string, string] => entry !== null)
+	);
+
 	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
 	let activeDemoId = $state(initialResolvedDemoId);
 	let activeFilePath = $state('src/App.svelte');
 	let openFilePaths = $state<string[]>(['src/App.svelte']);
 	let collapsedDirs = $state<Record<string, boolean>>({});
 	const maxOpenTabs = 3;
-	let isBootingRuntime = false;
-	let isStartingDevServer = false;
-	let hiddenStartedAt = 0;
-	let isResumeRecoveryRunning = false;
-	let activeMonacoTheme: MonacoTheme = 'github-light';
-
-	let monacoApi: MonacoModule | null = null;
-	const monacoModelsByPath: Record<string, MonacoModel> = {};
-	const dirtyPaths: string[] = [];
-	let isSyncFlushRunning = false;
-
-	const isolationReloadStorageKey = 'motiongpu-playground-isolation-reload';
-	const longHiddenThresholdMs = 45_000;
-	const runtimeHealthcheckTimeoutMs = 3_500;
-	const installTimeoutMs = 180_000;
-	const editorFontStack =
-		'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/**/*', {
-		query: '?raw',
-		import: 'default',
-		eager: true
-	}) as Record<string, string>;
-	const runtimeTemplateFiles = Object.fromEntries(
-		Object.entries(runtimeTemplateRawModules)
-			.map(([path, source]) => {
-				const marker = '/runtime-template/';
-				const markerIndex = path.lastIndexOf(marker);
-				if (markerIndex === -1) return null;
-				const relativePath = path.slice(markerIndex + marker.length);
-				return [relativePath, source] as const;
-			})
-			.filter((entry): entry is readonly [string, string] => entry !== null)
-	);
-	const packageLockContent = runtimeTemplateFiles['package-lock.json'] ?? '';
-
-	type WebContainerNode =
-		| { file: { contents: string } }
-		| { directory: Record<string, WebContainerNode> };
-	const buildDirectoryTree = (
-		flatFiles: Record<string, string>
-	): Record<string, WebContainerNode> => {
-		const root: Record<string, WebContainerNode> = {};
-
-		for (const [filePath, contents] of Object.entries(flatFiles)) {
-			const segments = filePath.split('/').filter(Boolean);
-			if (segments.length === 0) continue;
-
-			let cursor = root;
-			for (let index = 0; index < segments.length; index += 1) {
-				const segment = segments[index]!;
-				const isLast = index === segments.length - 1;
-
-				if (isLast) {
-					cursor[segment] = { file: { contents } };
-					break;
-				}
-
-				const existingNode = cursor[segment];
-				if (!existingNode || !('directory' in existingNode)) {
-					cursor[segment] = { directory: {} };
-				}
-				cursor = (cursor[segment] as { directory: Record<string, WebContainerNode> }).directory;
-			}
-		}
-
-		return root;
-	};
-
-	const baseWorkerFiles: Record<string, string> = {
-		...runtimeTemplateFiles
-	};
 	const demoAppPath = 'src/App.svelte';
 	const demoRuntimePath = 'src/runtime.svelte';
-	const toWorkerFilesForDemo = (demoId: string) => {
+
+	const baseFiles: Record<string, string> = {
+		...runtimeTemplateFiles
+	};
+
+	const toFilesForDemo = (demoId: string) => {
 		const resolvedDemoId = resolvePlaygroundDemoId(demoId);
 		const demo = getPlaygroundDemoById(resolvedDemoId);
 		if (!demo) {
-			return { ...baseWorkerFiles };
+			return { ...baseFiles };
 		}
-		const workerFiles: Record<string, string> = {
-			...baseWorkerFiles,
+
+		const files: Record<string, string> = {
+			...baseFiles,
 			[demoAppPath]: demo.appSource
 		};
+
 		if (typeof demo.runtimeSource === 'string') {
-			workerFiles[demoRuntimePath] = demo.runtimeSource;
+			files[demoRuntimePath] = demo.runtimeSource;
 		}
-		return workerFiles;
+
+		return files;
 	};
 
-	const initialDemoFiles = toWorkerFilesForDemo(initialResolvedDemoId);
+	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId);
 	let fileContents = $state<Record<string, string>>(initialDemoFiles);
 	let filePaths = $state<string[]>(Object.keys(initialDemoFiles));
 
@@ -241,6 +236,14 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 	const fileTree = $derived(buildFileTree(filePaths));
 	const visibleFileTreeRows = $derived(collectTreeRows(fileTree, collapsedDirs));
+	const runtimeLogTail = $derived(
+		compactLogForDisplay(runtimeLog).split('\n').slice(-120).join('\n')
+	);
+
+	const appendLog = (chunk: string) => {
+		runtimeLog = (runtimeLog + chunk + '\n').slice(-50000);
+	};
+
 	const getLanguageFromPath = (filePath: string) => {
 		if (filePath.endsWith('.svelte')) return 'svelte';
 		if (filePath.endsWith('.ts')) return 'typescript';
@@ -252,280 +255,19 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		return 'plaintext';
 	};
 
-	const createRuntimeFileTree = (flatFiles: Record<string, string>): FileSystemTree =>
-		buildDirectoryTree(flatFiles) as FileSystemTree;
-	const ESC = String.fromCharCode(27);
-	const BEL = String.fromCharCode(7);
-
-	const stripAnsi = (value: string) =>
-		value
-			// Remove CSI sequences (colors, cursor movement, clear line, etc.).
-			.replace(new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g'), '')
-			// Remove OSC sequences (for terminal hyperlinks/window titles).
-			.replace(new RegExp(`${ESC}\\][^${BEL}]*(?:${BEL}|${ESC}\\\\)`, 'g'), '')
-			// Remove single-character ESC control sequences (for example "ESC c" reset).
-			.replace(new RegExp(`${ESC}[@-Z\\\\-_]`, 'g'), '');
-
-	const normalizeLogChunk = (chunk: string) =>
-		stripAnsi(
-			chunk
-				// Normalize Windows newlines first.
-				.replace(/\r\n/g, '\n')
-				// Drop standalone carriage returns used for in-place terminal updates.
-				.replace(/\r/g, '')
-		);
-
-	const resolveMonacoTheme = (mode: MonacoThemeMode): MonacoTheme =>
-		mode === 'dark' ? 'github-dark' : 'github-light';
-
-	const applyMonacoTheme = () => {
-		if (!monacoApi) return;
-		monacoApi.editor.setTheme(activeMonacoTheme);
-	};
-
-	const setEditorTheme = (mode: MonacoThemeMode) => {
-		const nextTheme = resolveMonacoTheme(mode);
-		if (activeMonacoTheme === nextTheme) {
-			return;
-		}
-
-		activeMonacoTheme = nextTheme;
-		applyMonacoTheme();
-	};
-
-	const compactLogForDisplay = (value: string) =>
-		value
-			// Keep at most one empty line between log blocks.
-			.replace(/\n{3,}/g, '\n\n')
-			// Remove leading whitespace-only lines caused by screen clearing.
-			.replace(/^(?:[ \t]*\n)+/, '')
-			// Trim trailing spaces on each line.
-			.replace(/[ \t]+\n/g, '\n');
-
-	const runtimeLogTail = $derived(
-		compactLogForDisplay(runtimeLog).split('\n').slice(-120).join('\n')
-	);
-
-	const appendLog = (chunk: string) => {
-		const cleanChunk = normalizeLogChunk(chunk);
-		runtimeLog = (runtimeLog + cleanChunk).slice(-50000);
-	};
-
-	const extractLastNpmDebugLogPath = (value: string) => {
-		const cleanValue = stripAnsi(value);
-		const matches = Array.from(
-			cleanValue.matchAll(/A complete log of this run can be found in:\s*(.+)/g)
-		);
-		return matches.at(-1)?.[1]?.trim() ?? '';
-	};
-
-	const streamProcessOutput = (process: WebContainerProcess) => {
-		void process.output
-			.pipeTo(
-				new WritableStream({
-					write(chunk) {
-						appendLog(chunk);
-					}
-				})
-			)
-			.catch(() => {});
-	};
-
-	const getPathFromModel = (model: MonacoModel | null) =>
-		model ? model.uri.path.replace(/^\/+/, '') : '';
-
-	const ensureMonacoModel = (filePath: string) => {
-		if (!monacoApi) return null;
-
-		const existing = monacoModelsByPath[filePath];
-		if (existing) return existing;
-
-		const uri = monacoApi.Uri.parse(`file:///${filePath}`);
-		const shared = monacoApi.editor.getModel(uri);
-		if (shared) {
-			monacoModelsByPath[filePath] = shared;
-			return shared;
-		}
-
-		const model = monacoApi.editor.createModel(
-			fileContents[filePath] ?? '',
-			getLanguageFromPath(filePath),
-			uri
-		);
-		monacoModelsByPath[filePath] = model;
-		return model;
-	};
-	const disposeMonacoModel = (filePath: string) => {
-		const model = monacoModelsByPath[filePath];
-		if (!model) return;
-
-		if (editorInstance?.getModel() === model) {
-			editorInstance.setModel(null);
-		}
-		model.dispose();
-		delete monacoModelsByPath[filePath];
-	};
-	const syncModelWithSource = (filePath: string, source: string) => {
-		const model = ensureMonacoModel(filePath);
-		if (!model) return;
-		if (model.getValue() !== source) {
-			model.setValue(source);
-		}
-	};
-
-	const switchToFile = (filePath: string) => {
-		if (!(filePath in fileContents)) return;
-
-		activeFilePath = filePath;
-		const model = ensureMonacoModel(filePath);
-		if (editorInstance && model) {
-			editorInstance.setModel(model);
-			editorInstance.focus();
-		}
-	};
-
-	const openFile = (filePath: string) => {
-		if (!(filePath in fileContents)) return;
-		if (!openFilePaths.includes(filePath)) {
-			if (openFilePaths.length >= maxOpenTabs) {
-				openFilePaths = [...openFilePaths.slice(0, maxOpenTabs - 1), filePath];
-			} else {
-				openFilePaths = [...openFilePaths, filePath];
-			}
-		}
-		switchToFile(filePath);
-	};
-
-	const closeFile = (filePath: string) => {
-		if (!openFilePaths.includes(filePath) || openFilePaths.length <= 1) return;
-
-		const nextOpenPaths = openFilePaths.filter((path) => path !== filePath);
-		openFilePaths = nextOpenPaths;
-
-		if (activeFilePath === filePath) {
-			const fallbackPath = nextOpenPaths[nextOpenPaths.length - 1] ?? nextOpenPaths[0];
-			if (fallbackPath) {
-				switchToFile(fallbackPath);
-			}
-		}
-	};
-
-	const toggleDirectory = (path: string) => {
-		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
-	};
-
-	const flushQueuedSyncs = async () => {
-		if (isSyncFlushRunning || !webcontainer || dirtyPaths.length === 0) {
-			return;
-		}
-
-		isSyncFlushRunning = true;
-		isSyncing = true;
-		syncError = '';
-
-		try {
-			while (webcontainer && dirtyPaths.length > 0) {
-				const filePath = dirtyPaths[0]!;
-				syncingPath = filePath;
-				await webcontainer.fs.writeFile(filePath, fileContents[filePath] ?? '');
-				dirtyPaths.shift();
-			}
-		} catch (error) {
-			const failedPath = dirtyPaths[0] ?? '';
-			syncError =
-				error instanceof Error
-					? error.message
-					: failedPath
-						? `Could not sync ${failedPath} to preview.`
-						: 'Could not sync changes to preview.';
-		} finally {
-			isSyncing = false;
-			syncingPath = '';
-			isSyncFlushRunning = false;
-			if (webcontainer && dirtyPaths.length > 0) {
-				scheduleSyncFlush();
-			}
-		}
-	};
-
-	const scheduleSyncFlush = () => {
-		if (!webcontainer) {
-			return;
-		}
-
-		if (syncTimer) {
-			clearTimeout(syncTimer);
-		}
-		syncTimer = setTimeout(() => {
-			syncTimer = null;
-			void flushQueuedSyncs();
-		}, 220);
-	};
-
-	const queueSync = (filePath: string) => {
-		if (!dirtyPaths.includes(filePath)) {
-			dirtyPaths.push(filePath);
-		}
-		scheduleSyncFlush();
-	};
-	const removeDirtyPath = (filePath: string) => {
-		const nextDirtyPaths = dirtyPaths.filter((path) => path !== filePath);
-		dirtyPaths.length = 0;
-		dirtyPaths.push(...nextDirtyPaths);
-	};
-	const switchDemo = (nextDemoId: string | null | undefined) => {
-		const resolvedDemoId = resolvePlaygroundDemoId(nextDemoId);
-		if (resolvedDemoId === activeDemoId) return;
-
-		const demo = getPlaygroundDemoById(resolvedDemoId);
-		if (!demo) return;
-
-		activeDemoId = resolvedDemoId;
-		errorMessage = '';
-		syncError = '';
-
-		const nextFileContents: Record<string, string> = {
-			...fileContents,
-			[demoAppPath]: demo.appSource
-		};
-
-		if (typeof demo.runtimeSource === 'string') {
-			nextFileContents[demoRuntimePath] = demo.runtimeSource;
-		} else {
-			delete nextFileContents[demoRuntimePath];
-		}
-
-		fileContents = nextFileContents;
-		filePaths = Object.keys(nextFileContents);
-		openFilePaths = [demoAppPath];
-		activeFilePath = demoAppPath;
-
-		syncModelWithSource(demoAppPath, demo.appSource);
-		if (typeof demo.runtimeSource === 'string') {
-			syncModelWithSource(demoRuntimePath, demo.runtimeSource);
-			queueSync(demoRuntimePath);
-		} else {
-			removeDirtyPath(demoRuntimePath);
-			disposeMonacoModel(demoRuntimePath);
-			if (webcontainer) {
-				void webcontainer.fs.rm(demoRuntimePath).catch(() => {});
-			}
-		}
-
-		queueSync(demoAppPath);
-		switchToFile(demoAppPath);
-		status = `Switched demo: ${demo.name}`;
-	};
-
-	const queueOpenFileSyncs = () => {
-		for (const filePath of openFilePaths) {
-			if (!(filePath in fileContents)) continue;
-			if (!dirtyPaths.includes(filePath)) {
-				dirtyPaths.push(filePath);
-			}
-		}
-		scheduleSyncFlush();
-	};
+	const toBundlerFiles = (flatFiles: Record<string, string>): PlaygroundFile[] =>
+		Object.entries(flatFiles)
+			.filter(([filePath]) => filePath.startsWith('src/'))
+			.map(([filePath, contents]) => {
+				const name = filePath.slice(4);
+				return {
+					type: 'file',
+					name,
+					basename: name.split('/').at(-1) ?? name,
+					contents,
+					text: true
+				};
+			});
 
 	const registerSvelteLanguage = (monaco: MonacoModule) => {
 		if (monaco.languages.getLanguages().some((language) => language.id === 'svelte')) {
@@ -580,7 +322,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		return MonacoEditorWorker as MonacoWorkerConstructor;
 	};
 
-	const createMonacoWorker = (WorkerConstructor: MonacoWorkerConstructor) => new WorkerConstructor();
+	const createMonacoWorker = (WorkerConstructor: MonacoWorkerConstructor) =>
+		new WorkerConstructor();
 
 	const configureMonacoWorkers = () => {
 		const globalAny = globalThis as typeof globalThis & {
@@ -597,118 +340,293 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		};
 	};
 
-	let startRuntime: (() => Promise<void>) | null = null;
-	const bumpPreviewReloadToken = () => {
-		previewReloadToken += 1;
-	};
-	const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string) => {
-		let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-		const timeoutPromise = new Promise<T>((_resolve, reject) => {
-			timeoutHandle = setTimeout(() => {
-				reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
-			}, timeoutMs);
-		});
+	const resolveMonacoTheme = (mode: MonacoThemeMode): MonacoTheme =>
+		mode === 'dark' ? 'github-dark' : 'github-light';
 
-		try {
-			return await Promise.race([promise, timeoutPromise]);
-		} finally {
-			if (timeoutHandle) {
-				clearTimeout(timeoutHandle);
+	const applyMonacoTheme = () => {
+		if (!monacoApi) return;
+		monacoApi.editor.setTheme(activeMonacoTheme);
+	};
+
+	const setEditorTheme = (mode: MonacoThemeMode) => {
+		const nextTheme = resolveMonacoTheme(mode);
+		if (activeMonacoTheme === nextTheme) {
+			return;
+		}
+
+		activeMonacoTheme = nextTheme;
+		applyMonacoTheme();
+	};
+
+	const getPathFromModel = (model: MonacoModel | null) =>
+		model ? model.uri.path.replace(/^\/+/, '') : '';
+
+	const ensureMonacoModel = (filePath: string) => {
+		if (!monacoApi) return null;
+
+		const existing = monacoModelsByPath[filePath];
+		if (existing) return existing;
+
+		const uri = monacoApi.Uri.parse(`file:///${filePath}`);
+		const shared = monacoApi.editor.getModel(uri);
+		if (shared) {
+			monacoModelsByPath[filePath] = shared;
+			return shared;
+		}
+
+		const model = monacoApi.editor.createModel(
+			fileContents[filePath] ?? '',
+			getLanguageFromPath(filePath),
+			uri
+		);
+		monacoModelsByPath[filePath] = model;
+		return model;
+	};
+
+	const disposeMonacoModel = (filePath: string) => {
+		const model = monacoModelsByPath[filePath];
+		if (!model) return;
+
+		if (editorInstance?.getModel() === model) {
+			editorInstance.setModel(null);
+		}
+		model.dispose();
+		delete monacoModelsByPath[filePath];
+	};
+
+	const syncModelWithSource = (filePath: string, source: string) => {
+		const model = ensureMonacoModel(filePath);
+		if (!model) return;
+		if (model.getValue() !== source) {
+			model.setValue(source);
+		}
+	};
+
+	const switchToFile = (filePath: string) => {
+		if (!(filePath in fileContents)) return;
+
+		activeFilePath = filePath;
+		const model = ensureMonacoModel(filePath);
+		if (editorInstance && model) {
+			editorInstance.setModel(model);
+			editorInstance.focus();
+		}
+	};
+
+	const openFile = (filePath: string) => {
+		if (!(filePath in fileContents)) return;
+		if (!openFilePaths.includes(filePath)) {
+			if (openFilePaths.length >= maxOpenTabs) {
+				openFilePaths = [...openFilePaths.slice(0, maxOpenTabs - 1), filePath];
+			} else {
+				openFilePaths = [...openFilePaths, filePath];
+			}
+		}
+		switchToFile(filePath);
+	};
+
+	const closeFile = (filePath: string) => {
+		if (!openFilePaths.includes(filePath) || openFilePaths.length <= 1) return;
+
+		const nextOpenPaths = openFilePaths.filter((path) => path !== filePath);
+		openFilePaths = nextOpenPaths;
+
+		if (activeFilePath === filePath) {
+			const fallbackPath = nextOpenPaths[nextOpenPaths.length - 1] ?? nextOpenPaths[0];
+			if (fallbackPath) {
+				switchToFile(fallbackPath);
 			}
 		}
 	};
-	const checkRuntimeHealth = async () => {
-		if (!webcontainer) return false;
+
+	const toggleDirectory = (path: string) => {
+		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
+	};
+
+	const applyBundleToPreview = async (bundle: BundleResult) => {
+		if (!previewProxy || !previewReady) {
+			return;
+		}
+		if (bundle.error) {
+			return;
+		}
+
+		const script = buildEvalScript(bundle);
+		if (!script) return;
+
+		await previewProxy.eval(script, bundle.css ?? previewDefaultStyles);
+	};
+
+	const runBundle = async () => {
+		if (!bundler) return;
+		if (isBundleRunning) {
+			hasPendingBundle = true;
+			return;
+		}
+
+		isBundleRunning = true;
+		isSyncing = true;
+		syncError = '';
+		errorMessage = '';
+		status = 'Bundling playground...';
 
 		try {
-			await withTimeout(
-				webcontainer.fs.readFile('package.json', 'utf-8'),
-				runtimeHealthcheckTimeoutMs,
-				'WebContainer health check'
-			);
-			return true;
-		} catch {
-			return false;
+			const files = toBundlerFiles(fileContents);
+			if (!files.some((file) => file.name === 'App.svelte')) {
+				throw new Error('Missing src/App.svelte in playground files.');
+			}
+
+			await bundler.bundle(files, {
+				svelte_version: lastResolvedSvelteVersion,
+				runes: true
+			});
+
+			latestBundle = bundler.result;
+			if (!latestBundle) {
+				throw new Error('Bundler did not return an output payload.');
+			}
+
+			if (latestBundle.error) {
+				errorMessage = formatBundleError(latestBundle.error);
+				status = 'Build failed';
+				return;
+			}
+
+			await applyBundleToPreview(latestBundle);
+			status = 'Preview ready';
+		} catch (error) {
+			errorMessage =
+				error instanceof Error ? error.message : 'Could not bundle playground sources.';
+			status = 'Build failed';
+		} finally {
+			isSyncing = false;
+			syncingPath = '';
+			isBundleRunning = false;
+			if (hasPendingBundle) {
+				hasPendingBundle = false;
+				void runBundle();
+			}
 		}
 	};
 
-	const teardownRuntime = () => {
-		if (syncTimer) {
-			clearTimeout(syncTimer);
-			syncTimer = null;
+	const queueBundle = () => {
+		if (bundleDebounceTimer) {
+			clearTimeout(bundleDebounceTimer);
 		}
-		devProcess?.kill();
-		devProcess = null;
-		isStartingDevServer = false;
-		previewUrl = '';
-		previewReloadToken = 0;
-		try {
-			webcontainer?.teardown();
-		} catch {
-			// Ignore teardown errors during restart/unmount.
+		bundleDebounceTimer = setTimeout(() => {
+			bundleDebounceTimer = null;
+			void runBundle();
+		}, 140);
+	};
+
+	const disconnectPreviewProxy = () => {
+		previewLoadCleanup?.();
+		previewLoadCleanup = null;
+		previewReady = false;
+		previewProxy?.destroy();
+		previewProxy = null;
+	};
+
+	const connectPreviewProxy = () => {
+		if (!previewFrame || !isMounted) {
+			return;
 		}
-		webcontainer = null;
+
+		disconnectPreviewProxy();
+
+		const frame = previewFrame;
+		previewProxy = new ReplProxy(frame, {
+			on_error: (event) => {
+				appendLog(`[preview:error] ${String(event?.value ?? 'Unknown runtime error')}`);
+				errorMessage = `Runtime error in preview: ${String(event?.value ?? 'unknown')}`;
+			},
+			on_unhandled_rejection: (event) => {
+				appendLog(`[preview:unhandledrejection] ${String(event?.value ?? 'Unknown rejection')}`);
+			}
+		});
+
+		const onLoad = () => {
+			if (frame !== previewFrame) return;
+			previewReady = true;
+			void previewProxy?.handle_links();
+			if (latestBundle && !latestBundle.error) {
+				void applyBundleToPreview(latestBundle);
+			}
+		};
+
+		frame.addEventListener('load', onLoad);
+		previewLoadCleanup = () => frame.removeEventListener('load', onLoad);
+	};
+
+	const setEditorHost = (nextHost: HTMLDivElement | null) => {
+		editorHost = nextHost;
+	};
+
+	const setPreviewFrame = (nextFrame: HTMLIFrameElement | null) => {
+		if (previewFrame === nextFrame) {
+			return;
+		}
+
+		previewFrame = nextFrame;
+		if (!nextFrame) {
+			disconnectPreviewProxy();
+			return;
+		}
+
+		connectPreviewProxy();
 	};
 
 	const retryRuntime = () => {
-		if (!startRuntime || isBootingRuntime) return;
 		errorMessage = '';
 		syncError = '';
-		status = 'Retrying runtime...';
-		teardownRuntime();
-		void startRuntime();
+		runtimeLog = '';
+		status = 'Reloading preview...';
+		previewReloadToken += 1;
+		queueBundle();
+	};
+
+	const switchDemo = (nextDemoId: string | null | undefined) => {
+		const resolvedDemoId = resolvePlaygroundDemoId(nextDemoId);
+		if (resolvedDemoId === activeDemoId) return;
+
+		const demo = getPlaygroundDemoById(resolvedDemoId);
+		if (!demo) return;
+
+		activeDemoId = resolvedDemoId;
+		errorMessage = '';
+		syncError = '';
+
+		const nextFileContents: Record<string, string> = {
+			...fileContents,
+			[demoAppPath]: demo.appSource
+		};
+
+		if (typeof demo.runtimeSource === 'string') {
+			nextFileContents[demoRuntimePath] = demo.runtimeSource;
+		} else {
+			delete nextFileContents[demoRuntimePath];
+		}
+
+		fileContents = nextFileContents;
+		filePaths = Object.keys(nextFileContents);
+		openFilePaths = [demoAppPath];
+		activeFilePath = demoAppPath;
+
+		syncModelWithSource(demoAppPath, demo.appSource);
+		if (typeof demo.runtimeSource === 'string') {
+			syncModelWithSource(demoRuntimePath, demo.runtimeSource);
+		} else {
+			disposeMonacoModel(demoRuntimePath);
+		}
+
+		switchToFile(demoAppPath);
+		status = `Switched demo: ${demo.name}`;
+		queueBundle();
 	};
 
 	const mount = () => {
 		let isDisposed = false;
-		const runProcessWithTimeout = async (
-			process: WebContainerProcess,
-			label: string,
-			timeoutMs = installTimeoutMs
-		) => {
-			streamProcessOutput(process);
-			let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-			const timeoutPromise = new Promise<number>((_resolve, reject) => {
-				timeoutHandle = setTimeout(() => {
-					process.kill();
-					reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s.`));
-				}, timeoutMs);
-			});
-
-			try {
-				return await Promise.race([process.exit, timeoutPromise]);
-			} finally {
-				if (timeoutHandle) {
-					clearTimeout(timeoutHandle);
-				}
-			}
-		};
-
-		const startDevServer = async () => {
-			if (!webcontainer || devProcess || isStartingDevServer) return;
-			isStartingDevServer = true;
-			try {
-				status = 'Starting dev server...';
-				devProcess = await webcontainer.spawn('npm', [
-					'run',
-					'dev',
-					'--',
-					'--clearScreen',
-					'false'
-				]);
-				const currentProcess = devProcess;
-				streamProcessOutput(currentProcess);
-				void currentProcess.exit.then((code) => {
-					if (isDisposed) return;
-					if (devProcess === currentProcess) {
-						devProcess = null;
-						status = code === 0 ? 'Dev server stopped' : `Dev server stopped (exit code ${code})`;
-					}
-				});
-			} finally {
-				isStartingDevServer = false;
-			}
-		};
+		isMounted = true;
 
 		const setupMonacoEditor = async () => {
 			if (!editorHost) {
@@ -758,30 +676,28 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 				editorInstance = monaco.editor.create(editorHost, {
 					model: initialModel,
 					theme: activeMonacoTheme,
-					fontFamily: editorFontStack,
-					fontWeight: '400',
-					fontSize: 13,
-					fontLigatures: false,
-					fontVariations: false,
-					letterSpacing: 0,
-					disableMonospaceOptimizations: true,
-					minimap: { enabled: false },
-					stickyScroll: { enabled: false },
 					automaticLayout: true,
+					fontFamily: editorFontStack,
+					fontSize: 13,
+					minimap: { enabled: false },
+					lineNumbersMinChars: 3,
 					scrollBeyondLastLine: false,
-					wordWrap: 'off',
-					tabSize: 2
+					wordWrap: 'on',
+					renderWhitespace: 'selection',
+					tabSize: 2,
+					insertSpaces: true,
+					padding: { top: 10, bottom: 12 }
 				});
-				monaco.editor.remeasureFonts();
 
 				editorChangeSubscription = editorInstance.onDidChangeModelContent(() => {
-					const currentModel = editorInstance?.getModel() ?? null;
-					const filePath = getPathFromModel(currentModel);
+					const currentModel = editorInstance?.getModel();
+					const filePath = getPathFromModel(currentModel ?? null);
 					if (!filePath) return;
 
 					const nextValue = currentModel?.getValue() ?? '';
 					fileContents = { ...fileContents, [filePath]: nextValue };
-					queueSync(filePath);
+					syncingPath = filePath;
+					queueBundle();
 				});
 			} catch (error) {
 				if (isDisposed) {
@@ -792,303 +708,51 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 			}
 		};
 
-		const startWebcontainer = async () => {
-			if (webcontainer || isBootingRuntime) return;
-			isBootingRuntime = true;
-
-			try {
-				if (!crossOriginIsolated) {
-					let canAttemptReload = true;
-					try {
-						canAttemptReload = sessionStorage.getItem(isolationReloadStorageKey) !== '1';
-					} catch {
-						canAttemptReload = false;
+		const setupBundler = () => {
+			bundler = new Bundler({
+				svelte_version: 'latest',
+				onstatus: (message) => {
+					if (isDisposed) return;
+					if (message) {
+						status = message;
 					}
-					if (canAttemptReload) {
-						try {
-							sessionStorage.setItem(isolationReloadStorageKey, '1');
-						} catch {
-							// Ignore if sessionStorage is not available.
-						}
-						status = 'Reloading for runtime isolation...';
-						window.location.reload();
-						return;
-					}
-
-					errorMessage =
-						'WebContainer requires cross-origin isolation (COOP/COEP). Open /playground directly.';
-					status = 'Runtime blocked';
-					return;
+				},
+				onversion: (version) => {
+					lastResolvedSvelteVersion = version;
+				},
+				onerror: (message) => {
+					if (isDisposed) return;
+					errorMessage = message;
+					status = 'Build failed';
 				}
-				try {
-					sessionStorage.removeItem(isolationReloadStorageKey);
-				} catch {
-					// Ignore if sessionStorage is not available.
-				}
-				if (!packageLockContent.trim()) {
-					throw new Error('Missing runtime lockfile for the playground.');
-				}
-
-				const { WebContainer } = await import('@webcontainer/api');
-
-				status = 'Booting WebContainer...';
-				const wc = await WebContainer.boot({ coep: 'require-corp' });
-
-				if (isDisposed) {
-					wc.teardown();
-					return;
-				}
-
-				webcontainer = wc;
-				wc.on('error', (error) => {
-					if (isDisposed) {
-						return;
-					}
-					errorMessage = error.message;
-				});
-				wc.on('server-ready', (_, url) => {
-					if (isDisposed) {
-						return;
-					}
-					previewUrl = url;
-					status = 'Live preview ready';
-				});
-
-				await wc.mount(createRuntimeFileTree(fileContents));
-				if (isDisposed) {
-					wc.teardown();
-					return;
-				}
-				if (dirtyPaths.length > 0) {
-					await flushQueuedSyncs();
-				}
-
-				runtimeLog = '';
-				const installBaseArgs = [
-					'ci',
-					'--no-audit',
-					'--no-fund',
-					'--progress=false',
-					'--prefer-offline',
-					'--fetch-retries=5',
-					'--fetch-retry-mintimeout=3000',
-					'--fetch-retry-maxtimeout=120000',
-					'--cache=/tmp/npm-cache'
-				];
-				type InstallAttempt = { label: string; args: string[]; beforeArgs?: string[] };
-				const installAttempts: InstallAttempt[] = [
-					{
-						label: 'Installing dependencies from lockfile...',
-						args: installBaseArgs
-					},
-					{
-						label: 'Retrying install with clean cache + npm registry...',
-						beforeArgs: ['cache', 'clean', '--force', '--cache=/tmp/npm-cache'],
-						args: [...installBaseArgs, '--registry=https://registry.npmjs.org/']
-					},
-					{
-						label: 'Retrying install with online preference...',
-						args: [...installBaseArgs, '--prefer-online', '--registry=https://registry.npmjs.org/']
-					}
-				];
-
-				let installExitCode = 1;
-				for (let attemptIndex = 0; attemptIndex < installAttempts.length; attemptIndex += 1) {
-					const attempt = installAttempts[attemptIndex]!;
-					status = attempt.label;
-
-					if (attempt.beforeArgs) {
-						appendLog(`\n[playground] npm ${attempt.beforeArgs.join(' ')}\n`);
-						const prepProcess = await wc.spawn('npm', attempt.beforeArgs);
-						await runProcessWithTimeout(
-							prepProcess,
-							`npm ${attempt.beforeArgs.join(' ')}`,
-							installTimeoutMs / 2
-						);
-					}
-
-					appendLog(`\n[playground] npm ${attempt.args.join(' ')}\n`);
-
-					const installProcess = await wc.spawn('npm', attempt.args);
-					installExitCode = await runProcessWithTimeout(
-						installProcess,
-						`npm ${attempt.args.join(' ')}`,
-						installTimeoutMs
-					);
-
-					if (installExitCode === 0) {
-						break;
-					}
-
-					appendLog(
-						`\n[playground] install attempt ${attemptIndex + 1} failed (exit code ${installExitCode}).\n`
-					);
-				}
-
-				if (installExitCode !== 0) {
-					const debugLogPath = extractLastNpmDebugLogPath(runtimeLog);
-					if (debugLogPath) {
-						try {
-							const debugLogContents = await wc.fs.readFile(debugLogPath, 'utf-8');
-							const debugLogTail = String(debugLogContents).split('\n').slice(-120).join('\n');
-							appendLog(`\n[playground] npm debug log tail (${debugLogPath})\n${debugLogTail}\n`);
-						} catch {
-							appendLog(`\n[playground] could not read npm debug log file at ${debugLogPath}\n`);
-						}
-					}
-
-					const logTail = runtimeLog.split('\n').slice(-60).join('\n').trim();
-					throw new Error(
-						logTail
-							? `npm ci failed (exit code ${installExitCode})\n${logTail}`
-							: `npm ci failed (exit code ${installExitCode})`
-					);
-				}
-
-				await startDevServer();
-			} catch (error) {
-				if (webcontainer) {
-					try {
-						webcontainer.teardown();
-					} catch {
-						// Ignore teardown errors after failed boot/install.
-					}
-				}
-				webcontainer = null;
-				devProcess?.kill();
-				devProcess = null;
-				previewUrl = '';
-				if (isDisposed) {
-					return;
-				}
-				errorMessage =
-					error instanceof Error ? error.message : 'Could not start WebContainer runtime.';
-				status = 'Runtime failed';
-			} finally {
-				isBootingRuntime = false;
-			}
+			});
 		};
 
-		const restartDevServer = async (nextStatus: string) => {
-			if (!webcontainer) return;
-			status = nextStatus;
-			if (devProcess) {
-				try {
-					devProcess.kill();
-				} catch {
-					// Ignore process termination errors during recovery.
-				}
-				devProcess = null;
-			}
-			await startDevServer();
-			bumpPreviewReloadToken();
-			queueOpenFileSyncs();
-		};
-
-		startRuntime = startWebcontainer;
-
-		const refreshEditorAfterVisibilityResume = () => {
+		const onVisibilityChange = () => {
+			if (document.visibilityState !== 'visible') return;
 			if (monacoApi) {
 				monacoApi.editor.remeasureFonts();
 			}
 			editorInstance?.layout();
 		};
 
-		const recoverAfterVisibilityResume = async () => {
-			if (document.visibilityState !== 'visible') return;
-			if (isResumeRecoveryRunning) return;
-
-			refreshEditorAfterVisibilityResume();
-
-			if (!webcontainer) {
-				queueOpenFileSyncs();
-				void startWebcontainer();
-				return;
-			}
-
-			const hiddenDuration = hiddenStartedAt > 0 ? Date.now() - hiddenStartedAt : 0;
-			const shouldRunDeepRecovery = hiddenDuration >= longHiddenThresholdMs;
-			hiddenStartedAt = 0;
-
-			if (!shouldRunDeepRecovery) {
-				queueOpenFileSyncs();
-				if (!devProcess) {
-					void startDevServer();
-				}
-				return;
-			}
-
-			isResumeRecoveryRunning = true;
-			try {
-				status = 'Checking runtime after tab inactivity...';
-				const isHealthy = await checkRuntimeHealth();
-				if (!isHealthy) {
-					status = 'Runtime disconnected. Rebooting...';
-					teardownRuntime();
-					await startWebcontainer();
-					return;
-				}
-
-				await restartDevServer('Refreshing preview runtime...');
-			} catch (error) {
-				if (!isDisposed) {
-					appendLog(
-						`\n[playground] failed to recover runtime after backgrounding: ${
-							error instanceof Error ? error.message : String(error)
-						}\n`
-					);
-				}
-				teardownRuntime();
-				await startWebcontainer();
-			} finally {
-				isResumeRecoveryRunning = false;
-			}
-		};
-
-		const onVisibilityChange = () => {
-			if (document.visibilityState === 'hidden') {
-				hiddenStartedAt = Date.now();
-				return;
-			}
-			void recoverAfterVisibilityResume();
-		};
-
-		const onWindowFocus = () => {
-			if (document.visibilityState !== 'visible') return;
-			void recoverAfterVisibilityResume();
-		};
-
-		const onWindowBlur = () => {
-			hiddenStartedAt = Date.now();
-		};
-
-		const onWindowPageHide = () => {
-			hiddenStartedAt = Date.now();
-		};
-
-		const onWindowPageshow = () => {
-			if (document.visibilityState !== 'visible') return;
-			queueOpenFileSyncs();
-			void recoverAfterVisibilityResume();
-		};
-
 		void setupMonacoEditor();
-		void startWebcontainer();
+		setupBundler();
+		connectPreviewProxy();
+		queueBundle();
 		document.addEventListener('visibilitychange', onVisibilityChange);
-		window.addEventListener('focus', onWindowFocus);
-		window.addEventListener('blur', onWindowBlur);
-		window.addEventListener('pagehide', onWindowPageHide);
-		window.addEventListener('pageshow', onWindowPageshow);
 
 		return () => {
 			isDisposed = true;
+			isMounted = false;
 			document.removeEventListener('visibilitychange', onVisibilityChange);
-			window.removeEventListener('focus', onWindowFocus);
-			window.removeEventListener('blur', onWindowBlur);
-			window.removeEventListener('pagehide', onWindowPageHide);
-			window.removeEventListener('pageshow', onWindowPageshow);
-			startRuntime = null;
-			teardownRuntime();
+			if (bundleDebounceTimer) {
+				clearTimeout(bundleDebounceTimer);
+				bundleDebounceTimer = null;
+			}
+			disconnectPreviewProxy();
+			bundler?.destroy();
+			bundler = null;
 			editorChangeSubscription?.dispose();
 			editorChangeSubscription = null;
 			for (const model of Object.values(monacoModelsByPath)) {
@@ -1114,12 +778,6 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		get collapsedDirs() {
 			return collapsedDirs;
 		},
-		get editorHost() {
-			return editorHost;
-		},
-		set editorHost(nextHost: HTMLDivElement | null) {
-			editorHost = nextHost;
-		},
 		get errorMessage() {
 			return errorMessage;
 		},
@@ -1132,11 +790,11 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		get openFilePaths() {
 			return openFilePaths;
 		},
-		get previewUrl() {
-			return previewUrl;
-		},
 		get previewFrameKey() {
-			return `${previewUrl}:${previewReloadToken}`;
+			return String(previewReloadToken);
+		},
+		get previewSrcdoc() {
+			return previewSrcdoc;
 		},
 		get runtimeLog() {
 			return runtimeLog;
@@ -1160,10 +818,12 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		mount,
 		openFile,
 		retryRuntime,
+		setEditorHost,
+		setEditorTheme,
+		setPreviewFrame,
 		switchDemo,
 		switchToFile,
-		toggleDirectory,
-		setEditorTheme
+		toggleDirectory
 	};
 };
 

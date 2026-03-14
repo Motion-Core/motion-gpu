@@ -1,12 +1,14 @@
 import { onDestroy } from 'svelte';
-import type { CurrentReadable } from './current-writable';
-import { currentWritable } from './current-writable';
+import {
+	createCurrentWritable as currentWritable,
+	type CurrentReadable
+} from '../core/current-value';
 import {
 	isAbortError,
 	loadTexturesFromUrls,
 	type LoadedTexture,
 	type TextureLoadOptions
-} from './core/texture-loader';
+} from '../core/texture-loader';
 
 /**
  * Reactive state returned by {@link useTexture}.

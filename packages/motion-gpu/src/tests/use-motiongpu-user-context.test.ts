@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import type { CurrentReadable } from '../lib/current-writable';
+import type { CurrentReadable } from '../lib/core/current-value';
 import MotionGPUUserOutside from './fixtures/MotionGPUUserOutside.svelte';
 import MotionGPUWithUserProbe from './fixtures/MotionGPUWithUserProbe.svelte';
 import MotionGPUWithUserSubscribeProbe from './fixtures/MotionGPUWithUserSubscribeProbe.svelte';

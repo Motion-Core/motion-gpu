@@ -65,7 +65,7 @@ You can set texture sources at definition time or at runtime via `state.setTextu
 
 ```svelte
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   let video: HTMLVideoElement;
 

@@ -18,7 +18,7 @@ Concept: `defineMaterial` requires exactly `fn frag(uv: vec2f) -> vec4f`.
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
   const material = defineMaterial({
     fragment: `
@@ -46,7 +46,7 @@ Concept: shader values change over time through runtime uniform updates.
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
@@ -70,7 +70,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);
@@ -89,7 +89,7 @@ Concept: DOM pointer coordinates are top-left origin, UV is bottom-left origin.
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu';
+  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
   let mouseX = 0.5;
@@ -126,7 +126,7 @@ Concept: rendering cadence is separate from your shader logic.
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu';
+  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 
@@ -164,7 +164,7 @@ Concept: textures are declared in the material and populated at runtime.
 ```svelte
 <!-- App.svelte (material excerpt) -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
   const material = defineMaterial({
     fragment: `
@@ -183,7 +183,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame, useTexture } from '@motion-core/motion-gpu';
+  import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
 
   const loaded = useTexture(['/assets/albedo.png'], {
     colorSpace: 'srgb',
@@ -207,7 +207,7 @@ Concept: base shader (`frag`) and post-process shader (`shade`) have different c
 
 ```svelte
 <script lang="ts">
-  import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
   const material = defineMaterial({
     fragment: `
@@ -241,7 +241,7 @@ Why this matters:
 Concept: pass graph flow and final output.
 
 ```ts
-import { ShaderPass } from '@motion-core/motion-gpu';
+import { ShaderPass } from '@motion-core/motion-gpu/svelte';
 
 const bloomPrefilter = new ShaderPass({
   needsSwap: true,

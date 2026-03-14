@@ -20,19 +20,26 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 
 ```
 packages/motion-gpu/src/lib/
-├── index.ts                        # Public root exports
-├── advanced.ts                     # Advanced exports (user context + scheduler helpers + extended types)
-├── advanced-scheduler.ts           # Scheduler presets + debug snapshot helpers
-├── FragCanvas.svelte               # Runtime entry component
-├── MotionGPUErrorOverlay.svelte    # Default error-overlay UI component
-├── Portal.svelte                   # DOM portal utility for error overlay
-├── current-writable.ts             # CurrentWritable<T> reactive store
-├── frame-context.ts                # Scheduler registry + useFrame hook
-├── motiongpu-context.ts            # useMotionGPU context provider
-├── use-texture.ts                  # Reactive URL texture loading hook
-├── use-motiongpu-user-context.ts   # Advanced namespaced user state hook
+├── index.ts                        # Root framework-agnostic core entrypoint
+├── advanced.ts                     # Root framework-agnostic advanced core entrypoint
+├── svelte/
+│   ├── index.ts                    # Explicit Svelte adapter exports
+│   └── advanced.ts                 # Explicit Svelte advanced exports
+│   ├── FragCanvas.svelte           # Svelte host component
+│   ├── frame-context.ts            # Svelte useFrame adapter wrapper
+│   ├── motiongpu-context.ts        # Svelte useMotionGPU adapter wrapper
+│   ├── use-texture.ts              # Svelte lifecycle-aware texture hook
+│   ├── use-motiongpu-user-context.ts # Svelte advanced user-context hook
+│   ├── Portal.svelte               # DOM portal utility for overlay rendering
+│   └── MotionGPUErrorOverlay.svelte # Default error-overlay UI component
 └── core/
-    ├── types.ts                    # All shared type definitions
+    ├── index.ts                    # Framework-agnostic core entrypoint
+    ├── advanced.ts                 # Framework-agnostic advanced core entrypoint
+    ├── current-value.ts            # Reactive primitive independent from any framework
+    ├── frame-registry.ts           # Scheduler DAG + invalidation engine
+    ├── runtime-loop.ts             # Renderer lifecycle + requestAnimationFrame loop
+    ├── scheduler-helpers.ts        # Presets/debug snapshot utilities
+    ├── types.ts                    # Shared type definitions
     ├── material.ts                 # defineMaterial + resolveMaterial
     ├── material-preprocess.ts      # #include / defines expansion + line mapping
     ├── renderer.ts                 # WebGPU renderer creation + frame execution
@@ -55,12 +62,9 @@ packages/motion-gpu/src/lib/
 
 1. **Create frame registry** — instantiates the scheduler with default stage, timing, and profiling state.
 2. **Set up Svelte context** — provides `MotionGPUContext` so `useMotionGPU()`, `useFrame()`, etc. work inside child components.
-3. **Resolve material** — calls `resolveMaterial(material)` to produce the preprocessed WGSL fragment, uniform layout, texture keys, and a deterministic `signature`.
-4. **Build pipeline signature** — combines `materialSignature + outputColorSpace` into the final renderer key.
-5. **Create renderer** — if no renderer exists or key changed, calls `createRenderer(...)` which:
-   - Requests a WebGPU adapter and device,
-   - Compiles the WGSL shader module (with compilation error diagnostics),
-   - Creates bind group layouts, pipeline, and initial buffers.
+3. **Start core runtime loop** — `createMotionGPURuntimeLoop(...)` receives adapter getters and owns material resolution, renderer rebuild policy, retries, and render scheduling.
+4. **Resolve material (core)** — calls `resolveMaterial(material)` to produce preprocessed WGSL, uniform layout, texture keys, and deterministic `signature`.
+5. **Create renderer (core)** — when needed, `createRenderer(...)` requests adapter/device, compiles WGSL, and builds bind groups + pipeline.
 
 ### Per-frame loop (requestAnimationFrame)
 

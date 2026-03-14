@@ -5,7 +5,7 @@ import { defineMaterial, resolveMaterial } from '../../src/lib/core/material';
 import { planRenderGraph } from '../../src/lib/core/render-graph';
 import { resolveRenderTargetDefinitions } from '../../src/lib/core/render-targets';
 import { packUniformsInto, resolveUniformLayout } from '../../src/lib/core/uniforms';
-import { createFrameRegistry } from '../../src/lib/frame-context';
+import { createFrameRegistry } from '../../src/lib/core/frame-registry';
 import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
 
 const SCRIPT_DIR = import.meta.dirname;

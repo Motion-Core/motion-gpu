@@ -3,7 +3,7 @@ title: API Reference
 description: Complete reference of all public exports from the motion-gpu packages.
 ---
 
-Reference of public exports from `@motion-core/motion-gpu` and `@motion-core/motion-gpu/advanced`.
+Reference of public exports from the MotionGPU adapter/core entrypoints.
 
 ## Package metadata
 
@@ -12,9 +12,20 @@ Reference of public exports from `@motion-core/motion-gpu` and `@motion-core/mot
 | Package name | `@motion-core/motion-gpu` |
 | Current version | `0.1.0` |
 | Module type | ESM |
-| Peer dependency | `svelte ^5` |
+| Adapter peer dependency | `svelte ^5` (optional; required only for `/svelte` entrypoints) |
 
-## Root exports (`@motion-core/motion-gpu`)
+## Entrypoint map
+
+| Entrypoint | Role |
+| --- | --- |
+| `@motion-core/motion-gpu` | Framework-agnostic core entrypoint. |
+| `@motion-core/motion-gpu/advanced` | Framework-agnostic advanced core entrypoint. |
+| `@motion-core/motion-gpu/svelte` | Explicit Svelte adapter entrypoint. |
+| `@motion-core/motion-gpu/svelte/advanced` | Explicit Svelte advanced adapter entrypoint. |
+| `@motion-core/motion-gpu/core` | Framework-agnostic core primitives for adapter authors. |
+| `@motion-core/motion-gpu/core/advanced` | Core primitives plus scheduler helper utilities. |
+
+## Svelte adapter exports (`@motion-core/motion-gpu/svelte`)
 
 | Export | Kind | Summary |
 | --- | --- | --- |
@@ -27,9 +38,9 @@ Reference of public exports from `@motion-core/motion-gpu` and `@motion-core/mot
 | `useFrame` | hook | Registers scheduler tasks. See [Frame Scheduler](/docs/frame-scheduler). |
 | `useTexture` | hook | Loads URL textures reactively. See [Loading Textures](/docs/texture-loading). |
 
-## Advanced exports (`@motion-core/motion-gpu/advanced`)
+## Svelte advanced exports (`@motion-core/motion-gpu/svelte/advanced`)
 
-Re-exports everything from root, plus:
+Re-exports everything from the Svelte adapter entrypoint, plus:
 
 | Export | Kind | Summary |
 | --- | --- | --- |
@@ -57,6 +68,30 @@ Re-exports everything from root, plus:
 | `RenderTarget` | type | Runtime render target handle. |
 | `UniformLayout` | type | Resolved uniform buffer layout. |
 | `UniformLayoutEntry` | type | Single uniform layout entry. |
+
+## Core exports (`@motion-core/motion-gpu` and `@motion-core/motion-gpu/core`)
+
+| Export | Kind | Summary |
+| --- | --- | --- |
+| `defineMaterial` | function | Validates and freezes material definitions. |
+| `resolveMaterial` | function | Resolves frozen material into runtime shader/layout payloads. |
+| `createCurrentWritable` | function | Framework-agnostic reactive writable primitive with sync `.current` access. |
+| `createFrameRegistry` | function | Core scheduler DAG engine used by adapters. |
+| `createMotionGPURuntimeLoop` | function | Core requestAnimationFrame loop and renderer lifecycle orchestrator. |
+| `loadTexturesFromUrls` | function | Framework-agnostic URL texture loader. |
+| `toMotionGPUErrorReport` | function | Normalizes runtime and shader errors into structured reports. |
+| `ShaderPass` | class | Programmable post-process pass. |
+| `BlitPass` | class | Fullscreen texture sample pass. |
+| `CopyPass` | class | Copy pass with direct-copy optimisation + blit fallback. |
+
+## Core advanced exports (`@motion-core/motion-gpu/advanced` and `@motion-core/motion-gpu/core/advanced`)
+
+Re-exports everything from `/core`, plus:
+
+| Export | Kind | Summary |
+| --- | --- | --- |
+| `applySchedulerPreset` | function | Applies named scheduler timing preset with optional overrides. |
+| `captureSchedulerDebugSnapshot` | function | Returns aggregate scheduler debug payload (`schedule`, timings, profiling snapshot). |
 
 ## `defineMaterial(input)` signature
 
@@ -109,7 +144,7 @@ Dependency validation is strict: cyclic graphs and missing `before` / `after` re
 | `task` | `{ key: FrameKey; stage: FrameKey }` |
 | `start` | `() => void` |
 | `stop` | `() => void` |
-| `started` | `Readable<boolean>` |
+| `started` | `Subscribable<boolean>` |
 
 ## `FrameState` (useFrame callback parameter)
 

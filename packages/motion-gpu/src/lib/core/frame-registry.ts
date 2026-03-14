@@ -1,6 +1,5 @@
-import { getContext, onDestroy, setContext } from 'svelte';
-import { writable, type Readable } from 'svelte/store';
-import type { FrameInvalidationToken, FrameState, RenderMode } from './core/types';
+import { createCurrentWritable, type CurrentWritable, type Subscribable } from './current-value';
+import type { FrameInvalidationToken, FrameState, RenderMode } from './types';
 
 /**
  * Per-frame callback executed by the frame scheduler.
@@ -113,7 +112,7 @@ export interface UseFrameResult {
 	/**
 	 * Readable flag representing effective running state.
 	 */
-	started: Readable<boolean>;
+	started: Subscribable<boolean>;
 }
 
 /**
@@ -185,7 +184,7 @@ interface InternalTask {
 	started: boolean;
 	lastRunning: boolean;
 	startedStoreSet: (value: boolean) => void;
-	startedStore: Readable<boolean>;
+	startedStore: Subscribable<boolean>;
 	before: Set<FrameKey>;
 	after: Set<FrameKey>;
 	invalidation: {
@@ -209,11 +208,6 @@ interface InternalStage {
 	callback: FrameStageCallback;
 	tasks: Map<FrameKey, InternalTask>;
 }
-
-/**
- * Svelte context key for the active frame registry.
- */
-const FRAME_CONTEXT_KEY = Symbol('motiongpu.frame-context');
 
 /**
  * Default stage key used when task stage is not explicitly specified.
@@ -968,7 +962,9 @@ export function createFrameRegistry(options?: {
 				: (inferredStage?.stage ?? MAIN_STAGE_KEY);
 
 			const stage = ensureStage(stageKey);
-			const startedWritable = writable(taskOptions.autoStart ?? true);
+			const startedWritable: CurrentWritable<boolean> = createCurrentWritable(
+				taskOptions.autoStart ?? true
+			);
 
 			const internalTask: InternalTask = {
 				task: { key, stage: stage.key },
@@ -1189,58 +1185,5 @@ export function createFrameRegistry(options?: {
 			}
 			markScheduleDirty();
 		}
-	};
-}
-
-/**
- * Provides a frame registry through Svelte context.
- *
- * @param registry - Registry to provide.
- */
-export function provideFrameRegistry(registry: FrameRegistry): void {
-	setContext(FRAME_CONTEXT_KEY, registry);
-}
-
-/**
- * Registers a frame callback using an auto-generated task key.
- */
-export function useFrame(callback: FrameCallback, options?: UseFrameOptions): UseFrameResult;
-
-/**
- * Registers a frame callback with an explicit task key.
- */
-export function useFrame(
-	key: FrameKey,
-	callback: FrameCallback,
-	options?: UseFrameOptions
-): UseFrameResult;
-
-/**
- * Registers a callback in the active frame registry and auto-unsubscribes on destroy.
- *
- * @returns Frame task handle for start/stop control.
- * @throws {Error} When used outside `<FragCanvas>`.
- */
-export function useFrame(
-	keyOrCallback: FrameKey | FrameCallback,
-	callbackOrOptions?: FrameCallback | UseFrameOptions,
-	maybeOptions?: UseFrameOptions
-): UseFrameResult {
-	const registry = getContext<FrameRegistry>(FRAME_CONTEXT_KEY);
-	if (!registry) {
-		throw new Error('useFrame must be used inside <FragCanvas>');
-	}
-
-	const registration =
-		typeof keyOrCallback === 'function'
-			? registry.register(keyOrCallback, callbackOrOptions as UseFrameOptions | undefined)
-			: registry.register(keyOrCallback, callbackOrOptions as FrameCallback, maybeOptions);
-	onDestroy(registration.unsubscribe);
-
-	return {
-		task: registration.task,
-		start: registration.start,
-		stop: registration.stop,
-		started: registration.started
 	};
 }

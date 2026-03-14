@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame, useMotionGPU } from '@motion-core/motion-gpu';
+	import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
 	const context = useMotionGPU();
 

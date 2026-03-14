@@ -1,36 +1,19 @@
 import { getContext, setContext } from 'svelte';
-import type { RenderMode } from './core/types';
-import type { CurrentReadable, CurrentWritable } from './current-writable';
+import type { RenderMode } from '../core/types';
+import type { CurrentReadable, CurrentWritable } from '../core/current-value';
 import type {
 	FrameProfilingSnapshot,
-	FrameRegistry,
 	FrameRunTimings,
 	FrameScheduleSnapshot
-} from './frame-context';
+} from '../core/frame-registry';
+import type { MotionGPUScheduler as CoreMotionGPUScheduler } from '../core/scheduler-helpers';
 
 /**
  * Svelte context key used to expose `FragCanvas` runtime state.
  */
 const MOTIONGPU_CONTEXT_KEY = Symbol('motiongpu.context');
 
-/**
- * Exposed subset of frame scheduler controls intended for public consumption.
- */
-export type MotionGPUScheduler = Pick<
-	FrameRegistry,
-	| 'createStage'
-	| 'getStage'
-	| 'setDiagnosticsEnabled'
-	| 'getDiagnosticsEnabled'
-	| 'getLastRunTimings'
-	| 'getSchedule'
-	| 'setProfilingEnabled'
-	| 'setProfilingWindow'
-	| 'resetProfiling'
-	| 'getProfilingEnabled'
-	| 'getProfilingWindow'
-	| 'getProfilingSnapshot'
->;
+export type MotionGPUScheduler = CoreMotionGPUScheduler;
 export type { FrameProfilingSnapshot, FrameRunTimings, FrameScheduleSnapshot };
 
 /**

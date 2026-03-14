@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useTexture } from '../../../src/lib/use-texture';
+	import { useTexture } from '../../../src/lib/svelte/use-texture';
 
 	function createSuccessTextureUrl(): string {
 		const canvas = document.createElement('canvas');

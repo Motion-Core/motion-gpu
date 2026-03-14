@@ -63,17 +63,32 @@ const editorSyntaxTheme = syntaxHighlighting(
 			color: 'var(--playground-token-keyword)'
 		},
 		{ tag: [t.string, t.special(t.string), t.docString], color: 'var(--playground-token-string)' },
-		{ tag: [t.number, t.integer, t.float, t.bool, t.null, t.atom], color: 'var(--playground-token-number)' },
-		{ tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: 'var(--playground-token-comment)' },
-		{ tag: [t.typeName, t.className, t.namespace, t.macroName], color: 'var(--playground-token-type)' },
+		{
+			tag: [t.number, t.integer, t.float, t.bool, t.null, t.atom],
+			color: 'var(--playground-token-number)'
+		},
+		{
+			tag: [t.comment, t.lineComment, t.blockComment, t.docComment],
+			color: 'var(--playground-token-comment)'
+		},
+		{
+			tag: [t.typeName, t.className, t.namespace, t.macroName],
+			color: 'var(--playground-token-type)'
+		},
 		{
 			tag: [t.function(t.variableName), t.function(t.propertyName)],
 			color: 'var(--playground-token-function)'
 		},
 		{ tag: [t.tagName], color: 'var(--playground-token-tag)' },
-		{ tag: [t.propertyName, t.attributeName, t.labelName], color: 'var(--playground-token-property)' },
+		{
+			tag: [t.propertyName, t.attributeName, t.labelName],
+			color: 'var(--playground-token-property)'
+		},
 		{ tag: [t.variableName, t.name], color: 'var(--playground-token-variable)' },
-		{ tag: [t.regexp, t.escape, t.special(t.variableName), t.url], color: 'var(--playground-token-constant)' },
+		{
+			tag: [t.regexp, t.escape, t.special(t.variableName), t.url],
+			color: 'var(--playground-token-constant)'
+		},
 		{ tag: [t.invalid], color: 'var(--playground-token-invalid)' }
 	])
 );

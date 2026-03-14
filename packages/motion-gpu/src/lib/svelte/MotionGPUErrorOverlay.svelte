@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { MotionGPUErrorReport } from './core/error-report';
+	import type { MotionGPUErrorReport } from '../core/error-report';
 	import Portal from './Portal.svelte';
 
 	interface Props {

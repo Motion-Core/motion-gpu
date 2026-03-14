@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame } from '../../src/lib/frame-context';
-	import { useMotionGPU } from '../../src/lib/motiongpu-context';
+	import { useFrame } from '../../src/lib/svelte/frame-context';
+	import { useMotionGPU } from '../../src/lib/svelte/motiongpu-context';
 	import type { RenderMode } from '../../src/lib/core/types';
 
 	export interface RuntimeControls {

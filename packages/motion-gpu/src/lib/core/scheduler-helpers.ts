@@ -1,12 +1,31 @@
 import type {
 	FrameProfilingSnapshot,
+	FrameRegistry,
 	FrameRunTimings,
-	FrameScheduleSnapshot,
-	MotionGPUScheduler
-} from './motiongpu-context';
+	FrameScheduleSnapshot
+} from './frame-registry';
 
 /**
- * Named scheduler presets exposed from the advanced entrypoint.
+ * Public scheduler control surface shared by framework adapters.
+ */
+export type MotionGPUScheduler = Pick<
+	FrameRegistry,
+	| 'createStage'
+	| 'getStage'
+	| 'setDiagnosticsEnabled'
+	| 'getDiagnosticsEnabled'
+	| 'getLastRunTimings'
+	| 'getSchedule'
+	| 'setProfilingEnabled'
+	| 'setProfilingWindow'
+	| 'resetProfiling'
+	| 'getProfilingEnabled'
+	| 'getProfilingWindow'
+	| 'getProfilingSnapshot'
+>;
+
+/**
+ * Named scheduler presets exposed from advanced entrypoints.
  */
 export type SchedulerPreset = 'balanced' | 'debug' | 'performance';
 

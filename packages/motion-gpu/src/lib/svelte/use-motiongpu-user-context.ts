@@ -1,4 +1,4 @@
-import type { CurrentReadable } from './current-writable';
+import type { CurrentReadable } from '../core/current-value';
 import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context';
 
 /**

@@ -8,7 +8,7 @@ description: Advanced read/write API for namespaced, reactive shared state withi
 This hook is exported from the **advanced entrypoint**:
 
 ```ts
-import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/advanced';
+import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
 ```
 
 The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
@@ -109,8 +109,8 @@ setMotionGPUUserContext('config', () => ({
 
 ```svelte
 <script lang="ts">
-  import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/advanced';
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   type Config = { quality: string; debugGrid: boolean };
   const config = useMotionGPUUserContext<Config>('config');
@@ -131,7 +131,7 @@ setMotionGPUUserContext('config', () => ({
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPUUserContext } from '@motion-core/motion-gpu/advanced';
+  import { useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
 
   const ctx = useMotionGPUUserContext();
 </script>

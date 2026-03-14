@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useFrame } from '../../lib/frame-context';
+	import { useFrame } from '../../lib/svelte/frame-context';
 
 	export type FrameMutationMode = 'none' | 'valid-both' | 'invalid-uniform' | 'invalid-texture';
 

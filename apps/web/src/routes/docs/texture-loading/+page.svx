@@ -11,7 +11,7 @@ For texture declaration and configuration in materials, see [Texture Definitions
 
 ```svelte
 <script lang="ts">
-  import { useFrame, useTexture } from '@motion-core/motion-gpu';
+  import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
 
   const loaded = useTexture(['/assets/albedo.png']);
 

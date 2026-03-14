@@ -13,7 +13,7 @@ For advanced user-defined context, see [User Context (Advanced)](/docs/user-cont
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 </script>
@@ -63,7 +63,7 @@ Must be called inside a `<FragCanvas>` component tree. Calling it outside throws
 For higher-level scheduler configuration and debug snapshots, use the advanced helper exports:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/svelte/advanced';
 ```
 
 ## The CurrentWritable / CurrentReadable pattern
@@ -105,7 +105,7 @@ const value = gpu.maxDelta.current; // Instant, no subscription
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
   const gpu = useMotionGPU();
 </script>
 
@@ -116,7 +116,7 @@ const value = gpu.maxDelta.current; // Instant, no subscription
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
   const gpu = useMotionGPU();
 
   function togglePause() {
@@ -133,7 +133,7 @@ const value = gpu.maxDelta.current; // Instant, no subscription
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu';
+  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 

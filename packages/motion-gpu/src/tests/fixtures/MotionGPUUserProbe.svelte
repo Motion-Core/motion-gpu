@@ -3,7 +3,7 @@
 	import {
 		setMotionGPUUserContext,
 		useMotionGPUUserContext
-	} from '../../lib/use-motiongpu-user-context';
+	} from '../../lib/svelte/use-motiongpu-user-context';
 
 	interface Props {
 		onProbe: (value: unknown) => void;

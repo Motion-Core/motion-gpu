@@ -1,9 +1,9 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import FragCanvas from '../lib/FragCanvas.svelte';
+import FragCanvas from '../lib/svelte/FragCanvas.svelte';
 import { attachShaderCompilationDiagnostics } from '../lib/core/error-diagnostics';
 import { defineMaterial } from '../lib/core/material';
-import type { MotionGPUContext } from '../lib/motiongpu-context';
+import type { MotionGPUContext } from '../lib/svelte/motiongpu-context';
 import FragCanvasFrameMutationHarness from './fixtures/FragCanvasFrameMutationHarness.svelte';
 import MotionGPUWithControlProbe from './fixtures/MotionGPUWithControlProbe.svelte';
 

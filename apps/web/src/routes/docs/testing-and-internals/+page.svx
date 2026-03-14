@@ -11,7 +11,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 
 | Area | What is tested |
 | --- | --- |
-| **Public API** | Root and advanced export contracts — every public symbol is verified to exist and have the correct type. |
+| **Public API** | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape. |
 | **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
 | **FragCanvas** | WebGPU-unavailable behaviour, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, prop validation. |
 | **Context hooks** | `useMotionGPU` and `useFrame` throw when called outside `FragCanvas`. Context shape and exposed controls. |

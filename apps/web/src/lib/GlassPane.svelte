@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FragCanvas } from '@motion-core/motion-gpu';
+	import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 	import GlassPaneScene, { glassPaneMaterial } from './GlassPaneScene.svelte';
 	import type { ComponentProps } from 'svelte';
 	import { cn } from './utils/cn';

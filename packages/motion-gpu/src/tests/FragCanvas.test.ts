@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import FragCanvas from '../lib/FragCanvas.svelte';
+import FragCanvas from '../lib/svelte/FragCanvas.svelte';
 import { defineMaterial } from '../lib/core/material';
 import FragCanvasCustomErrorRendererHarness from './fixtures/FragCanvasCustomErrorRendererHarness.svelte';
 

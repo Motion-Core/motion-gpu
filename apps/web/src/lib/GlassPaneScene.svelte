@@ -1,5 +1,5 @@
 <script module lang="ts">
-	import { defineMaterial } from '@motion-core/motion-gpu';
+	import { defineMaterial } from '@motion-core/motion-gpu/svelte';
 
 	export const glassPaneMaterial = defineMaterial({
 		fragment: `
@@ -88,7 +88,7 @@ fn frag(uv: vec2f) -> vec4f {
 </script>
 
 <script lang="ts">
-	import { useFrame, useTexture } from '@motion-core/motion-gpu';
+	import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
 
 	interface Props {
 		image: string;

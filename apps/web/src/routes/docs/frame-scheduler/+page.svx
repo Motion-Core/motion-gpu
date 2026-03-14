@@ -11,7 +11,7 @@ For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs
 
 ```svelte
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);
@@ -85,7 +85,7 @@ The `state` parameter passed to your callback provides everything you need for p
 
 ```svelte
 <script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu';
+  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
   let mouseX = 0.5;

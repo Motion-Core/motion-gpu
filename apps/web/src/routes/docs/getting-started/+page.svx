@@ -18,7 +18,7 @@ This guide walks you through installing MotionGPU and building your first fullsc
 
 <InstallationTabs />
 
-Peer dependency: `svelte ^5`.
+Adapter peer dependency: `svelte ^5` (required for `@motion-core/motion-gpu/svelte`).
 
 ## Step 1: Draw a static gradient
 
@@ -27,7 +27,7 @@ The simplest possible setup — a fullscreen UV gradient with no animation:
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
   const material = defineMaterial({
     fragment: `
@@ -57,7 +57,7 @@ To animate your shader, you need a `uniform` and a `useFrame` callback. Because 
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
@@ -81,7 +81,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);
@@ -103,7 +103,7 @@ You can declare multiple uniforms. Here we add a `vec2f` for the mouse position:
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
@@ -130,7 +130,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu';
+  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
   let mouseX = 0.5;
@@ -171,7 +171,7 @@ By default, `FragCanvas` renders every frame (`renderMode: 'always'`). For UIs t
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 
@@ -191,7 +191,7 @@ MotionGPU supports post-processing through pass classes. Here is a simple vignet
 
 ```svelte
 <script lang="ts">
-  import { FragCanvas, defineMaterial, ShaderPass } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial, ShaderPass } from '@motion-core/motion-gpu/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
@@ -240,7 +240,7 @@ import {
   setMotionGPUUserContext,
   applySchedulerPreset,
   captureSchedulerDebugSnapshot
-} from '@motion-core/motion-gpu/advanced';
+} from '@motion-core/motion-gpu/svelte/advanced';
 ```
 
 See [User Context (Advanced)](/docs/user-context) and [Render Modes and Scheduling](/docs/render-modes) for details.

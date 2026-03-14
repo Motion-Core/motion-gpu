@@ -31,7 +31,7 @@ Renders only when something triggers an invalidation or `advance()` is called.
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 
@@ -55,7 +55,7 @@ Renders only after an explicit `advance()` call.
 
 ```svelte
 <script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu';
+  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
 
@@ -227,7 +227,7 @@ scheduler.resetProfiling();
 For common tuning profiles and one-call debug capture, use the advanced entrypoint:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/svelte/advanced';
 
 const scheduler = gpu.scheduler;
 

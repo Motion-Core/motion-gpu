@@ -104,7 +104,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 Fullscreen texture sample pass. Copies `input` to `output` using a fragment shader with configurable filter mode.
 
 ```ts
-import { BlitPass } from '@motion-core/motion-gpu';
+import { BlitPass } from '@motion-core/motion-gpu/svelte';
 
 const blit = new BlitPass({
   filter: 'nearest' // Default: 'linear'
@@ -127,7 +127,7 @@ const blit = new BlitPass({
 Optimized texture copy with a fullscreen-blit fallback. Attempts `copyTextureToTexture` when possible — a GPU-side copy that avoids shader execution entirely.
 
 ```ts
-import { CopyPass } from '@motion-core/motion-gpu';
+import { CopyPass } from '@motion-core/motion-gpu/svelte';
 
 const copy = new CopyPass();
 ```
@@ -148,7 +148,7 @@ Options are identical to `BlitPass`.
 Programmable post-process pass with custom WGSL fragment shader:
 
 ```ts
-import { ShaderPass } from '@motion-core/motion-gpu';
+import { ShaderPass } from '@motion-core/motion-gpu/svelte';
 
 const vignette = new ShaderPass({
   fragment: `
@@ -208,7 +208,7 @@ The renderer tracks each pass by object identity:
 ## Multi-pass example
 
 ```ts
-import { ShaderPass } from '@motion-core/motion-gpu';
+import { ShaderPass } from '@motion-core/motion-gpu/svelte';
 
 // Pass 1: Threshold bright pixels
 const bloomPrefilter = new ShaderPass({

@@ -1,6 +1,6 @@
 import { get } from 'svelte/store';
 import { describe, expect, it, vi } from 'vitest';
-import { createFrameRegistry } from '../lib/frame-context';
+import { createFrameRegistry } from '../lib/core/frame-registry';
 
 function createState(registry: ReturnType<typeof createFrameRegistry>, delta = 0.016) {
 	return {

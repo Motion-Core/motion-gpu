@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { useTexture, type UseTextureResult } from '../../lib/use-texture';
+	import { useTexture, type UseTextureResult } from '../../lib/svelte/use-texture';
 	import type { TextureLoadOptions } from '../../lib/core/texture-loader';
 
 	interface Props {

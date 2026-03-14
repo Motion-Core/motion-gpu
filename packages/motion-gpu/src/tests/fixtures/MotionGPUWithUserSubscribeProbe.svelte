@@ -1,5 +1,5 @@
 <script lang="ts">
-	import FragCanvas from '../../lib/FragCanvas.svelte';
+	import FragCanvas from '../../lib/svelte/FragCanvas.svelte';
 	import { defineMaterial } from '../../lib/core/material';
 	import MotionGPUUserSubscribeProbe from './MotionGPUUserSubscribeProbe.svelte';
 

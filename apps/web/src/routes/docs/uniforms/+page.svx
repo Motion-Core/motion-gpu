@@ -126,7 +126,7 @@ Inside a `useFrame` callback, use `state.setUniform(name, value)` to update a un
 
 ```svelte
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);

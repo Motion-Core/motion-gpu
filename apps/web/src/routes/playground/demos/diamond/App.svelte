@@ -6,7 +6,7 @@
 	// Source:
 	// https://www.shadertoy.com/view/ltfXDM
 	//
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 	import Runtime from './runtime.svelte';
 
 	const material = defineMaterial({

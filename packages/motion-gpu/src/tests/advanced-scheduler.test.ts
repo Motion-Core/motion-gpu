@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '../lib/advanced-scheduler';
-import { createFrameRegistry } from '../lib/frame-context';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '../lib/core/scheduler-helpers';
+import { createFrameRegistry } from '../lib/core/frame-registry';
 
 function createState(registry: ReturnType<typeof createFrameRegistry>, delta = 0.016) {
 	return {

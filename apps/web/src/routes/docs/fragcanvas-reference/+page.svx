@@ -8,7 +8,7 @@ This is the complete prop reference for the `FragCanvas` Svelte component — th
 ## Import
 
 ```ts
-import { FragCanvas } from '@motion-core/motion-gpu';
+import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 ```
 
 ## Usage

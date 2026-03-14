@@ -1,22 +1,24 @@
 ---
 name: motion-gpu-svelte-wgsl
-description: Build and edit Svelte 5 components that render WGSL with @motion-core/motion-gpu. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, render-mode scheduling, or MotionGPU error handling and diagnostics.
+description: Build and edit Svelte 5 components that render WGSL with @motion-core/motion-gpu/svelte. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, render-mode scheduling, or MotionGPU error handling and diagnostics.
 ---
 
 # MotionGPU Svelte WGSL Skill
 
-Use this skill to produce production-grade Svelte 5 components on top of `@motion-core/motion-gpu`.
+Use this skill to produce production-grade Svelte 5 components on top of `@motion-core/motion-gpu/svelte`.
 Follow the workflow exactly and enforce runtime contracts strictly.
 
 ## Source of Truth
 
 Treat the public package contract as authoritative:
 
-- `@motion-core/motion-gpu` exports:
+- `@motion-core/motion-gpu/svelte` exports:
 `FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass`
-- `@motion-core/motion-gpu/advanced` exports:
+- `@motion-core/motion-gpu/svelte/advanced` exports:
 everything above plus
 `useMotionGPUUserContext`, `setMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`
+- `@motion-core/motion-gpu` and `@motion-core/motion-gpu/core` export framework-agnostic core primitives.
+- `@motion-core/motion-gpu/advanced` and `@motion-core/motion-gpu/core/advanced` export core primitives plus scheduler helper utilities.
 - Import only from public entrypoints above. Do not import from internal package paths (`/src`, `/lib/core`, etc.).
 - Full documentation index for LLMs is available at:
 `http://motion-gpu.dev/llms.txt`
@@ -73,7 +75,7 @@ Pick one main mode:
 - Interactive shader (pointer/state-driven updates).
 - Texture-driven shader (`useTexture` and `state.setTexture`).
 - Post-processing pipeline (`ShaderPass`/`BlitPass`/`CopyPass`).
-- Advanced scheduling/user context (`@motion-core/motion-gpu/advanced`).
+- Advanced scheduling/user context (`@motion-core/motion-gpu/svelte/advanced` for Svelte runtime APIs, `@motion-core/motion-gpu/advanced` for core scheduler helpers).
 
 ### 2. Design material boundary
 
@@ -194,7 +196,7 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 ```svelte
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
@@ -215,7 +217,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 ```svelte
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu';
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);
@@ -227,7 +229,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 ```svelte
 <script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu';
+  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
   let x = 0.5;
@@ -257,7 +259,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 ```svelte
 <script lang="ts">
-  import { useFrame, useTexture } from '@motion-core/motion-gpu';
+  import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
 
   const loaded = useTexture(['/assets/albedo.png'], {
     colorSpace: 'srgb',
@@ -300,5 +302,5 @@ Ship only when all checks pass:
 3. Keep render mode and invalidation strategy intentional and documented in code.
 4. Keep error handling present (`onError` at minimum).
 5. Keep passes/targets slot routing valid.
-6. Keep only public entrypoint imports (`@motion-core/motion-gpu` or `/advanced`).
+6. Keep only public entrypoint imports (`@motion-core/motion-gpu/svelte`, `/svelte/advanced`, `/core`, `/core/advanced`, root core aliases).
 7. Keep checks/tests executed or report clearly what was not run.

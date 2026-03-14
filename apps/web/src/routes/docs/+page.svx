@@ -1,9 +1,9 @@
 ---
 title: MotionGPU Documentation
-description: Svelte 5 runtime for fullscreen WGSL rendering on WebGPU.
+description: Framework-agnostic WebGPU core with a Svelte 5 adapter for fullscreen WGSL rendering.
 ---
 
-`@motion-core/motion-gpu` is a **Svelte 5 runtime for fullscreen WGSL rendering on WebGPU**. It gives you a declarative material system, a reactive frame scheduler, and a composable post-processing pipeline — all wired into a single `<FragCanvas>` component.
+`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus a **Svelte 5 adapter** for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, and a composable post-processing pipeline — wired into a single `<FragCanvas>` component in the Svelte adapter.
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behaviour described here reflects the actual implementation.
 
@@ -11,20 +11,25 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 
 | Area | Source of truth | What it does |
 | --- | --- | --- |
-| **Runtime component** | `FragCanvas.svelte` | Owns the `<canvas>`, manages the WebGPU renderer lifecycle, runs the scheduler, and emits normalized error reports to either the default overlay or a custom error renderer. |
+| **Svelte runtime component** | `svelte/FragCanvas.svelte` | Owns the `<canvas>`, provides Svelte context/hooks, and bridges props/runtime state into the core loop. |
+| **Runtime loop (core)** | `core/runtime-loop.ts` | Runs requestAnimationFrame, renderer rebuild policy, frame scheduling, render gating, and normalized error routing. |
 | **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
 | **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
-| **Frame scheduler** | `frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling. |
+| **Frame scheduler** | `core/frame-registry.ts` + `svelte/frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling (core), with Svelte hook/context adapter wrappers. |
 | **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, and three built-in pass types. |
-| **Texture loading** | `texture-loader.ts` + `use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive Svelte store state. |
+| **Texture loading** | `core/texture-loader.ts` + `svelte/use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive Svelte store state. |
 | **Diagnostics** | `error-report.ts` + `error-diagnostics.ts` | Maps low-level WebGPU and WGSL errors to structured reports with hints and source snippets. |
 
 ## Public entrypoints
 
 | Entrypoint | Key exports |
 | --- | --- |
-| `@motion-core/motion-gpu` | `FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass` |
-| `@motion-core/motion-gpu/advanced` | Everything above **plus** `useMotionGPUUserContext`, `setMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`, and extended scheduler / user-context types |
+| `@motion-core/motion-gpu` | Framework-agnostic core runtime primitives (`defineMaterial`, `createFrameRegistry`, `createMotionGPURuntimeLoop`, `createCurrentWritable`, passes, texture loader, error normalization) |
+| `@motion-core/motion-gpu/advanced` | Core runtime plus scheduler helper utilities (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
+| `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `useTexture`, passes, material helpers) |
+| `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
+| `@motion-core/motion-gpu/core` | Explicit alias of the framework-agnostic core entrypoint |
+| `@motion-core/motion-gpu/core/advanced` | Explicit alias of the framework-agnostic advanced core entrypoint |
 
 The export contract is verified in `src/tests/public-api.test.ts`.
 
@@ -106,6 +111,8 @@ These are enforced at runtime and will throw immediately if violated:
 
 ## Scope and boundaries
 
-- This package targets **fullscreen fragment workflows** in Svelte 5 — it is not a general-purpose scene graph or 3D engine.
-- The main runtime works without the advanced entrypoint; `@motion-core/motion-gpu/advanced` adds namespaced user state, scheduler presets/debug helpers, and extended type ergonomics.
+- This package targets **fullscreen fragment workflows** — it is not a general-purpose scene graph or 3D engine.
+- Root entrypoints (`@motion-core/motion-gpu`, `/advanced`) are framework-agnostic core APIs.
+- Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, future `/react`, `/vue`).
+- The Svelte runtime works without its advanced entrypoint; `@motion-core/motion-gpu/svelte/advanced` adds namespaced user state and extended scheduler ergonomics.
 - All documentation references behaviours currently implemented in the repository, including edge cases verified by the test suite.

@@ -6,7 +6,7 @@
 	// Source:
 	// https://www.shadertoy.com/view/3lVczV
 	//
-	import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
 	const postProcessPass = new ShaderPass({
 		fragment: `

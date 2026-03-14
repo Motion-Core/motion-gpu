@@ -12,8 +12,8 @@
 
 **A tiny WebGPU runtime for writing Shadertoy-style fullscreen shaders in pure WGSL.**
 
-`@motion-core/motion-gpu` is a Svelte 5 package for building fullscreen shader pipelines using WebGPU and WGSL.
-It provides a minimal runtime, scheduler, and render graph designed specifically for fragment-driven GPU programs.
+`@motion-core/motion-gpu` ships a framework-agnostic core plus a Svelte 5 adapter for building fullscreen shader pipelines using WebGPU and WGSL.
+It provides a minimal runtime loop, scheduler, and render graph designed specifically for fragment-driven GPU programs.
 
 Unlike general-purpose 3D engines, Motion GPU focuses on a very narrow problem: **running fullscreen fragment shaders and multi-pass GPU pipelines**.
 
@@ -87,9 +87,9 @@ Motion GPU follows a simple three-step flow:
 
 # Entrypoints
 
-## Root (`@motion-core/motion-gpu`)
+## Svelte adapter
 
-Primary runtime API:
+`@motion-core/motion-gpu/svelte` exposes the runtime API for Svelte:
 
 - `FragCanvas`
 - `defineMaterial`
@@ -110,9 +110,7 @@ Also exports runtime/core types:
 
 ---
 
-## Advanced (`@motion-core/motion-gpu/advanced`)
-
-Re-exports everything from root, plus:
+`@motion-core/motion-gpu/svelte/advanced` re-exports everything above, plus:
 
 - `useMotionGPUUserContext`
 - `setMotionGPUUserContext`
@@ -121,9 +119,31 @@ Re-exports everything from root, plus:
 
 ---
 
+## Framework-agnostic core
+
+`@motion-core/motion-gpu` (and explicit alias `@motion-core/motion-gpu/core`) exposes adapter-building primitives:
+
+- `defineMaterial`
+- `resolveMaterial`
+- `createCurrentWritable`
+- `createFrameRegistry`
+- `createMotionGPURuntimeLoop`
+- `loadTexturesFromUrls`
+- `toMotionGPUErrorReport`
+- `ShaderPass`
+- `BlitPass`
+- `CopyPass`
+
+`@motion-core/motion-gpu/advanced` (and explicit alias `@motion-core/motion-gpu/core/advanced`) re-exports core plus:
+
+- `applySchedulerPreset`
+- `captureSchedulerDebugSnapshot`
+
+---
+
 # Requirements
 
-- Svelte 5 (`peerDependency: svelte ^5`)
+- Svelte 5 is required only for the Svelte adapter entrypoints (`/svelte`, `/svelte/advanced`)
 - A browser/runtime with WebGPU support
 - Secure context (`https://` or `localhost`)
 
@@ -144,7 +164,7 @@ npm i @motion-core/motion-gpu
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
 	const material = defineMaterial({
 		fragment: `
@@ -167,7 +187,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- App.svelte -->
 <script lang="ts">
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 	import Runtime from './Runtime.svelte';
 
 	const material = defineMaterial({
@@ -191,7 +211,7 @@ fn frag(uv: vec2f) -> vec4f {
 ```svelte
 <!-- Runtime.svelte -->
 <script lang="ts">
-	import { useFrame } from '@motion-core/motion-gpu';
+	import { useFrame } from '@motion-core/motion-gpu/svelte';
 
 	useFrame((state) => {
 		state.setUniform('uTime', state.time);

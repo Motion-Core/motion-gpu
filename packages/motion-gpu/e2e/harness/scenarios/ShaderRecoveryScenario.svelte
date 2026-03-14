@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import FragCanvas from '../../../src/lib/FragCanvas.svelte';
+	import FragCanvas from '../../../src/lib/svelte/FragCanvas.svelte';
 	import { defineMaterial, type FragMaterial } from '../../../src/lib/core/material';
 	import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 	import RuntimeProbe, { type RuntimeControls } from '../RuntimeProbe.svelte';

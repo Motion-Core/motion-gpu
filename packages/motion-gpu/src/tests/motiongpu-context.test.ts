@@ -1,6 +1,6 @@
 import { render, waitFor } from '@testing-library/svelte';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { MotionGPUContext } from '../lib/motiongpu-context';
+import type { MotionGPUContext } from '../lib/svelte/motiongpu-context';
 import MotionGPUOutside from './fixtures/MotionGPUOutside.svelte';
 import MotionGPUWithProbe from './fixtures/MotionGPUWithProbe.svelte';
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useMotionGPUUserContext } from '../../lib/use-motiongpu-user-context';
+	import { useMotionGPUUserContext } from '../../lib/svelte/use-motiongpu-user-context';
 
 	useMotionGPUUserContext();
 </script>

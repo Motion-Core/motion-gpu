@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { currentWritable } from '../lib/current-writable';
+import { createCurrentWritable } from '../lib/core/current-value';
 
 describe('currentWritable', () => {
 	it('keeps synchronous current value in sync with set and update', () => {
-		const store = currentWritable(1);
+		const store = createCurrentWritable(1);
 		expect(store.current).toBe(1);
 
 		store.set(4);
@@ -14,7 +14,7 @@ describe('currentWritable', () => {
 	});
 
 	it('emits changes through subscriptions in order', () => {
-		const store = currentWritable('a');
+		const store = createCurrentWritable('a');
 		const values: string[] = [];
 		const unsubscribe = store.subscribe((value) => values.push(value));
 
@@ -28,7 +28,7 @@ describe('currentWritable', () => {
 
 	it('invokes optional onChange callback for writes only', () => {
 		const onChange = vi.fn();
-		const store = currentWritable({ count: 0 }, onChange);
+		const store = createCurrentWritable({ count: 0 }, onChange);
 
 		expect(onChange).not.toHaveBeenCalled();
 		store.set({ count: 1 });

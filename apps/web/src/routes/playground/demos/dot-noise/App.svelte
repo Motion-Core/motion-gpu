@@ -7,7 +7,7 @@
 	// ACES Tonemap reference:
 	// https://www.shadertoy.com/view/Xc3yzM
 	//
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu';
+	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 
 	const material = defineMaterial({
 		fragment: `

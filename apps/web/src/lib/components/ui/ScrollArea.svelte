@@ -13,8 +13,9 @@
 	};
 
 	let { class: className, id, children, style, viewportClass, viewportStyle }: Props = $props();
+	const viewportId = $derived(id ?? undefined);
 
-	let viewport: HTMLDivElement;
+	let viewport = $state<HTMLDivElement | null>(null);
 	let isDragging = $state(false);
 	let startY = 0;
 	let startScrollTop = 0;
@@ -56,6 +57,7 @@
 	}
 
 	function onDragStart(e: MouseEvent) {
+		if (!viewport) return;
 		e.preventDefault();
 		e.stopPropagation();
 		isDragging = true;
@@ -68,7 +70,7 @@
 	}
 
 	function onDragMove(e: MouseEvent) {
-		if (!isDragging) return;
+		if (!isDragging || !viewport) return;
 		const deltaY = e.clientY - startY;
 
 		const { clientHeight, scrollHeight } = viewport;
@@ -89,6 +91,41 @@
 		document.removeEventListener('mousemove', onDragMove);
 		document.removeEventListener('mouseup', onDragEnd);
 		document.body.style.userSelect = '';
+	}
+
+	function onThumbKeyDown(event: KeyboardEvent) {
+		if (!viewport) return;
+
+		const lineStep = 40;
+		const pageStep = Math.max(40, Math.floor(viewport.clientHeight * 0.9));
+		const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+
+		switch (event.key) {
+			case 'ArrowUp':
+				event.preventDefault();
+				viewport.scrollTop = Math.max(0, viewport.scrollTop - lineStep);
+				break;
+			case 'ArrowDown':
+				event.preventDefault();
+				viewport.scrollTop = Math.min(maxScroll, viewport.scrollTop + lineStep);
+				break;
+			case 'PageUp':
+				event.preventDefault();
+				viewport.scrollTop = Math.max(0, viewport.scrollTop - pageStep);
+				break;
+			case 'PageDown':
+				event.preventDefault();
+				viewport.scrollTop = Math.min(maxScroll, viewport.scrollTop + pageStep);
+				break;
+			case 'Home':
+				event.preventDefault();
+				viewport.scrollTop = 0;
+				break;
+			case 'End':
+				event.preventDefault();
+				viewport.scrollTop = maxScroll;
+				break;
+		}
 	}
 
 	onMount(() => {
@@ -112,7 +149,7 @@
 <div class={cn('relative flex flex-col overflow-hidden', className)} {style}>
 	<div
 		bind:this={viewport}
-		{id}
+		id={viewportId}
 		class={cn(
 			'scrollbar-hide min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto',
 			viewportClass
@@ -133,22 +170,25 @@
 			onmouseleave={() => (isHoveringTrack = false)}
 			role="presentation"
 		>
-			<div
-				role="scrollbar"
-				aria-controls="viewport"
-				aria-orientation="vertical"
-				aria-valuenow={thumbTop}
-				tabindex="0"
-				class={cn(
-					'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
-					isDragging && 'bg-foreground/50'
-				)}
-				style:height="{thumbHeight}px"
-				style:transform="translate3d(0, {thumbTop}px, 0)"
-				onmousedown={onDragStart}
-			></div>
-		</div>
-	{/if}
+				<div
+					role="scrollbar"
+					aria-controls={viewportId}
+					aria-orientation="vertical"
+					aria-valuemin={0}
+					aria-valuemax={Math.max(0, viewport ? viewport.scrollHeight - viewport.clientHeight : 0)}
+					aria-valuenow={viewport?.scrollTop ?? 0}
+					tabindex="0"
+					class={cn(
+						'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
+						isDragging && 'bg-foreground/50'
+					)}
+					style:height="{thumbHeight}px"
+					style:transform="translate3d(0, {thumbTop}px, 0)"
+					onmousedown={onDragStart}
+					onkeydown={onThumbKeyDown}
+				></div>
+			</div>
+		{/if}
 </div>
 
 <style>

@@ -136,6 +136,7 @@
 
 	$effect(() => {
 		const hash = page.url.hash;
+		let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 		if (hash) {
 			const id = hash.substring(1);
 
@@ -153,10 +154,16 @@
 
 			tick().then(() => {
 				if (!scrollToElement()) {
-					setTimeout(scrollToElement, 100);
+					fallbackTimer = setTimeout(scrollToElement, 100);
 				}
 			});
 		}
+
+		return () => {
+			if (fallbackTimer) {
+				clearTimeout(fallbackTimer);
+			}
+		};
 	});
 </script>
 

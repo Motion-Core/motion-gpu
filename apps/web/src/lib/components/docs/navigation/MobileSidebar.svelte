@@ -40,7 +40,7 @@
 	</a>
 	<button
 		onclick={toggle}
-		class="-mr-2 inline-flex size-10 items-center justify-center gap-2 text-sm whitespace-nowrap text-foreground transition-colors duration-150 ease-out hover:bg-background-inset sm:hidden"
+		class="-mr-2 inline-flex size-10 items-center justify-center gap-2 text-sm whitespace-nowrap text-foreground transition-colors duration-150 ease-out hover:bg-background-inset lg:hidden"
 		aria-label="Toggle menu"
 	>
 		<Menu size={20} />

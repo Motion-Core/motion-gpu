@@ -490,7 +490,7 @@
 				{/if}
 			</div>
 
-			<ol class="relative flex flex-col pl-3 text-xs" bind:this={linksWrapper}>
+			<ol class="relative flex flex-col pl-3 text-sm" bind:this={linksWrapper}>
 				{#each headings as heading (heading.id)}
 					<li
 						class="transition-colors duration-150 ease-out"

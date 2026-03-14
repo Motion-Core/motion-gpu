@@ -64,12 +64,14 @@
 	class="sidebar fixed inset-y-0 right-0 z-50 w-3/4 max-w-sm overflow-hidden border-l border-border bg-background-inset text-foreground-muted shadow-xl lg:hidden"
 	class:active={isOpen}
 >
-	<div class="absolute top-0 right-0 flex justify-end p-4">
-		<button onclick={close} aria-label="Close menu">
-			<Close size={32} class="size-6" />
-		</button>
-	</div>
-	<DocsSidebar />
+	{#if isOpen}
+		<div class="absolute top-0 right-0 flex justify-end p-4">
+			<button onclick={close} aria-label="Close menu">
+				<Close size={32} class="size-6" />
+			</button>
+		</div>
+		<DocsSidebar />
+	{/if}
 </div>
 
 <style>

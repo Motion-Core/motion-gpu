@@ -499,7 +499,7 @@
 						<a
 							href={`#${heading.id}`}
 							class={cn(
-								'block max-w-44 truncate py-1 font-medium transition-[color] duration-150 ease-out',
+								'block max-w-48 truncate py-1 font-medium transition-[color] duration-150 ease-out',
 								isLinkHighlighted(heading.id)
 									? 'text-accent'
 									: 'text-foreground-muted hover:text-foreground'

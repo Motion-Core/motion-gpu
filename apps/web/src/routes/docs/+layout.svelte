@@ -94,9 +94,7 @@
 		});
 	});
 	const rawDocSlug = $derived(
-		metadata
-			? metadata.href.replace(/^\/docs(?:\/|$)/, '').replace(/\/+$/, '') || 'index'
-			: null
+		metadata ? metadata.href.replace(/^\/docs(?:\/|$)/, '').replace(/\/+$/, '') || 'index' : null
 	);
 	const rawPath = $derived(rawDocSlug ? `/docs/raw/${rawDocSlug}` : null);
 	const docOrigin = $derived(props.data.docOrigin);
@@ -194,60 +192,66 @@
 	{/if}
 </svelte:head>
 
-<main class="relative h-dvh bg-background text-foreground lg:py-4">
+<main class="relative h-dvh bg-background text-foreground">
 	<MobileSidebar />
 
-	<aside class="fixed top-0 left-0 hidden w-88 shrink-0 lg:block">
-		<DocsSidebar />
-	</aside>
-
 	<div
-		class="inset-shadow relative mx-auto h-full w-full max-w-4xl overflow-hidden border border-border bg-background-inset pt-12 md:overflow-visible lg:ml-88 lg:max-h-[calc(100dvh-2rem)] lg:rounded-xl lg:pt-0 xl:mr-88"
+		class="flex h-full w-full min-w-0 lg:grid lg:grid-cols-[22rem_minmax(0,1fr)] xl:grid-cols-[22rem_minmax(0,56rem)_minmax(0,1fr)]"
 	>
-		<ScrollArea
-			id="docs-content-container"
-			class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
-			viewportClass="rounded-lg overscroll-none flex flex-col gap-8 px-4 py-8 lg:px-8"
+		<aside class="hidden lg:block">
+			<DocsSidebar />
+		</aside>
+
+		<div
+			class="inset-shadow relative mx-auto h-full w-full max-w-4xl min-w-0 overflow-hidden border border-border bg-background-inset pt-12 md:overflow-visible lg:my-4 lg:mr-4 lg:max-h-[calc(100dvh-2rem)] lg:rounded-xl lg:pt-0 xl:mr-0"
 		>
-			<section class="min-w-0 flex-1 space-y-8">
-				{#if metadata}
-					<div class="space-y-4">
-						{#if currentDoc?.category}
-							<p class="mb-2 text-sm font-medium text-foreground/45 capitalize">
-								{currentDoc.category}
-							</p>
-						{/if}
-						<h1 class="font-display scroll-m-20 text-3xl font-medium text-foreground">
-							{metadata.name || metadata.title}
-						</h1>
-						{#if metadata.description}
-							<p class="max-w-4xl text-base font-normal text-foreground-muted">
-								{metadata.description}
-							</p>
-						{/if}
+			<ScrollArea
+				id="docs-content-container"
+				class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
+				viewportClass="rounded-lg overscroll-none flex flex-col gap-8 px-4 py-8 lg:px-8"
+			>
+				<section class="min-w-0 flex-1 space-y-8">
+					{#if metadata}
+						<div class="space-y-4">
+							{#if currentDoc?.category}
+								<p class="mb-2 text-sm font-medium text-foreground/45 capitalize">
+									{currentDoc.category}
+								</p>
+							{/if}
+							<h1 class="font-display scroll-m-20 text-3xl font-medium text-foreground">
+								{metadata.name || metadata.title}
+							</h1>
+							{#if metadata.description}
+								<p class="max-w-4xl text-base font-normal text-foreground-muted">
+									{metadata.description}
+								</p>
+							{/if}
 
-						{#if metadata && rawPath && rawUrl && githubUrl}
-							<MobileDocShareActions {rawPath} {rawUrl} {githubUrl} />
-						{/if}
+							{#if metadata && rawPath && rawUrl && githubUrl}
+								<MobileDocShareActions {rawPath} {rawUrl} {githubUrl} />
+							{/if}
+						</div>
+						<hr class="text-border" />
+					{/if}
+
+					<div>
+						{@render renderChildren?.()}
+
+						<DocNavigation previous={previousLink} next={nextLink} />
 					</div>
-					<hr class="text-border" />
-				{/if}
-
-				<div>
-					{@render renderChildren?.()}
-
-					<DocNavigation previous={previousLink} next={nextLink} />
-				</div>
-			</section>
-		</ScrollArea>
-	</div>
-
-	<aside class="fixed top-8 right-8 hidden h-[calc(100dvh-4rem)] w-53 shrink-0 flex-col xl:flex">
-		<div class="flex-1">
-			<TableOfContents selector={tocSelector} />
+				</section>
+			</ScrollArea>
 		</div>
-		{#if metadata && rawPath && rawUrl && githubUrl}
-			<DocShareActions {rawPath} {rawUrl} {githubUrl} />
-		{/if}
-	</aside>
+
+		<aside class="hidden min-w-0 xl:block xl:py-8 xl:pr-4 xl:pl-4">
+			<div class="sticky top-8 flex h-full max-h-[calc(100dvh-4rem)] min-h-0 flex-col">
+				<div class="min-h-0 flex-1">
+					<TableOfContents selector={tocSelector} />
+				</div>
+				{#if metadata && rawPath && rawUrl && githubUrl}
+					<DocShareActions {rawPath} {rawUrl} {githubUrl} />
+				{/if}
+			</div>
+		</aside>
+	</div>
 </main>

@@ -18,7 +18,7 @@ This guide walks you through installing MotionGPU and building your first fullsc
 
 <InstallationTabs />
 
-Adapter peer dependency: `svelte ^5` (required for `@motion-core/motion-gpu/svelte`).
+Adapter peer dependency: `svelte ^5` (optional peer, required only when using `@motion-core/motion-gpu/svelte`).
 
 ## Step 1: Draw a static gradient
 
@@ -93,160 +93,24 @@ fn frag(uv: vec2f) -> vec4f {
 
 1. `uniforms: { uTime: { type: 'f32', value: 0 } }` declares a single `f32` uniform with initial value `0`.
 2. In the fragment shader, `uTime` is available as `motiongpuUniforms.uTime` — the library generates the binding automatically.
-3. `useFrame` registers a task that runs **every frame** before rendering. `state.time` is the `requestAnimationFrame` timestamp in seconds.
+3. `useFrame` registers a task that runs **every frame** before rendering. `state.time` is the `requestAnimationFrame` timestamp in seconds (monotonic clock).
 4. `state.setUniform('uTime', state.time)` updates the uniform value in the runtime override map. The renderer writes only dirty ranges to the GPU buffer.
 
-## Step 3: Add mouse interaction
+## Step 3: Run this baseline in your app
 
-You can declare multiple uniforms. Here we add a `vec2f` for the mouse position:
+At this point you have the minimal production baseline:
+1. strict `frag(...)` contract,
+2. validated immutable material,
+3. runtime updates via `useFrame` in canvas subtree.
 
-```svelte
-<!-- App.svelte -->
-<script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
-  import Runtime from './Runtime.svelte';
+## What is covered here vs Examples
 
-  const material = defineMaterial({
-    fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let dist = distance(uv, motiongpuUniforms.uMouse);
-  let glow = 0.02 / (dist * dist + 0.001);
-  let color = vec3f(glow * 0.3, glow * 0.6, glow);
-  return vec4f(color, 1.0);
-}
-`,
-    uniforms: {
-      uTime: 0,
-      uMouse: [0.5, 0.5]
-    }
-  });
-</script>
-
-<FragCanvas {material}>
-  <Runtime />
-</FragCanvas>
-```
-
-```svelte
-<!-- Runtime.svelte -->
-<script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-  let mouseX = 0.5;
-  let mouseY = 0.5;
-
-  $effect(() => {
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-
-    const handler = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouseX = (e.clientX - rect.left) / rect.width;
-      mouseY = 1.0 - (e.clientY - rect.top) / rect.height;
-    };
-
-    canvas.addEventListener('pointermove', handler);
-    return () => canvas.removeEventListener('pointermove', handler);
-  });
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-    state.setUniform('uMouse', [mouseX, mouseY]);
-  });
-</script>
-```
-
-**What is new here:**
-
-1. `uMouse: [0.5, 0.5]` uses the **shorthand form** — a two-element array is automatically inferred as `vec2f`.
-2. `uTime: 0` also uses shorthand — a plain number is inferred as `f32`.
-3. `useMotionGPU()` gives access to the canvas element and other runtime state.
-4. The Y coordinate is flipped (`1.0 - ...`) because UV space has `(0, 0)` at bottom-left, while DOM coordinates have `(0, 0)` at top-left.
-
-## Step 4: Switch to on-demand rendering
-
-By default, `FragCanvas` renders every frame (`renderMode: 'always'`). For UIs that only change on interaction, switch to `on-demand`:
-
-```svelte
-<!-- Runtime.svelte -->
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-
-  $effect(() => {
-    gpu.renderMode.set('on-demand');
-  });
-</script>
-```
-
-In `on-demand` mode, the canvas only re-renders when something calls `gpu.invalidate()` or when a `useFrame` task's invalidation policy fires. Switching to `on-demand` automatically triggers one initial render so the canvas is not blank.
-
-For fully manual control, use `'manual'` mode and call `gpu.advance()` to request exactly one frame.
-
-## Step 5: Add a post-process pass
-
-MotionGPU supports post-processing through pass classes. Here is a simple vignette:
-
-```svelte
-<script lang="ts">
-  import { FragCanvas, defineMaterial, ShaderPass } from '@motion-core/motion-gpu/svelte';
-  import Runtime from './Runtime.svelte';
-
-  const material = defineMaterial({
-    fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let wave = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
-  return vec4f(vec3f(wave), 1.0);
-}
-`,
-    uniforms: { uTime: 0 }
-  });
-
-  const vignette = new ShaderPass({
-    fragment: `
-fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-  let dist = distance(uv, vec2f(0.5, 0.5));
-  let v = smoothstep(0.9, 0.35, dist);
-  return vec4f(inputColor.rgb * v, inputColor.a);
-}
-`
-  });
-</script>
-
-<FragCanvas {material} passes={[vignette]}>
-  <Runtime />
-</FragCanvas>
-```
-
-**Note the different contract**: pass fragments use `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`, not `fn frag(...)`. The `inputColor` argument receives the output of the previous pass (or the base shader).
+- This page: quickest path from zero to first animated shader.
+- [Examples](/docs/examples): practical recipes (interaction, render modes, textures, post-processing, multi-pass chains).
 
 ## Recommended first-production checklist
 
-1. **Keep the shader contract strict** — `fn frag(uv: vec2f) -> vec4f` for materials, `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` for passes.
-2. **Define uniform names and types upfront** in `defineMaterial`. Mismatches throw.
-3. **Pick render mode intentionally** — `always` burns battery; `on-demand` is better for interactive UIs.
-4. **Set `maxDelta`** if your callbacks can become unstable when the browser throttles background-inset tabs (default is `0.1s`).
-5. **Wire `onError`** for telemetry and decide error UI strategy explicitly: default overlay, custom `errorRenderer`, or no UI (`showErrorOverlay={false}`).
-
-## Advanced entrypoint
-
-For power-user APIs (namespaced shared user state and scheduler tooling):
-
-```ts
-import {
-  useMotionGPUUserContext,
-  setMotionGPUUserContext,
-  applySchedulerPreset,
-  captureSchedulerDebugSnapshot
-} from '@motion-core/motion-gpu/svelte/advanced';
-```
-
-See [User Context (Advanced)](/docs/user-context) and [Render Modes and Scheduling](/docs/render-modes) for details.
-
-## Next steps
-
-- [Writing WGSL Shaders](/docs/writing-shaders) — WGSL authoring patterns specific to MotionGPU.
-- [Defining Materials](/docs/defining-materials) — deep dive into the material pipeline.
-- [Frame Scheduler](/docs/frame-scheduler) — everything about `useFrame`, invalidation, and timing.
+1. Keep shader contracts strict (`frag` for material, `shade` for passes).
+2. Predeclare every runtime-updated uniform/texture in `defineMaterial`.
+3. Select render mode intentionally (`always`, `on-demand`, `manual`) for your workload.
+4. Wire `onError` and decide overlay strategy (`showErrorOverlay`/custom renderer).

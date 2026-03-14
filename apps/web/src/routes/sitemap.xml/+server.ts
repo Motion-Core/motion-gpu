@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { docsManifest } from '$lib/docs/manifest';
+import { docsManifest, getDocHref } from '$lib/docs/manifest';
 import { siteConfig } from '$lib/config/site';
 
 type SitemapEntry = {
@@ -40,7 +40,7 @@ const dedupeEntries = (entries: SitemapEntry[]) => {
 export const GET: RequestHandler = () => {
 	const canonicalOrigin = new URL(siteConfig.url).origin;
 	const docEntries: SitemapEntry[] = docsManifest.map((doc) => ({
-		path: `/docs/${doc.slug}`,
+		path: getDocHref(doc.slug),
 		changefreq: 'weekly',
 		priority: '0.8'
 	}));

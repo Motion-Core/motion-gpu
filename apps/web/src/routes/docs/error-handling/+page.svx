@@ -3,7 +3,7 @@ title: Error Handling
 description: Understanding the error normalization pipeline, structured reports, and diagnostics.
 ---
 
-MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behaviour, shader compile diagnostics, device loss handling, and retry strategy.
+MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
 
 ## Error normalization pipeline
 
@@ -70,7 +70,7 @@ The normalizer matches error messages against known patterns and assigns appropr
 | `Destination texture needs to have CopyDst` | Invalid texture usage flags | Texture used as upload destination must include CopyDst (and often RenderAttachment). |
 | *(fallback)* | MotionGPU render error | Review technical details below. If issue persists, isolate shader/uniform/texture changes. |
 
-## Overlay behaviour
+## Overlay behavior
 
 By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.svelte` (rendered via `Portal.svelte`):
 
@@ -80,7 +80,7 @@ By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.
 | `errorRenderer` | `undefined` | Optional custom renderer snippet that replaces the default overlay UI |
 | `onError` | `undefined` | Callback invoked with the normalized report |
 
-### Key behaviours
+### Key behaviors
 
 - Even when `showErrorOverlay` is `false`, `onError` is still called.
 - With `errorRenderer` set and `showErrorOverlay=true`, custom UI is rendered instead of the default overlay.

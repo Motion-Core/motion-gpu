@@ -11,10 +11,14 @@
 	import ChevronRight from 'carbon-icons-svelte/lib/ChevronRight.svelte';
 	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
 
-	const currentPath = $derived(page.url.pathname);
+	const currentPath = $derived(
+		page.url.pathname.length > 1 ? page.url.pathname.replace(/\/+$/, '') : page.url.pathname
+	);
 	const githubUrl = siteConfig.links.github;
 
 	let expandedGroups = $state<Record<string, boolean>>({});
+
+	const docHref = (slug: string) => (slug ? `/docs/${slug}` : '/docs');
 
 	function toggleGroup(slug: string) {
 		expandedGroups[slug] = !expandedGroups[slug];
@@ -24,7 +28,7 @@
 		const allDocs = [...docsNavigation];
 		for (const doc of allDocs) {
 			if (doc.items?.length) {
-				const isChildActive = doc.items.some((item) => `/docs/${item.slug}` === currentPath);
+				const isChildActive = doc.items.some((item) => docHref(item.slug) === currentPath);
 				if (isChildActive && expandedGroups[doc.slug] === undefined) {
 					expandedGroups[doc.slug] = true;
 				}
@@ -63,7 +67,7 @@
 				{#if doc.items?.length}
 					{@const isGroupActive =
 						expandedGroups[doc.slug] ??
-						doc.items.some((item) => `/docs/${item.slug}` === currentPath)}
+						doc.items.some((item) => docHref(item.slug) === currentPath)}
 					<button
 						onclick={() => toggleGroup(doc.slug)}
 						class={cn(
@@ -82,7 +86,7 @@
 							class="relative flex flex-col gap-1 overflow-hidden pl-5 before:absolute before:top-1 before:bottom-1 before:left-3 before:w-px before:bg-border"
 						>
 							{#each doc.items as item (item.slug)}
-								{@const href = `/docs/${item.slug}`}
+								{@const href = docHref(item.slug)}
 								{@const isActive = currentPath === href}
 								<a
 									{href}
@@ -99,7 +103,7 @@
 						</div>
 					{/if}
 				{:else}
-					{@const href = `/docs/${doc.slug}`}
+					{@const href = docHref(doc.slug)}
 					{@const isActive = currentPath === href}
 					<a
 						{href}

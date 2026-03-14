@@ -129,7 +129,7 @@ If you are new to WGSL, here are the most common types and functions used in fra
 
 ### UV gradient
 
-The simplest shader maps UV coordinates directly to colours:
+The simplest shader maps UV coordinates directly to colors:
 
 ```wgsl
 fn frag(uv: vec2f) -> vec4f {

@@ -1,0 +1,116 @@
+---
+title: Hooks API
+description: "Reference for runtime hooks: useFrame, useMotionGPU, useTexture, and user context APIs."
+---
+
+Reference for hook-based runtime control in the Svelte adapter.
+
+## Entrypoints
+
+| Entrypoint | Exports |
+| --- | --- |
+| `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `useTexture` |
+| `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
+
+## Context rule
+
+`useFrame()`, `useMotionGPU()`, and `useMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
+
+## `useFrame`
+
+```ts
+useFrame(callback: (state: FrameState) => void, options?: UseFrameOptions)
+useFrame(key: FrameKey, callback: (state: FrameState) => void, options?: UseFrameOptions)
+```
+
+### `UseFrameOptions`
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `autoStart` | `boolean` | `true` |
+| `autoInvalidate` | `boolean` | `true` |
+| `invalidation` | `FrameTaskInvalidation` | Implicit |
+| `stage` | `FrameKey \| FrameStage` | Main stage |
+| `before` | task ref or list | `undefined` |
+| `after` | task ref or list | `undefined` |
+| `running` | `() => boolean` | `undefined` |
+
+Dependency validation is strict: cyclic graphs and missing `before`/`after` references throw.
+
+### `FrameState`
+
+| Field | Type |
+| --- | --- |
+| `time` | `number` |
+| `delta` | `number` |
+| `canvas` | `HTMLCanvasElement` |
+| `renderMode` | `RenderMode` |
+| `autoRender` | `boolean` |
+| `setUniform` | `(name: string, value: UniformValue) => void` |
+| `setTexture` | `(name: string, value: TextureValue) => void` |
+| `invalidate` | `(token?: FrameInvalidationToken) => void` |
+| `advance` | `() => void` |
+
+## `useMotionGPU`
+
+Returns runtime context controls:
+- reactive size/dpr/mode stores
+- scheduler handle
+- `invalidate()` and `advance()`
+- access to shared `user` current-writable map
+
+See: [Hooks and Context](/docs/hooks-and-context).
+
+## `useTexture(urlInput, options?)`
+
+### URL input
+
+| Form | Type |
+| --- | --- |
+| Static | `string[]` |
+| Dynamic | `() => string[]` |
+
+### `TextureLoadOptions`
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `colorSpace` | `'srgb' \| 'linear'` | `'srgb'` |
+| `requestInit` | `RequestInit` | `undefined` |
+| `decode` | `TextureDecodeOptions` | Auto |
+| `signal` | `AbortSignal` | `undefined` |
+| `update` | `TextureUpdateMode` | `undefined` |
+| `flipY` | `boolean` | `undefined` |
+| `premultipliedAlpha` | `boolean` | `undefined` |
+| `generateMipmaps` | `boolean` | `undefined` |
+
+### Return: `UseTextureResult`
+
+| Field | Type |
+| --- | --- |
+| `textures` | `CurrentReadable<LoadedTexture[] \| null>` |
+| `loading` | `CurrentReadable<boolean>` |
+| `error` | `CurrentReadable<Error \| null>` |
+| `reload` | `() => Promise<void>` |
+
+## Advanced user context
+
+```ts
+useMotionGPUUserContext(): CurrentReadable<Record<MotionGPUUserNamespace, unknown>>
+useMotionGPUUserContext<T>(namespace: MotionGPUUserNamespace): CurrentReadable<T | undefined>
+```
+
+```ts
+setMotionGPUUserContext<T>(
+  namespace: MotionGPUUserNamespace,
+  value: T | (() => T),
+  options?: SetMotionGPUUserContextOptions
+): T | undefined
+```
+
+`SetMotionGPUUserContextOptions`:
+
+| Field | Values | Default |
+| --- | --- | --- |
+| `existing` | `'skip' \| 'replace' \| 'merge'` | `'skip'` |
+
+See: [User Context](/docs/user-context).

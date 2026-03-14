@@ -3,7 +3,7 @@ title: FragCanvas Reference
 description: Complete prop reference and usage guide for the main FragCanvas component.
 ---
 
-This is the complete prop reference for the `FragCanvas` Svelte component — the main entry point for using MotionGPU.
+This is the complete prop reference for the `FragCanvas` Svelte component — the main entrypoint for using MotionGPU.
 
 ## Import
 
@@ -38,8 +38,8 @@ import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `clearColor` | `[number, number, number, number]` | `[0, 0, 0, 1]` | RGBA clear colour applied before the base pass. |
-| `outputColorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Canvas output colour space. **Changing triggers renderer rebuild.** |
+| `clearColor` | `[number, number, number, number]` | `[0, 0, 0, 1]` | RGBA clear color applied before the base pass. |
+| `outputColorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Canvas output color space. **Changing triggers renderer rebuild.** |
 | `renderMode` | `'always'` \| `'on-demand'` \| `'manual'` | `'always'` | Controls frame rendering frequency. |
 | `autoRender` | `boolean` | `true` | Hard gate — when `false`, no rendering occurs regardless of render mode. |
 | `maxDelta` | `number` | `0.1` | Maximum frame delta in seconds (clamps `state.delta`). Must be `> 0`. |

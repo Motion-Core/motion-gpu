@@ -3,7 +3,7 @@ title: Textures
 description: Declaring textures, configuring samplers, and managing runtime texture updates.
 ---
 
-This page covers texture declarations in `defineMaterial`, the runtime texture value forms, update modes, upload behaviour, mipmap generation, and sampler configuration.
+This page covers texture declarations in `defineMaterial`, the runtime texture value forms, update modes, upload behavior, mipmap generation, and sampler configuration.
 
 For loading textures from URLs, see [Loading Textures](/docs/texture-loading).
 
@@ -41,7 +41,7 @@ Each texture named `uFoo` creates two WGSL bindings:
 | `colorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Determines GPU format: `rgba8unorm-srgb` vs `rgba8unorm` |
 | `flipY` | `boolean` | `true` | Flips texture vertically during upload |
 | `generateMipmaps` | `boolean` | `false` | Enables CPU-generated mip chain after upload |
-| `premultipliedAlpha` | `boolean` | `false` | Upload premultiplication behaviour |
+| `premultipliedAlpha` | `boolean` | `false` | Upload premultiplication behavior |
 | `update` | `'once'` \| `'onInvalidate'` \| `'perFrame'` | Inferred from source | Runtime refresh policy |
 | `anisotropy` | `number` | `1` | Anisotropic filtering level (clamped to `1..16`) |
 | `filter` | `GPUFilterMode` | `'linear'` | Min/mag filter mode (`'nearest'` or `'linear'`) |
@@ -85,7 +85,7 @@ Because the source is an `HTMLVideoElement`, the update mode is automatically se
 
 The update mode controls **when** the texture is re-uploaded to the GPU:
 
-| Mode | Behaviour |
+| Mode | Behavior |
 | --- | --- |
 | `'once'` | Upload only on first bind or when the source object / dimensions / format change |
 | `'onInvalidate'` | Upload when the scheduler fires an invalidation, or on source change |
@@ -97,7 +97,7 @@ The update mode controls **when** the texture is re-uploaded to the GPU:
 2. **Definition default** — `TextureDefinition.update` (from `defineMaterial({ textures: { ... } })`)
 3. **Automatic fallback** — `HTMLVideoElement` → `perFrame`, everything else → `once`
 
-## Upload behaviour
+## Upload behavior
 
 The renderer decides how to handle each texture per frame:
 

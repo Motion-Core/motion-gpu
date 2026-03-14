@@ -19,7 +19,7 @@ export const getDocBySlug = (slug: string) => {
 };
 
 export const getDocHref = (slug: string) => {
-	return `/docs/${slug}`;
+	return slug ? `/docs/${slug}` : '/docs';
 };
 
 export const getAdjacentDocs = (slug: string) => {

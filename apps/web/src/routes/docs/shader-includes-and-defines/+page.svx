@@ -181,7 +181,7 @@ This is deterministic and part of the material signature, meaning changing a def
 | Loop iteration counts | ✅ | ❌ |
 | Values that change every frame | ❌ | ✅ |
 | Values controlled by user interaction | ❌ | ✅ |
-| Performance-critical constants | ✅ (enables compiler optimisation) | |
+| Performance-critical constants | ✅ (enables compiler optimization) | |
 
 **Key difference**: Defines are baked into the shader source at material definition time. Changing a define requires creating a new material and triggers a full pipeline rebuild. Uniforms are updated per-frame via buffer writes with no recompilation cost.
 
@@ -197,8 +197,8 @@ This means you see meaningful error locations even when your fragment expands to
 
 ## Practical tips
 
-1. **Keep includes general-purpose** — utility functions (noise, SDF helpers, colour space conversions) are ideal candidates.
+1. **Keep includes general-purpose** — utility functions (noise, SDF helpers, color space conversions) are ideal candidates.
 2. **Name includes clearly** — the key is used in error messages and diagnostics.
-3. **Use defines for branch elimination** — the WGSL compiler can optimise away dead branches when a bool constant is `false`.
+3. **Use defines for branch elimination** — the WGSL compiler can optimize away dead branches when a bool constant is `false`.
 4. **Use typed defines for integer loops** — `{ type: 'i32', value: N }` avoids the default `f32` inference.
-5. **Avoid putting `fn frag(...)` inside includes** — the entry point should stay in the main fragment for clarity.
+5. **Avoid putting `fn frag(...)` inside includes** — the entrypoint should stay in the main fragment for clarity.

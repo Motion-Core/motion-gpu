@@ -62,7 +62,7 @@ For clarity or for `mat4x4f`, use the explicit form:
 | `'vec2f'` | `[x, y]` | `vec2f` |
 | `'vec3f'` | `[x, y, z]` | `vec3f` |
 | `'vec4f'` | `[x, y, z, w]` | `vec4f` |
-| `'mat4x4f'` | 16-element number array | `mat4x4f` |
+| `'mat4x4f'` | 16-element number array or `Float32Array` | `mat4x4f` |
 
 ```ts
 uniforms: {
@@ -101,7 +101,7 @@ Uniforms are packed into a single `Float32Array` buffer following WGSL `std140`-
 | `vec4f` | 16 | 16 | 4 |
 | `mat4x4f` | 16 | 64 | 16 |
 
-### Packing behaviour
+### Packing behavior
 
 1. Uniform entries are **sorted alphabetically** by name.
 2. Each entry is placed at the next offset that satisfies its alignment requirement.
@@ -148,7 +148,7 @@ The renderer provides a built-in `motiongpuFrame` uniform buffer. You do **not**
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `motiongpuFrame.time` | `f32` | Elapsed time in seconds |
+| `motiongpuFrame.time` | `f32` | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
 | `motiongpuFrame.delta` | `f32` | Frame delta in seconds (clamped by `maxDelta`) |
 | `motiongpuFrame.resolution` | `vec2f` | Canvas size in physical pixels |
 

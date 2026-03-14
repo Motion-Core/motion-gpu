@@ -1,0 +1,40 @@
+---
+title: Core Runtime API
+description: Framework-agnostic root/core exports for adapter and runtime authors.
+---
+
+Reference for framework-neutral exports available from root and `/core` entrypoints.
+
+## Entrypoints
+
+| Entrypoint | Role |
+| --- | --- |
+| `@motion-core/motion-gpu` | Root framework-agnostic core entrypoint |
+| `@motion-core/motion-gpu/advanced` | Root advanced core entrypoint |
+
+## Core exports (`/` and `/core`)
+
+| Export | Kind | Purpose |
+| --- | --- | --- |
+| `defineMaterial` | function | Validates and freezes material definitions |
+| `resolveMaterial` | function | Resolves material for runtime consumption |
+| `createCurrentWritable` | function | Reactive primitive with synchronous `.current` access |
+| `createFrameRegistry` | function | Scheduler/task DAG engine |
+| `createMotionGPURuntimeLoop` | function | RAF loop and renderer lifecycle orchestration |
+| `loadTexturesFromUrls` | function | Framework-agnostic URL texture loader |
+| `toMotionGPUErrorReport` | function | Normalizes runtime/shader errors |
+| `ShaderPass` | class | Programmable post-process pass |
+| `BlitPass` | class | Fullscreen texture sample pass |
+| `CopyPass` | class | Copy pass with optimized direct-copy path |
+
+## Use cases
+
+- Building adapter layers for React/Vue/Solid/custom runtimes
+- Headless validation and tooling around materials/shaders
+- Runtime integrations where Svelte component API is not needed
+
+## Related docs
+
+- [Concepts and Architecture](/docs/concepts-and-architecture)
+- [Frame Scheduler](/docs/frame-scheduler)
+- [Error Handling](/docs/error-handling)

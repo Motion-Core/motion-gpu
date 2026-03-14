@@ -1,0 +1,77 @@
+---
+title: Passes API
+description: Reference for ShaderPass, BlitPass, CopyPass, and render pass slot contracts.
+---
+
+Reference for post-processing APIs shared by the Svelte adapter and core entrypoints.
+
+## Entrypoints
+
+| Entrypoint | Exports |
+| --- | --- |
+| `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass` |
+| `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass` |
+
+## Shared pass options
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `enabled` | `true` | Whether pass participates in current frame plan |
+| `needsSwap` | `true` | Swap `source`/`target` after execution |
+| `input` | `'source'` | Input slot (`source`, `target`, named target) |
+| `output` | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, named target) |
+| `clear` | `false` | Clear output before drawing |
+| `clearColor` | `[0, 0, 0, 1]` | RGBA clear color |
+| `preserve` | `true` | Preserve output after pass |
+
+## `ShaderPass`
+
+Programmable post-process pass.
+
+Required shader contract:
+
+```wgsl
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
+```
+
+Additional option:
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `fragment` | `string` | Required WGSL shader source |
+| `filter` | `GPUFilterMode` | Texture sampling mode |
+
+Runtime update API:
+
+```ts
+setFragment(nextFragment: string): void
+```
+
+## `BlitPass`
+
+Fullscreen texture sample pass with configurable `filter` (`'linear'` or `'nearest'`).
+
+## `CopyPass`
+
+Attempts direct GPU texture copy (`copyTextureToTexture`) and falls back to blit if conditions are not met.
+
+Direct-copy path requires all of:
+- `clear === false`
+- `preserve === true`
+- source and output are different textures
+- neither surface is `canvas`
+- matching dimensions and format
+
+## Slot constraints
+
+| Rule | Effect |
+| --- | --- |
+| `needsSwap: true` must be `input: 'source'` + `output: 'target'` | Invalid combinations throw |
+| `canvas` is output-only | `input: 'canvas'` throws |
+| Named targets must exist in `renderTargets` | Unknown target names throw |
+| Named targets must be written before read in frame plan | Read-before-write throws |
+
+## Related docs
+
+- [Render Passes](/docs/render-passes)
+- [Render Targets](/docs/render-targets)

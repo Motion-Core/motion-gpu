@@ -12,7 +12,7 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 | Goal | What it means in practice |
 | --- | --- |
 | **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, and texture bindings — not from live values. This makes rebuild triggers predictable. |
-| **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behaviour except what you explicitly opt into via `useFrame` invalidation policies. |
+| **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behavior except what you explicitly opt into via `useFrame` invalidation policies. |
 | **Minimal hidden magic** | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop. |
 | **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with a title, hint, and optional source snippet. The default overlay is opt-out and can be replaced with a custom renderer. |
 
@@ -56,7 +56,7 @@ packages/motion-gpu/src/lib/
 
 ## FragCanvas runtime lifecycle
 
-`FragCanvas` is the single entry point that ties everything together. Here is what happens from mount to destroy:
+`FragCanvas` is the single entrypoint that ties everything together. Here is what happens from mount to destroy:
 
 ### Initialization (mount)
 

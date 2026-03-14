@@ -130,7 +130,7 @@ Each loaded texture provides:
 | `source` | `ImageBitmap` | Decoded bitmap — pass to `state.setTexture` |
 | `width` | `number` | Bitmap width in pixels |
 | `height` | `number` | Bitmap height in pixels |
-| `colorSpace` | `'srgb'` \| `'linear'` | Effective colour space |
+| `colorSpace` | `'srgb'` \| `'linear'` | Effective color space |
 | `update` | `'once' \| 'onInvalidate' \| 'perFrame'` | Effective update mode metadata |
 | `flipY` | `boolean` | Effective flip-y metadata |
 | `premultipliedAlpha` | `boolean` | Effective premultiplied alpha metadata |

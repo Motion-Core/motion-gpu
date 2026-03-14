@@ -5,7 +5,7 @@ description: Framework-agnostic WebGPU core with a Svelte 5 adapter for fullscre
 
 `@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus a **Svelte 5 adapter** for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, and a composable post-processing pipeline — wired into a single `<FragCanvas>` component in the Svelte adapter.
 
-This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behaviour described here reflects the actual implementation.
+This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 
 ## What this package ships
 
@@ -28,8 +28,6 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 | `@motion-core/motion-gpu/advanced` | Core runtime plus scheduler helper utilities (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
 | `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `useTexture`, passes, material helpers) |
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
-| `@motion-core/motion-gpu/core` | Explicit alias of the framework-agnostic core entrypoint |
-| `@motion-core/motion-gpu/core/advanced` | Explicit alias of the framework-agnostic advanced core entrypoint |
 
 The export contract is verified in `src/tests/public-api.test.ts`.
 
@@ -77,42 +75,10 @@ These are enforced at runtime and will throw immediately if violated:
 | Texture `flipY` | `true` |
 | Texture `generateMipmaps` | `false` |
 
-## Documentation map
-
-### Foundations
-1. [Overview](/docs) — you are here
-2. [Concepts and Architecture](/docs/concepts-and-architecture)
-3. [Getting Started](/docs/getting-started)
-
-### Shader Authoring
-4. [Writing WGSL Shaders](/docs/writing-shaders)
-5. [Includes and Defines](/docs/shader-includes-and-defines)
-
-### Runtime Systems
-6. [Defining Materials](/docs/defining-materials)
-7. [Uniforms](/docs/uniforms)
-8. [Texture Definitions](/docs/textures)
-9. [Loading Textures](/docs/texture-loading)
-10. [Frame Scheduler](/docs/frame-scheduler)
-11. [Render Modes and Scheduling](/docs/render-modes)
-12. [Render Passes](/docs/render-passes)
-13. [Render Targets](/docs/render-targets)
-
-### Context and Hooks
-14. [Hooks and Context](/docs/hooks-and-context)
-15. [User Context (Advanced)](/docs/user-context)
-
-### Reference and Reliability
-16. [Error Handling and Diagnostics](/docs/error-handling)
-17. [FragCanvas Reference](/docs/fragcanvas-reference)
-18. [API Reference](/docs/api-reference)
-19. [Examples](/docs/examples)
-20. [Testing and Internal Notes](/docs/testing-and-internals)
-
 ## Scope and boundaries
 
 - This package targets **fullscreen fragment workflows** — it is not a general-purpose scene graph or 3D engine.
 - Root entrypoints (`@motion-core/motion-gpu`, `/advanced`) are framework-agnostic core APIs.
 - Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, future `/react`, `/vue`).
 - The Svelte runtime works without its advanced entrypoint; `@motion-core/motion-gpu/svelte/advanced` adds namespaced user state and extended scheduler ergonomics.
-- All documentation references behaviours currently implemented in the repository, including edge cases verified by the test suite.
+- All documentation references behaviors currently implemented in the repository, including edge cases verified by the test suite.

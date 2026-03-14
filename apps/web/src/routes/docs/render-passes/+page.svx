@@ -118,7 +118,7 @@ const blit = new BlitPass({
 | `input` | `'source'` | Input slot (`source`, `target`, or named target key) |
 | `output` | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, or named target key) |
 | `clear` | `false` | Clear output before drawing |
-| `clearColor` | `[0,0,0,1]` | RGBA clear colour |
+| `clearColor` | `[0,0,0,1]` | RGBA clear color |
 | `preserve` | `true` | Preserve output after pass ends |
 | `filter` | `'linear'` | Texture sampling filter |
 

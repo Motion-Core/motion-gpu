@@ -47,7 +47,7 @@ Invalidation sources:
 - `useFrame` tasks with `invalidation: { mode: 'on-change', token: ... }` when token changes
 - Switching **to** `on-demand` mode auto-injects one initial invalidation
 
-Best for: interactive UIs, data visualisation, infrequent updates.
+Best for: interactive UIs, data visualization, infrequent updates.
 
 ### `manual`
 

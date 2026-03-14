@@ -13,13 +13,13 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | --- | --- |
 | **Public API** | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape. |
 | **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
-| **FragCanvas** | WebGPU-unavailable behaviour, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, prop validation. |
+| **FragCanvas** | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, prop validation. |
 | **Context hooks** | `useMotionGPU` and `useFrame` throw when called outside `FragCanvas`. Context shape and exposed controls. |
 | **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes. |
-| **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behaviour, caching. |
+| **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching. |
 | **Uniforms** | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection. |
 | **Textures** | Defaults (`flipY: true`, `filter: 'linear'`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
-| **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behaviour, `ImageBitmap` disposal. |
+| **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal. |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support. |
 | **Error report** | Classification pattern matching, normalized output shape, source block extraction for WGSL errors, hint generation. |
@@ -105,7 +105,7 @@ bun run lint      # ESLint
 | --- | --- |
 | WebGPU availability varies by browser/platform | Always handle initialization failures. Test with `onError`. |
 | `autoRender = false` overrides all render modes | The RAF loop still runs, but no GPU work happens. |
-| `onInvalidate` texture mode is context-sensitive | Pair with an explicit invalidation token for predictable behaviour. |
+| `onInvalidate` texture mode is context-sensitive | Pair with an explicit invalidation token for predictable behavior. |
 | Handcrafted material objects are unsupported | Always use `defineMaterial(...)` — the renderer checks for the internal frozen structure. |
 | Changing defines or includes requires a new material | These are baked into the shader source and trigger full pipeline rebuilds. |
 | `mat4x4f` uniform type must use explicit form | Cannot be inferred from a 16-element array — use `{ type: 'mat4x4f', value: [...] }`. |

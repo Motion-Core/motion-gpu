@@ -5,8 +5,8 @@ export const docsNavigation: DocItem[] = [
 		slug: 'getting-started',
 		name: 'Getting Started',
 		items: [
+			{ slug: '', name: 'Overview' },
 			{ slug: 'getting-started', name: 'Introduction' },
-			{ slug: 'examples', name: 'Examples' },
 			{ slug: 'concepts-and-architecture', name: 'Concepts & Architecture' }
 		]
 	},
@@ -48,7 +48,11 @@ export const docsNavigation: DocItem[] = [
 		name: 'API Reference',
 		items: [
 			{ slug: 'fragcanvas-reference', name: 'FragCanvas' },
-			{ slug: 'api-reference', name: 'Full API Reference' }
+			{ slug: 'api-material-reference', name: 'Material API' },
+			{ slug: 'api-hooks-reference', name: 'Hooks API' },
+			{ slug: 'api-passes-reference', name: 'Passes API' },
+			{ slug: 'api-core-reference', name: 'Core Runtime API' },
+			{ slug: 'api-advanced-reference', name: 'Advanced API' }
 		]
 	},
 	{

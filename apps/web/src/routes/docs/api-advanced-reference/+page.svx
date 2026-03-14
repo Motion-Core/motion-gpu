@@ -1,0 +1,76 @@
+---
+title: Advanced API
+description: Scheduler helpers and user-context APIs from advanced entrypoints.
+---
+
+Reference for advanced exports split between core and Svelte adapter layers.
+
+## Entrypoints
+
+| Entrypoint | Exports |
+| --- | --- |
+| `@motion-core/motion-gpu/advanced` | Core + scheduler helper utilities |
+| `@motion-core/motion-gpu/svelte/advanced` | Svelte runtime API + scheduler helpers + user context APIs |
+
+## Scheduler helpers
+
+```ts
+applySchedulerPreset(
+  scheduler: MotionGPUScheduler,
+  preset: SchedulerPreset,
+  options?: ApplySchedulerPresetOptions
+): SchedulerPresetConfig
+```
+
+`SchedulerPreset`:
+
+```ts
+'performance' | 'balanced' | 'debug'
+```
+
+`ApplySchedulerPresetOptions`:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `diagnosticsEnabled` | `boolean` | Must match `profilingEnabled` in runtime |
+| `profilingEnabled` | `boolean` | Must match `diagnosticsEnabled` in runtime |
+| `profilingWindow` | `number` | Finite, `> 0`, rounded down |
+
+`SchedulerPresetConfig`:
+
+| Field | Type |
+| --- | --- |
+| `diagnosticsEnabled` | `boolean` |
+| `profilingEnabled` | `boolean` |
+| `profilingWindow` | `number` |
+
+```ts
+captureSchedulerDebugSnapshot(
+  scheduler: MotionGPUScheduler
+): SchedulerDebugSnapshot
+```
+
+`SchedulerDebugSnapshot`:
+
+| Field | Type |
+| --- | --- |
+| `diagnosticsEnabled` | `boolean` |
+| `profilingEnabled` | `boolean` |
+| `profilingWindow` | `number` |
+| `schedule` | `FrameScheduleSnapshot` |
+| `lastRunTimings` | `FrameRunTimings \| null` |
+| `profilingSnapshot` | `FrameProfilingSnapshot \| null` |
+
+## Svelte-only advanced exports
+
+Available only from `@motion-core/motion-gpu/svelte/advanced`:
+- `useMotionGPUUserContext`
+- `setMotionGPUUserContext`
+
+For detailed signatures: [Hooks API](/docs/api-hooks-reference).
+
+## Related docs
+
+- [User Context](/docs/user-context)
+- [Render Modes](/docs/render-modes)
+- [Frame Scheduler](/docs/frame-scheduler)

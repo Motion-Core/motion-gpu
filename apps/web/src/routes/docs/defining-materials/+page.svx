@@ -3,7 +3,7 @@ title: Defining Materials
 description: Creating immutable, validated materials with the defineMaterial API.
 ---
 
-`defineMaterial` is the entry point for creating materials in MotionGPU. It validates your inputs, freezes the result, and produces an immutable `FragMaterial` that `FragCanvas` uses to build the WebGPU rendering pipeline.
+`defineMaterial` is the entrypoint for creating materials in MotionGPU. It validates your inputs, freezes the result, and produces an immutable `FragMaterial` that `FragCanvas` uses to build the WebGPU rendering pipeline.
 
 ## Basic usage
 
@@ -46,7 +46,7 @@ fn frag(uv: vec2f) -> vec4f
 ## What `defineMaterial` does internally
 
 1. **Validates the fragment contract** — checks entrypoint name, parameter contract, and return type.
-2. **Normalizes uniforms** — validates identifier names, infers types from values, sorts alphabetically.
+2. **Normalizes uniforms** — validates identifier names, infers types from values, preserves input order (layout/sig ordering is sorted later).
 3. **Normalizes textures** — validates identifier names and clones definitions.
 4. **Normalizes defines** — validates identifier names, checks value constraints (finite numbers, integer checks for `i32`/`u32`, non-negative for `u32`).
 5. **Normalizes includes** — validates identifier names, checks for non-empty source strings.
@@ -149,4 +149,4 @@ fn sdCircle(p: vec2f, r: f32) -> f32 {
 2. **Put shape/type changes in `defineMaterial`** — uniform types and texture bindings should be declared upfront.
 3. **Put value changes in `useFrame`** — animation, interaction, and dynamic state go through `state.setUniform()` and `state.setTexture()`.
 4. **Use defines for compile-time branches** — the compiler can eliminate dead code paths.
-5. **Use includes for shared utility code** — noise functions, SDF helpers, colour transforms.
+5. **Use includes for shared utility code** — noise functions, SDF helpers, color transforms.

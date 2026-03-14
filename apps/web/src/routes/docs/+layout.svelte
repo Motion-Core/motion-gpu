@@ -203,11 +203,11 @@
 		</aside>
 
 		<div
-			class="inset-shadow relative mx-auto h-full w-full max-w-4xl min-w-0 overflow-hidden border border-border bg-background-inset pt-12 md:overflow-visible lg:my-4 lg:mr-4 lg:max-h-[calc(100dvh-2rem)] lg:rounded-xl lg:pt-0 xl:mr-0"
+			class="inset-shadow relative mx-auto h-full w-full max-w-4xl min-w-0 overflow-hidden border border-border bg-background-inset pt-12 lg:my-4 lg:mr-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-visible lg:rounded-xl lg:pt-0 xl:mr-0"
 		>
 			<ScrollArea
 				id="docs-content-container"
-				class="mx-auto h-full w-full p-2 md:h-auto lg:max-h-[calc(100dvh-2rem)]"
+				class="mx-auto h-full w-full p-2 lg:max-h-[calc(100dvh-2rem)]"
 				viewportClass="rounded-lg overscroll-none flex flex-col gap-8 px-4 py-8 lg:px-8"
 			>
 				<section class="min-w-0 flex-1 space-y-8">

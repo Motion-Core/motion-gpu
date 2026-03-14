@@ -4,7 +4,7 @@ import type {
 	RenderPassFlags,
 	RenderPassInputSlot,
 	RenderPassOutputSlot
-} from '../core/types';
+} from '../core/types.js';
 
 const FULLSCREEN_BLIT_SHADER = `
 struct MotionGPUVertexOut {

@@ -2,11 +2,11 @@
  * Svelte adapter entrypoint for MotionGPU.
  */
 export { default as FragCanvas } from './FragCanvas.svelte';
-export { defineMaterial } from '../core/material';
-export { BlitPass, CopyPass, ShaderPass } from '../passes';
-export { useMotionGPU } from './motiongpu-context';
-export { useFrame } from './frame-context';
-export { useTexture } from './use-texture';
+export { defineMaterial } from '../core/material.js';
+export { BlitPass, CopyPass, ShaderPass } from '../passes/index.js';
+export { useMotionGPU } from './motiongpu-context.js';
+export { useFrame } from './frame-context.js';
+export { useTexture } from './use-texture.js';
 export type {
 	FrameInvalidationToken,
 	FrameState,
@@ -32,12 +32,12 @@ export type {
 	UniformMap,
 	UniformType,
 	UniformValue
-} from '../core/types';
+} from '../core/types.js';
 export type {
 	LoadedTexture,
 	TextureDecodeOptions,
 	TextureLoadOptions
-} from '../core/texture-loader';
+} from '../core/texture-loader.js';
 export type {
 	FragMaterial,
 	FragMaterialInput,
@@ -45,7 +45,7 @@ export type {
 	MaterialDefineValue,
 	MaterialDefines,
 	TypedMaterialDefineValue
-} from '../core/material';
-export type { MotionGPUContext } from './motiongpu-context';
-export type { UseFrameOptions, UseFrameResult } from './frame-context';
-export type { TextureUrlInput, UseTextureResult } from './use-texture';
+} from '../core/material.js';
+export type { MotionGPUContext } from './motiongpu-context.js';
+export type { UseFrameOptions, UseFrameResult } from './frame-context.js';
+export type { TextureUrlInput, UseTextureResult } from './use-texture.js';

@@ -1,4 +1,4 @@
-import type { OutputColorSpace } from './types';
+import type { OutputColorSpace } from './types.js';
 
 /**
  * Inputs that affect renderer pipeline compilation.

@@ -1,8 +1,8 @@
 import {
 	getShaderCompilationDiagnostics,
 	type ShaderCompilationDiagnostic
-} from './error-diagnostics';
-import { formatShaderSourceLocation } from './shader';
+} from './error-diagnostics.js';
+import { formatShaderSourceLocation } from './shader.js';
 
 /**
  * Runtime phase in which an error occurred.

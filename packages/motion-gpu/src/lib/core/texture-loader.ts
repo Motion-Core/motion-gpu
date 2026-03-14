@@ -1,4 +1,4 @@
-import type { TextureUpdateMode } from './types';
+import type { TextureUpdateMode } from './types.js';
 
 /**
  * Options controlling bitmap decode behavior.

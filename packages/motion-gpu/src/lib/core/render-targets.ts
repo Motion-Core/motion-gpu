@@ -1,5 +1,5 @@
-import { assertUniformName } from './uniforms';
-import type { RenderTargetDefinitionMap } from './types';
+import { assertUniformName } from './uniforms.js';
+import type { RenderTargetDefinitionMap } from './types.js';
 
 /**
  * Concrete render target configuration resolved for current canvas size.

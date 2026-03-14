@@ -1,16 +1,16 @@
 /**
  * Svelte adapter advanced entrypoint for MotionGPU.
  */
-export * from './index';
-export { applySchedulerPreset, captureSchedulerDebugSnapshot } from '../core/scheduler-helpers';
-export { setMotionGPUUserContext, useMotionGPUUserContext } from './use-motiongpu-user-context';
+export * from './index.js';
+export { applySchedulerPreset, captureSchedulerDebugSnapshot } from '../core/scheduler-helpers.js';
+export { setMotionGPUUserContext, useMotionGPUUserContext } from './use-motiongpu-user-context.js';
 export type {
 	ApplySchedulerPresetOptions,
 	SchedulerDebugSnapshot,
 	SchedulerPreset,
 	SchedulerPresetConfig
-} from '../core/scheduler-helpers';
-export type { MotionGPUUserContext, MotionGPUUserNamespace } from './motiongpu-context';
+} from '../core/scheduler-helpers.js';
+export type { MotionGPUUserContext, MotionGPUUserNamespace } from './motiongpu-context.js';
 export type {
 	FrameProfilingSnapshot,
 	FrameKey,
@@ -22,11 +22,11 @@ export type {
 	FrameStageCallback,
 	FrameTimingStats,
 	FrameTask
-} from '../core/frame-registry';
-export type { SetMotionGPUUserContextOptions } from './use-motiongpu-user-context';
+} from '../core/frame-registry.js';
+export type { SetMotionGPUUserContextOptions } from './use-motiongpu-user-context.js';
 export type {
 	RenderPassContext,
 	RenderTarget,
 	UniformLayout,
 	UniformLayoutEntry
-} from '../core/types';
+} from '../core/types.js';

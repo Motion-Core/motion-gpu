@@ -4,7 +4,7 @@ import type {
 	RenderPassFlags,
 	RenderPassInputSlot,
 	RenderPassOutputSlot
-} from '../core/types';
+} from '../core/types.js';
 
 const SHADER_PASS_CONTRACT =
 	/\bfn\s+shade\s*\(\s*inputColor\s*:\s*vec4f\s*,\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/;

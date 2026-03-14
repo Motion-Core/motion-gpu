@@ -1,15 +1,19 @@
-import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets';
-import { planRenderGraph, type RenderGraphPlan } from './render-graph';
-import { buildShaderSourceWithMap, formatShaderSourceLocation, type ShaderLineMap } from './shader';
-import { attachShaderCompilationDiagnostics } from './error-diagnostics';
+import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets.js';
+import { planRenderGraph, type RenderGraphPlan } from './render-graph.js';
+import {
+	buildShaderSourceWithMap,
+	formatShaderSourceLocation,
+	type ShaderLineMap
+} from './shader.js';
+import { attachShaderCompilationDiagnostics } from './error-diagnostics.js';
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
 	resolveTextureUpdateMode,
 	resolveTextureSize,
 	toTextureData
-} from './textures';
-import { packUniformsInto } from './uniforms';
+} from './textures.js';
+import { packUniformsInto } from './uniforms.js';
 import type {
 	RenderPass,
 	RenderPassInputSlot,
@@ -21,7 +25,7 @@ import type {
 	TextureSource,
 	TextureUpdateMode,
 	TextureValue
-} from './types';
+} from './types.js';
 
 /**
  * Binding index for frame uniforms (`time`, `delta`, `resolution`).

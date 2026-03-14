@@ -14,7 +14,7 @@ import {
 	type FrameTaskInvalidationToken,
 	type UseFrameOptions,
 	type UseFrameResult
-} from '../core/frame-registry';
+} from '../core/frame-registry.js';
 
 /**
  * Svelte context key for the active frame registry.

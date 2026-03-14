@@ -1,11 +1,11 @@
-import { normalizeTextureDefinition } from './textures';
-import type { MaterialSourceMetadata } from './error-diagnostics';
+import { normalizeTextureDefinition } from './textures.js';
+import type { MaterialSourceMetadata } from './error-diagnostics.js';
 import {
 	assertUniformName,
 	assertUniformValueForType,
 	inferUniformType,
 	resolveUniformLayout
-} from './uniforms';
+} from './uniforms.js';
 import {
 	normalizeDefines,
 	normalizeIncludes,
@@ -13,7 +13,7 @@ import {
 	toDefineLine,
 	type MaterialLineMap,
 	type PreprocessedMaterialFragment
-} from './material-preprocess';
+} from './material-preprocess.js';
 import type {
 	TextureData,
 	TextureDefinition,
@@ -22,7 +22,7 @@ import type {
 	TypedUniform,
 	UniformMap,
 	UniformValue
-} from './types';
+} from './types.js';
 
 /**
  * Typed compile-time define declaration.

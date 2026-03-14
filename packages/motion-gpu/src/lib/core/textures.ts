@@ -1,11 +1,11 @@
-import { assertUniformName } from './uniforms';
+import { assertUniformName } from './uniforms.js';
 import type {
 	TextureData,
 	TextureDefinition,
 	TextureDefinitionMap,
 	TextureUpdateMode,
 	TextureValue
-} from './types';
+} from './types.js';
 
 /**
  * Texture definition with defaults and normalized numeric limits applied.

@@ -3,4 +3,4 @@
  *
  * Framework-agnostic advanced core entrypoint.
  */
-export * from './core/advanced';
+export * from './core/advanced.js';

@@ -1,12 +1,12 @@
 import { getContext, setContext } from 'svelte';
-import type { RenderMode } from '../core/types';
-import type { CurrentReadable, CurrentWritable } from '../core/current-value';
+import type { RenderMode } from '../core/types.js';
+import type { CurrentReadable, CurrentWritable } from '../core/current-value.js';
 import type {
 	FrameProfilingSnapshot,
 	FrameRunTimings,
 	FrameScheduleSnapshot
-} from '../core/frame-registry';
-import type { MotionGPUScheduler as CoreMotionGPUScheduler } from '../core/scheduler-helpers';
+} from '../core/frame-registry.js';
+import type { MotionGPUScheduler as CoreMotionGPUScheduler } from '../core/scheduler-helpers.js';
 
 /**
  * Svelte context key used to expose `FragCanvas` runtime state.

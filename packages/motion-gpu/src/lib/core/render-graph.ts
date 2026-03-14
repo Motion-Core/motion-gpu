@@ -1,4 +1,4 @@
-import type { RenderPass, RenderPassInputSlot, RenderPassOutputSlot } from './types';
+import type { RenderPass, RenderPassInputSlot, RenderPassOutputSlot } from './types.js';
 
 /**
  * Resolved render-pass step with defaults applied.

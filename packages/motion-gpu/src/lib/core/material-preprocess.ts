@@ -1,10 +1,10 @@
-import { assertUniformName } from './uniforms';
+import { assertUniformName } from './uniforms.js';
 import type {
 	MaterialDefineValue,
 	MaterialDefines,
 	MaterialIncludes,
 	TypedMaterialDefineValue
-} from './material';
+} from './material.js';
 
 const INCLUDE_DIRECTIVE_PATTERN = /^\s*#include\s+<([A-Za-z_][A-Za-z0-9_]*)>\s*$/;
 

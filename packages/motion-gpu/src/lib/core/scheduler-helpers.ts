@@ -3,7 +3,7 @@ import type {
 	FrameRegistry,
 	FrameRunTimings,
 	FrameScheduleSnapshot
-} from './frame-registry';
+} from './frame-registry.js';
 
 /**
  * Public scheduler control surface shared by framework adapters.

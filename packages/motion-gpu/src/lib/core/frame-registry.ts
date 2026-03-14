@@ -1,5 +1,5 @@
-import { createCurrentWritable, type CurrentWritable, type Subscribable } from './current-value';
-import type { FrameInvalidationToken, FrameState, RenderMode } from './types';
+import { createCurrentWritable, type CurrentWritable, type Subscribable } from './current-value.js';
+import type { FrameInvalidationToken, FrameState, RenderMode } from './types.js';
 
 /**
  * Per-frame callback executed by the frame scheduler.

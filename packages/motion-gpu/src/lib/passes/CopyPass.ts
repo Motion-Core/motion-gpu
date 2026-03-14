@@ -4,8 +4,8 @@ import type {
 	RenderPassFlags,
 	RenderPassInputSlot,
 	RenderPassOutputSlot
-} from '../core/types';
-import { BlitPass } from './BlitPass';
+} from '../core/types.js';
+import { BlitPass } from './BlitPass.js';
 
 export interface CopyPassOptions extends RenderPassFlags {
 	enabled?: boolean;

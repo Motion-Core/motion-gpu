@@ -1,4 +1,4 @@
-import type { MaterialSourceLocation } from './material-preprocess';
+import type { MaterialSourceLocation } from './material-preprocess.js';
 
 /**
  * Source metadata for material declaration callsite.

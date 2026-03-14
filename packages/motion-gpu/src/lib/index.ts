@@ -3,4 +3,4 @@
  *
  * Framework-agnostic core entrypoint.
  */
-export * from './core/index';
+export * from './core/index.js';

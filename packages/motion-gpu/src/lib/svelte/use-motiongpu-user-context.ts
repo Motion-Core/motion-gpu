@@ -1,5 +1,5 @@
-import type { CurrentReadable } from '../core/current-value';
-import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context';
+import type { CurrentReadable } from '../core/current-value.js';
+import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context.js';
 
 /**
  * Internal shape of the user context store.

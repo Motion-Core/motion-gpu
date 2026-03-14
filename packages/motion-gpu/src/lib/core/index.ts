@@ -3,20 +3,20 @@
  *
  * This surface is intended for building framework adapters (Svelte/React/Vue).
  */
-export { defineMaterial, resolveMaterial } from './material';
-export { toMotionGPUErrorReport } from './error-report';
-export { createCurrentWritable } from './current-value';
-export { createFrameRegistry } from './frame-registry';
-export { createMotionGPURuntimeLoop } from './runtime-loop';
-export { loadTexturesFromUrls } from './texture-loader';
-export { BlitPass, CopyPass, ShaderPass } from '../passes';
-export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value';
+export { defineMaterial, resolveMaterial } from './material.js';
+export { toMotionGPUErrorReport } from './error-report.js';
+export { createCurrentWritable } from './current-value.js';
+export { createFrameRegistry } from './frame-registry.js';
+export { createMotionGPURuntimeLoop } from './runtime-loop.js';
+export { loadTexturesFromUrls } from './texture-loader.js';
+export { BlitPass, CopyPass, ShaderPass } from '../passes/index.js';
+export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
 export type {
 	MotionGPUErrorPhase,
 	MotionGPUErrorReport,
 	MotionGPUErrorSource,
 	MotionGPUErrorSourceLine
-} from './error-report';
+} from './error-report.js';
 export type {
 	FrameCallback,
 	FrameKey,
@@ -32,7 +32,7 @@ export type {
 	FrameTimingStats,
 	UseFrameOptions,
 	UseFrameResult
-} from './frame-registry';
+} from './frame-registry.js';
 export type {
 	FragMaterial,
 	FragMaterialInput,
@@ -41,9 +41,9 @@ export type {
 	MaterialIncludes,
 	ResolvedMaterial,
 	TypedMaterialDefineValue
-} from './material';
-export type { MotionGPURuntimeLoop, MotionGPURuntimeLoopOptions } from './runtime-loop';
-export type { LoadedTexture, TextureDecodeOptions, TextureLoadOptions } from './texture-loader';
+} from './material.js';
+export type { MotionGPURuntimeLoop, MotionGPURuntimeLoopOptions } from './runtime-loop.js';
+export type { LoadedTexture, TextureDecodeOptions, TextureLoadOptions } from './texture-loader.js';
 export type {
 	FrameInvalidationToken,
 	FrameState,
@@ -71,4 +71,4 @@ export type {
 	UniformMat4Value,
 	UniformType,
 	UniformValue
-} from './types';
+} from './types.js';

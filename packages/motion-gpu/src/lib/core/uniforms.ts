@@ -5,7 +5,7 @@ import type {
 	UniformMat4Value,
 	UniformType,
 	UniformValue
-} from './types';
+} from './types.js';
 
 /**
  * Internal representation of explicitly typed uniform input.

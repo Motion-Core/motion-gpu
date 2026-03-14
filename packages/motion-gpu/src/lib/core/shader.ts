@@ -1,6 +1,6 @@
-import { assertUniformName } from './uniforms';
-import type { MaterialLineMap, MaterialSourceLocation } from './material-preprocess';
-import type { UniformLayout } from './types';
+import { assertUniformName } from './uniforms.js';
+import type { MaterialLineMap, MaterialSourceLocation } from './material-preprocess.js';
+import type { UniformLayout } from './types.js';
 
 /**
  * Fallback uniform field used when no custom uniforms are provided.

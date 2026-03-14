@@ -1,14 +1,14 @@
-import type { CurrentReadable, CurrentWritable } from './current-value';
-import { resolveMaterial, type FragMaterial, type ResolvedMaterial } from './material';
+import type { CurrentReadable, CurrentWritable } from './current-value.js';
+import { resolveMaterial, type FragMaterial, type ResolvedMaterial } from './material.js';
 import {
 	toMotionGPUErrorReport,
 	type MotionGPUErrorPhase,
 	type MotionGPUErrorReport
-} from './error-report';
-import { createRenderer } from './renderer';
-import { buildRendererPipelineSignature } from './recompile-policy';
-import { assertUniformValueForType } from './uniforms';
-import type { FrameRegistry } from './frame-registry';
+} from './error-report.js';
+import { createRenderer } from './renderer.js';
+import { buildRendererPipelineSignature } from './recompile-policy.js';
+import { assertUniformValueForType } from './uniforms.js';
+import type { FrameRegistry } from './frame-registry.js';
 import type {
 	FrameInvalidationToken,
 	OutputColorSpace,
@@ -19,7 +19,7 @@ import type {
 	TextureValue,
 	UniformType,
 	UniformValue
-} from './types';
+} from './types.js';
 
 export interface MotionGPURuntimeLoopOptions {
 	canvas: HTMLCanvasElement;

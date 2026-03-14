@@ -26,7 +26,7 @@ export function getDocMetadata(path: string): DocMetadata | null {
 		return null;
 	}
 
-	const slug = normalizedPath.replace(/^\/docs\//, '');
+	const slug = normalizedPath.replace(/^\/docs(?:\/|$)/, '');
 	const { title, name, description } = module.metadata;
 
 	return {

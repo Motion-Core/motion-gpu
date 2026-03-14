@@ -93,7 +93,12 @@
 			]
 		});
 	});
-	const rawPath = $derived(docSlug ? `/docs/raw/${docSlug}` : null);
+	const rawDocSlug = $derived(
+		metadata
+			? metadata.href.replace(/^\/docs(?:\/|$)/, '').replace(/\/+$/, '') || 'index'
+			: null
+	);
+	const rawPath = $derived(rawDocSlug ? `/docs/raw/${rawDocSlug}` : null);
 	const docOrigin = $derived(props.data.docOrigin);
 	const rawUrl = $derived(rawPath && docOrigin ? new URL(rawPath, docOrigin).href : null);
 	const repoRelativePath = $derived(

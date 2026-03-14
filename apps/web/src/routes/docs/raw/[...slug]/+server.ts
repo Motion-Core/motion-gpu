@@ -2,7 +2,8 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params }) => {
-	const { slug } = params;
+	const slug = (params.slug ?? '').replace(/^\/+|\/+$/g, '');
+	const targetSlug = slug === 'index' || slug === 'docs' ? '' : slug;
 
 	const modules = import.meta.glob('/src/routes/docs/**/*.svx', {
 		query: '?raw',
@@ -14,9 +15,12 @@ export const GET: RequestHandler = async ({ params }) => {
 	let found = false;
 
 	for (const [path, fileContent] of Object.entries(modules)) {
-		const normalizedPath = path.replace('/src/routes/docs/', '').replace('/+page.svx', '');
+		const normalizedPath = path
+			.replace('/src/routes/docs', '')
+			.replace('/+page.svx', '')
+			.replace(/^\/+/, '');
 
-		if (normalizedPath === slug) {
+		if (normalizedPath === targetSlug) {
 			content = fileContent as string;
 			found = true;
 			break;

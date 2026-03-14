@@ -40,6 +40,7 @@
 	let svgWidth = $state(40);
 	let indicatorRange = $state<IndicatorRange | null>(null);
 	let pendingIndicatorFrame: number | null = null;
+	let tocViewportActive = $state(false);
 
 	const ACTIVE_OFFSET = 140;
 	const VISIBLE_BUFFER = 24;
@@ -59,6 +60,21 @@
 			.trim()
 			.replace(/[^a-z0-9]+/g, '-')
 			.replace(/^-+|-+$/g, '');
+
+	function resetTocState() {
+		headings = [];
+		activeId = '';
+		lineHeight = 0;
+		indicatorTop = 0;
+		indicatorHeight = 0;
+		indicatorBottom = 0;
+		indicatorRange = null;
+		headingOrder.clear();
+		if (typeof window !== 'undefined' && pendingIndicatorFrame !== null) {
+			window.cancelAnimationFrame(pendingIndicatorFrame);
+			pendingIndicatorFrame = null;
+		}
+	}
 
 	function registerLink(node: HTMLElement, id?: string) {
 		let currentId = id ?? '';
@@ -249,15 +265,8 @@
 	}
 
 	function collectHeadings() {
-		if (typeof document === 'undefined') {
-			headings = [];
-			activeId = '';
-			lineHeight = 0;
-			indicatorTop = 0;
-			indicatorHeight = 0;
-			indicatorBottom = 0;
-			indicatorRange = null;
-			headingOrder.clear();
+		if (typeof document === 'undefined' || !tocViewportActive) {
+			resetTocState();
 			return undefined;
 		}
 
@@ -425,8 +434,31 @@
 	}
 
 	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const mediaQuery = window.matchMedia('(min-width: 1280px)');
+		const sync = () => {
+			tocViewportActive = mediaQuery.matches;
+		};
+
+		sync();
+		mediaQuery.addEventListener('change', sync);
+
+		return () => {
+			mediaQuery.removeEventListener('change', sync);
+		};
+	});
+
+	$effect(() => {
 		const path = currentPath;
+		const isActive = tocViewportActive;
 		void path;
+		void isActive;
+
+		if (!isActive) {
+			resetTocState();
+			return;
+		}
+
 		let cleanup: (() => void) | undefined;
 
 		const timer = setTimeout(() => {
@@ -440,7 +472,7 @@
 	});
 
 	$effect(() => {
-		if (typeof window === 'undefined' || !linksWrapper) return;
+		if (typeof window === 'undefined' || !linksWrapper || !tocViewportActive) return;
 
 		const observer = new ResizeObserver(() => {
 			updateLayout();

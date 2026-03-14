@@ -222,7 +222,7 @@
 				role="listbox"
 				aria-labelledby={id}
 				tabindex="-1"
-				class="max-h-56 overflow-auto py-1"
+				class="max-h-56 space-y-1 overflow-auto"
 			>
 				{#each options as option, index (option.value)}
 					<button

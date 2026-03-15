@@ -1,6 +1,5 @@
 import type { RequestHandler } from './$types';
-import { docsManifest, getDocHref } from '$lib/docs/manifest';
-import { siteConfig } from '$lib/config/site';
+import { docsManifest, getDocHref, siteConfig } from '$lib';
 
 type SitemapEntry = {
 	path: string;
@@ -11,7 +10,6 @@ type SitemapEntry = {
 const staticPages: SitemapEntry[] = [
 	{ path: '/', changefreq: 'weekly', priority: '1.0' },
 	{ path: '/docs', changefreq: 'weekly', priority: '0.9' },
-	{ path: '/playground', changefreq: 'weekly', priority: '0.9' },
 	{ path: '/llms.txt', changefreq: 'weekly', priority: '0.4' }
 ];
 

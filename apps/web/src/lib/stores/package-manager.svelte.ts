@@ -1,13 +1,31 @@
 import { browser } from '$app/environment';
+import {
+	docsUiConfig,
+	availablePackageManagers,
+	type PackageManagerOption
+} from '$lib/config/docs-ui';
 
-export const packageManagers = ['npm', 'pnpm', 'bun', 'yarn'] as const;
-export type PackageManager = (typeof packageManagers)[number];
+export type PackageManager = PackageManagerOption;
+
+const enabledManagers = Array.from(
+	new Set(
+		docsUiConfig.packageManager.enabled.filter((pm): pm is PackageManager =>
+			availablePackageManagers.includes(pm)
+		)
+	)
+);
+
+export const packageManagers: PackageManager[] =
+	enabledManagers.length > 0 ? enabledManagers : ['npm'];
 
 function createPackageManagerStore() {
-	let active = $state<PackageManager>('npm');
+	const configuredDefault = docsUiConfig.packageManager.default;
+	let active = $state<PackageManager>(
+		packageManagers.includes(configuredDefault) ? configuredDefault : packageManagers[0]
+	);
 
 	if (browser) {
-		const stored = localStorage.getItem('package-manager') as PackageManager;
+		const stored = localStorage.getItem(docsUiConfig.packageManager.storageKey) as PackageManager;
 		if (stored && packageManagers.includes(stored)) {
 			active = stored;
 		}
@@ -20,7 +38,7 @@ function createPackageManagerStore() {
 		set active(v: PackageManager) {
 			active = v;
 			if (browser) {
-				localStorage.setItem('package-manager', v);
+				localStorage.setItem(docsUiConfig.packageManager.storageKey, v);
 			}
 		}
 	};

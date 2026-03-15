@@ -1,5 +1,9 @@
 import type { DocItem } from '$lib/types/doc';
 
+/**
+ * Manual documentation navigation tree.
+ * The order of items controls sidebar rendering and previous/next doc navigation.
+ */
 export const docsNavigation: DocItem[] = [
 	{
 		slug: 'getting-started',

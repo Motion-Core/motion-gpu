@@ -3,6 +3,7 @@
 	import { slide } from 'svelte/transition';
 	import { docsNavigation } from '$lib/config/navigation';
 	import { brandingConfig } from '$lib/config/branding';
+	import { docsUiConfig } from '$lib/config/docs-ui';
 	import { siteConfig } from '$lib/config/site';
 	import { cn } from '$lib/utils/cn';
 	import SearchTrigger from '../search/SearchTrigger.svelte';
@@ -46,10 +47,12 @@
 			>
 				{@html brandingConfig.logoRaw}
 			</span>
-			<span class="font-display text-xl font-medium text-foreground">{brandingConfig.name}</span>
+			<span class="text-xl font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
 		</a>
 
-		<SearchTrigger />
+		{#if docsUiConfig.search.enabled}
+			<SearchTrigger />
+		{/if}
 	</div>
 
 	<ScrollArea
@@ -58,10 +61,8 @@
 		viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);"
 	>
 		<nav class="flex flex-col space-y-1">
-			<h4
-				class="font-display mb-2 ml-2 text-xs font-medium tracking-wider text-foreground/45 uppercase"
-			>
-				Docs
+			<h4 class="mb-2 ml-2 text-xs font-medium tracking-wide text-foreground/45 uppercase">
+				{docsUiConfig.sidebar.navigationLabel}
 			</h4>
 			{#each docsNavigation as doc (doc.slug)}
 				{#if doc.items?.length}
@@ -71,7 +72,7 @@
 					<button
 						onclick={() => toggleGroup(doc.slug)}
 						class={cn(
-							'flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-sm font-medium transition-all duration-150 ease-out hover:bg-background-muted hover:text-foreground',
+							'flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out hover:bg-background-muted hover:text-foreground',
 							isGroupActive ? 'text-foreground' : 'text-foreground-muted'
 						)}
 					>
@@ -91,7 +92,7 @@
 								<a
 									{href}
 									class={cn(
-										'block rounded-sm px-3 py-1.5 text-sm font-medium transition-all duration-150 ease-out',
+										'block rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out',
 										isActive
 											? 'bg-accent/10 text-accent'
 											: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
@@ -108,7 +109,7 @@
 					<a
 						{href}
 						class={cn(
-							'block rounded-sm px-3 py-1.5 text-sm transition-all duration-150 ease-out',
+							'block rounded-sm px-3 py-1.5 text-sm tracking-normal transition-all duration-150 ease-out',
 							isActive
 								? 'bg-accent/10 text-accent'
 								: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
@@ -122,15 +123,19 @@
 	</ScrollArea>
 
 	<div class="flex items-center gap-1 p-4">
-		<ThemeToggle />
-		<a
-			class="group transition-scale inset-shadow relative inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-background-inset text-foreground duration-150 ease-out active:scale-[0.95]"
-			href={githubUrl}
-			target="_blank"
-			rel="noreferrer"
-			aria-label="Open Motion GPU on GitHub"
-		>
-			<LogoGithub class="size-4 flex-none" />
-		</a>
+		{#if docsUiConfig.sidebar.showThemeToggle}
+			<ThemeToggle />
+		{/if}
+		{#if docsUiConfig.sidebar.showRepositoryLink}
+			<a
+				class="group transition-scale inset-shadow relative inline-flex size-7 cursor-pointer items-center justify-center rounded-sm border border-border bg-background-inset text-foreground duration-150 ease-out active:scale-[0.95]"
+				href={githubUrl}
+				target="_blank"
+				rel="noreferrer"
+				aria-label={docsUiConfig.sidebar.repositoryAriaLabel}
+			>
+				<LogoGithub class="size-4 flex-none" />
+			</a>
+		{/if}
 	</div>
 </aside>

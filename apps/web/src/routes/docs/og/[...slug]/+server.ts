@@ -6,9 +6,7 @@ import type { RequestHandler } from './$types';
 import { siteConfig } from '$lib/config/site';
 import { getDocMetadata } from '$lib/docs/metadata';
 import { getDocBySlug } from '$lib/docs/manifest';
-import aeonikProRegularDataUri from '$lib/assets/fonts/aeonikpro-satori-400.ttf?inline';
-import aeonikProSemiBoldDataUri from '$lib/assets/fonts/aeonikpro-satori-600.ttf?inline';
-import motionGpuLogoRaw from '$lib/assets/motiongpu-logo.svg?raw';
+import { aeonikProRegularDataUri, aeonikProSemiBoldDataUri, brandLogoRaw } from '$lib';
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
@@ -85,7 +83,7 @@ const ensureResvgWasm = (origin: string) => {
 };
 
 const logoDataUri = `data:image/svg+xml,${encodeURIComponent(
-	motionGpuLogoRaw.replaceAll('currentColor', '#ff6900')
+	brandLogoRaw.replaceAll('currentColor', '#ff6900')
 )}`;
 
 export const GET: RequestHandler = async ({ params, url }) => {

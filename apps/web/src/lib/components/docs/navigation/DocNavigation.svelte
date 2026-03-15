@@ -1,5 +1,6 @@
 <script lang="ts">
 	import DocNavButton from './DocNavButton.svelte';
+	import { docsUiConfig } from '$lib/config/docs-ui';
 
 	export type DocNavLink = {
 		title: string;
@@ -14,15 +15,20 @@
 	const next = $derived(props.next ?? null);
 </script>
 
-{#if previous || next}
+{#if docsUiConfig.pagination.enabled && (previous || next)}
 	<nav class="relative mt-16 border-t border-border pt-9">
 		<div class="grid gap-4 sm:grid-cols-2">
 			{#if previous}
-				<DocNavButton label="Previous" {...previous} />
+				<DocNavButton label={docsUiConfig.pagination.previousLabel} {...previous} />
 			{/if}
 
 			{#if next}
-				<DocNavButton label="Next" align="right" forceSecondColumn={!previous} {...next} />
+				<DocNavButton
+					label={docsUiConfig.pagination.nextLabel}
+					align="right"
+					forceSecondColumn={!previous}
+					{...next}
+				/>
 			{/if}
 		</div>
 	</nav>

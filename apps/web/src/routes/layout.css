@@ -9,7 +9,7 @@
 }
 
 @font-face {
-	font-family: 'Aeonik font-mono';
+	font-family: 'Aeonik Mono';
 	src: url('/fonts/aeonikmono.woff2') format('woff2');
 	font-weight: 200 800;
 	font-style: normal;
@@ -67,7 +67,7 @@ html {
 
 @theme {
 	--font-sans: 'Aeonik Pro';
-	--font-mono: 'Aeonik font-mono';
+	--font-mono: 'Aeonik Mono';
 
 	--color-background-inset: var(--background-inset);
 	--color-background: var(--background);
@@ -87,6 +87,13 @@ html {
 	--font-weight-extrabold: 550;
 	--font-weight-black: 600;
 
+	--tracking-tighter: -0.05em;
+	--tracking-tight: -0.025em;
+	--tracking-normal: 0em;
+	--tracking-wide: 0.025em;
+	--tracking-wider: 0.05em;
+	--tracking-widest: 0.1em;
+
 	--radius-xs: calc(var(--radius-base) * 1);
 	--radius-sm: calc(var(--radius-base) * 2);
 	--radius-md: calc(var(--radius-base) * 3);
@@ -103,20 +110,6 @@ html {
 	--shadow-lg: var(--shadow-lg);
 	--shadow-xl: var(--shadow-xl);
 	--shadow-2xl: var(--shadow-2xl);
-
-	--animate-shiny-text: shiny-text 8s infinite;
-
-	@keyframes shiny-text {
-		0%,
-		90%,
-		100% {
-			background-position: calc(-100% - var(--shiny-width)) 0;
-		}
-		30%,
-		60% {
-			background-position: calc(100% + var(--shiny-width)) 0;
-		}
-	}
 }
 
 @layer base {

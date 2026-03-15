@@ -13,7 +13,10 @@
 
 <li
 	{...restProps}
-	class={cn('text-base leading-relaxed font-normal text-pretty text-foreground-muted', className)}
+	class={cn(
+		'text-base leading-relaxed font-normal tracking-normal text-pretty text-foreground-muted',
+		className
+	)}
 >
 	{@render children?.()}
 </li>

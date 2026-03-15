@@ -23,12 +23,18 @@
 
 	type Props = {
 		selector?: string;
+		title?: string;
+		emptyLabel?: string;
+		minViewportWidth?: number;
 	};
 
 	const props = $props();
 	const selector = $derived(
 		(props as Props).selector ?? '[data-doc-content] h2, [data-doc-content] h3'
 	);
+	const title = $derived((props as Props).title ?? 'On this page');
+	const emptyLabel = $derived((props as Props).emptyLabel ?? 'No headings');
+	const minViewportWidth = $derived((props as Props).minViewportWidth ?? 1280);
 
 	let headings = $state<Omit<TocItem, 'element'>[]>([]);
 	let activeId = $state('');
@@ -435,7 +441,7 @@
 
 	$effect(() => {
 		if (typeof window === 'undefined') return;
-		const mediaQuery = window.matchMedia('(min-width: 1280px)');
+		const mediaQuery = window.matchMedia(`(min-width: ${minViewportWidth}px)`);
 		const sync = () => {
 			tocViewportActive = mediaQuery.matches;
 		};
@@ -493,7 +499,7 @@
 			class="mb-2 flex items-center gap-2 text-xs font-medium tracking-wide text-foreground/45 uppercase"
 		>
 			<TableOfContents size={16} />
-			On this page
+			{title}
 		</div>
 		<div class="relative flex px-2">
 			<div
@@ -531,7 +537,7 @@
 						<a
 							href={`#${heading.id}`}
 							class={cn(
-								'block max-w-48 truncate py-1 font-medium transition-[color] duration-150 ease-out',
+								'block max-w-48 truncate py-1 font-medium tracking-normal transition-[color] duration-150 ease-out',
 								isLinkHighlighted(heading.id)
 									? 'text-accent'
 									: 'text-foreground-muted hover:text-foreground'
@@ -546,5 +552,5 @@
 		</div>
 	</nav>
 {:else}
-	<div class="hidden text-sm text-foreground/45 lg:block">No headings</div>
+	<div class="hidden text-sm tracking-normal text-foreground/45 lg:block">{emptyLabel}</div>
 {/if}

@@ -1,7 +1,5 @@
 import type { RequestHandler } from './$types';
-import { docsManifest } from '$lib/docs/manifest';
-import { getDocMetadata } from '$lib/docs/metadata';
-import { siteConfig } from '$lib/config/site';
+import { docsManifest, getDocMetadata, siteConfig } from '$lib';
 
 type DocEntry = {
 	slug: string;
@@ -9,7 +7,7 @@ type DocEntry = {
 	category: string;
 };
 
-const summary = `${siteConfig.name} is a Svelte-first WebGPU runtime for fullscreen WGSL rendering, deterministic frame scheduling, and composable post-processing pipelines.`;
+const summary = `${siteConfig.name} is ${siteConfig.description}`;
 
 const detailParagraphs = [
 	'LLM-friendly Markdown for every page is available at `/docs/raw/<slug>`; this is the source doc content without navigation chrome.',
@@ -55,7 +53,6 @@ const buildSection = (title: string, items: string[]) => {
 export const GET: RequestHandler = () => {
 	const canonicalOrigin = new URL(siteConfig.url).origin;
 	const optionalLinks = [
-		`- [Playground](${new URL('/playground', canonicalOrigin).href}): Interactive demo sandbox for materials, uniforms, and passes.`,
 		`- [GitHub](${siteConfig.links.github}): Source code, issues, and discussions.`,
 		`- [Package](https://www.npmjs.com/package/${siteConfig.package.name}): Installation and release metadata.`
 	];

@@ -14,7 +14,7 @@
 <p
 	{...restProps}
 	class={cn(
-		'mt-4 text-base leading-relaxed font-normal text-pretty text-foreground-muted first:mt-0',
+		'mt-4 text-base leading-relaxed font-normal tracking-normal text-pretty text-foreground-muted first:mt-0',
 		className
 	)}
 >

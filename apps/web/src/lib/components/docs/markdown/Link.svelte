@@ -14,7 +14,7 @@
 <a
 	{...restProps}
 	class={cn(
-		'text-base font-medium text-foreground underline decoration-dotted underline-offset-4 transition-[color] duration-150 ease-out hover:text-foreground-muted',
+		'text-base font-medium tracking-normal text-foreground underline decoration-dotted underline-offset-4 transition-[color] duration-150 ease-out hover:text-foreground-muted',
 		className
 	)}
 >

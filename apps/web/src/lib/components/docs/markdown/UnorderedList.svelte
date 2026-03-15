@@ -14,7 +14,7 @@
 <ul
 	{...restProps}
 	class={cn(
-		'mt-6 list-disc space-y-2 pl-6 text-base leading-relaxed font-normal text-pretty text-foreground-muted [&>li]:pl-1',
+		'mt-6 list-disc space-y-2 pl-6 text-base leading-relaxed font-normal tracking-normal text-pretty text-foreground-muted [&>li]:pl-1',
 		className
 	)}
 >

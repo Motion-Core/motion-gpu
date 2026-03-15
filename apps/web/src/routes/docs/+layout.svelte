@@ -1,19 +1,25 @@
 <script lang="ts">
-	import TableOfContents from '$lib/components/docs/TableOfContents.svelte';
-	import DocsSidebar from '$lib/components/docs/navigation/DocsSidebar.svelte';
-	import MobileSidebar from '$lib/components/docs/navigation/MobileSidebar.svelte';
-	import ScrollArea from '$lib/components/ui/ScrollArea.svelte';
-	import { DocNavigation } from '$lib';
+	import {
+		DocNavigation,
+		DocShareActions,
+		DocsSidebar,
+		MobileDocShareActions,
+		MobileSidebar,
+		ScrollArea,
+		TableOfContents,
+		docsManifest,
+		docsUiConfig,
+		getDocHref,
+		resolveRepositoryDocUrl,
+		resolveTocSelector,
+		siteConfig
+	} from '$lib';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
 	import { tick } from 'svelte';
 	import { beforeNavigate, afterNavigate } from '$app/navigation';
 	import { SvelteMap } from 'svelte/reactivity';
-	import DocShareActions from '$lib/components/docs/DocShareActions.svelte';
-	import MobileDocShareActions from '$lib/components/docs/MobileDocShareActions.svelte';
-	import { siteConfig } from '$lib/config/site';
-	import { docsManifest, getDocHref } from '$lib/docs/manifest';
 
 	const props = $props<{ data: LayoutData; children?: Snippet }>();
 	const previousLink = $derived(
@@ -103,12 +109,12 @@
 		metadata ? `/apps/web/src/routes${metadata.href}/+page.svx` : null
 	);
 	const githubUrl = $derived(
-		repoRelativePath ? `${siteConfig.links.github}/blob/master${repoRelativePath}` : null
+		repoRelativePath ? resolveRepositoryDocUrl(siteConfig.links.github, repoRelativePath) : null
 	);
+	const showDocActions = $derived(docsUiConfig.docActions.enabled && Boolean(metadata));
+	const showToc = $derived(docsUiConfig.toc.enabled);
 
-	const tocSelector = $derived(
-		docSlug?.startsWith('changelog/') ? '[data-doc-content] h2' : undefined
-	);
+	const tocSelector = $derived(resolveTocSelector(docSlug));
 
 	const scrollContainerId = 'docs-content-container';
 	const scrollPositions = new SvelteMap<string, number>();
@@ -221,20 +227,20 @@
 					{#if metadata}
 						<div class="space-y-4">
 							{#if currentDoc?.category}
-								<p class="mb-2 text-sm font-medium text-foreground/45 capitalize">
+								<p class="mb-2 text-sm font-medium tracking-normal text-foreground/45 capitalize">
 									{currentDoc.category}
 								</p>
 							{/if}
-							<h1 class="font-display scroll-m-20 text-3xl font-medium text-foreground">
+							<h1 class="scroll-m-20 text-3xl font-medium tracking-tight text-foreground">
 								{metadata.name || metadata.title}
 							</h1>
 							{#if metadata.description}
-								<p class="max-w-4xl text-base font-normal text-foreground-muted">
+								<p class="max-w-4xl text-base font-normal tracking-normal text-foreground-muted">
 									{metadata.description}
 								</p>
 							{/if}
 
-							{#if metadata && rawPath && rawUrl && githubUrl}
+							{#if showDocActions}
 								<MobileDocShareActions {rawPath} {rawUrl} {githubUrl} />
 							{/if}
 						</div>
@@ -252,10 +258,17 @@
 
 		<aside class="hidden min-w-0 xl:block xl:py-8 xl:pr-4 xl:pl-4">
 			<div class="sticky top-8 flex h-full max-h-[calc(100dvh-4rem)] min-h-0 flex-col">
-				<div class="min-h-0 flex-1">
-					<TableOfContents selector={tocSelector} />
-				</div>
-				{#if metadata && rawPath && rawUrl && githubUrl}
+				{#if showToc}
+					<div class="min-h-0 flex-1">
+						<TableOfContents
+							selector={tocSelector}
+							title={docsUiConfig.toc.title}
+							emptyLabel={docsUiConfig.toc.emptyLabel}
+							minViewportWidth={docsUiConfig.toc.minViewportWidth}
+						/>
+					</div>
+				{/if}
+				{#if showDocActions}
 					<DocShareActions {rawPath} {rawUrl} {githubUrl} />
 				{/if}
 			</div>

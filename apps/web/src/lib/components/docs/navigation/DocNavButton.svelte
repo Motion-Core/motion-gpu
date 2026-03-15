@@ -34,7 +34,7 @@
 		<span class="text-xs font-normal tracking-wide text-foreground/45 uppercase">
 			{label}
 		</span>
-		<span class="text-lg font-medium text-foreground">
+		<span class="text-lg font-medium tracking-tight text-foreground">
 			{title}
 		</span>
 	</a>

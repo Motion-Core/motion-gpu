@@ -1,9 +1,10 @@
 import { browser } from '$app/environment';
+import { docsUiConfig } from '$lib/config/docs-ui';
 
 export const themes = ['light', 'dark'] as const;
 export type Theme = (typeof themes)[number];
 
-const storageKey = 'theme';
+const storageKey = docsUiConfig.theme.storageKey;
 
 function isTheme(value: string | null): value is Theme {
 	return value === 'light' || value === 'dark';
@@ -11,7 +12,11 @@ function isTheme(value: string | null): value is Theme {
 
 function getPreferredTheme(): Theme {
 	if (!browser) {
-		return 'light';
+		return docsUiConfig.theme.defaultMode === 'dark' ? 'dark' : 'light';
+	}
+
+	if (docsUiConfig.theme.defaultMode === 'light' || docsUiConfig.theme.defaultMode === 'dark') {
+		return docsUiConfig.theme.defaultMode;
 	}
 
 	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

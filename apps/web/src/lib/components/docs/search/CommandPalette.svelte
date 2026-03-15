@@ -167,7 +167,7 @@
 					{#if results.length > 0}
 						<ScrollArea
 							viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);"
-							viewportClass="max-h-96 p-2d"
+							viewportClass="max-h-96 p-2"
 						>
 							{#each results as result, i (result.slug + (result.anchor || '') + i)}
 								{@const isChild = result.matchType === 'heading' || result.matchType === 'content'}

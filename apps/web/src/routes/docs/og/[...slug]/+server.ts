@@ -3,10 +3,14 @@ import satori from 'satori';
 import { html } from 'satori-html';
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
 import type { RequestHandler } from './$types';
-import { siteConfig } from '$lib/config/site';
-import { getDocMetadata } from '$lib/docs/metadata';
-import { getDocBySlug } from '$lib/docs/manifest';
-import { aeonikProRegularDataUri, aeonikProSemiBoldDataUri, brandLogoRaw } from '$lib';
+import {
+	brandLogoRaw,
+	getDocBySlug,
+	getDocMetadata,
+	aeonikProRegularDataUri,
+	aeonikProSemiBoldDataUri,
+	siteConfig
+} from '$lib';
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
@@ -46,13 +50,13 @@ type ResvgWasmState = {
 	initialized?: boolean;
 };
 
-const resvgState = globalThis as typeof globalThis & { __motionGpuResvgWasmState?: ResvgWasmState };
-if (!resvgState.__motionGpuResvgWasmState) {
-	resvgState.__motionGpuResvgWasmState = {};
+const resvgState = globalThis as typeof globalThis & { __docsOgResvgWasmState?: ResvgWasmState };
+if (!resvgState.__docsOgResvgWasmState) {
+	resvgState.__docsOgResvgWasmState = {};
 }
 
 const ensureResvgWasm = (origin: string) => {
-	const state = resvgState.__motionGpuResvgWasmState as ResvgWasmState;
+	const state = resvgState.__docsOgResvgWasmState as ResvgWasmState;
 	if (state.initialized) {
 		return Promise.resolve();
 	}
@@ -87,10 +91,8 @@ const logoDataUri = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 
 export const GET: RequestHandler = async ({ params, url }) => {
-	const slug = params.slug;
-	if (!slug) {
-		throw error(404, 'Document not found');
-	}
+	const rawSlug = (params.slug ?? '').replace(/^\/+|\/+$/g, '');
+	const slug = rawSlug === '' || rawSlug === 'index' || rawSlug === 'docs' ? '' : rawSlug;
 
 	const metadata = getDocMetadata(`/docs/${slug}`);
 	if (!metadata) {
@@ -109,13 +111,12 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
 	const markup = html`
 		<div
-			style="display:flex;flex-direction:column;justify-content:space-between;width:100%;height:100%;padding:40px;background:#ffffff;font-family:Aeonik Pro,sans-serif;"
+			style="display:flex;flex-direction:column;justify-content:space-between;width:100%;height:100%;padding:40px;background:#ffffff;font-family:Aeonik Pro Regular,sans-serif;"
 		>
 			<div style="display:flex;align-items:flex-start;justify-content:space-between;">
 				<img src="${logoDataUri}" alt="" style="display:flex;width:78px;height:78px;" />
 				<div style="display:flex;font-size:24px;color:#8a8f98;font-weight:400;">${pageUrl}</div>
 			</div>
-
 			<div style="display:flex;flex-direction:column;gap:24px;">
 				<div
 					style="display:flex;font-size:21px;letter-spacing:0.06em;text-transform:uppercase;color:#8a8f98;font-weight:400;"
@@ -123,7 +124,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 					${category}
 				</div>
 				<div
-					style="display:flex;max-width:1060px;font-size:98px;line-height:0.99;color:#111318;font-weight:600;"
+					style="display:flex;max-width:1060px;font-size:98px;line-height:0.99;color:#111318;font-weight:500;"
 				>
 					${title}
 				</div>
@@ -140,8 +141,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		width: OG_WIDTH,
 		height: OG_HEIGHT,
 		fonts: [
-			{ name: 'Aeonik Pro', data: aeonikProRegular, weight: 400, style: 'normal' },
-			{ name: 'Aeonik Pro', data: aeonikProSemiBold, weight: 600, style: 'normal' }
+			{ name: 'Aeonik Pro Regular', data: aeonikProRegular, weight: 400, style: 'normal' },
+			{ name: 'Aeonik Pro SemiBold', data: aeonikProSemiBold, weight: 600, style: 'normal' }
 		]
 	});
 	const rendered = new Resvg(svg, {

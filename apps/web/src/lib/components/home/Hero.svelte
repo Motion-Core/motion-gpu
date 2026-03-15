@@ -12,7 +12,7 @@
 <Section
 	variant="muted"
 	id="home"
-	class="flex min-h-[60vh] w-full flex-col items-center justify-center gap-4 sm:min-h-[50vh] lg:min-h-[70vh]"
+	class="flex min-h-128 w-full flex-col items-center justify-center gap-4 sm:min-h-144 lg:min-h-156"
 >
 	<div class="flex w-full flex-col items-center justify-center gap-4 pt-16 sm:pt-10">
 		<span

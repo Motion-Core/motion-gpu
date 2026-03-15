@@ -170,25 +170,25 @@
 			onmouseleave={() => (isHoveringTrack = false)}
 			role="presentation"
 		>
-				<div
-					role="scrollbar"
-					aria-controls={viewportId}
-					aria-orientation="vertical"
-					aria-valuemin={0}
-					aria-valuemax={Math.max(0, viewport ? viewport.scrollHeight - viewport.clientHeight : 0)}
-					aria-valuenow={viewport?.scrollTop ?? 0}
-					tabindex="0"
-					class={cn(
-						'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
-						isDragging && 'bg-foreground/50'
-					)}
-					style:height="{thumbHeight}px"
-					style:transform="translate3d(0, {thumbTop}px, 0)"
-					onmousedown={onDragStart}
-					onkeydown={onThumbKeyDown}
-				></div>
-			</div>
-		{/if}
+			<div
+				role="scrollbar"
+				aria-controls={viewportId}
+				aria-orientation="vertical"
+				aria-valuemin={0}
+				aria-valuemax={Math.max(0, viewport ? viewport.scrollHeight - viewport.clientHeight : 0)}
+				aria-valuenow={viewport?.scrollTop ?? 0}
+				tabindex="0"
+				class={cn(
+					'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
+					isDragging && 'bg-foreground/50'
+				)}
+				style:height="{thumbHeight}px"
+				style:transform="translate3d(0, {thumbTop}px, 0)"
+				onmousedown={onDragStart}
+				onkeydown={onThumbKeyDown}
+			></div>
+		</div>
+	{/if}
 </div>
 
 <style>

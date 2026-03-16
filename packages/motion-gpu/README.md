@@ -157,6 +157,12 @@ npm i @motion-core/motion-gpu
 
 ---
 
+# AI Documentation
+
+MotionGPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
+
+---
+
 # Quick Start
 
 ## 1. Create a material and render it

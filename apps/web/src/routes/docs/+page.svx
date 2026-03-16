@@ -7,6 +7,10 @@ description: Framework-agnostic WebGPU core with a Svelte 5 adapter for fullscre
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 
+## AI documentation access
+
+MotionGPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
+
 ## What this package ships
 
 | Area | Source of truth | What it does |

@@ -196,6 +196,21 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(device.createRenderPipeline).toHaveBeenCalledTimes(2);
 	});
 
+	it('reuses BlitPass pipeline cache and resets it for a different device', () => {
+		const pass = new BlitPass();
+		const firstContext = createPassContext();
+		const secondContext = createPassContext();
+		const firstDevice = firstContext.device as unknown as ReturnType<typeof createFakeDevice>;
+		const secondDevice = secondContext.device as unknown as ReturnType<typeof createFakeDevice>;
+
+		pass.render(firstContext);
+		pass.render(firstContext);
+		pass.render(secondContext);
+
+		expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
+	});
+
 	it('resets ShaderPass GPU caches when rendering with a different device', () => {
 		const pass = new ShaderPass({
 			fragment: `

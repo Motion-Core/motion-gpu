@@ -1,21 +1,10 @@
-import type {
-	RenderPass,
-	RenderPassContext,
-	RenderPassFlags,
-	RenderPassInputSlot,
-	RenderPassOutputSlot
-} from '../core/types.js';
+import { FullscreenPass, type FullscreenPassOptions } from './FullscreenPass.js';
 
 const SHADER_PASS_CONTRACT =
 	/\bfn\s+shade\s*\(\s*inputColor\s*:\s*vec4f\s*,\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/;
 
-export interface ShaderPassOptions extends RenderPassFlags {
+export interface ShaderPassOptions extends FullscreenPassOptions {
 	fragment: string;
-	enabled?: boolean;
-	needsSwap?: boolean;
-	input?: RenderPassInputSlot;
-	output?: RenderPassOutputSlot;
-	filter?: GPUFilterMode;
 }
 
 function buildShaderPassProgram(fragment: string): string {
@@ -62,33 +51,12 @@ fn motiongpuShaderPassFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
 /**
  * Fullscreen programmable shader pass.
  */
-export class ShaderPass implements RenderPass {
-	enabled: boolean;
-	needsSwap: boolean;
-	input: RenderPassInputSlot;
-	output: RenderPassOutputSlot;
-	clear: boolean;
-	clearColor: [number, number, number, number];
-	preserve: boolean;
-	private readonly filter: GPUFilterMode;
+export class ShaderPass extends FullscreenPass {
 	private fragment: string;
 	private program: string;
-	private device: GPUDevice | null = null;
-	private sampler: GPUSampler | null = null;
-	private bindGroupLayout: GPUBindGroupLayout | null = null;
-	private shaderModule: GPUShaderModule | null = null;
-	private readonly pipelineByFormat = new Map<GPUTextureFormat, GPURenderPipeline>();
-	private bindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 	constructor(options: ShaderPassOptions) {
-		this.enabled = options.enabled ?? true;
-		this.needsSwap = options.needsSwap ?? true;
-		this.input = options.input ?? 'source';
-		this.output = options.output ?? (this.needsSwap ? 'target' : 'source');
-		this.clear = options.clear ?? false;
-		this.clearColor = options.clearColor ?? [0, 0, 0, 1];
-		this.preserve = options.preserve ?? true;
-		this.filter = options.filter ?? 'linear';
+		super(options);
 		this.fragment = options.fragment;
 		this.program = buildShaderPassProgram(options.fragment);
 	}
@@ -99,129 +67,22 @@ export class ShaderPass implements RenderPass {
 	setFragment(fragment: string): void {
 		this.fragment = fragment;
 		this.program = buildShaderPassProgram(fragment);
-		this.shaderModule = null;
-		this.pipelineByFormat.clear();
-		this.bindGroupByView = new WeakMap();
+		this.invalidateFullscreenCache();
 	}
 
 	getFragment(): string {
 		return this.fragment;
 	}
 
-	private ensureResources(
-		device: GPUDevice,
-		format: GPUTextureFormat
-	): {
-		sampler: GPUSampler;
-		bindGroupLayout: GPUBindGroupLayout;
-		pipeline: GPURenderPipeline;
-	} {
-		if (this.device !== device) {
-			this.device = device;
-			this.sampler = null;
-			this.bindGroupLayout = null;
-			this.shaderModule = null;
-			this.pipelineByFormat.clear();
-			this.bindGroupByView = new WeakMap();
-		}
-
-		if (!this.sampler) {
-			this.sampler = device.createSampler({
-				magFilter: this.filter,
-				minFilter: this.filter,
-				addressModeU: 'clamp-to-edge',
-				addressModeV: 'clamp-to-edge'
-			});
-		}
-
-		if (!this.bindGroupLayout) {
-			this.bindGroupLayout = device.createBindGroupLayout({
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.FRAGMENT,
-						sampler: { type: 'filtering' }
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.FRAGMENT,
-						texture: {
-							sampleType: 'float',
-							viewDimension: '2d',
-							multisampled: false
-						}
-					}
-				]
-			});
-		}
-
-		if (!this.shaderModule) {
-			this.shaderModule = device.createShaderModule({ code: this.program });
-		}
-
-		let pipeline = this.pipelineByFormat.get(format);
-		if (!pipeline) {
-			const pipelineLayout = device.createPipelineLayout({
-				bindGroupLayouts: [this.bindGroupLayout]
-			});
-			pipeline = device.createRenderPipeline({
-				layout: pipelineLayout,
-				vertex: {
-					module: this.shaderModule,
-					entryPoint: 'motiongpuShaderPassVertex'
-				},
-				fragment: {
-					module: this.shaderModule,
-					entryPoint: 'motiongpuShaderPassFragment',
-					targets: [{ format }]
-				},
-				primitive: { topology: 'triangle-list' }
-			});
-			this.pipelineByFormat.set(format, pipeline);
-		}
-
-		return {
-			sampler: this.sampler,
-			bindGroupLayout: this.bindGroupLayout,
-			pipeline
-		};
+	protected getProgram(): string {
+		return this.program;
 	}
 
-	setSize(width: number, height: number): void {
-		void width;
-		void height;
+	protected getVertexEntryPoint(): string {
+		return 'motiongpuShaderPassVertex';
 	}
 
-	render(context: RenderPassContext): void {
-		const { sampler, bindGroupLayout, pipeline } = this.ensureResources(
-			context.device,
-			context.output.format
-		);
-		const inputView = context.input.view;
-		let bindGroup = this.bindGroupByView.get(inputView);
-		if (!bindGroup) {
-			bindGroup = context.device.createBindGroup({
-				layout: bindGroupLayout,
-				entries: [
-					{ binding: 0, resource: sampler },
-					{ binding: 1, resource: inputView }
-				]
-			});
-			this.bindGroupByView.set(inputView, bindGroup);
-		}
-		const pass = context.beginRenderPass();
-		pass.setPipeline(pipeline);
-		pass.setBindGroup(0, bindGroup);
-		pass.draw(3);
-		pass.end();
-	}
-
-	dispose(): void {
-		this.device = null;
-		this.sampler = null;
-		this.bindGroupLayout = null;
-		this.shaderModule = null;
-		this.pipelineByFormat.clear();
-		this.bindGroupByView = new WeakMap();
+	protected getFragmentEntryPoint(): string {
+		return 'motiongpuShaderPassFragment';
 	}
 }

@@ -31,7 +31,7 @@ describe('findDirtyFloatRanges', () => {
 		const a = new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]);
 		const b = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0]);
 		// index 0 dirty, index 4 dirty, gap = 3 (<= 4 threshold) → merge
-		expect(findDirtyFloatRanges(a, b)).toEqual([{ start: 0, count: 5 }]);
+		expect(findDirtyFloatRanges(a, b, 4)).toEqual([{ start: 0, count: 5 }]);
 	});
 
 	it('merges two dirty ranges with gap exactly at threshold', () => {
@@ -47,7 +47,7 @@ describe('findDirtyFloatRanges', () => {
 		const a = new Float32Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
 		const b = new Float32Array([1, 0, 0, 0, 0, 0, 1, 0, 0, 0]);
 		// index 0 dirty, index 6 dirty, gap = 5 (> 4 threshold) → separate
-		expect(findDirtyFloatRanges(a, b)).toEqual([
+		expect(findDirtyFloatRanges(a, b, 4)).toEqual([
 			{ start: 0, count: 1 },
 			{ start: 6, count: 1 }
 		]);

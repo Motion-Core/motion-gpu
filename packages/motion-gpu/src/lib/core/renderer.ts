@@ -369,7 +369,8 @@ const DIRTY_RANGE_MERGE_GAP = 4;
  */
 export function findDirtyFloatRanges(
 	previous: Float32Array,
-	next: Float32Array
+	next: Float32Array,
+	mergeGapThreshold = DIRTY_RANGE_MERGE_GAP
 ): Array<{ start: number; count: number }> {
 	const ranges: Array<{ start: number; count: number }> = [];
 	let start = -1;
@@ -402,7 +403,7 @@ export function findDirtyFloatRanges(
 		const curr = ranges[index]!;
 		const gap = curr.start - (prev.start + prev.count);
 
-		if (gap <= DIRTY_RANGE_MERGE_GAP) {
+		if (gap <= mergeGapThreshold) {
 			prev.count = curr.start + curr.count - prev.start;
 		} else {
 			merged.push(curr);

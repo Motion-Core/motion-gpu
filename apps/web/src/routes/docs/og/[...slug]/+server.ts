@@ -50,7 +50,9 @@ type ResvgWasmState = {
 	initialized?: boolean;
 };
 
-const resvgState = globalThis as typeof globalThis & { __docsOgResvgWasmState?: ResvgWasmState };
+const resvgState = globalThis as typeof globalThis & {
+	__docsOgResvgWasmState?: ResvgWasmState;
+};
 if (!resvgState.__docsOgResvgWasmState) {
 	resvgState.__docsOgResvgWasmState = {};
 }
@@ -89,6 +91,41 @@ const ensureResvgWasm = (origin: string) => {
 const logoDataUri = `data:image/svg+xml,${encodeURIComponent(
 	brandLogoRaw.replaceAll('currentColor', '#ff6900')
 )}`;
+const LOGO_DISPLAY_HEIGHT = 78;
+
+const extractLogoAspectRatio = (svgMarkup: string) => {
+	const viewBoxMatch = svgMarkup.match(/viewBox="([^"]+)"/i);
+	if (viewBoxMatch) {
+		const [, rawViewBox] = viewBoxMatch;
+		const values = rawViewBox
+			.trim()
+			.split(/\s+/)
+			.map((value) => Number(value));
+		if (
+			values.length === 4 &&
+			Number.isFinite(values[2]) &&
+			Number.isFinite(values[3]) &&
+			values[2] > 0 &&
+			values[3] > 0
+		) {
+			return values[2] / values[3];
+		}
+	}
+
+	const widthMatch = svgMarkup.match(/width="([^"]+)"/i);
+	const heightMatch = svgMarkup.match(/height="([^"]+)"/i);
+	if (widthMatch && heightMatch) {
+		const width = Number(widthMatch[1]);
+		const height = Number(heightMatch[1]);
+		if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+			return width / height;
+		}
+	}
+
+	return 1;
+};
+
+const logoDisplayWidth = Math.round(LOGO_DISPLAY_HEIGHT * extractLogoAspectRatio(brandLogoRaw));
 
 export const GET: RequestHandler = async ({ params, url }) => {
 	const rawSlug = (params.slug ?? '').replace(/^\/+|\/+$/g, '');
@@ -114,7 +151,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			style="display:flex;flex-direction:column;justify-content:space-between;width:100%;height:100%;padding:40px;background:#ffffff;font-family:Aeonik Pro Regular,sans-serif;"
 		>
 			<div style="display:flex;align-items:flex-start;justify-content:space-between;">
-				<img src="${logoDataUri}" alt="" style="display:flex;width:78px;height:78px;" />
+				<img
+					src="${logoDataUri}"
+					alt=""
+					style="display:flex;width:${logoDisplayWidth}px;height:${LOGO_DISPLAY_HEIGHT}px;"
+				/>
 				<div style="display:flex;font-size:24px;color:#8a8f98;font-weight:400;">${pageUrl}</div>
 			</div>
 			<div style="display:flex;flex-direction:column;gap:24px;">
@@ -141,8 +182,18 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		width: OG_WIDTH,
 		height: OG_HEIGHT,
 		fonts: [
-			{ name: 'Aeonik Pro Regular', data: aeonikProRegular, weight: 400, style: 'normal' },
-			{ name: 'Aeonik Pro SemiBold', data: aeonikProSemiBold, weight: 600, style: 'normal' }
+			{
+				name: 'Aeonik Pro Regular',
+				data: aeonikProRegular,
+				weight: 400,
+				style: 'normal'
+			},
+			{
+				name: 'Aeonik Pro SemiBold',
+				data: aeonikProSemiBold,
+				weight: 600,
+				style: 'normal'
+			}
 		]
 	});
 	const rendered = new Resvg(svg, {

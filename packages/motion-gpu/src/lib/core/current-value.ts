@@ -37,6 +37,9 @@ export function createCurrentWritable<T>(
 	};
 
 	const set = (value: T): void => {
+		if (Object.is(current, value)) {
+			return;
+		}
 		current = value;
 		notify(value);
 		onChange?.(value);

@@ -38,4 +38,62 @@ describe('currentWritable', () => {
 		expect(onChange).toHaveBeenNthCalledWith(1, { count: 1 });
 		expect(onChange).toHaveBeenNthCalledWith(2, { count: 2 });
 	});
+
+	it('does not notify subscribers when set is called with the same primitive value', () => {
+		const store = createCurrentWritable(42);
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount++;
+		});
+		callCount = 0;
+
+		store.set(42);
+		expect(callCount).toBe(0);
+		expect(store.current).toBe(42);
+	});
+
+	it('does not invoke onChange when set is called with the same primitive value', () => {
+		const onChange = vi.fn();
+		const store = createCurrentWritable(10, onChange);
+
+		store.set(10);
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it('does not notify subscribers when set is called with the same object reference', () => {
+		const obj = { x: 1, y: 2 };
+		const store = createCurrentWritable(obj);
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount++;
+		});
+		callCount = 0;
+
+		store.set(obj);
+		expect(callCount).toBe(0);
+	});
+
+	it('notifies subscribers when set is called with a different object of same shape', () => {
+		const store = createCurrentWritable({ x: 1, y: 2 });
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount++;
+		});
+		callCount = 0;
+
+		store.set({ x: 1, y: 2 });
+		expect(callCount).toBe(1);
+	});
+
+	it('deduplicates NaN values correctly', () => {
+		const store = createCurrentWritable(NaN);
+		let callCount = 0;
+		store.subscribe(() => {
+			callCount++;
+		});
+		callCount = 0;
+
+		store.set(NaN);
+		expect(callCount).toBe(0);
+	});
 });

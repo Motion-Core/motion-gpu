@@ -59,7 +59,7 @@
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html brandingConfig.logoRaw}
 		</span>
-		<span class="font-medium tracking-normal text-foreground">{brandingConfig.name}</span>
+		<span class="font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
 	</a>
 	<button
 		onclick={toggle}

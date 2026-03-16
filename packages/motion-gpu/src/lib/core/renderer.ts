@@ -355,9 +355,19 @@ function createBindGroupLayoutEntries(
 }
 
 /**
- * Computes dirty float ranges between two uniform snapshots.
+ * Maximum gap (in floats) between two dirty ranges that triggers merge.
+ *
+ * Set to 4 (16 bytes) which covers one vec4f alignment slot.
  */
-function findDirtyFloatRanges(
+const DIRTY_RANGE_MERGE_GAP = 4;
+
+/**
+ * Computes dirty float ranges between two uniform snapshots.
+ *
+ * Adjacent dirty ranges separated by a gap smaller than or equal to
+ * {@link DIRTY_RANGE_MERGE_GAP} are merged to reduce `writeBuffer` calls.
+ */
+export function findDirtyFloatRanges(
 	previous: Float32Array,
 	next: Float32Array
 ): Array<{ start: number; count: number }> {
@@ -382,7 +392,24 @@ function findDirtyFloatRanges(
 		ranges.push({ start, count: next.length - start });
 	}
 
-	return ranges;
+	if (ranges.length <= 1) {
+		return ranges;
+	}
+
+	const merged: Array<{ start: number; count: number }> = [ranges[0]!];
+	for (let index = 1; index < ranges.length; index += 1) {
+		const prev = merged[merged.length - 1]!;
+		const curr = ranges[index]!;
+		const gap = curr.start - (prev.start + prev.count);
+
+		if (gap <= DIRTY_RANGE_MERGE_GAP) {
+			prev.count = curr.start + curr.count - prev.start;
+		} else {
+			merged.push(curr);
+		}
+	}
+
+	return merged;
 }
 
 /**

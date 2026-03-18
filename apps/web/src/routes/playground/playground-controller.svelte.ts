@@ -36,7 +36,7 @@ type FileTreeRow = {
 };
 
 const editorFontStack =
-	'"Aeonik Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+	'"Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 
 const compactLogForDisplay = (value: string) =>
 	value

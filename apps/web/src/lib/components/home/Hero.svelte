@@ -29,7 +29,7 @@
 			<span class="text-accent">GPU visuals.</span>
 		</h1>
 		<p
-			class="max-w-xl text-center text-base font-normal text-pretty text-foreground-muted sm:text-lg"
+			class="max-w-xl text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:text-lg"
 		>
 			If you need performance, clarity, and composability in WebGPU for Svelte, this is the stack.
 		</p>

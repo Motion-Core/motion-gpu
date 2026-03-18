@@ -25,6 +25,6 @@ export {
 export { docsManifest, getAdjacentDocs, getDocBySlug, getDocHref } from './docs/manifest';
 export { getDocMetadata, type DocMetadata } from './docs/metadata';
 
-export { default as aeonikProRegularDataUri } from '$lib/assets/fonts/aeonikpro-satori-400.ttf?inline';
-export { default as aeonikProSemiBoldDataUri } from '$lib/assets/fonts/aeonikpro-satori-600.ttf?inline';
+export { default as fkGroteskNeueRegularDataUri } from '$lib/assets/fonts/fkgroteskneue-satori-400.ttf?inline';
+export { default as fkGroteskNeueSemiBoldDataUri } from '$lib/assets/fonts/fkgroteskneue-satori-600.ttf?inline';
 export { default as brandLogoRaw } from './assets/motiongpu-logo.svg?raw';

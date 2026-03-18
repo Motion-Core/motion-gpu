@@ -17,7 +17,9 @@
 		>
 			Bring your shader pipeline to production.
 		</h2>
-		<p class="text-center text-base font-normal text-pretty text-foreground-muted sm:w-2/3">
+		<p
+			class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-2/3"
+		>
 			Open the playground to iterate fast, then move to docs for strict contracts, render passes,
 			and deterministic frame scheduling.
 		</p>

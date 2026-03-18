@@ -144,16 +144,16 @@
 			}}
 		>
 			<div class="flex items-center border-b border-border/60 px-3">
-				<Search size={24} class="mr-2 text-foreground/45" />
+				<Search size={24} class="mr-2 text-foreground-muted/70" />
 				<input
 					bind:this={inputRef}
 					bind:value={query}
-					class="command-palette-input flex h-12 w-full bg-transparent text-base tracking-normal text-foreground placeholder:text-foreground/45 focus:outline-none focus-visible:border-none! focus-visible:ring-0! focus-visible:ring-offset-0! focus-visible:outline-none!"
+					class="command-palette-input flex h-12 w-full bg-transparent text-base tracking-normal text-foreground placeholder:text-foreground-muted/70 focus:outline-none focus-visible:border-none! focus-visible:ring-0! focus-visible:ring-offset-0! focus-visible:outline-none!"
 					placeholder={docsUiConfig.search.dialogPlaceholder}
 					aria-label={docsUiConfig.search.dialogPlaceholder}
 				/>
 				<kbd
-					class="pointer-events-none inset-shadow relative hidden h-5 items-center gap-1 rounded-xs border border-border bg-background-inset px-1.5 font-mono text-[10px] font-medium tracking-normal text-foreground/45 select-none sm:flex"
+					class="pointer-events-none inset-shadow relative hidden h-5 items-center gap-1 rounded-xs border border-border bg-background-inset px-1.5 font-mono text-[10px] font-medium tracking-normal text-foreground-muted/70 select-none sm:flex"
 				>
 					ESC
 				</kbd>
@@ -205,10 +205,7 @@
 										{/if}
 										{#if result.snippet}
 											<div
-												class={cn(
-													'line-clamp-1 text-left text-xs font-medium tracking-normal',
-													i === selectedIndex ? 'text-foreground' : 'text-foreground/60'
-												)}
+												class="line-clamp-1 text-left text-xs font-medium tracking-normal text-foreground-muted"
 											>
 												{#each highlight(result.snippet, query) as part, index (index)}
 													{#if part.highlight}
@@ -224,7 +221,7 @@
 							{/each}
 						</ScrollArea>
 					{:else if query}
-						<div class="py-6 text-center text-sm tracking-normal text-foreground/45">
+						<div class="py-6 text-center text-sm tracking-normal text-foreground-muted/70">
 							{docsUiConfig.search.noResultsLabel}
 						</div>
 					{/if}
@@ -234,11 +231,11 @@
 				class="flex w-full flex-row items-center justify-start gap-2 rounded-b-lg border-t border-border/60 bg-background p-2"
 			>
 				<kbd
-					class="pointer-events-none inset-shadow relative hidden h-5 items-center gap-1 rounded-xs border border-border bg-background-inset px-1.5 font-mono text-[10px] font-medium text-foreground/45 select-none sm:flex"
+					class="pointer-events-none inset-shadow relative hidden h-5 items-center gap-1 rounded-xs border border-border bg-background-inset px-1.5 font-mono text-[10px] font-medium text-foreground-muted/70 select-none sm:flex"
 				>
 					<Return class="size-3" />
 				</kbd>
-				<span class="text-xs font-medium tracking-normal text-foreground/45">
+				<span class="text-xs font-medium tracking-normal text-foreground-muted/70">
 					{docsUiConfig.search.submitHintLabel}
 				</span>
 			</div>

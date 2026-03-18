@@ -264,7 +264,7 @@
 								href={githubUrl}
 								target="_blank"
 								rel="noreferrer"
-								class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
+								class="group flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
 							>
 								<LogoGithub class="size-4 flex-none" />
 								{docsUiConfig.docActions.repositoryLinkLabel}
@@ -276,7 +276,7 @@
 								href={chatGptUrl}
 								target="_blank"
 								rel="noreferrer"
-								class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
+								class="group flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
 							>
 								<svg
 									role="img"
@@ -299,7 +299,7 @@
 								href={claudeUrl}
 								target="_blank"
 								rel="noreferrer"
-								class="group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
+								class="group flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-inset hover:text-foreground"
 							>
 								<svg
 									role="img"

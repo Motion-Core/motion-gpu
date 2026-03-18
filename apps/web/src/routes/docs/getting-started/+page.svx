@@ -103,11 +103,6 @@ At this point you have the minimal production baseline:
 2. validated immutable material,
 3. runtime updates via `useFrame` in canvas subtree.
 
-## What is covered here vs Examples
-
-- This page: quickest path from zero to first animated shader.
-- [Examples](/docs/examples): practical recipes (interaction, render modes, textures, post-processing, multi-pass chains).
-
 ## Recommended first-production checklist
 
 1. Keep shader contracts strict (`frag` for material, `shade` for passes).

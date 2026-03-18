@@ -70,7 +70,9 @@
 	>
 		Common questions before you build.
 	</h2>
-	<p class="text-center text-base font-normal text-pretty text-foreground-muted sm:w-1/2">
+	<p
+		class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-1/2"
+	>
 		A quick introduction to what MotionGPU is, who it is for, and how to begin.
 	</p>
 
@@ -85,12 +87,12 @@
 						<button
 							type="button"
 							id={`faq-trigger-${index}`}
-							class="flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left text-base tracking-tight text-foreground sm:px-6"
+							class="flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left text-base text-foreground sm:px-6"
 							aria-expanded={isOpen(item.question)}
 							aria-controls={`faq-panel-${index}`}
 							onclick={() => toggle(item.question)}
 						>
-							<span class="font-medium">{item.question}</span>
+							<span class="font-medium tracking-tight">{item.question}</span>
 							<span
 								aria-hidden="true"
 								class="inset-shadow inline-flex rounded-sm border border-border bg-background-inset p-1 text-foreground-muted"
@@ -111,7 +113,9 @@
 								class="px-4 pb-4 sm:px-6"
 								transition:slide={{ duration: 220 }}
 							>
-								<p class="text-sm font-normal text-pretty text-foreground-muted sm:text-base">
+								<p
+									class="text-sm font-normal tracking-normal text-pretty text-foreground-muted sm:text-base"
+								>
 									{item.answer}
 								</p>
 							</div>

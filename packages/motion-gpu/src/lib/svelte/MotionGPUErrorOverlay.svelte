@@ -117,21 +117,13 @@
 		--motiongpu-radius-xl: var(--radius-xl, 1rem);
 		--motiongpu-font-sans: var(
 			--font-sans,
-			'Aeonik Pro',
 			'Inter',
 			'Segoe UI',
 			'Helvetica Neue',
 			Arial,
 			sans-serif
 		);
-		--motiongpu-font-mono: var(
-			--font-mono,
-			'Aeonik font-mono',
-			'SFMono-Regular',
-			'Menlo',
-			'Consolas',
-			monospace
-		);
+		--motiongpu-font-mono: var(--font-mono, 'SFMono-Regular', 'Menlo', 'Consolas', monospace);
 		position: fixed;
 		inset: 0;
 		display: grid;

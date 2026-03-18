@@ -38,7 +38,7 @@
 
 		<div class="mt-auto grid gap-4">
 			<h3 class="text-xl font-medium tracking-tight text-foreground">{title}</h3>
-			<p class="text-base font-normal text-foreground-muted">{description}</p>
+			<p class="text-base font-normal tracking-normal text-foreground-muted">{description}</p>
 		</div>
 	</article>
 </div>

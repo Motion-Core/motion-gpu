@@ -228,7 +228,9 @@
 					{#if metadata}
 						<div class="space-y-4">
 							{#if currentDoc?.category}
-								<p class="mb-2 text-sm font-medium tracking-normal text-foreground/45 capitalize">
+								<p
+									class="mb-2 text-sm font-medium tracking-normal text-foreground-muted/70 capitalize"
+								>
 									{currentDoc.category}
 								</p>
 							{/if}

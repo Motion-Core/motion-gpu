@@ -61,7 +61,7 @@
 		viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);"
 	>
 		<nav class="flex flex-col space-y-1">
-			<h4 class="mb-2 ml-2 text-xs font-medium tracking-wide text-foreground/45 uppercase">
+			<h4 class="mb-2 ml-2 text-xs font-medium tracking-wide text-foreground-muted/70 uppercase">
 				{docsUiConfig.sidebar.navigationLabel}
 			</h4>
 			{#each docsNavigation as doc (doc.slug)}

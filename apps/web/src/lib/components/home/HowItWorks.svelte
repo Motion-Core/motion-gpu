@@ -75,7 +75,9 @@
 	>
 		A transparent pipeline from start to finish
 	</h2>
-	<p class="text-center text-base font-normal text-pretty text-foreground-muted sm:w-1/2">
+	<p
+		class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-1/2"
+	>
 		From first shader line to production diagnostics, each step keeps rendering behavior explicit
 		and composable.
 	</p>

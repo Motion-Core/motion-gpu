@@ -646,7 +646,7 @@
 	:global(.cm-editor .cm-gutter),
 	:global(.cm-editor .cm-scroller) {
 		font-family:
-			'Aeonik Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+			'Berkeley Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
 			'Courier New', monospace !important;
 		font-kerning: none;
 		font-variant-ligatures: none;

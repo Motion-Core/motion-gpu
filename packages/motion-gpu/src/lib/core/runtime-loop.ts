@@ -83,7 +83,16 @@ export function createMotionGPURuntimeLoop(
 	const setError = (error: unknown, phase: MotionGPUErrorPhase): void => {
 		const report = toMotionGPUErrorReport(error, phase);
 		options.reportError(report);
-		options.getOnError()?.(report);
+		const onError = options.getOnError();
+		if (!onError) {
+			return;
+		}
+
+		try {
+			onError(report);
+		} catch {
+			// User-provided error handlers must not break runtime error recovery.
+		}
 	};
 
 	const clearError = (): void => {

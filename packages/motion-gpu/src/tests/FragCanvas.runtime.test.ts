@@ -643,6 +643,43 @@ describe('FragCanvas runtime', () => {
 		expect(renderer.render).not.toHaveBeenCalled();
 	});
 
+	it('continues rendering when user-provided onError callback throws', async () => {
+		const renderer: MockRenderer = {
+			render: vi
+				.fn()
+				.mockImplementationOnce(() => {
+					throw new Error('frame failure');
+				})
+				.mockImplementation(() => {}),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		const onError = vi.fn(() => {
+			throw new Error('user onError failure');
+		});
+
+		render(FragCanvas, {
+			props: {
+				material,
+				onError,
+				showErrorOverlay: false
+			}
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await waitFor(() => {
+			expect(onError).toHaveBeenCalledWith(
+				expect.objectContaining({
+					phase: 'render',
+					rawMessage: 'frame failure'
+				})
+			);
+		});
+		await flushFrame(48);
+		expect(renderer.render).toHaveBeenCalledTimes(2);
+	});
+
 	it('reports initialization error when material becomes invalid during render loop', async () => {
 		const renderer: MockRenderer = {
 			render: vi.fn(),

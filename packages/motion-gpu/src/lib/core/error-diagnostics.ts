@@ -23,6 +23,20 @@ export interface ShaderCompilationDiagnostic {
 }
 
 /**
+ * Runtime context snapshot captured for shader compilation diagnostics.
+ */
+export interface ShaderCompilationRuntimeContext {
+	materialSignature?: string;
+	passGraph?: {
+		passCount: number;
+		enabledPassCount: number;
+		inputs: string[];
+		outputs: string[];
+	};
+	activeRenderTargets: string[];
+}
+
+/**
  * Structured payload attached to WGSL compilation errors.
  */
 export interface ShaderCompilationDiagnosticsPayload {
@@ -32,6 +46,7 @@ export interface ShaderCompilationDiagnosticsPayload {
 	includeSources: Record<string, string>;
 	defineBlockSource?: string;
 	materialSource: MaterialSourceMetadata | null;
+	runtimeContext?: ShaderCompilationRuntimeContext;
 }
 
 type MotionGPUErrorWithDiagnostics = Error & {
@@ -106,6 +121,46 @@ function isShaderCompilationDiagnostic(value: unknown): value is ShaderCompilati
 	return true;
 }
 
+function isStringArray(value: unknown): value is string[] {
+	return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function isShaderCompilationRuntimeContext(
+	value: unknown
+): value is ShaderCompilationRuntimeContext {
+	if (value === null || typeof value !== 'object') {
+		return false;
+	}
+
+	const record = value as Record<string, unknown>;
+	if (record.materialSignature !== undefined && typeof record.materialSignature !== 'string') {
+		return false;
+	}
+	if (!isStringArray(record.activeRenderTargets)) {
+		return false;
+	}
+	const passGraph = record.passGraph;
+	if (passGraph === undefined) {
+		return true;
+	}
+	if (passGraph === null || typeof passGraph !== 'object') {
+		return false;
+	}
+
+	const passGraphRecord = passGraph as Record<string, unknown>;
+	if (typeof passGraphRecord.passCount !== 'number') {
+		return false;
+	}
+	if (typeof passGraphRecord.enabledPassCount !== 'number') {
+		return false;
+	}
+	if (!isStringArray(passGraphRecord.inputs) || !isStringArray(passGraphRecord.outputs)) {
+		return false;
+	}
+
+	return true;
+}
+
 /**
  * Attaches structured diagnostics payload to an Error.
  */
@@ -158,6 +213,12 @@ export function getShaderCompilationDiagnostics(
 	if (record.materialSource !== null && !isMaterialSourceMetadata(record.materialSource)) {
 		return null;
 	}
+	if (
+		record.runtimeContext !== undefined &&
+		!isShaderCompilationRuntimeContext(record.runtimeContext)
+	) {
+		return null;
+	}
 
 	return {
 		kind: 'shader-compilation',
@@ -167,6 +228,9 @@ export function getShaderCompilationDiagnostics(
 		...(record.defineBlockSource !== undefined
 			? { defineBlockSource: record.defineBlockSource as string }
 			: {}),
-		materialSource: (record.materialSource ?? null) as MaterialSourceMetadata | null
+		materialSource: (record.materialSource ?? null) as MaterialSourceMetadata | null,
+		...(record.runtimeContext !== undefined
+			? { runtimeContext: record.runtimeContext as ShaderCompilationRuntimeContext }
+			: {})
 	};
 }

@@ -529,6 +529,15 @@ describe('createRenderer', () => {
 		expect((thrown as Error).message).toContain('WGSL compilation failed');
 		const diagnostics = getShaderCompilationDiagnostics(thrown);
 		expect(diagnostics?.diagnostics[0]?.message).toBe('unknown symbol foo');
+		expect(diagnostics?.runtimeContext).toEqual({
+			passGraph: {
+				passCount: 0,
+				enabledPassCount: 0,
+				inputs: [],
+				outputs: []
+			},
+			activeRenderTargets: []
+		});
 		expect(runtime.device.removeEventListener).toHaveBeenCalledWith(
 			'uncapturederror',
 			expect.any(Function)

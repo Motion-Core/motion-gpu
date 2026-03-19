@@ -103,6 +103,16 @@ describe('error diagnostics', () => {
 				line: 12,
 				column: 8
 			},
+			runtimeContext: {
+				materialSignature: '{"fragment":"tone"}',
+				passGraph: {
+					passCount: 2,
+					enabledPassCount: 1,
+					inputs: ['source'],
+					outputs: ['target']
+				},
+				activeRenderTargets: ['fxMain']
+			},
 			defineBlockSource: ['const USE_TONE: bool = true;', 'const TONE_GAIN: f32 = 1.0;'].join('\n')
 		});
 
@@ -121,6 +131,14 @@ describe('error diagnostics', () => {
 		expect(payload?.materialSource).toMatchObject({
 			file: '/app/scenes/ToneScene.svelte',
 			functionName: 'createToneMaterial'
+		});
+		expect(payload?.runtimeContext).toMatchObject({
+			materialSignature: '{"fragment":"tone"}',
+			passGraph: {
+				passCount: 2,
+				enabledPassCount: 1
+			},
+			activeRenderTargets: ['fxMain']
 		});
 		expect(payload?.defineBlockSource).toContain('const USE_TONE: bool = true;');
 	});
@@ -211,6 +229,50 @@ describe('error diagnostics', () => {
 				includeSources: {},
 				defineBlockSource: 7,
 				materialSource: null
+			},
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 7,
+						message: 'bad runtime context',
+						sourceLocation: { kind: 'fragment', line: 1 }
+					}
+				],
+				fragmentSource: 'fn frag() -> vec4f { return vec4f(0.0); }',
+				includeSources: {},
+				materialSource: null,
+				runtimeContext: {
+					passGraph: {
+						passCount: '1',
+						enabledPassCount: 1,
+						inputs: ['source'],
+						outputs: ['target']
+					},
+					activeRenderTargets: ['fxMain']
+				}
+			},
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 8,
+						message: 'bad runtime targets',
+						sourceLocation: { kind: 'fragment', line: 1 }
+					}
+				],
+				fragmentSource: 'fn frag() -> vec4f { return vec4f(0.0); }',
+				includeSources: {},
+				materialSource: null,
+				runtimeContext: {
+					passGraph: {
+						passCount: 1,
+						enabledPassCount: 1,
+						inputs: ['source'],
+						outputs: ['target']
+					},
+					activeRenderTargets: [5]
+				}
 			}
 		];
 

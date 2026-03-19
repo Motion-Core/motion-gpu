@@ -5,7 +5,10 @@ import {
 	formatShaderSourceLocation,
 	type ShaderLineMap
 } from './shader.js';
-import { attachShaderCompilationDiagnostics } from './error-diagnostics.js';
+import {
+	attachShaderCompilationDiagnostics,
+	type ShaderCompilationRuntimeContext
+} from './error-diagnostics.js';
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
@@ -155,6 +158,7 @@ async function assertCompilation(
 			column?: number;
 			functionName?: string;
 		} | null;
+		runtimeContext?: ShaderCompilationRuntimeContext;
 	}
 ): Promise<void> {
 	const info = await module.getCompilationInfo();
@@ -194,8 +198,55 @@ async function assertCompilation(
 		...(options?.defineBlockSource !== undefined
 			? { defineBlockSource: options.defineBlockSource }
 			: {}),
-		materialSource: options?.materialSource ?? null
+		materialSource: options?.materialSource ?? null,
+		...(options?.runtimeContext !== undefined ? { runtimeContext: options.runtimeContext } : {})
 	});
+}
+
+function toSortedUniqueStrings(values: string[]): string[] {
+	return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
+function buildPassGraphSnapshot(
+	passes: RenderPass[] | undefined
+): NonNullable<ShaderCompilationRuntimeContext['passGraph']> {
+	const declaredPasses = passes ?? [];
+	let enabledPassCount = 0;
+	const inputs: string[] = [];
+	const outputs: string[] = [];
+
+	for (const pass of declaredPasses) {
+		if (pass.enabled === false) {
+			continue;
+		}
+
+		enabledPassCount += 1;
+		const needsSwap = pass.needsSwap ?? true;
+		const input = pass.input ?? 'source';
+		const output = pass.output ?? (needsSwap ? 'target' : 'source');
+		inputs.push(input);
+		outputs.push(output);
+	}
+
+	return {
+		passCount: declaredPasses.length,
+		enabledPassCount,
+		inputs: toSortedUniqueStrings(inputs),
+		outputs: toSortedUniqueStrings(outputs)
+	};
+}
+
+function buildShaderCompilationRuntimeContext(
+	options: RendererOptions
+): ShaderCompilationRuntimeContext {
+	const passList = options.getPasses?.() ?? options.passes;
+	const renderTargetMap = options.getRenderTargets?.() ?? options.renderTargets;
+
+	return {
+		...(options.materialSignature ? { materialSignature: options.materialSignature } : {}),
+		passGraph: buildPassGraphSnapshot(passList),
+		activeRenderTargets: Object.keys(renderTargetMap ?? {}).sort((a, b) => a.localeCompare(b))
+	};
 }
 
 /**
@@ -572,6 +623,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 	device.addEventListener('uncapturederror', handleUncapturedError);
 	try {
+		const runtimeContext = buildShaderCompilationRuntimeContext(options);
 		const convertLinearToSrgb = shouldConvertLinearToSrgb(options.outputColorSpace, format);
 		const builtShader = buildShaderSourceWithMap(
 			options.fragmentWgsl,
@@ -590,7 +642,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			...(options.defineBlockSource !== undefined
 				? { defineBlockSource: options.defineBlockSource }
 				: {}),
-			materialSource: options.materialSource ?? null
+			materialSource: options.materialSource ?? null,
+			runtimeContext
 		});
 
 		const normalizedTextureDefinitions = normalizeTextureDefinitions(

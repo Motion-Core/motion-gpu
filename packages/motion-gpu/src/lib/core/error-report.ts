@@ -49,6 +49,20 @@ export interface MotionGPUErrorSource {
 }
 
 /**
+ * Optional runtime context captured with diagnostics payload.
+ */
+export interface MotionGPUErrorContext {
+	materialSignature?: string;
+	passGraph?: {
+		passCount: number;
+		enabledPassCount: number;
+		inputs: string[];
+		outputs: string[];
+	};
+	activeRenderTargets: string[];
+}
+
+/**
  * Structured error payload used by UI diagnostics.
  */
 export interface MotionGPUErrorReport {
@@ -96,6 +110,10 @@ export interface MotionGPUErrorReport {
 	 * Optional source context for shader-related diagnostics.
 	 */
 	source: MotionGPUErrorSource | null;
+	/**
+	 * Optional runtime context snapshot (material/pass graph/render targets).
+	 */
+	context: MotionGPUErrorContext | null;
 }
 
 /**
@@ -324,6 +342,7 @@ export function toMotionGPUErrorReport(
 	const defaultMessage = rawLines[0] ?? rawMessage;
 	const defaultDetails = rawLines.slice(1);
 	const source = buildSourceFromDiagnostics(error);
+	const context = shaderDiagnostics?.runtimeContext ?? null;
 	const message =
 		shaderDiagnostics && shaderDiagnostics.diagnostics[0]
 			? formatDiagnosticMessage(shaderDiagnostics.diagnostics[0])
@@ -348,6 +367,7 @@ export function toMotionGPUErrorReport(
 		stack,
 		rawMessage,
 		phase,
-		source
+		source,
+		context
 	};
 }

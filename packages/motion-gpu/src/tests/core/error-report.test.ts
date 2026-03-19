@@ -137,6 +137,47 @@ describe('error report', () => {
 		expect(report.source?.snippet.some((line) => line.highlight && line.number === 2)).toBe(true);
 	});
 
+	it('passes through shader runtime context metadata from diagnostics payload', () => {
+		const error = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\nunknown function call'),
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 14,
+						message: 'unknown function call',
+						sourceLocation: { kind: 'fragment', line: 1 }
+					}
+				],
+				fragmentSource: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				includeSources: {},
+				materialSource: null,
+				runtimeContext: {
+					materialSignature: '{"fragment":"hash"}',
+					passGraph: {
+						passCount: 2,
+						enabledPassCount: 1,
+						inputs: ['source'],
+						outputs: ['target']
+					},
+					activeRenderTargets: ['fxMain']
+				}
+			}
+		);
+
+		const report = toMotionGPUErrorReport(error, 'render');
+		expect(report.context).toEqual({
+			materialSignature: '{"fragment":"hash"}',
+			passGraph: {
+				passCount: 2,
+				enabledPassCount: 1,
+				inputs: ['source'],
+				outputs: ['target']
+			},
+			activeRenderTargets: ['fxMain']
+		});
+	});
+
 	it('uses material source filename when component name is unavailable', () => {
 		const error = attachShaderCompilationDiagnostics(
 			new Error('WGSL compilation failed:\nbad expression'),

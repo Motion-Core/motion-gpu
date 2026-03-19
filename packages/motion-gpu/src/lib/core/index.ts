@@ -12,8 +12,11 @@ export { loadTexturesFromUrls } from './texture-loader.js';
 export { BlitPass, CopyPass, ShaderPass } from '../passes/index.js';
 export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
 export type {
+	MotionGPUErrorCode,
+	MotionGPUErrorContext,
 	MotionGPUErrorPhase,
 	MotionGPUErrorReport,
+	MotionGPUErrorSeverity,
 	MotionGPUErrorSource,
 	MotionGPUErrorSourceLine
 } from './error-report.js';

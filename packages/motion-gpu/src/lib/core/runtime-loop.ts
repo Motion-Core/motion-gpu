@@ -265,6 +265,7 @@ export function createMotionGPURuntimeLoop(
 							includeSources: materialState.includeSources,
 							defineBlockSource: materialState.defineBlockSource,
 							materialSource: materialState.source,
+							materialSignature: materialState.signature,
 							uniformLayout: materialState.uniformLayout,
 							textureKeys: materialState.textureKeys,
 							textureDefinitions: materialState.textures,

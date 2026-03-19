@@ -481,6 +481,10 @@ export interface RendererOptions {
 		functionName?: string;
 	} | null;
 	/**
+	 * Stable material signature captured during resolution.
+	 */
+	materialSignature?: string;
+	/**
 	 * Resolved uniform layout.
 	 */
 	uniformLayout: UniformLayout;

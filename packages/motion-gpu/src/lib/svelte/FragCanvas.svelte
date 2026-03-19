@@ -31,6 +31,8 @@
 		showErrorOverlay?: boolean;
 		errorRenderer?: Snippet<[MotionGPUErrorReport]>;
 		onError?: (report: MotionGPUErrorReport) => void;
+		errorHistoryLimit?: number;
+		onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
 		class?: string;
 		style?: string;
 		children?: Snippet;
@@ -53,6 +55,8 @@
 		showErrorOverlay = true,
 		errorRenderer = undefined,
 		onError = undefined,
+		errorHistoryLimit = 0,
+		onErrorHistory = undefined,
 		class: className = '',
 		style = '',
 		children
@@ -60,6 +64,14 @@
 
 	let canvas: HTMLCanvasElement | undefined;
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
+	let errorHistory = $state<MotionGPUErrorReport[]>([]);
+
+	const getNormalizedErrorHistoryLimit = (): number => {
+		if (!Number.isFinite(errorHistoryLimit) || errorHistoryLimit <= 0) {
+			return 0;
+		}
+		return Math.floor(errorHistoryLimit);
+	};
 
 	const bindCanvas = (node: HTMLCanvasElement) => {
 		canvas = node;
@@ -150,6 +162,26 @@
 		requestFrame();
 	});
 
+	$effect(() => {
+		const limit = getNormalizedErrorHistoryLimit();
+		if (limit <= 0) {
+			if (errorHistory.length === 0) {
+				return;
+			}
+			errorHistory = [];
+			onErrorHistory?.([]);
+			return;
+		}
+
+		if (errorHistory.length <= limit) {
+			return;
+		}
+
+		const trimmed = errorHistory.slice(errorHistory.length - limit);
+		errorHistory = trimmed;
+		onErrorHistory?.(trimmed);
+	});
+
 	onMount(() => {
 		if (!canvas) {
 			const report = toMotionGPUErrorReport(
@@ -157,6 +189,12 @@
 				'initialization'
 			);
 			errorReport = report;
+			const historyLimit = getNormalizedErrorHistoryLimit();
+			if (historyLimit > 0) {
+				const nextHistory = [report].slice(-historyLimit);
+				errorHistory = nextHistory;
+				onErrorHistory?.(nextHistory);
+			}
 			onError?.(report);
 			return () => registry.clear();
 		}
@@ -175,6 +213,11 @@
 			getAdapterOptions: () => adapterOptions,
 			getDeviceDescriptor: () => deviceDescriptor,
 			getOnError: () => onError,
+			getErrorHistoryLimit: () => errorHistoryLimit,
+			getOnErrorHistory: () => onErrorHistory,
+			reportErrorHistory: (history) => {
+				errorHistory = history;
+			},
 			reportError: (report) => {
 				errorReport = report;
 			}

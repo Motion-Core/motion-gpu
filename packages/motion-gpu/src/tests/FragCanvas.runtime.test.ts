@@ -643,6 +643,69 @@ describe('FragCanvas runtime', () => {
 		expect(renderer.render).not.toHaveBeenCalled();
 	});
 
+	it('captures error history with ring-buffer limit', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		const onErrorHistory = vi.fn();
+
+		const view = render(FragCanvasFrameMutationHarness, {
+			props: {
+				material: runtimeBindingsMaterial,
+				mode: 'invalid-uniform',
+				onErrorHistory,
+				errorHistoryLimit: 2,
+				showErrorOverlay: false
+			}
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await waitFor(() => {
+			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
+				| Array<{ rawMessage: string }>
+				| undefined;
+			expect(latest).toHaveLength(1);
+			expect(latest?.[0]?.rawMessage).toContain('Unknown uniform "uMissing"');
+		});
+
+		await view.rerender({
+			material: runtimeBindingsMaterial,
+			mode: 'invalid-texture',
+			onErrorHistory,
+			errorHistoryLimit: 2,
+			showErrorOverlay: false
+		});
+		await flushFrame(48);
+		await waitFor(() => {
+			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
+				| Array<{ rawMessage: string }>
+				| undefined;
+			expect(latest).toHaveLength(2);
+			expect(latest?.[0]?.rawMessage).toContain('Unknown uniform "uMissing"');
+			expect(latest?.[1]?.rawMessage).toContain('Unknown texture "uMissing"');
+		});
+
+		await view.rerender({
+			material: runtimeBindingsMaterial,
+			mode: 'invalid-uniform',
+			onErrorHistory,
+			errorHistoryLimit: 2,
+			showErrorOverlay: false
+		});
+		await flushFrame(64);
+		await waitFor(() => {
+			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
+				| Array<{ rawMessage: string }>
+				| undefined;
+			expect(latest).toHaveLength(2);
+			expect(latest?.[0]?.rawMessage).toContain('Unknown texture "uMissing"');
+			expect(latest?.[1]?.rawMessage).toContain('Unknown uniform "uMissing"');
+		});
+	});
+
 	it('continues rendering when user-provided onError callback throws', async () => {
 		const renderer: MockRenderer = {
 			render: vi

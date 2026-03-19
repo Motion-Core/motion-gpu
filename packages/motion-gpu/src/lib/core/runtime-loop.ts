@@ -36,6 +36,9 @@ export interface MotionGPURuntimeLoopOptions {
 	getDeviceDescriptor: () => GPUDeviceDescriptor | undefined;
 	getOnError: () => ((report: MotionGPUErrorReport) => void) | undefined;
 	reportError: (report: MotionGPUErrorReport | null) => void;
+	getErrorHistoryLimit?: () => number | undefined;
+	getOnErrorHistory?: () => ((history: MotionGPUErrorReport[]) => void) | undefined;
+	reportErrorHistory?: (history: MotionGPUErrorReport[]) => void;
 }
 
 export interface MotionGPURuntimeLoop {
@@ -80,6 +83,49 @@ export function createMotionGPURuntimeLoop(
 	const canvasSize = { width: 0, height: 0 };
 	let shouldContinueAfterFrame = false;
 	let activeErrorKey: string | null = null;
+	let errorHistory: MotionGPUErrorReport[] = [];
+
+	const getHistoryLimit = (): number => {
+		const value = options.getErrorHistoryLimit?.() ?? 0;
+		if (!Number.isFinite(value) || value <= 0) {
+			return 0;
+		}
+
+		return Math.floor(value);
+	};
+
+	const publishErrorHistory = (): void => {
+		options.reportErrorHistory?.(errorHistory);
+		const onErrorHistory = options.getOnErrorHistory?.();
+		if (!onErrorHistory) {
+			return;
+		}
+
+		try {
+			onErrorHistory(errorHistory);
+		} catch {
+			// User-provided error history handlers must not break runtime error recovery.
+		}
+	};
+
+	const syncErrorHistory = (): void => {
+		const limit = getHistoryLimit();
+		if (limit <= 0) {
+			if (errorHistory.length === 0) {
+				return;
+			}
+			errorHistory = [];
+			publishErrorHistory();
+			return;
+		}
+
+		if (errorHistory.length <= limit) {
+			return;
+		}
+
+		errorHistory = errorHistory.slice(errorHistory.length - limit);
+		publishErrorHistory();
+	};
 
 	const setError = (error: unknown, phase: MotionGPUErrorPhase): void => {
 		const report = toMotionGPUErrorReport(error, phase);
@@ -93,6 +139,14 @@ export function createMotionGPURuntimeLoop(
 			return;
 		}
 		activeErrorKey = reportKey;
+		const historyLimit = getHistoryLimit();
+		if (historyLimit > 0) {
+			errorHistory = [...errorHistory, report];
+			if (errorHistory.length > historyLimit) {
+				errorHistory = errorHistory.slice(errorHistory.length - historyLimit);
+			}
+			publishErrorHistory();
+		}
 		options.reportError(report);
 		const onError = options.getOnError();
 		if (!onError) {
@@ -220,6 +274,7 @@ export function createMotionGPURuntimeLoop(
 		if (isDisposed) {
 			return;
 		}
+		syncErrorHistory();
 
 		let materialState: ResolvedMaterial;
 		try {

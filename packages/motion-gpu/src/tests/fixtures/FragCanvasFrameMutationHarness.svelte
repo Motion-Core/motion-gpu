@@ -8,12 +8,27 @@
 		material: FragMaterial;
 		mode?: FrameMutationMode;
 		onError?: (report: MotionGPUErrorReport) => void;
+		onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+		errorHistoryLimit?: number;
 		showErrorOverlay?: boolean;
 	}
 
-	let { material, mode = 'none', onError = undefined, showErrorOverlay = false }: Props = $props();
+	let {
+		material,
+		mode = 'none',
+		onError = undefined,
+		onErrorHistory = undefined,
+		errorHistoryLimit = undefined,
+		showErrorOverlay = false
+	}: Props = $props();
 </script>
 
-<FragCanvas {material} {showErrorOverlay} {...onError ? { onError } : {}}>
+<FragCanvas
+	{material}
+	{showErrorOverlay}
+	{...onError ? { onError } : {}}
+	{...onErrorHistory ? { onErrorHistory } : {}}
+	{...errorHistoryLimit !== undefined ? { errorHistoryLimit } : {}}
+>
 	<FrameMutationProbe {mode} />
 </FragCanvas>

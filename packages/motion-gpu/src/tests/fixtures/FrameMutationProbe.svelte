@@ -11,14 +11,14 @@
 	const runtimeTexture = document.createElement('canvas');
 	runtimeTexture.width = 2;
 	runtimeTexture.height = 2;
-	let applied = false;
+	let appliedMode: FrameMutationMode | null = null;
 
 	useFrame(
 		({ setUniform, setTexture }) => {
-			if (applied || mode === 'none') {
+			if (mode === 'none' || appliedMode === mode) {
 				return;
 			}
-			applied = true;
+			appliedMode = mode;
 
 			if (mode === 'valid-both') {
 				setUniform('uGain', 0.75);

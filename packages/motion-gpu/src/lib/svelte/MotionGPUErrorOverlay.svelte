@@ -147,7 +147,7 @@
 		max-width: calc(100vw - 1.5rem);
 		box-sizing: border-box;
 		font-size: 0.875rem;
-		font-weight: 300;
+		font-weight: 400;
 		line-height: 1.45;
 		background: linear-gradient(
 			180deg,
@@ -220,7 +220,7 @@
 		background: color-mix(in srgb, var(--motiongpu-color-accent) 9%, var(--motiongpu-color-card));
 		font-size: 0.82rem;
 		line-height: 1.4;
-		font-weight: 300;
+		font-weight: 400;
 		color: var(--motiongpu-color-foreground);
 	}
 
@@ -228,7 +228,7 @@
 		margin: 0;
 		font-size: 0.82rem;
 		line-height: 1.45;
-		font-weight: 300;
+		font-weight: 400;
 		color: var(--motiongpu-color-foreground-muted);
 	}
 
@@ -273,7 +273,7 @@
 		align-items: center;
 		padding: 0.5rem 0.68rem;
 		font-size: 0.76rem;
-		font-weight: 300;
+		font-weight: 400;
 		line-height: 1.2;
 		color: var(--motiongpu-color-foreground-muted);
 		border-right: 1px solid var(--motiongpu-color-border);
@@ -308,7 +308,7 @@
 	.motiongpu-error-source-line {
 		font-family: var(--motiongpu-font-mono);
 		font-size: 0.77rem;
-		font-weight: 300;
+		font-weight: 400;
 		line-height: 1.3;
 		font-variant-numeric: tabular-nums;
 		font-feature-settings: 'tnum' 1;
@@ -320,7 +320,7 @@
 	.motiongpu-error-source-code {
 		font-family: var(--motiongpu-font-mono);
 		font-size: 0.77rem;
-		font-weight: 350;
+		font-weight: 400;
 		line-height: 1.3;
 		color: var(--motiongpu-color-foreground);
 		white-space: pre-wrap;
@@ -358,7 +358,7 @@
 		background: var(--motiongpu-color-background-muted);
 		font-size: 0.74rem;
 		line-height: 1.4;
-		font-weight: 300;
+		font-weight: 400;
 		color: var(--motiongpu-color-foreground);
 		font-family: var(--motiongpu-font-mono);
 	}

@@ -53,9 +53,8 @@
 								class="motiongpu-error-source-tab motiongpu-error-source-tab-active"
 								role="tab"
 								aria-selected="true"
-								>{report.source.component} (fragment line {report.source
-									.line}{#if report.source.column}, col
-									{report.source.column}{/if})</span
+								>{report.source.location}{#if report.source.column}, col {report.source
+										.column}{/if}</span
 							>
 							<span class="motiongpu-error-source-tab-spacer" aria-hidden="true"></span>
 						</div>

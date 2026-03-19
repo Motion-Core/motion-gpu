@@ -420,6 +420,49 @@ describe('FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
 	});
 
+	it('renders include diagnostics location in overlay source header', async () => {
+		const diagnosticsError = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\nunknown function call'),
+			{
+				kind: 'shader-compilation',
+				diagnostics: [
+					{
+						generatedLine: 25,
+						message: 'unknown function call',
+						linePos: 4,
+						lineLength: 8,
+						sourceLocation: { kind: 'include', include: 'tone', line: 2 }
+					}
+				],
+				fragmentSource: [
+					'fn frag(uv: vec2f) -> vec4f {',
+					'\tlet mapped = tone(uv);',
+					'\treturn vec4f(mapped, 1.0);',
+					'}'
+				].join('\n'),
+				includeSources: {
+					tone: ['fn tone(uv: vec2f) -> vec3f {', '\treturn vec3f(uv, 1.0);', '}'].join('\n')
+				},
+				materialSource: null
+			}
+		);
+		diagnosticsError.stack = '';
+		createRendererMock.mockResolvedValue({
+			render: vi.fn(() => {
+				throw diagnosticsError;
+			}),
+			destroy: vi.fn()
+		} satisfies MockRenderer);
+
+		render(FragCanvas, { props: { material } });
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const overlay = await screen.findByTestId('motiongpu-error');
+		expect(overlay.textContent).toContain('#include <tone> (include <tone> line 2)');
+		expect(overlay.textContent).not.toContain('#include <tone> (fragment line 2)');
+	});
+
 	it('renders diagnostics source header without column and preserves blank snippet lines', async () => {
 		const diagnosticsError = attachShaderCompilationDiagnostics(
 			new Error('WGSL compilation failed:\nmissing return'),

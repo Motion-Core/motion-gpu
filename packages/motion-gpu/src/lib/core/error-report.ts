@@ -24,6 +24,11 @@ export type MotionGPUErrorCode =
 	| 'MOTIONGPU_RUNTIME_ERROR';
 
 /**
+ * Severity level for user-facing diagnostics.
+ */
+export type MotionGPUErrorSeverity = 'error' | 'fatal';
+
+/**
  * One source-code line displayed in diagnostics snippet.
  */
 export interface MotionGPUErrorSourceLine {
@@ -51,6 +56,14 @@ export interface MotionGPUErrorReport {
 	 * Stable machine-readable category code.
 	 */
 	code: MotionGPUErrorCode;
+	/**
+	 * Severity level used by diagnostics UIs and telemetry.
+	 */
+	severity: MotionGPUErrorSeverity;
+	/**
+	 * Whether runtime may recover without full renderer re-creation.
+	 */
+	recoverable: boolean;
 	/**
 	 * Short category title.
 	 */
@@ -199,10 +212,12 @@ function formatDiagnosticMessage(entry: ShaderCompilationDiagnostic): string {
  */
 function classifyErrorMessage(
 	message: string
-): Pick<MotionGPUErrorReport, 'code' | 'title' | 'hint'> {
+): Pick<MotionGPUErrorReport, 'code' | 'severity' | 'recoverable' | 'title' | 'hint'> {
 	if (message.includes('WebGPU is not available in this browser')) {
 		return {
 			code: 'WEBGPU_UNAVAILABLE',
+			severity: 'fatal',
+			recoverable: false,
 			title: 'WebGPU unavailable',
 			hint: 'Use a browser with WebGPU enabled (latest Chrome/Edge/Safari TP) and secure context.'
 		};
@@ -211,6 +226,8 @@ function classifyErrorMessage(
 	if (message.includes('Unable to acquire WebGPU adapter')) {
 		return {
 			code: 'WEBGPU_ADAPTER_UNAVAILABLE',
+			severity: 'fatal',
+			recoverable: false,
 			title: 'WebGPU adapter unavailable',
 			hint: 'GPU adapter request failed. Check browser permissions, flags and device support.'
 		};
@@ -219,6 +236,8 @@ function classifyErrorMessage(
 	if (message.includes('Canvas does not support webgpu context')) {
 		return {
 			code: 'WEBGPU_CONTEXT_UNAVAILABLE',
+			severity: 'error',
+			recoverable: true,
 			title: 'Canvas cannot create WebGPU context',
 			hint: 'Make sure this canvas is attached to DOM and not using an unsupported context option.'
 		};
@@ -227,6 +246,8 @@ function classifyErrorMessage(
 	if (message.includes('WGSL compilation failed')) {
 		return {
 			code: 'WGSL_COMPILATION_FAILED',
+			severity: 'error',
+			recoverable: true,
 			title: 'WGSL compilation failed',
 			hint: 'Check WGSL line numbers below and verify struct/binding/function signatures.'
 		};
@@ -235,6 +256,8 @@ function classifyErrorMessage(
 	if (message.includes('WebGPU device lost') || message.includes('Device Lost')) {
 		return {
 			code: 'WEBGPU_DEVICE_LOST',
+			severity: 'fatal',
+			recoverable: false,
 			title: 'WebGPU device lost',
 			hint: 'GPU device/context was lost. Recreate the renderer and check OS/GPU stability.'
 		};
@@ -243,6 +266,8 @@ function classifyErrorMessage(
 	if (message.includes('WebGPU uncaptured error')) {
 		return {
 			code: 'WEBGPU_UNCAPTURED_ERROR',
+			severity: 'error',
+			recoverable: true,
 			title: 'WebGPU uncaptured error',
 			hint: 'A GPU command failed asynchronously. Review details and validate resource/state usage.'
 		};
@@ -251,6 +276,8 @@ function classifyErrorMessage(
 	if (message.includes('CreateBindGroup') || message.includes('bind group layout')) {
 		return {
 			code: 'BIND_GROUP_MISMATCH',
+			severity: 'error',
+			recoverable: true,
 			title: 'Bind group mismatch',
 			hint: 'Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout.'
 		};
@@ -259,6 +286,8 @@ function classifyErrorMessage(
 	if (message.includes('Destination texture needs to have CopyDst')) {
 		return {
 			code: 'TEXTURE_USAGE_INVALID',
+			severity: 'error',
+			recoverable: true,
 			title: 'Invalid texture usage flags',
 			hint: 'Texture used as upload destination must include CopyDst (and often RenderAttachment).'
 		};
@@ -266,6 +295,8 @@ function classifyErrorMessage(
 
 	return {
 		code: 'MOTIONGPU_RUNTIME_ERROR',
+		severity: 'error',
+		recoverable: true,
 		title: 'MotionGPU render error',
 		hint: 'Review technical details below. If issue persists, isolate shader/uniform/texture changes.'
 	};
@@ -308,6 +339,8 @@ export function toMotionGPUErrorReport(
 
 	return {
 		code: classification.code,
+		severity: classification.severity,
+		recoverable: classification.recoverable,
 		title: classification.title,
 		message,
 		hint: classification.hint,

@@ -12,10 +12,7 @@
 </script>
 
 <div
-	class={cn(
-		'inset-shadow w-full overflow-hidden rounded-xl border border-border bg-background-inset p-2',
-		className
-	)}
+	class={cn('inset-shadow w-full overflow-hidden rounded-xl bg-background-inset p-2', className)}
 	{...rest}
 >
 	{@render children?.()}

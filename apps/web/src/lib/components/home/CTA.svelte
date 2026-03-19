@@ -10,7 +10,7 @@
 
 <Section variant="default" id="cta">
 	<div
-		class="inset-shadow flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-background-inset px-4 py-8 sm:px-8 sm:py-16"
+		class="inset-shadow flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl bg-background-inset px-4 py-8 sm:px-8 sm:py-16"
 	>
 		<h2
 			class="text-center text-2xl font-medium tracking-tight text-balance text-foreground sm:text-4xl"

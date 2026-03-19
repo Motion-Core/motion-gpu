@@ -13,7 +13,10 @@
 
 <td
 	{...restProps}
-	class={cn('px-4 py-2 align-middle font-normal tracking-normal text-foreground-muted', className)}
+	class={cn(
+		'px-4 py-2 align-middle font-normal tracking-normal whitespace-nowrap text-foreground-muted',
+		className
+	)}
 >
 	{@render children?.()}
 </td>

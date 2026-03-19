@@ -81,9 +81,9 @@
 			{#each faqItems as item, index (item.question)}
 				<div
 					data-reveal="card"
-					class="inset-shadow relative overflow-hidden rounded-lg border border-border bg-background-inset p-1"
+					class="inset-shadow relative overflow-hidden rounded-lg bg-background-inset p-1.5"
 				>
-					<article class="rounded-md border border-border bg-background shadow-md">
+					<article class="card rounded-md bg-background">
 						<button
 							type="button"
 							id={`faq-trigger-${index}`}
@@ -95,7 +95,7 @@
 							<span class="font-medium tracking-tight">{item.question}</span>
 							<span
 								aria-hidden="true"
-								class="inset-shadow inline-flex rounded-sm border border-border bg-background-inset p-1 text-foreground-muted"
+								class="inset-shadow inline-flex rounded-sm bg-background-inset p-1.5 text-foreground-muted"
 							>
 								<div
 									class:rotate-45={isOpen(item.question)}

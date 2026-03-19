@@ -28,13 +28,13 @@
 	});
 </script>
 
-<div class="inset-shadow mt-8 rounded-lg border border-border bg-background-inset p-1">
+<div class="inset-shadow mt-8 rounded-lg bg-background-inset p-1.5">
 	<div
 		{...restProps}
 		class={cn(
 			unstyled
 				? 'group/pre relative font-mono text-base font-normal'
-				: 'group/pre relative rounded-md border border-border bg-background p-4 font-mono text-base font-normal text-foreground shadow-md',
+				: 'group/pre card relative rounded-md bg-background p-4 font-mono text-base font-normal text-foreground',
 			className
 		)}
 	>

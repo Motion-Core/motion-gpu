@@ -188,7 +188,7 @@
 		type="button"
 		{id}
 		class={cn(
-			'inline-flex h-7 w-full items-center justify-between gap-1.5 rounded border border-border bg-background px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background-inset focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
+			'card inline-flex h-7 w-full items-center justify-between gap-1.5 rounded bg-background px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background-muted focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
 			triggerClass
 		)}
 		{disabled}
@@ -212,7 +212,7 @@
 	{#if isOpen}
 		<div
 			class={cn(
-				'absolute top-[calc(100%+4px)] left-0 z-50 min-w-full overflow-hidden rounded border border-border bg-background shadow-lg',
+				'card absolute top-[calc(100%+4px)] left-0 z-50 min-w-full overflow-hidden rounded bg-background',
 				menuClass
 			)}
 			transition:scale={{ start: 0.98, duration: 130, easing: cubicOut }}
@@ -235,10 +235,10 @@
 							'flex w-full cursor-default items-center px-2 py-1.5 text-left text-xs font-normal transition-colors duration-150 ease-out',
 							option.disabled
 								? 'cursor-not-allowed text-foreground/40'
-								: 'text-foreground-muted hover:bg-background-inset hover:text-foreground',
+								: 'text-foreground-muted hover:bg-background-muted hover:text-foreground',
 							index === highlightedIndex &&
 								!option.disabled &&
-								'bg-background-inset text-foreground',
+								'bg-background-muted text-foreground',
 							option.value === value && !option.disabled && 'font-medium text-foreground'
 						)}
 						onmouseenter={() => (highlightedIndex = index)}

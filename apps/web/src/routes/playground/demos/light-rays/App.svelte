@@ -71,7 +71,6 @@ fn frag(uv: vec2f) -> vec4f {
 	let rayPos = vec2f(RAY_ANCHOR_X, RAY_ANCHOR_Y) * resolution;
 	let rayDir = normalize(vec2f(RAY_DIR_X, RAY_DIR_Y));
 
-	// Use diagonal as reference distance so both axes are covered
 	let maxDim = length(resolution);
 
 	let rs1 = rayStrength(rayPos, rayDir, coord, 36.2214, 21.11349, 1.5 * RAYS_SPEED, time, maxDim);

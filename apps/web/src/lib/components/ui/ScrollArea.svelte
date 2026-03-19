@@ -2,6 +2,10 @@
 	import { onMount } from 'svelte';
 	import { cn } from '$lib/utils/cn';
 	import type { Snippet } from 'svelte';
+	import type { Attachment } from 'svelte/attachments';
+
+	type ScrollMode = 'vertical' | 'horizontal' | 'both';
+	type Axis = 'vertical' | 'horizontal';
 
 	type Props = {
 		class?: string;
@@ -10,58 +14,122 @@
 		style?: string;
 		viewportClass?: string;
 		viewportStyle?: string;
+		mode?: ScrollMode;
 	};
 
-	let { class: className, id, children, style, viewportClass, viewportStyle }: Props = $props();
+	const MIN_THUMB_SIZE = 20;
+	const SCROLL_TIMEOUT_MS = 600;
+	const SCROLLBAR_THICKNESS = 10;
+
+	let {
+		class: className,
+		id,
+		children,
+		style,
+		viewportClass,
+		viewportStyle,
+		mode = 'vertical'
+	}: Props = $props();
 	const viewportId = $derived(id ?? undefined);
 
 	let viewport = $state<HTMLDivElement | null>(null);
 	let isDragging = $state(false);
+	let dragAxis = $state<Axis | null>(null);
+	let startX = 0;
 	let startY = 0;
+	let startScrollLeft = 0;
 	let startScrollTop = 0;
 
-	let thumbHeight = $state(0);
-	let thumbTop = $state(0);
-	let isVisible = $state(false);
+	let verticalThumbSize = $state(0);
+	let verticalThumbOffset = $state(0);
+	let verticalVisible = $state(false);
+
+	let horizontalThumbSize = $state(0);
+	let horizontalThumbOffset = $state(0);
+	let horizontalVisible = $state(false);
+
 	let isScrolling = $state(false);
-	let isHoveringTrack = $state(false);
-	let scrollTimeout: ReturnType<typeof setTimeout>;
+	let isHoveringVerticalTrack = $state(false);
+	let isHoveringHorizontalTrack = $state(false);
+	let scrollTimeout: ReturnType<typeof setTimeout> | undefined;
 
-	function updateThumb() {
-		if (!viewport) return;
-		const { clientHeight, scrollHeight, scrollTop } = viewport;
+	const verticalEnabled = $derived(mode === 'vertical' || mode === 'both');
+	const horizontalEnabled = $derived(mode === 'horizontal' || mode === 'both');
 
-		isVisible = scrollHeight > clientHeight + 1;
+	const viewportOverflowClass = $derived.by(() => {
+		if (mode === 'horizontal') return 'overflow-x-auto overflow-y-hidden';
+		if (mode === 'both') return 'overflow-auto';
+		return 'overflow-x-hidden overflow-y-auto';
+	});
 
-		if (!isVisible) {
-			thumbHeight = 0;
-			return;
+	const showVerticalTrack = $derived(verticalEnabled && verticalVisible);
+	const showHorizontalTrack = $derived(horizontalEnabled && horizontalVisible);
+
+	function clamp(value: number, min: number, max: number) {
+		return Math.min(max, Math.max(min, value));
+	}
+
+	function updateThumbs(target: HTMLDivElement | null = viewport) {
+		if (!target) return;
+
+		const { clientHeight, clientWidth, scrollHeight, scrollWidth, scrollLeft, scrollTop } = target;
+
+		const nextVerticalVisible = verticalEnabled && scrollHeight > clientHeight + 1;
+		let nextVerticalThumbSize = 0;
+		let nextVerticalThumbOffset = 0;
+
+		if (nextVerticalVisible) {
+			const heightRatio = clientHeight / scrollHeight;
+			nextVerticalThumbSize = Math.max(MIN_THUMB_SIZE, clientHeight * heightRatio);
+
+			const maxScroll = Math.max(0, scrollHeight - clientHeight);
+			const scrollRatio = maxScroll > 0 ? scrollTop / maxScroll : 0;
+			const maxThumbOffset = Math.max(0, clientHeight - nextVerticalThumbSize);
+			nextVerticalThumbOffset = scrollRatio * maxThumbOffset;
 		}
 
-		const heightRatio = clientHeight / scrollHeight;
-		thumbHeight = Math.max(20, clientHeight * heightRatio);
+		verticalVisible = nextVerticalVisible;
+		verticalThumbSize = nextVerticalThumbSize;
+		verticalThumbOffset = nextVerticalThumbOffset;
 
-		const maxScroll = scrollHeight - clientHeight;
-		const scrollRatio = maxScroll > 0 ? scrollTop / maxScroll : 0;
-		const maxThumbTop = clientHeight - thumbHeight;
-		thumbTop = scrollRatio * maxThumbTop;
+		const nextHorizontalVisible = horizontalEnabled && scrollWidth > clientWidth + 1;
+		let nextHorizontalThumbSize = 0;
+		let nextHorizontalThumbOffset = 0;
+
+		if (nextHorizontalVisible) {
+			const widthRatio = clientWidth / scrollWidth;
+			nextHorizontalThumbSize = Math.max(MIN_THUMB_SIZE, clientWidth * widthRatio);
+
+			const maxScroll = Math.max(0, scrollWidth - clientWidth);
+			const scrollRatio = maxScroll > 0 ? scrollLeft / maxScroll : 0;
+			const maxThumbOffset = Math.max(0, clientWidth - nextHorizontalThumbSize);
+			nextHorizontalThumbOffset = scrollRatio * maxThumbOffset;
+		}
+
+		horizontalVisible = nextHorizontalVisible;
+		horizontalThumbSize = nextHorizontalThumbSize;
+		horizontalThumbOffset = nextHorizontalThumbOffset;
 	}
 
 	function handleScroll() {
-		requestAnimationFrame(updateThumb);
+		requestAnimationFrame(() => updateThumbs());
 		isScrolling = true;
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(() => {
 			isScrolling = false;
-		}, 600);
+		}, SCROLL_TIMEOUT_MS);
 	}
 
-	function onDragStart(e: MouseEvent) {
+	function onDragStart(event: MouseEvent, axis: Axis) {
 		if (!viewport) return;
-		e.preventDefault();
-		e.stopPropagation();
+		event.preventDefault();
+		event.stopPropagation();
+
 		isDragging = true;
-		startY = e.clientY;
+		dragAxis = axis;
+		startX = event.clientX;
+		startY = event.clientY;
+		startScrollLeft = viewport.scrollLeft;
 		startScrollTop = viewport.scrollTop;
 
 		document.addEventListener('mousemove', onDragMove);
@@ -69,70 +137,123 @@
 		document.body.style.userSelect = 'none';
 	}
 
-	function onDragMove(e: MouseEvent) {
-		if (!isDragging || !viewport) return;
-		const deltaY = e.clientY - startY;
+	function onDragMove(event: MouseEvent) {
+		if (!isDragging || !viewport || !dragAxis) return;
 
-		const { clientHeight, scrollHeight } = viewport;
+		if (dragAxis === 'vertical') {
+			const deltaY = event.clientY - startY;
+			const maxThumbOffset = Math.max(0, viewport.clientHeight - verticalThumbSize);
+			const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
 
-		const maxThumbTop = clientHeight - thumbHeight;
-		const maxScroll = scrollHeight - clientHeight;
+			if (maxThumbOffset === 0) return;
 
-		if (maxThumbTop === 0) return;
+			const scrollAmount = (deltaY / maxThumbOffset) * maxScroll;
+			viewport.scrollTop = clamp(startScrollTop + scrollAmount, 0, maxScroll);
+			return;
+		}
 
-		const thumbRatio = deltaY / maxThumbTop;
-		const scrollAmount = thumbRatio * maxScroll;
+		const deltaX = event.clientX - startX;
+		const maxThumbOffset = Math.max(0, viewport.clientWidth - horizontalThumbSize);
+		const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
 
-		viewport.scrollTop = startScrollTop + scrollAmount;
+		if (maxThumbOffset === 0) return;
+
+		const scrollAmount = (deltaX / maxThumbOffset) * maxScroll;
+		viewport.scrollLeft = clamp(startScrollLeft + scrollAmount, 0, maxScroll);
 	}
 
 	function onDragEnd() {
 		isDragging = false;
+		dragAxis = null;
 		document.removeEventListener('mousemove', onDragMove);
 		document.removeEventListener('mouseup', onDragEnd);
 		document.body.style.userSelect = '';
 	}
 
-	function onThumbKeyDown(event: KeyboardEvent) {
+	function onThumbKeyDown(event: KeyboardEvent, axis: Axis) {
 		if (!viewport) return;
 
 		const lineStep = 40;
-		const pageStep = Math.max(40, Math.floor(viewport.clientHeight * 0.9));
-		const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+		if (axis === 'vertical') {
+			const pageStep = Math.max(40, Math.floor(viewport.clientHeight * 0.9));
+			const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
 
+			switch (event.key) {
+				case 'ArrowUp':
+					event.preventDefault();
+					viewport.scrollTop = clamp(viewport.scrollTop - lineStep, 0, maxScroll);
+					break;
+				case 'ArrowDown':
+					event.preventDefault();
+					viewport.scrollTop = clamp(viewport.scrollTop + lineStep, 0, maxScroll);
+					break;
+				case 'PageUp':
+					event.preventDefault();
+					viewport.scrollTop = clamp(viewport.scrollTop - pageStep, 0, maxScroll);
+					break;
+				case 'PageDown':
+					event.preventDefault();
+					viewport.scrollTop = clamp(viewport.scrollTop + pageStep, 0, maxScroll);
+					break;
+				case 'Home':
+					event.preventDefault();
+					viewport.scrollTop = 0;
+					break;
+				case 'End':
+					event.preventDefault();
+					viewport.scrollTop = maxScroll;
+					break;
+			}
+			return;
+		}
+
+		const pageStep = Math.max(40, Math.floor(viewport.clientWidth * 0.9));
+		const maxScroll = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
 		switch (event.key) {
-			case 'ArrowUp':
+			case 'ArrowLeft':
 				event.preventDefault();
-				viewport.scrollTop = Math.max(0, viewport.scrollTop - lineStep);
+				viewport.scrollLeft = clamp(viewport.scrollLeft - lineStep, 0, maxScroll);
 				break;
-			case 'ArrowDown':
+			case 'ArrowRight':
 				event.preventDefault();
-				viewport.scrollTop = Math.min(maxScroll, viewport.scrollTop + lineStep);
+				viewport.scrollLeft = clamp(viewport.scrollLeft + lineStep, 0, maxScroll);
 				break;
 			case 'PageUp':
 				event.preventDefault();
-				viewport.scrollTop = Math.max(0, viewport.scrollTop - pageStep);
+				viewport.scrollLeft = clamp(viewport.scrollLeft - pageStep, 0, maxScroll);
 				break;
 			case 'PageDown':
 				event.preventDefault();
-				viewport.scrollTop = Math.min(maxScroll, viewport.scrollTop + pageStep);
+				viewport.scrollLeft = clamp(viewport.scrollLeft + pageStep, 0, maxScroll);
 				break;
 			case 'Home':
 				event.preventDefault();
-				viewport.scrollTop = 0;
+				viewport.scrollLeft = 0;
 				break;
 			case 'End':
 				event.preventDefault();
-				viewport.scrollTop = maxScroll;
+				viewport.scrollLeft = maxScroll;
 				break;
 		}
 	}
 
+	const viewportAttachment: Attachment<HTMLDivElement> = (node) => {
+		mode;
+		viewport = node;
+		updateThumbs(node);
+
+		return () => {
+			if (viewport === node) {
+				viewport = null;
+			}
+		};
+	};
+
 	onMount(() => {
-		updateThumb();
+		updateThumbs();
 
 		const observer = new ResizeObserver(() => {
-			updateThumb();
+			updateThumbs();
 		});
 
 		if (viewport) {
@@ -142,32 +263,40 @@
 			});
 		}
 
-		return () => observer.disconnect();
+		return () => {
+			clearTimeout(scrollTimeout);
+			document.removeEventListener('mousemove', onDragMove);
+			document.removeEventListener('mouseup', onDragEnd);
+			document.body.style.userSelect = '';
+			observer.disconnect();
+		};
 	});
 </script>
 
 <div class={cn('relative flex flex-col overflow-hidden', className)} {style}>
 	<div
-		bind:this={viewport}
+		{@attach viewportAttachment}
 		id={viewportId}
-		class={cn(
-			'scrollbar-hide min-h-0 w-full flex-1 overflow-x-hidden overflow-y-auto',
-			viewportClass
-		)}
+		class={cn('scrollbar-hide min-h-0 w-full flex-1', viewportOverflowClass, viewportClass)}
 		style={viewportStyle}
 		onscroll={handleScroll}
 	>
 		{@render children?.()}
 	</div>
 
-	{#if isVisible}
+	{#if showVerticalTrack}
 		<div
 			class={cn(
-				'absolute top-0 right-0 bottom-0 w-2.5 p-px transition-opacity duration-300',
-				isScrolling || isDragging || isHoveringTrack ? 'opacity-100' : 'opacity-0'
+				'absolute top-0 right-0 w-2.5 p-px transition-opacity duration-300',
+				isScrolling ||
+					(isDragging && dragAxis === 'vertical') ||
+					isHoveringVerticalTrack
+					? 'opacity-100'
+					: 'opacity-0'
 			)}
-			onmouseenter={() => (isHoveringTrack = true)}
-			onmouseleave={() => (isHoveringTrack = false)}
+			style:bottom={showHorizontalTrack ? `${SCROLLBAR_THICKNESS}px` : '0px'}
+			onmouseenter={() => (isHoveringVerticalTrack = true)}
+			onmouseleave={() => (isHoveringVerticalTrack = false)}
 			role="presentation"
 		>
 			<div
@@ -180,12 +309,47 @@
 				tabindex="0"
 				class={cn(
 					'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
-					isDragging && 'bg-foreground/50'
+					isDragging && dragAxis === 'vertical' && 'bg-foreground/50'
 				)}
-				style:height="{thumbHeight}px"
-				style:transform="translate3d(0, {thumbTop}px, 0)"
-				onmousedown={onDragStart}
-				onkeydown={onThumbKeyDown}
+				style:height={`${verticalThumbSize}px`}
+				style:transform={`translate3d(0, ${verticalThumbOffset}px, 0)`}
+				onmousedown={(event) => onDragStart(event, 'vertical')}
+				onkeydown={(event) => onThumbKeyDown(event, 'vertical')}
+			></div>
+		</div>
+	{/if}
+
+	{#if showHorizontalTrack}
+		<div
+			class={cn(
+				'absolute left-0 bottom-0 h-2.5 p-px transition-opacity duration-300',
+				isScrolling ||
+					(isDragging && dragAxis === 'horizontal') ||
+					isHoveringHorizontalTrack
+					? 'opacity-100'
+					: 'opacity-0'
+			)}
+			style:right={showVerticalTrack ? `${SCROLLBAR_THICKNESS}px` : '0px'}
+			onmouseenter={() => (isHoveringHorizontalTrack = true)}
+			onmouseleave={() => (isHoveringHorizontalTrack = false)}
+			role="presentation"
+		>
+			<div
+				role="scrollbar"
+				aria-controls={viewportId}
+				aria-orientation="horizontal"
+				aria-valuemin={0}
+				aria-valuemax={Math.max(0, viewport ? viewport.scrollWidth - viewport.clientWidth : 0)}
+				aria-valuenow={viewport?.scrollLeft ?? 0}
+				tabindex="0"
+				class={cn(
+					'relative h-full rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
+					isDragging && dragAxis === 'horizontal' && 'bg-foreground/50'
+				)}
+				style:width={`${horizontalThumbSize}px`}
+				style:transform={`translate3d(${horizontalThumbOffset}px, 0, 0)`}
+				onmousedown={(event) => onDragStart(event, 'horizontal')}
+				onkeydown={(event) => onThumbKeyDown(event, 'horizontal')}
 			></div>
 		</div>
 	{/if}

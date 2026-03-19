@@ -219,6 +219,7 @@
 			class="inset-shadow relative mx-auto h-full w-full max-w-4xl min-w-0 overflow-hidden bg-background-inset pt-12 lg:my-4 lg:mr-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-visible lg:rounded-xl lg:pt-0 xl:mr-0"
 		>
 			<ScrollArea
+				mode="vertical"
 				id="docs-content-container"
 				class="mx-auto h-full w-full lg:max-h-[calc(100dvh-2rem)]"
 				viewportClass="rounded-lg overscroll-none flex flex-col gap-8 px-4 py-8 lg:px-8"

@@ -14,7 +14,7 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 | **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, and texture bindings — not from live values. This makes rebuild triggers predictable. |
 | **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behavior except what you explicitly opt into via `useFrame` invalidation policies. |
 | **Minimal hidden magic** | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop. |
-| **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with a title, hint, and optional source snippet. The default overlay is opt-out and can be replaced with a custom renderer. |
+| **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with stable code/severity/recoverability metadata, user hint, and optional source/context snippets. The default overlay is opt-out and can be replaced with a custom renderer. |
 
 ## Package layout
 
@@ -156,6 +156,9 @@ All initialization and render failures are normalized into a stable `MotionGPUEr
 
 ```ts
 {
+  code: MotionGPUErrorCode; // Stable category for telemetry/alerting
+  severity: 'error' | 'fatal';
+  recoverable: boolean;
   title: string;     // Short category: "WGSL compilation failed", "WebGPU unavailable", etc.
   message: string;   // Primary human-readable error message
   hint: string;      // Suggested fix or next step
@@ -170,10 +173,21 @@ All initialization and render failures are normalized into a stable `MotionGPUEr
     column?: number;
     snippet: Array<{ number: number; code: string; highlight: boolean }>;
   } | null;
+  context: {
+    materialSignature?: string;
+    passGraph?: {
+      passCount: number;
+      enabledPassCount: number;
+      inputs: string[];
+      outputs: string[];
+    };
+    activeRenderTargets: string[];
+  } | null;
 }
 ```
 
 The default overlay displays this information automatically. You can:
 - disable all error UI with `showErrorOverlay={false}`,
 - keep UI off-canvas and handle reports only via `onError`,
-- provide `errorRenderer` to replace the default `MotionGPUErrorOverlay` while preserving the same report payload.
+- provide `errorRenderer` to replace the default `MotionGPUErrorOverlay` while preserving the same report payload,
+- enable bounded history callbacks with `errorHistoryLimit` + `onErrorHistory`.

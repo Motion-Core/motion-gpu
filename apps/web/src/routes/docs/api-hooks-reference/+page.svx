@@ -90,6 +90,7 @@ See: [Hooks and Context](/docs/hooks-and-context).
 | `textures` | `CurrentReadable<LoadedTexture[] \| null>` |
 | `loading` | `CurrentReadable<boolean>` |
 | `error` | `CurrentReadable<Error \| null>` |
+| `errorReport` | `CurrentReadable<MotionGPUErrorReport \| null>` |
 | `reload` | `() => Promise<void>` |
 
 ## Advanced user context

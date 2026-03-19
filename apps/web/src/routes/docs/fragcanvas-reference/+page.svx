@@ -64,8 +64,17 @@ import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `showErrorOverlay` | `boolean` | `true` | Enables error UI rendering (`errorRenderer` or default overlay). |
-| `errorRenderer` | `Snippet<[report]>` | `undefined` | Custom error renderer snippet. When set, replaces the default `MotionGPUErrorOverlay`. |
-| `onError` | `(report) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
+| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` | `undefined` | Custom error renderer snippet. When set, replaces the default `MotionGPUErrorOverlay`. |
+| `onError` | `(report: MotionGPUErrorReport) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
+| `errorHistoryLimit` | `number` | `0` | Enables bounded error history when `> 0`; values are normalized with `Math.floor`. |
+| `onErrorHistory` | `(history: MotionGPUErrorReport[]) => void` | `undefined` | Callback with deduplicated ring-buffer history snapshots. |
+
+### Error history behavior
+
+- History is disabled when `errorHistoryLimit <= 0`.
+- History stores the latest `N` reports when `errorHistoryLimit > 0`.
+- Consecutive identical reports are deduplicated (`phase/title/message/rawMessage` key).
+- Reducing `errorHistoryLimit` trims existing history immediately.
 
 ### Styling and children
 
@@ -107,6 +116,8 @@ The physical size (GPU resolution) is `containerSize × dpr`.
   showErrorOverlay={true}
   errorRenderer={myErrorRenderer}
   onError={(report) => sendToTelemetry(report)}
+  errorHistoryLimit={20}
+  onErrorHistory={(history) => sendErrorHistory(history)}
   class="my-canvas-container"
   style="border-radius: 12px; overflow: hidden;"
 >

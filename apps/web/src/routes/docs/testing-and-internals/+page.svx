@@ -13,7 +13,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | --- | --- |
 | **Public API** | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape. |
 | **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
-| **FragCanvas** | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, prop validation. |
+| **FragCanvas** | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, error-history ring buffer behavior, prop validation. |
 | **Context hooks** | `useMotionGPU` and `useFrame` throw when called outside `FragCanvas`. Context shape and exposed controls. |
 | **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes. |
 | **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching. |
@@ -22,7 +22,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal. |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support. |
-| **Error report** | Classification pattern matching, normalized output shape, source block extraction for WGSL errors, hint generation. |
+| **Error report** | Classification pattern matching (including texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, hint generation. |
 | **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
 | **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, and regression threshold checks. |
 
@@ -34,6 +34,8 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | `defineMaterial` freezes output | Material snapshots are cache-safe and deterministic — no accidental mutation. |
 | Pipeline signature ignores pure uniform value changes | Avoids expensive recompiles when only animation values change. |
 | `useTexture` abort/reload semantics are race-safe | Prevents stale async results from overwriting fresh texture data. |
+| `useTexture` exposes both raw and normalized errors | Enables app-level UX and telemetry off one loading failure path. |
+| FragCanvas error history stays bounded and deduplicated | Prevents unbounded memory growth and callback spam from repeated identical failures. |
 | `ShaderPass` contract enforcement | Keeps the `fn shade(inputColor, uv)` interface stable and validated upfront. |
 | Uniform layout follows consistent sorted order | Ensures buffer packing is deterministic across material instances with the same shape. |
 | Render graph validates slot usage | Prevents nonsensical pass configurations (e.g., reading `target` or named targets before write, using undeclared named targets, or reading from `canvas`). |

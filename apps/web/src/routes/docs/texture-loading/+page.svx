@@ -3,7 +3,7 @@ title: Texture Loading
 description: Reactive hook for loading textures from URLs with automatic cleanup and error handling.
 ---
 
-`useTexture` is a Svelte hook that loads textures from URLs, exposes reactive loading/error state, and handles cancellation and resource cleanup automatically.
+`useTexture` is a Svelte hook that loads textures from URLs, exposes reactive loading and both raw/normalized error state, and handles cancellation and resource cleanup automatically.
 
 For texture declaration and configuration in materials, see [Texture Definitions](/docs/textures).
 
@@ -49,6 +49,7 @@ const tex = useTexture(() => [
 | `textures` | `CurrentReadable<LoadedTexture[] \| null>` | Loaded textures in input order, or `null` on failure |
 | `loading` | `CurrentReadable<boolean>` | `true` while an active load request is running |
 | `error` | `CurrentReadable<Error \| null>` | Last loading error |
+| `errorReport` | `CurrentReadable<MotionGPUErrorReport \| null>` | Last loading error normalized to MotionGPU diagnostics shape |
 | `reload` | `() => Promise<void>` | Triggers a fresh load with current URL input |
 
 ### Using `.current` for synchronous access
@@ -72,13 +73,17 @@ useFrame((state) => {
 
 ```svelte
 <script lang="ts">
-  const { textures, loading, error } = useTexture(['/assets/albedo.png']);
+  const { textures, loading, error, errorReport } = useTexture(['/assets/albedo.png']);
 </script>
 
 {#if $loading}
   <p>Loading textures...</p>
 {:else if $error}
   <p>Error: {$error.message}</p>
+  {#if $errorReport}
+    <p>Code: {$errorReport.code}</p>
+    <p>Hint: {$errorReport.hint}</p>
+  {/if}
 {:else}
   <p>Loaded {$textures?.length ?? 0} textures</p>
 {/if}
@@ -155,7 +160,7 @@ When new textures are loaded successfully, the **previous** bitmaps are disposed
 
 ### Abort error suppression
 
-`AbortError` exceptions are treated as expected cancellation and are **not** surfaced in the `error` store. Only genuine failures (network errors, decode errors, etc.) appear.
+`AbortError` exceptions are treated as expected cancellation and are **not** surfaced in the `error` or `errorReport` stores. Only genuine failures (network errors, decode errors, etc.) appear.
 
 ## Blob cache
 
@@ -178,9 +183,10 @@ This means you don't need to manually clean up — the hook handles its own life
 
 ## Error handling
 
-| Failure | Source |
-| --- | --- |
-| `createImageBitmap` unavailable | Runtime capability check |
-| Non-OK HTTP response (4xx, 5xx) | URL fetch |
-| Invalid image data | Bitmap decode |
-| Abort / cancellation | `AbortError` (suppressed in error store) |
+| Failure | Source | `errorReport.code` |
+| --- | --- | --- |
+| `createImageBitmap` unavailable | Runtime capability check | `TEXTURE_DECODE_UNAVAILABLE` |
+| Non-OK HTTP response (4xx, 5xx) | URL fetch | `TEXTURE_REQUEST_FAILED` |
+| Fetch failure (network/CORS) | URL fetch | `TEXTURE_REQUEST_FAILED` (when message matches loader pattern) or fallback |
+| Invalid image data | Bitmap decode | Usually `MOTIONGPU_RUNTIME_ERROR` unless message matches a known classifier |
+| Abort / cancellation | `AbortError` | Suppressed (`error` and `errorReport` stay `null`) |

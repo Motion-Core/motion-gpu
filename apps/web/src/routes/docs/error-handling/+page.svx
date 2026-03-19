@@ -14,12 +14,15 @@ All errors from initialization and per-frame rendering are processed by `toMotio
 | `'initialization'` | WebGPU adapter/device acquisition, shader compilation, pipeline creation |
 | `'render'` | Per-frame render execution, texture uploads, buffer writes |
 
-The function inspects the error message, classifies it into a category, and produces a structured report.
+The function inspects the error message, classifies it into a stable category code, and produces a structured report.
 
 ## MotionGPUErrorReport shape
 
 ```ts
 interface MotionGPUErrorReport {
+  code: MotionGPUErrorCode;
+  severity: 'error' | 'fatal';
+  recoverable: boolean;
   title: string;
   message: string;
   hint: string;
@@ -38,6 +41,16 @@ interface MotionGPUErrorReport {
       highlight: boolean;
     }>;
   } | null;
+  context: {
+    materialSignature?: string;
+    passGraph?: {
+      passCount: number;
+      enabledPassCount: number;
+      inputs: string[];
+      outputs: string[];
+    };
+    activeRenderTargets: string[];
+  } | null;
 }
 ```
 
@@ -45,6 +58,9 @@ This interface describes the runtime callback payload shape used by `onError` / 
 
 | Field | Description |
 | --- | --- |
+| `code` | Stable machine-readable category (for telemetry and alert routing) |
+| `severity` | Error level used for UX/alerts (`'error'` or `'fatal'`) |
+| `recoverable` | Whether runtime may continue without full renderer recreation |
 | `title` | Short category heading (e.g., `"WGSL compilation failed"`) |
 | `message` | Primary human-readable error message |
 | `hint` | Suggested remediation or next step |
@@ -53,22 +69,26 @@ This interface describes the runtime callback payload shape used by `onError` / 
 | `rawMessage` | Original unsanitized error message |
 | `phase` | `'initialization'` or `'render'` |
 | `source` | Structured source context for shader compile errors, or `null` |
+| `context` | Runtime snapshot for diagnostics (`materialSignature`, pass graph, active render targets), or `null` |
 
 ## Built-in classification patterns
 
-The normalizer matches error messages against known patterns and assigns appropriate titles and hints:
+The normalizer matches error messages against known patterns and assigns code, severity, recoverability, title, and hint:
 
-| Pattern detected in message | Title | Hint |
-| --- | --- | --- |
-| `WebGPU is not available in this browser` | WebGPU unavailable | Use a browser with WebGPU enabled (latest Chrome/Edge/Safari TP) and secure context. |
-| `Unable to acquire WebGPU adapter` | WebGPU adapter unavailable | GPU adapter request failed. Check browser permissions, flags and device support. |
-| `Canvas does not support webgpu context` | Canvas cannot create WebGPU context | Make sure this canvas is attached to DOM and not using an unsupported context option. |
-| `WGSL compilation failed` | WGSL compilation failed | Check WGSL line numbers below and verify struct/binding/function signatures. |
-| `WebGPU device lost` / `Device Lost` | WebGPU device lost | GPU device/context was lost. Recreate the renderer and check OS/GPU stability. |
-| `WebGPU uncaptured error` | WebGPU uncaptured error | A GPU command failed asynchronously. Review details and validate resource/state usage. |
-| `CreateBindGroup` / `bind group layout` | Bind group mismatch | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout. |
-| `Destination texture needs to have CopyDst` | Invalid texture usage flags | Texture used as upload destination must include CopyDst (and often RenderAttachment). |
-| *(fallback)* | MotionGPU render error | Review technical details below. If issue persists, isolate shader/uniform/texture changes. |
+| Pattern detected in message | Code | Severity | Recoverable | Title | Hint |
+| --- | --- | --- | --- | --- | --- |
+| `WebGPU is not available in this browser` | `WEBGPU_UNAVAILABLE` | `fatal` | `false` | WebGPU unavailable | Use a browser with WebGPU enabled (latest Chrome/Edge/Safari TP) and secure context. |
+| `Unable to acquire WebGPU adapter` | `WEBGPU_ADAPTER_UNAVAILABLE` | `fatal` | `false` | WebGPU adapter unavailable | GPU adapter request failed. Check browser permissions, flags and device support. |
+| `Canvas does not support webgpu context` | `WEBGPU_CONTEXT_UNAVAILABLE` | `error` | `true` | Canvas cannot create WebGPU context | Make sure this canvas is attached to DOM and not using an unsupported context option. |
+| `WGSL compilation failed` | `WGSL_COMPILATION_FAILED` | `error` | `true` | WGSL compilation failed | Check WGSL line numbers below and verify struct/binding/function signatures. |
+| `WebGPU device lost` / `Device Lost` | `WEBGPU_DEVICE_LOST` | `fatal` | `false` | WebGPU device lost | GPU device/context was lost. Recreate the renderer and check OS/GPU stability. |
+| `WebGPU uncaptured error` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | WebGPU uncaptured error | A GPU command failed asynchronously. Review details and validate resource/state usage. |
+| `CreateBindGroup` / `bind group layout` | `BIND_GROUP_MISMATCH` | `error` | `true` | Bind group mismatch | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout. |
+| `Destination texture needs to have CopyDst` | `TEXTURE_USAGE_INVALID` | `error` | `true` | Invalid texture usage flags | Texture used as upload destination must include CopyDst (and often RenderAttachment). |
+| `Texture request failed` | `TEXTURE_REQUEST_FAILED` | `error` | `true` | Texture request failed | Verify texture URL, CORS policy and response status before retrying. |
+| `createImageBitmap is not available in this runtime` | `TEXTURE_DECODE_UNAVAILABLE` | `fatal` | `false` | Texture decode unavailable | Runtime lacks createImageBitmap support. Use a browser/runtime with image bitmap decoding. |
+| `texture request was aborted` | `TEXTURE_REQUEST_ABORTED` | `error` | `true` | Texture request aborted | Texture load was cancelled. Retry the request when source inputs stabilize. |
+| *(fallback)* | `MOTIONGPU_RUNTIME_ERROR` | `error` | `true` | MotionGPU render error | Review technical details below. If issue persists, isolate shader/uniform/texture changes. |
 
 ## Overlay behavior
 
@@ -79,11 +99,16 @@ By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.
 | `showErrorOverlay` | `true` | Enables all error UI rendering |
 | `errorRenderer` | `undefined` | Optional custom renderer snippet that replaces the default overlay UI |
 | `onError` | `undefined` | Callback invoked with the normalized report |
+| `errorHistoryLimit` | `0` | Enables bounded history collection when `> 0` |
+| `onErrorHistory` | `undefined` | Callback invoked with deduplicated bounded history snapshots |
 
 ### Key behaviors
 
 - Even when `showErrorOverlay` is `false`, `onError` is still called.
 - With `errorRenderer` set and `showErrorOverlay=true`, custom UI is rendered instead of the default overlay.
+- When `errorHistoryLimit <= 0`, history collection is disabled and `onErrorHistory` receives `[]` after resets.
+- When `errorHistoryLimit > 0`, history behaves as a ring buffer containing only the latest `N` unique reports.
+- Consecutive identical reports (`phase/title/message/rawMessage`) are deduplicated and do not append history.
 - The default overlay renders above canvas content using a DOM portal.
 - Multiple errors display the most recent one.
 
@@ -93,10 +118,26 @@ By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.
 <FragCanvas
   {material}
   onError={(report) => {
-    console.error(`[${report.phase}] ${report.title}: ${report.message}`);
+    console.error(
+      `[${report.code}] (${report.severity}) [${report.phase}] ${report.title}: ${report.message}`
+    );
     if (report.hint) console.info(`Hint: ${report.hint}`);
   }}
   showErrorOverlay={false}
+/>
+```
+
+### Error history callbacks
+
+```svelte
+<FragCanvas
+  {material}
+  errorHistoryLimit={10}
+  onErrorHistory={(history) => {
+    const latest = history[history.length - 1];
+    if (!latest) return;
+    console.info(`Recent errors: ${history.length}, latest code: ${latest.code}`);
+  }}
 />
 ```
 
@@ -143,16 +184,41 @@ interface ShaderCompilationDiagnostic {
   message: string;
   linePos?: number;
   lineLength?: number;
-  sourceLocation: { kind: 'fragment' | 'include' | 'define'; line: number } | null;
+  sourceLocation:
+    | {
+        kind: 'fragment' | 'include' | 'define';
+        line: number;
+        include?: string;
+        define?: string;
+      }
+    | null;
 }
 ```
 
 ```ts
 interface ShaderCompilationDiagnosticsPayload {
+  kind: 'shader-compilation';
   diagnostics: ShaderCompilationDiagnostic[];
   fragmentSource: string;
   includeSources: Record<string, string>;
   defineBlockSource?: string;
+  materialSource: {
+    component?: string;
+    file?: string;
+    line?: number;
+    column?: number;
+    functionName?: string;
+  } | null;
+  runtimeContext?: {
+    materialSignature?: string;
+    passGraph?: {
+      passCount: number;
+      enabledPassCount: number;
+      inputs: string[];
+      outputs: string[];
+    };
+    activeRenderTargets: string[];
+  };
 }
 ```
 
@@ -161,6 +227,7 @@ interface ShaderCompilationDiagnosticsPayload {
 - **`message`** — first compiler error enriched with source label and generated-line context (when available).
 - **`details`** — additional compiler messages with the same contextual labels.
 - **`source`** — component location, line number, and highlighted code snippet.
+- **`context`** — runtime snapshot (`materialSignature`, pass graph, active render targets) when provided by diagnostics payload.
 
 ### Overlay Source panel
 
@@ -202,5 +269,6 @@ Retry state **resets** when the pipeline signature changes (e.g., when you fix a
 1. **Always provide `onError`** — send reports to your logging/telemetry system.
 2. **Keep default overlay enabled in dev/staging** — it surfaces WGSL errors with line-level precision.
 3. **Use `errorRenderer` in production** when you need branded/error-system-integrated UI.
-4. **Surface `phase` and `title`** prominently in alerting — they are the most actionable fields.
-5. **Use `hint`** for contextual guidance — each error classification provides a specific suggestion.
+4. **Route alerts by `code` + `severity`** first, then display `phase` and `title` for triage context.
+5. **Enable bounded history (`errorHistoryLimit`)** for session diagnostics without unbounded memory growth.
+6. **Use `hint`** for contextual guidance — each error classification provides a specific suggestion.

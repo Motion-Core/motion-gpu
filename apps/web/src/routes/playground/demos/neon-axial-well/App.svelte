@@ -47,4 +47,4 @@ fn frag(uv: vec2f) -> vec4f {
 	});
 </script>
 
-<FragCanvas {material} outputColorSpace="linear" />
+<FragCanvas {material} outputColorSpace="linear" dpr={1.0} />

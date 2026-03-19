@@ -79,9 +79,20 @@ export function createMotionGPURuntimeLoop(
 	const renderTextures: TextureMap = {};
 	const canvasSize = { width: 0, height: 0 };
 	let shouldContinueAfterFrame = false;
+	let activeErrorKey: string | null = null;
 
 	const setError = (error: unknown, phase: MotionGPUErrorPhase): void => {
 		const report = toMotionGPUErrorReport(error, phase);
+		const reportKey = JSON.stringify({
+			phase: report.phase,
+			title: report.title,
+			message: report.message,
+			rawMessage: report.rawMessage
+		});
+		if (activeErrorKey === reportKey) {
+			return;
+		}
+		activeErrorKey = reportKey;
 		options.reportError(report);
 		const onError = options.getOnError();
 		if (!onError) {
@@ -96,6 +107,11 @@ export function createMotionGPURuntimeLoop(
 	};
 
 	const clearError = (): void => {
+		if (activeErrorKey === null) {
+			return;
+		}
+
+		activeErrorKey = null;
 		options.reportError(null);
 	};
 

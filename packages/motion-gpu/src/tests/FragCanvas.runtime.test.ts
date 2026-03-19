@@ -724,6 +724,42 @@ describe('FragCanvas runtime', () => {
 		});
 	});
 
+	it('deduplicates repeated initialization errors for unchanged invalid material', async () => {
+		const onError = vi.fn();
+		const invalidMaterial = {
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			uniforms: {},
+			textures: {},
+			defines: {}
+		};
+
+		render(FragCanvas, {
+			props: {
+				material: invalidMaterial as unknown as typeof material,
+				onError,
+				showErrorOverlay: false
+			}
+		});
+
+		await waitFor(() => {
+			expect(onError).toHaveBeenCalledTimes(1);
+			expect(onError).toHaveBeenCalledWith(
+				expect.objectContaining({
+					phase: 'initialization',
+					rawMessage: expect.stringContaining('Invalid material instance')
+				})
+			);
+		});
+		expect(createRendererMock).not.toHaveBeenCalled();
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await flushFrame(48);
+
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(createRendererMock).not.toHaveBeenCalled();
+	});
+
 	it('disposes late-created renderer when component unmounts mid-initialization', async () => {
 		let resolveRenderer!: (renderer: MockRenderer) => void;
 		createRendererMock.mockImplementation(

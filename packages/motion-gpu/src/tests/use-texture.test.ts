@@ -61,6 +61,7 @@ describe('useTexture', () => {
 			const result = onProbe.mock.calls[0]?.[0] as UseTextureResult;
 			expect(result.loading.current).toBe(false);
 			expect(result.error.current).toBeNull();
+			expect(result.errorReport.current).toBeNull();
 			expect(result.textures.current).toHaveLength(2);
 		});
 	});
@@ -177,6 +178,8 @@ describe('useTexture', () => {
 			expect(result.loading.current).toBe(false);
 			expect(result.textures.current).toBeNull();
 			expect(result.error.current?.message).toContain('/assets/missing.png');
+			expect(result.errorReport.current?.code).toBe('TEXTURE_REQUEST_FAILED');
+			expect(result.errorReport.current?.rawMessage).toContain('/assets/missing.png');
 		});
 		expect(fetch).toHaveBeenCalledWith('/assets/missing.png', expect.any(Object));
 	});
@@ -333,6 +336,7 @@ describe('useTexture', () => {
 				throw new Error('Expected hook result');
 			}
 			expect(resolvedResult.error.current).toBeNull();
+			expect(resolvedResult.errorReport.current).toBeNull();
 			expect(resolvedResult.textures.current).toBeNull();
 		} finally {
 			abortSignalRef.any = originalAny;

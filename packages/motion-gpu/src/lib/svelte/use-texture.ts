@@ -9,6 +9,7 @@ import {
 	type LoadedTexture,
 	type TextureLoadOptions
 } from '../core/texture-loader.js';
+import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report.js';
 
 /**
  * Reactive state returned by {@link useTexture}.
@@ -26,6 +27,10 @@ export interface UseTextureResult {
 	 * Last loading error.
 	 */
 	error: CurrentReadable<Error | null>;
+	/**
+	 * Last loading error normalized to MotionGPU diagnostics report shape.
+	 */
+	errorReport: CurrentReadable<MotionGPUErrorReport | null>;
 	/**
 	 * Reloads all textures using current URL input.
 	 */
@@ -115,6 +120,7 @@ export function useTexture(
 	const textures = currentWritable<LoadedTexture[] | null>(null);
 	const loading = currentWritable(true);
 	const error = currentWritable<Error | null>(null);
+	const errorReport = currentWritable<MotionGPUErrorReport | null>(null);
 	let disposed = false;
 	let requestVersion = 0;
 	let activeController: AbortController | null = null;
@@ -132,6 +138,7 @@ export function useTexture(
 		activeController = controller;
 		loading.set(true);
 		error.set(null);
+		errorReport.set(null);
 
 		const previous = textures.current;
 		const mergedSignal = mergeAbortSignals(controller.signal, options.signal);
@@ -158,7 +165,9 @@ export function useTexture(
 
 			disposeTextures(previous);
 			textures.set(null);
-			error.set(toError(nextError));
+			const normalizedError = toError(nextError);
+			error.set(normalizedError);
+			errorReport.set(toMotionGPUErrorReport(normalizedError, 'initialization'));
 		} finally {
 			if (!disposed && version === requestVersion) {
 				loading.set(false);
@@ -207,6 +216,7 @@ export function useTexture(
 		textures,
 		loading,
 		error,
+		errorReport,
 		reload: load
 	};
 }

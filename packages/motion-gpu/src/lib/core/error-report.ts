@@ -21,6 +21,9 @@ export type MotionGPUErrorCode =
 	| 'WEBGPU_UNCAPTURED_ERROR'
 	| 'BIND_GROUP_MISMATCH'
 	| 'TEXTURE_USAGE_INVALID'
+	| 'TEXTURE_REQUEST_FAILED'
+	| 'TEXTURE_DECODE_UNAVAILABLE'
+	| 'TEXTURE_REQUEST_ABORTED'
 	| 'MOTIONGPU_RUNTIME_ERROR';
 
 /**
@@ -308,6 +311,36 @@ function classifyErrorMessage(
 			recoverable: true,
 			title: 'Invalid texture usage flags',
 			hint: 'Texture used as upload destination must include CopyDst (and often RenderAttachment).'
+		};
+	}
+
+	if (message.includes('Texture request failed')) {
+		return {
+			code: 'TEXTURE_REQUEST_FAILED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Texture request failed',
+			hint: 'Verify texture URL, CORS policy and response status before retrying.'
+		};
+	}
+
+	if (message.includes('createImageBitmap is not available in this runtime')) {
+		return {
+			code: 'TEXTURE_DECODE_UNAVAILABLE',
+			severity: 'fatal',
+			recoverable: false,
+			title: 'Texture decode unavailable',
+			hint: 'Runtime lacks createImageBitmap support. Use a browser/runtime with image bitmap decoding.'
+		};
+	}
+
+	if (message.toLowerCase().includes('texture request was aborted')) {
+		return {
+			code: 'TEXTURE_REQUEST_ABORTED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Texture request aborted',
+			hint: 'Texture load was cancelled. Retry the request when source inputs stabilize.'
 		};
 	}
 

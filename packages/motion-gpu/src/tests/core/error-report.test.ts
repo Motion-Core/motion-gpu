@@ -260,6 +260,39 @@ describe('error report', () => {
 		expect(report.hint).toContain('must include CopyDst');
 	});
 
+	it('classifies texture request failures', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Texture request failed (404) for /missing-texture.png'),
+			'initialization'
+		);
+		expect(report.title).toBe('Texture request failed');
+		expect(report.code).toBe('TEXTURE_REQUEST_FAILED');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies missing createImageBitmap runtime support', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('createImageBitmap is not available in this runtime'),
+			'initialization'
+		);
+		expect(report.title).toBe('Texture decode unavailable');
+		expect(report.code).toBe('TEXTURE_DECODE_UNAVAILABLE');
+		expect(report.severity).toBe('fatal');
+		expect(report.recoverable).toBe(false);
+	});
+
+	it('classifies aborted texture requests', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Texture request was aborted'),
+			'initialization'
+		);
+		expect(report.title).toBe('Texture request aborted');
+		expect(report.code).toBe('TEXTURE_REQUEST_ABORTED');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
 	it('classifies bind group mismatch errors and removes duplicate stack message line', () => {
 		const error = new Error('CreateBindGroup failed due to bind group layout mismatch');
 		error.stack = [

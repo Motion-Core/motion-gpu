@@ -33,7 +33,7 @@ html {
 	--color-foreground-muted: oklch(0.5493 0.0081 var(--base-hue));
 	--color-accent: oklch(0.6996 0.201959 44.4414);
 	--color-accent-secondary: oklch(0.5096 0.151959 44.4414);
-	--color-border: oklch(0.9224 0.0013 var(--base-hue));
+	--border: oklch(0.4224 0.0013 var(--base-hue) / 0.1);
 
 	--shadow-xs: 0px 1px 1px -0.5px rgba(0, 0, 0, 0.06);
 	--shadow-sm: 0px 1px 1px -0.5px rgba(0, 0, 0, 0.06), 0px 3px 3px -1.5px rgba(0, 0, 0, 0.06);

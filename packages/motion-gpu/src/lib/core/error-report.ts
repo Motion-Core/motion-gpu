@@ -10,6 +10,20 @@ import { formatShaderSourceLocation } from './shader.js';
 export type MotionGPUErrorPhase = 'initialization' | 'render';
 
 /**
+ * Stable machine-readable error category code.
+ */
+export type MotionGPUErrorCode =
+	| 'WEBGPU_UNAVAILABLE'
+	| 'WEBGPU_ADAPTER_UNAVAILABLE'
+	| 'WEBGPU_CONTEXT_UNAVAILABLE'
+	| 'WGSL_COMPILATION_FAILED'
+	| 'WEBGPU_DEVICE_LOST'
+	| 'WEBGPU_UNCAPTURED_ERROR'
+	| 'BIND_GROUP_MISMATCH'
+	| 'TEXTURE_USAGE_INVALID'
+	| 'MOTIONGPU_RUNTIME_ERROR';
+
+/**
  * One source-code line displayed in diagnostics snippet.
  */
 export interface MotionGPUErrorSourceLine {
@@ -33,6 +47,10 @@ export interface MotionGPUErrorSource {
  * Structured error payload used by UI diagnostics.
  */
 export interface MotionGPUErrorReport {
+	/**
+	 * Stable machine-readable category code.
+	 */
+	code: MotionGPUErrorCode;
 	/**
 	 * Short category title.
 	 */
@@ -179,9 +197,12 @@ function formatDiagnosticMessage(entry: ShaderCompilationDiagnostic): string {
 /**
  * Maps known WebGPU/WGSL error patterns to a user-facing title and hint.
  */
-function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'title' | 'hint'> {
+function classifyErrorMessage(
+	message: string
+): Pick<MotionGPUErrorReport, 'code' | 'title' | 'hint'> {
 	if (message.includes('WebGPU is not available in this browser')) {
 		return {
+			code: 'WEBGPU_UNAVAILABLE',
 			title: 'WebGPU unavailable',
 			hint: 'Use a browser with WebGPU enabled (latest Chrome/Edge/Safari TP) and secure context.'
 		};
@@ -189,6 +210,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('Unable to acquire WebGPU adapter')) {
 		return {
+			code: 'WEBGPU_ADAPTER_UNAVAILABLE',
 			title: 'WebGPU adapter unavailable',
 			hint: 'GPU adapter request failed. Check browser permissions, flags and device support.'
 		};
@@ -196,6 +218,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('Canvas does not support webgpu context')) {
 		return {
+			code: 'WEBGPU_CONTEXT_UNAVAILABLE',
 			title: 'Canvas cannot create WebGPU context',
 			hint: 'Make sure this canvas is attached to DOM and not using an unsupported context option.'
 		};
@@ -203,6 +226,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('WGSL compilation failed')) {
 		return {
+			code: 'WGSL_COMPILATION_FAILED',
 			title: 'WGSL compilation failed',
 			hint: 'Check WGSL line numbers below and verify struct/binding/function signatures.'
 		};
@@ -210,6 +234,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('WebGPU device lost') || message.includes('Device Lost')) {
 		return {
+			code: 'WEBGPU_DEVICE_LOST',
 			title: 'WebGPU device lost',
 			hint: 'GPU device/context was lost. Recreate the renderer and check OS/GPU stability.'
 		};
@@ -217,6 +242,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('WebGPU uncaptured error')) {
 		return {
+			code: 'WEBGPU_UNCAPTURED_ERROR',
 			title: 'WebGPU uncaptured error',
 			hint: 'A GPU command failed asynchronously. Review details and validate resource/state usage.'
 		};
@@ -224,6 +250,7 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('CreateBindGroup') || message.includes('bind group layout')) {
 		return {
+			code: 'BIND_GROUP_MISMATCH',
 			title: 'Bind group mismatch',
 			hint: 'Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout.'
 		};
@@ -231,12 +258,14 @@ function classifyErrorMessage(message: string): Pick<MotionGPUErrorReport, 'titl
 
 	if (message.includes('Destination texture needs to have CopyDst')) {
 		return {
+			code: 'TEXTURE_USAGE_INVALID',
 			title: 'Invalid texture usage flags',
 			hint: 'Texture used as upload destination must include CopyDst (and often RenderAttachment).'
 		};
 	}
 
 	return {
+		code: 'MOTIONGPU_RUNTIME_ERROR',
 		title: 'MotionGPU render error',
 		hint: 'Review technical details below. If issue persists, isolate shader/uniform/texture changes.'
 	};
@@ -278,6 +307,7 @@ export function toMotionGPUErrorReport(
 	const classification = classifyErrorMessage(rawMessage);
 
 	return {
+		code: classification.code,
 		title: classification.title,
 		message,
 		hint: classification.hint,

@@ -10,6 +10,7 @@ describe('error report', () => {
 		);
 
 		expect(report.title).toBe('WebGPU unavailable');
+		expect(report.code).toBe('WEBGPU_UNAVAILABLE');
 		expect(report.hint).toContain('WebGPU enabled');
 		expect(report.message).toBe('WebGPU is not available in this browser');
 	});
@@ -27,6 +28,7 @@ describe('error report', () => {
 		);
 
 		expect(report.title).toBe('WGSL compilation failed');
+		expect(report.code).toBe('WGSL_COMPILATION_FAILED');
 		expect(report.details).toEqual([
 			'line 9: identifiers must not start with two or more underscores',
 			"line 12: expected ';'"
@@ -161,6 +163,7 @@ describe('error report', () => {
 		);
 
 		expect(report.title).toBe('WebGPU device lost');
+		expect(report.code).toBe('WEBGPU_DEVICE_LOST');
 		expect(report.hint).toContain('Recreate the renderer');
 	});
 
@@ -171,12 +174,14 @@ describe('error report', () => {
 		);
 
 		expect(report.title).toBe('WebGPU uncaptured error');
+		expect(report.code).toBe('WEBGPU_UNCAPTURED_ERROR');
 		expect(report.hint).toContain('GPU command failed asynchronously');
 	});
 
 	it('classifies adapter unavailable errors', () => {
 		const report = toMotionGPUErrorReport(new Error('Unable to acquire WebGPU adapter'), 'render');
 		expect(report.title).toBe('WebGPU adapter unavailable');
+		expect(report.code).toBe('WEBGPU_ADAPTER_UNAVAILABLE');
 		expect(report.hint).toContain('adapter request failed');
 	});
 
@@ -186,6 +191,7 @@ describe('error report', () => {
 			'initialization'
 		);
 		expect(report.title).toBe('Canvas cannot create WebGPU context');
+		expect(report.code).toBe('WEBGPU_CONTEXT_UNAVAILABLE');
 		expect(report.hint).toContain('canvas is attached to DOM');
 	});
 
@@ -195,6 +201,7 @@ describe('error report', () => {
 			'render'
 		);
 		expect(report.title).toBe('Invalid texture usage flags');
+		expect(report.code).toBe('TEXTURE_USAGE_INVALID');
 		expect(report.hint).toContain('must include CopyDst');
 	});
 
@@ -208,6 +215,7 @@ describe('error report', () => {
 
 		const report = toMotionGPUErrorReport(error, 'render');
 		expect(report.title).toBe('Bind group mismatch');
+		expect(report.code).toBe('BIND_GROUP_MISMATCH');
 		expect(report.stack).toEqual([
 			'Error: CreateBindGroup failed due to bind group layout mismatch',
 			'at render (Renderer.ts:42:7)'
@@ -217,6 +225,7 @@ describe('error report', () => {
 	it('handles unknown non-error values', () => {
 		const report = toMotionGPUErrorReport({ broken: true }, 'render');
 		expect(report.title).toBe('MotionGPU render error');
+		expect(report.code).toBe('MOTIONGPU_RUNTIME_ERROR');
 		expect(report.message).toBe('Unknown FragCanvas error');
 		expect(report.phase).toBe('render');
 	});

@@ -9,16 +9,20 @@ description: Step-by-step guide to installing MotionGPU and building your first 
 
 This guide walks you through installing MotionGPU and building your first fullscreen shader, step by step. By the end, you will understand the core `defineMaterial` → `FragCanvas` → `useFrame` workflow.
 
+Examples below use Svelte syntax. The same runtime APIs are available in React via `@motion-core/motion-gpu/react`.
+
 ## Prerequisites
 
-- **Svelte 5** project (SvelteKit or standalone)
+- **Svelte 5** project (SvelteKit or standalone) or **React 19** project
 - A browser with **WebGPU** support (Chrome 113+, Edge 113+, Safari 18+, Firefox Nightly behind flag)
 
 ## Install
 
 <InstallationTabs />
 
-Adapter peer dependency: `svelte ^5` (optional peer, required only when using `@motion-core/motion-gpu/svelte`).
+Adapter peer dependencies are optional and only required for the adapter you use:
+- `svelte ^5` for `@motion-core/motion-gpu/svelte`
+- `react ^19` + `react-dom ^19` for `@motion-core/motion-gpu/react`
 
 ## Step 1: Draw a static gradient
 

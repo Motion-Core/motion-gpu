@@ -7,6 +7,8 @@ MotionGPU supports post-processing through a **render graph** that sequences pas
 
 For named render targets, see [Render Targets](/docs/render-targets).
 
+Examples below use Svelte syntax for `<FragCanvas>`, but pass constructors are framework-agnostic and can be imported from root/core entrypoints.
+
 ## Render graph model
 
 When you add passes to `FragCanvas`, the renderer builds an execution plan:
@@ -104,7 +106,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 Fullscreen texture sample pass. Copies `input` to `output` using a fragment shader with configurable filter mode.
 
 ```ts
-import { BlitPass } from '@motion-core/motion-gpu/svelte';
+import { BlitPass } from '@motion-core/motion-gpu';
 
 const blit = new BlitPass({
   filter: 'nearest' // Default: 'linear'
@@ -127,7 +129,7 @@ const blit = new BlitPass({
 Optimized texture copy with a fullscreen-blit fallback. Attempts `copyTextureToTexture` when possible — a GPU-side copy that avoids shader execution entirely.
 
 ```ts
-import { CopyPass } from '@motion-core/motion-gpu/svelte';
+import { CopyPass } from '@motion-core/motion-gpu';
 
 const copy = new CopyPass();
 ```
@@ -148,7 +150,7 @@ Options are identical to `BlitPass`.
 Programmable post-process pass with custom WGSL fragment shader:
 
 ```ts
-import { ShaderPass } from '@motion-core/motion-gpu/svelte';
+import { ShaderPass } from '@motion-core/motion-gpu';
 
 const vignette = new ShaderPass({
   fragment: `
@@ -208,7 +210,7 @@ The renderer tracks each pass by object identity:
 ## Multi-pass example
 
 ```ts
-import { ShaderPass } from '@motion-core/motion-gpu/svelte';
+import { ShaderPass } from '@motion-core/motion-gpu';
 
 // Pass 1: Threshold bright pixels
 const bloomPrefilter = new ShaderPass({

@@ -7,6 +7,8 @@ This page covers the `useMotionGPU()` hook for accessing the runtime context, th
 
 For advanced user-defined context, see [User Context (Advanced)](/docs/user-context).
 
+Examples below use Svelte syntax. React exposes the same runtime hook from `@motion-core/motion-gpu/react`.
+
 ## useMotionGPU()
 
 `useMotionGPU()` returns the `MotionGPUContext` — the primary API for reading runtime state and controlling rendering from within `FragCanvas` children.
@@ -63,17 +65,17 @@ Must be called inside a `<FragCanvas>` component tree. Calling it outside throws
 For higher-level scheduler configuration and debug snapshots, use the advanced helper exports:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/svelte/advanced';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
 ```
 
 ## The CurrentWritable / CurrentReadable pattern
 
-Standard Svelte stores require subscription to read values. In `useFrame` callbacks (which run 60 times per second), subscribing and unsubscribing per read is wasteful.
+Store-like subscriptions require setup/teardown to read values reactively. In `useFrame` callbacks (which run 60 times per second), subscribing and unsubscribing per read is wasteful.
 
-`CurrentWritable<T>` and `CurrentReadable<T>` extend Svelte store contracts with a synchronous `.current` getter:
+`CurrentWritable<T>` and `CurrentReadable<T>` extend reactive store contracts with a synchronous `.current` getter:
 
 ```ts
-// Standard Svelte store — requires subscription
+// Subscription read — requires subscribe/unsubscribe
 let value: number;
 const unsub = gpu.maxDelta.subscribe(v => { value = v; });
 // ... use value ...
@@ -89,14 +91,14 @@ const value = gpu.maxDelta.current; // Instant, no subscription
 | --- | --- |
 | `.current` | Synchronous read of the latest value |
 | `.set(value)` | Update the value (writable only) |
-| `.subscribe(fn)` | Standard Svelte subscription |
+| `.subscribe(fn)` | Standard reactive-store style subscription |
 
 ### When to use which
 
 | Context | Use |
 | --- | --- |
 | Inside `useFrame` callbacks | `.current` (runs 60+ times/sec) |
-| Svelte reactive blocks (`$effect`, templates) | Standard `$store` subscription |
+| Framework reactive bindings (`$store`, `useSyncExternalStore`, etc.) | Standard `.subscribe` integration |
 | One-off reads outside reactive blocks | `.current` |
 
 ## Integration patterns

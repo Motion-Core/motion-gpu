@@ -8,14 +8,20 @@ description: Advanced read/write API for namespaced, reactive shared state withi
 This hook is exported from the **advanced entrypoint**:
 
 ```ts
+// Svelte
 import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
+
+// React
+import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
 ```
 
 The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
 
+Examples below use Svelte syntax. React uses the same runtime APIs.
+
 ## Why use user context?
 
-Standard Svelte context (`setContext` / `getContext`) is **read-only once set** and tightly coupled to component hierarchy. The MotionGPU advanced API provides:
+Standard framework context APIs (for example Svelte `setContext/getContext` or React context values) are usually static by design and tied to component hierarchy. The MotionGPU advanced API provides:
 
 - **Namespaced keys** — multiple plugins write to different namespaces without conflicts.
 - **Explicit read/write split** — `useMotionGPUUserContext` reads; `setMotionGPUUserContext` writes.

@@ -10,6 +10,7 @@ API contracts for material authoring and compilation boundary.
 | Entrypoint | Exports |
 | --- | --- |
 | `@motion-core/motion-gpu/svelte` | `defineMaterial` |
+| `@motion-core/motion-gpu/react` | `defineMaterial` |
 | `@motion-core/motion-gpu` | `defineMaterial`, `resolveMaterial` |
 
 ## `defineMaterial(input)`

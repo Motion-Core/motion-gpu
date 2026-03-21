@@ -3,12 +3,16 @@ title: FragCanvas Reference
 description: Complete prop reference and usage guide for the main FragCanvas component.
 ---
 
-This is the complete prop reference for the `FragCanvas` Svelte component — the main entrypoint for using MotionGPU.
+This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using MotionGPU in both Svelte and React.
 
 ## Import
 
 ```ts
+// Svelte
 import { FragCanvas } from '@motion-core/motion-gpu/svelte';
+
+// React
+import { FragCanvas } from '@motion-core/motion-gpu/react';
 ```
 
 ## Usage
@@ -25,6 +29,8 @@ import { FragCanvas } from '@motion-core/motion-gpu/svelte';
   <Runtime />
 </FragCanvas>
 ```
+
+React uses the same runtime prop names (`material`, `passes`, `renderMode`, `onError`, etc.). Adapter-specific naming differences (`class` vs `className`, `style` type, `children` type) are listed below.
 
 ## Props
 
@@ -64,7 +70,7 @@ import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `showErrorOverlay` | `boolean` | `true` | Enables error UI rendering (`errorRenderer` or default overlay). |
-| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` | `undefined` | Custom error renderer snippet. When set, replaces the default `MotionGPUErrorOverlay`. |
+| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` (Svelte) / `(report: MotionGPUErrorReport) => ReactNode` (React) | `undefined` | Custom error renderer. When set, replaces the default `MotionGPUErrorOverlay`. |
 | `onError` | `(report: MotionGPUErrorReport) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
 | `errorHistoryLimit` | `number` | `0` | Enables bounded error history when `> 0`; values are normalized with `Math.floor`. |
 | `onErrorHistory` | `(history: MotionGPUErrorReport[]) => void` | `undefined` | Callback with deduplicated ring-buffer history snapshots. |
@@ -80,9 +86,9 @@ import { FragCanvas } from '@motion-core/motion-gpu/svelte';
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `class` | `string` | `''` | CSS class applied directly to the `<canvas>`. |
-| `style` | `string` | `''` | Inline styles applied directly to the `<canvas>`. |
-| `children` | `Snippet` | `undefined` | Svelte snippet children. Rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, etc. work. |
+| `class` (Svelte) / `className` (React) | `string` | `''` | CSS class applied directly to the `<canvas>`. |
+| `style` | `string` (Svelte) / `React.CSSProperties` (React) | `''` (Svelte) / `undefined` (React) | Inline styles applied directly to the `<canvas>`. |
+| `children` | `Snippet` (Svelte) / `ReactNode` (React) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, etc. work. |
 
 ## Lifecycle
 

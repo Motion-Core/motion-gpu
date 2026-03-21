@@ -31,7 +31,7 @@ Reference for framework-neutral exports available from root and `/core` entrypoi
 
 - Building adapter layers for React/Vue/Solid/custom runtimes
 - Headless validation and tooling around materials/shaders
-- Runtime integrations where Svelte component API is not needed
+- Runtime integrations where adapter component APIs are not needed
 
 ## Related docs
 

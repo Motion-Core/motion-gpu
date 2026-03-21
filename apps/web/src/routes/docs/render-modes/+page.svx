@@ -7,6 +7,8 @@ This page covers the three render modes (`always`, `on-demand`, `manual`), the s
 
 For the `useFrame` API, see [Frame Scheduler](/docs/frame-scheduler).
 
+Examples below use Svelte syntax. React exposes the same runtime controls via `@motion-core/motion-gpu/react`.
+
 ## Render modes
 
 `renderMode` determines **when** the canvas re-renders. It is set as a `FragCanvas` prop and can be changed at runtime via `useMotionGPU().renderMode.set(...)`.
@@ -227,7 +229,7 @@ scheduler.resetProfiling();
 For common tuning profiles and one-call debug capture, use the advanced entrypoint:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/svelte/advanced';
+import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
 
 const scheduler = gpu.scheduler;
 

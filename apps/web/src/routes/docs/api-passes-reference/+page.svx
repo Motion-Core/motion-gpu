@@ -3,13 +3,14 @@ title: Passes API
 description: Reference for ShaderPass, BlitPass, CopyPass, and render pass slot contracts.
 ---
 
-Reference for post-processing APIs shared by the Svelte adapter and core entrypoints.
+Reference for post-processing APIs shared by Svelte/React adapters and core entrypoints.
 
 ## Entrypoints
 
 | Entrypoint | Exports |
 | --- | --- |
 | `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass` |
+| `@motion-core/motion-gpu/react` | `ShaderPass`, `BlitPass`, `CopyPass` |
 | `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass` |
 
 ## Shared pass options

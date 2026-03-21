@@ -8,7 +8,7 @@ description: Creating immutable, validated materials with the defineMaterial API
 ## Basic usage
 
 ```ts
-import { defineMaterial } from '@motion-core/motion-gpu/svelte';
+import { defineMaterial } from '@motion-core/motion-gpu';
 
 const material = defineMaterial({
   fragment: `

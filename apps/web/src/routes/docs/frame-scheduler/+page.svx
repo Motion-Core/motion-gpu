@@ -7,6 +7,8 @@ The frame scheduler manages all per-frame logic in MotionGPU. Every `useFrame` c
 
 For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs/render-modes).
 
+Examples below use Svelte syntax. React exposes the same hook API from `@motion-core/motion-gpu/react`.
+
 ## Basic usage
 
 ```svelte
@@ -51,7 +53,7 @@ useFrame('particles', (state) => { ... }, {
 | `task` | `{ key: FrameKey; stage: FrameKey }` | Task and stage identifiers |
 | `start()` | `() => void` | Enables the task (resumes execution) |
 | `stop()` | `() => void` | Disables the task (paused, not removed) |
-| `started` | `Readable<boolean>` | Reactive store for effective running state |
+| `started` | `CurrentReadable<boolean>` | Reactive store for effective running state |
 
 ```ts
 const handle = useFrame('animation', (state) => {
@@ -187,6 +189,6 @@ Dependencies are resolved via topological sort.
 
 ## Lifecycle
 
-- `useFrame` automatically **unregisters** the task when the component is destroyed (via Svelte's `onDestroy`).
+- `useFrame` automatically **unregisters** the task when the component is destroyed (adapter lifecycle cleanup).
 - The `stop()` / `start()` methods pause/resume without unregistering — the task remains in the schedule but is skipped.
 - The `running` gate is checked each frame — a stopped task or a task with `running: () => false` is simply skipped, not removed.

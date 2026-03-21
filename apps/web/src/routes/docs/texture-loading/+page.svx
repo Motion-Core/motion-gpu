@@ -3,9 +3,11 @@ title: Texture Loading
 description: Reactive hook for loading textures from URLs with automatic cleanup and error handling.
 ---
 
-`useTexture` is a Svelte hook that loads textures from URLs, exposes reactive loading and both raw/normalized error state, and handles cancellation and resource cleanup automatically.
+`useTexture` is an adapter runtime hook that loads textures from URLs, exposes reactive loading and both raw/normalized error state, and handles cancellation and resource cleanup automatically.
 
 For texture declaration and configuration in materials, see [Texture Definitions](/docs/textures).
+
+Examples below use Svelte syntax. React exposes the same hook API from `@motion-core/motion-gpu/react`.
 
 ## Basic usage
 
@@ -69,7 +71,7 @@ useFrame((state) => {
 });
 ```
 
-### Using Svelte subscriptions for reactive UI
+### Using reactive subscriptions for UI (Svelte example)
 
 ```svelte
 <script lang="ts">
@@ -172,9 +174,9 @@ Under the hood, `texture-loader.ts` maintains a **reference-counted blob cache**
 
 ## Component lifecycle
 
-`useTexture` uses Svelte's `onDestroy` internally:
+`useTexture` performs adapter lifecycle cleanup automatically:
 
-1. On destroy, `disposed` flag is set.
+1. On destroy/unmount, `disposed` flag is set.
 2. The internal `requestVersion` is incremented (invalidating any in-flight result).
 3. The active `AbortController` is aborted.
 4. All current bitmap textures are disposed.

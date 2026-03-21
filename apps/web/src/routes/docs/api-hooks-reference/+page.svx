@@ -3,7 +3,7 @@ title: Hooks API
 description: "Reference for runtime hooks: useFrame, useMotionGPU, useTexture, and user context APIs."
 ---
 
-Reference for hook-based runtime control in the Svelte adapter.
+Reference for hook-based runtime control in the Svelte and React adapters.
 
 ## Entrypoints
 
@@ -11,6 +11,8 @@ Reference for hook-based runtime control in the Svelte adapter.
 | --- | --- |
 | `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `useTexture` |
 | `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
+| `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `useTexture` |
+| `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
 
 ## Context rule
 

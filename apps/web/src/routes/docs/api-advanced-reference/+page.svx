@@ -3,7 +3,7 @@ title: Advanced API
 description: Scheduler helpers and user-context APIs from advanced entrypoints.
 ---
 
-Reference for advanced exports split between core and Svelte adapter layers.
+Reference for advanced exports split between core and adapter layers.
 
 ## Entrypoints
 
@@ -11,6 +11,7 @@ Reference for advanced exports split between core and Svelte adapter layers.
 | --- | --- |
 | `@motion-core/motion-gpu/advanced` | Core + scheduler helper utilities |
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte runtime API + scheduler helpers + user context APIs |
+| `@motion-core/motion-gpu/react/advanced` | React runtime API + scheduler helpers + user context APIs |
 
 ## Scheduler helpers
 
@@ -61,9 +62,9 @@ captureSchedulerDebugSnapshot(
 | `lastRunTimings` | `FrameRunTimings \| null` |
 | `profilingSnapshot` | `FrameProfilingSnapshot \| null` |
 
-## Svelte-only advanced exports
+## Adapter advanced exports
 
-Available only from `@motion-core/motion-gpu/svelte/advanced`:
+Available from both `@motion-core/motion-gpu/svelte/advanced` and `@motion-core/motion-gpu/react/advanced`:
 - `useMotionGPUUserContext`
 - `setMotionGPUUserContext`
 

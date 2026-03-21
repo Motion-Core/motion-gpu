@@ -5,6 +5,8 @@ description: Understanding the error normalization pipeline, structured reports,
 
 MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
 
+Examples below use Svelte syntax. React uses the same runtime error contracts via `@motion-core/motion-gpu/react`.
+
 ## Error normalization pipeline
 
 All errors from initialization and per-frame rendering are processed by `toMotionGPUErrorReport(error, phase)`:
@@ -92,12 +94,12 @@ The normalizer matches error messages against known patterns and assigns code, s
 
 ## Overlay behavior
 
-By default, `FragCanvas` displays runtime errors through `MotionGPUErrorOverlay.svelte` (rendered via `Portal.svelte`):
+By default, `FragCanvas` displays runtime errors through the adapter overlay component (`MotionGPUErrorOverlay` rendered via adapter portal utility):
 
 | Prop | Default | Effect |
 | --- | --- | --- |
 | `showErrorOverlay` | `true` | Enables all error UI rendering |
-| `errorRenderer` | `undefined` | Optional custom renderer snippet that replaces the default overlay UI |
+| `errorRenderer` | `undefined` | Optional custom renderer (`Snippet` in Svelte / callback in React) that replaces the default overlay UI |
 | `onError` | `undefined` | Callback invoked with the normalized report |
 | `errorHistoryLimit` | `0` | Enables bounded history collection when `> 0` |
 | `onErrorHistory` | `undefined` | Callback invoked with deduplicated bounded history snapshots |

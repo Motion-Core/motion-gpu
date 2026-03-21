@@ -24,7 +24,7 @@ packages/motion-gpu/src/lib/
 ├── advanced.ts                     # Root framework-agnostic advanced core entrypoint
 ├── svelte/
 │   ├── index.ts                    # Explicit Svelte adapter exports
-│   └── advanced.ts                 # Explicit Svelte advanced exports
+│   ├── advanced.ts                 # Explicit Svelte advanced exports
 │   ├── FragCanvas.svelte           # Svelte host component
 │   ├── frame-context.ts            # Svelte useFrame adapter wrapper
 │   ├── motiongpu-context.ts        # Svelte useMotionGPU adapter wrapper
@@ -32,6 +32,16 @@ packages/motion-gpu/src/lib/
 │   ├── use-motiongpu-user-context.ts # Svelte advanced user-context hook
 │   ├── Portal.svelte               # DOM portal utility for overlay rendering
 │   └── MotionGPUErrorOverlay.svelte # Default error-overlay UI component
+├── react/
+│   ├── index.ts                    # Explicit React adapter exports
+│   ├── advanced.ts                 # Explicit React advanced exports
+│   ├── FragCanvas.tsx              # React host component
+│   ├── frame-context.ts            # React useFrame adapter wrapper
+│   ├── motiongpu-context.ts        # React useMotionGPU adapter wrapper
+│   ├── use-texture.ts              # React lifecycle-aware texture hook
+│   ├── use-motiongpu-user-context.ts # React advanced user-context hook
+│   ├── Portal.tsx                  # DOM portal utility for overlay rendering
+│   └── MotionGPUErrorOverlay.tsx   # Default error-overlay UI component
 └── core/
     ├── index.ts                    # Framework-agnostic core entrypoint
     ├── advanced.ts                 # Framework-agnostic advanced core entrypoint
@@ -61,7 +71,7 @@ packages/motion-gpu/src/lib/
 ### Initialization (mount)
 
 1. **Create frame registry** — instantiates the scheduler with default stage, timing, and profiling state.
-2. **Set up Svelte context** — provides `MotionGPUContext` so `useMotionGPU()`, `useFrame()`, etc. work inside child components.
+2. **Set up adapter context** — provides `MotionGPUContext` and frame registry context so `useMotionGPU()`, `useFrame()`, etc. work inside child components.
 3. **Start core runtime loop** — `createMotionGPURuntimeLoop(...)` receives adapter getters and owns material resolution, renderer rebuild policy, retries, and render scheduling.
 4. **Resolve material (core)** — calls `resolveMaterial(material)` to produce preprocessed WGSL, uniform layout, texture keys, and deterministic `signature`.
 5. **Create renderer (core)** — when needed, `createRenderer(...)` requests adapter/device, compiles WGSL, and builds bind groups + pipeline.

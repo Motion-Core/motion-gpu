@@ -17,6 +17,8 @@ function shouldShowErrorMessage(value: MotionGPUErrorReport): boolean {
 }
 
 export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
+	const detailsSummary = report.source ? 'Additional diagnostics' : 'Technical details';
+
 	return (
 		<Portal>
 			<div
@@ -72,9 +74,45 @@ export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
 						<p style={{ margin: 0, color: '#5f6672' }}>{report.hint}</p>
 					</div>
 
+					{report.source ? (
+						<section aria-label="Source" style={{ marginTop: '0.75rem' }}>
+							<h3 style={{ margin: 0, fontSize: '0.8rem', textTransform: 'uppercase' }}>Source</h3>
+							<div style={{ marginTop: '0.4rem', border: '1px solid rgba(107, 107, 107, 0.2)' }}>
+								<div
+									style={{
+										padding: '0.45rem 0.6rem',
+										borderBottom: '1px solid rgba(107, 107, 107, 0.2)'
+									}}
+								>
+									<span>
+										{report.source.location}
+										{report.source.column ? `, col ${report.source.column}` : ''}
+									</span>
+								</div>
+								<div style={{ display: 'grid' }}>
+									{report.source.snippet.map((snippetLine) => (
+										<div
+											key={`snippet-${snippetLine.number}`}
+											style={{
+												display: 'grid',
+												gridTemplateColumns: '2rem minmax(0, 1fr)',
+												gap: '0.42rem',
+												padding: '0.2rem 0.5rem',
+												background: snippetLine.highlight ? 'rgba(255, 105, 0, 0.08)' : undefined
+											}}
+										>
+											<span>{snippetLine.number}</span>
+											<span className="motiongpu-error-source-code">{snippetLine.code || ' '}</span>
+										</div>
+									))}
+								</div>
+							</div>
+						</section>
+					) : null}
+
 					{report.details.length > 0 ? (
 						<details open style={{ marginTop: '0.75rem' }}>
-							<summary>{report.source ? 'Additional diagnostics' : 'Technical details'}</summary>
+							<summary>{detailsSummary}</summary>
 							<pre style={{ whiteSpace: 'pre-wrap' }}>{report.details.join('\n')}</pre>
 						</details>
 					) : null}

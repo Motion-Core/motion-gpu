@@ -1,5 +1,9 @@
 import type { CurrentReadable } from '../core/current-value.js';
-import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context.js';
+import {
+	useMotionGPU,
+	type MotionGPUUserContext,
+	type MotionGPUUserNamespace
+} from './motiongpu-context.js';
 
 /**
  * Internal shape of the user context store.
@@ -17,6 +21,8 @@ type UserContextEntry = Record<string, unknown>;
 export interface SetMotionGPUUserContextOptions {
 	existing?: 'merge' | 'replace' | 'skip';
 }
+
+let latestUserStore: MotionGPUUserContext | null = null;
 
 function isObjectEntry(value: unknown): value is UserContextEntry {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -44,6 +50,7 @@ export function useMotionGPUUserContext<
 	UCT = unknown
 >(namespace?: MotionGPUUserNamespace): CurrentReadable<UC> | CurrentReadable<UCT | undefined> {
 	const userStore = useMotionGPU().user;
+	latestUserStore = userStore;
 
 	if (namespace === undefined) {
 		const allStore: CurrentReadable<UC> = {
@@ -78,7 +85,16 @@ export function setMotionGPUUserContext<UCT = unknown>(
 	value: UCT | (() => UCT),
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
-	const userStore = useMotionGPU().user;
+	let userStore: MotionGPUUserContext;
+	try {
+		userStore = useMotionGPU().user;
+		latestUserStore = userStore;
+	} catch (error) {
+		if (!latestUserStore) {
+			throw error;
+		}
+		userStore = latestUserStore;
+	}
 	const mode = options?.existing ?? 'skip';
 	let resolvedValue: UCT | undefined;
 

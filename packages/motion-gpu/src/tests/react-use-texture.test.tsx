@@ -30,6 +30,15 @@ function createAbortError(): DOMException {
 	return new DOMException('Aborted', 'AbortError');
 }
 
+function getProbeResult(onProbe: ReturnType<typeof vi.fn>, index = 0): UseTextureResult {
+	const result = onProbe.mock.calls[index]?.[0] as UseTextureResult | undefined;
+	if (!result) {
+		throw new Error('Expected hook result');
+	}
+
+	return result;
+}
+
 describe('react useTexture', () => {
 	const bitmaps: MockBitmap[] = [];
 
@@ -69,7 +78,7 @@ describe('react useTexture', () => {
 		render(<TextureProbe urls={['/assets/a.png', '/assets/b.png']} onProbe={onProbe} />);
 
 		await waitFor(() => {
-			const result = onProbe.mock.calls[0]?.[0] as UseTextureResult;
+			const result = getProbeResult(onProbe);
 			expect(result.loading.current).toBe(false);
 			expect(result.error.current).toBeNull();
 			expect(result.errorReport.current).toBeNull();
@@ -98,7 +107,10 @@ describe('react useTexture', () => {
 							resolve({
 								ok: true,
 								status: 200,
-								blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+								blob: async () =>
+									new Blob([new Uint8Array([1, 2, 3, 4])], {
+										type: 'image/png'
+									})
 							});
 						}, 100);
 						return;
@@ -123,7 +135,7 @@ describe('react useTexture', () => {
 			expect(onProbe).toHaveBeenCalled();
 		});
 
-		const result = onProbe.mock.calls[0]?.[0] as UseTextureResult;
+		const result = getProbeResult(onProbe);
 		void result.reload();
 
 		await waitFor(() => {
@@ -133,6 +145,50 @@ describe('react useTexture', () => {
 		});
 
 		expect(aborts).toContain(1);
+	});
+
+	it('starts a fresh load when reload is called after a previous request settled', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => {
+				if (url === '/assets/initial.png') {
+					return {
+						ok: true,
+						status: 200,
+						blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+					};
+				}
+
+				return {
+					ok: false,
+					status: 404,
+					blob: async () => new Blob([new Uint8Array([0])], { type: 'text/plain' })
+				};
+			})
+		);
+
+		const onProbe = vi.fn();
+		const view = render(<TextureProbe urls={['/assets/initial.png']} onProbe={onProbe} />);
+
+		await waitFor(() => {
+			const result = getProbeResult(onProbe);
+			expect(result.loading.current).toBe(false);
+			expect(result.error.current).toBeNull();
+			expect(result.textures.current).toHaveLength(1);
+		});
+
+		const result = getProbeResult(onProbe);
+		view.rerender(<TextureProbe urls={['/assets/missing.png']} onProbe={onProbe} />);
+		await result.reload();
+
+		await waitFor(() => {
+			expect(result.loading.current).toBe(false);
+			expect(result.textures.current).toBeNull();
+			expect(result.error.current?.message).toContain('/assets/missing.png');
+			expect(result.errorReport.current?.code).toBe('TEXTURE_REQUEST_FAILED');
+			expect(result.errorReport.current?.rawMessage).toContain('/assets/missing.png');
+		});
+		expect(fetch).toHaveBeenCalledWith('/assets/missing.png', expect.any(Object));
 	});
 
 	it('cancels in-flight load and disposes bitmaps on unmount', async () => {
@@ -172,6 +228,109 @@ describe('react useTexture', () => {
 		});
 		for (const bitmap of bitmaps) {
 			expect(bitmap.close).toHaveBeenCalledTimes(1);
+		}
+	});
+
+	it('shares in-flight blob requests across concurrent hook instances', async () => {
+		let resolveFetch!: () => void;
+		const fetchPromise = new Promise<{
+			ok: boolean;
+			status: number;
+			blob: () => Promise<Blob>;
+		}>((resolve) => {
+			resolveFetch = () =>
+				resolve({
+					ok: true,
+					status: 200,
+					blob: async () => new Blob([new Uint8Array([9, 8, 7, 6])], { type: 'image/png' })
+				});
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(() => fetchPromise)
+		);
+
+		const onProbeA = vi.fn();
+		const onProbeB = vi.fn();
+		render(<TextureProbe urls={['/assets/shared-hook.png']} onProbe={onProbeA} />);
+		render(<TextureProbe urls={['/assets/shared-hook.png']} onProbe={onProbeB} />);
+
+		await waitFor(() => {
+			expect(fetch).toHaveBeenCalledTimes(1);
+		});
+		resolveFetch();
+
+		await waitFor(() => {
+			const resultA = getProbeResult(onProbeA);
+			const resultB = getProbeResult(onProbeB);
+			expect(resultA.loading.current).toBe(false);
+			expect(resultB.loading.current).toBe(false);
+			expect(resultA.textures.current).toHaveLength(1);
+			expect(resultB.textures.current).toHaveLength(1);
+		});
+		expect(createImageBitmap).toHaveBeenCalledTimes(2);
+	});
+
+	it('supports merged abort signal fallback when AbortSignal.any is unavailable', async () => {
+		const abortSignalRef = AbortSignal as unknown as {
+			any: ((signals: AbortSignal[]) => AbortSignal) | undefined;
+		};
+		const originalAny = abortSignalRef.any;
+		abortSignalRef.any = undefined;
+
+		try {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn((_: string, requestInit?: RequestInit) => {
+					const signal = requestInit?.signal as AbortSignal | undefined;
+					return new Promise((resolve, reject) => {
+						if (signal?.aborted) {
+							reject(createAbortError());
+							return;
+						}
+
+						const onAbort = (): void => reject(createAbortError());
+						signal?.addEventListener('abort', onAbort, { once: true });
+						setTimeout(() => {
+							signal?.removeEventListener('abort', onAbort);
+							resolve({
+								ok: true,
+								status: 200,
+								blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+							});
+						}, 500);
+					});
+				})
+			);
+
+			let result: UseTextureResult | undefined;
+			const onProbe = vi.fn((value: UseTextureResult) => {
+				result = value;
+			});
+			const controller = new AbortController();
+			render(
+				<TextureProbe
+					urls={['/assets/fallback-abort.png']}
+					onProbe={onProbe}
+					options={{ signal: controller.signal }}
+				/>
+			);
+			controller.abort();
+
+			await waitFor(() => {
+				expect(result).not.toBeNull();
+				expect(result?.loading.current).toBe(false);
+			});
+
+			const resolvedResult = result;
+			if (!resolvedResult) {
+				throw new Error('Expected hook result');
+			}
+			expect(resolvedResult.error.current).toBeNull();
+			expect(resolvedResult.errorReport.current).toBeNull();
+			expect(resolvedResult.textures.current).toBeNull();
+		} finally {
+			abortSignalRef.any = originalAny;
 		}
 	});
 });

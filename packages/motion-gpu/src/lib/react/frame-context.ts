@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { createCurrentWritable } from '../core/current-value.js';
+import { useMotionGPU } from './motiongpu-context.js';
 import type {
 	FrameCallback,
 	FrameKey,
@@ -65,6 +66,7 @@ export function useFrame(
 	if (!registry) {
 		throw new Error('useFrame must be used inside <FragCanvas>');
 	}
+	const motiongpu = useMotionGPU();
 
 	const resolved =
 		typeof keyOrCallback === 'function'
@@ -122,6 +124,10 @@ export function useFrame(
 			startedStore.set(false);
 		};
 	}, [registry, resolved.key, resolved.options, startedStore]);
+
+	useEffect(() => {
+		motiongpu.invalidate();
+	}, [motiongpu, resolved.callback]);
 
 	return {
 		get task() {

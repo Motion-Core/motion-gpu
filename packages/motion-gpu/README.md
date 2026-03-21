@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Svelte](https://img.shields.io/badge/Svelte-5-orange.svg)](https://svelte.dev)
+[![React](https://img.shields.io/badge/React-18%2B-149eca.svg)](https://react.dev)
 [![WebGPU](https://img.shields.io/badge/Shaders-WGSL-blueviolet.svg)](https://gpuweb.github.io/gpuweb/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org)
 [![npm](https://img.shields.io/badge/npm-@motion--core%2Fmotion--gpu-red.svg)](https://www.npmjs.com/package/@motion-core/motion-gpu)
@@ -12,7 +13,7 @@
 
 **A tiny WebGPU runtime for writing Shadertoy-style fullscreen shaders in pure WGSL.**
 
-`@motion-core/motion-gpu` ships a framework-agnostic core plus a Svelte 5 adapter for building fullscreen shader pipelines using WebGPU and WGSL.
+`@motion-core/motion-gpu` ships a framework-agnostic core plus Svelte 5 and React adapters for building fullscreen shader pipelines using WebGPU and WGSL.
 It provides a minimal runtime loop, scheduler, and render graph designed specifically for fragment-driven GPU programs.
 
 Unlike general-purpose 3D engines, Motion GPU focuses on a very narrow problem: **running fullscreen fragment shaders and multi-pass GPU pipelines**.
@@ -119,6 +120,38 @@ Also exports runtime/core types:
 
 ---
 
+## React adapter
+
+`@motion-core/motion-gpu/react` exposes the runtime API for React:
+
+- `FragCanvas`
+- `defineMaterial`
+- `useMotionGPU`
+- `useFrame`
+- `useTexture`
+- `ShaderPass`
+- `BlitPass`
+- `CopyPass`
+
+Also exports runtime/core types:
+
+- uniforms
+- textures
+- render passes
+- scheduler
+- loader types
+
+---
+
+`@motion-core/motion-gpu/react/advanced` re-exports everything above, plus:
+
+- `useMotionGPUUserContext`
+- `setMotionGPUUserContext`
+- `applySchedulerPreset`
+- `captureSchedulerDebugSnapshot`
+
+---
+
 ## Framework-agnostic core
 
 `@motion-core/motion-gpu` (and explicit alias `@motion-core/motion-gpu/core`) exposes adapter-building primitives:
@@ -144,6 +177,7 @@ Also exports runtime/core types:
 # Requirements
 
 - Svelte 5 is required only for the Svelte adapter entrypoints (`/svelte`, `/svelte/advanced`)
+- React 18+ is required only for the React adapter entrypoints (`/react`, `/react/advanced`)
 - A browser/runtime with WebGPU support
 - Secure context (`https://` or `localhost`)
 
@@ -188,6 +222,30 @@ fn frag(uv: vec2f) -> vec4f {
 
 ---
 
+### React equivalent
+
+```tsx
+import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/react';
+
+const material = defineMaterial({
+	fragment: `
+fn frag(uv: vec2f) -> vec4f {
+	return vec4f(uv.x, uv.y, 0.25, 1.0);
+}
+`
+});
+
+export function App() {
+	return (
+		<div style={{ width: '100vw', height: '100vh' }}>
+			<FragCanvas material={material} />
+		</div>
+	);
+}
+```
+
+---
+
 ## 2. Add animated uniforms via `useFrame`
 
 ```svelte
@@ -223,6 +281,18 @@ fn frag(uv: vec2f) -> vec4f {
 		state.setUniform('uTime', state.time);
 	});
 </script>
+```
+
+```tsx
+import { useFrame } from '@motion-core/motion-gpu/react';
+
+export function Runtime() {
+	useFrame((state) => {
+		state.setUniform('uTime', state.time);
+	});
+
+	return null;
+}
 ```
 
 ---

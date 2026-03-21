@@ -25,13 +25,13 @@
 		<h1
 			class="max-w-3xl text-center text-3xl font-medium tracking-tight text-balance text-foreground sm:text-5xl"
 		>
-			A <span class="text-accent">Svelte-first</span> pipeline for modern
-			<span class="text-accent">GPU visuals.</span>
+			<span class="text-accent">React & Svelte</span> runtime for modern
+			<span class="text-accent">WebGPU visuals.</span>
 		</h1>
 		<p
 			class="max-w-xl text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:text-lg"
 		>
-			If you need performance, clarity, and composability in WebGPU for Svelte, this is the stack.
+			If you need performance, clarity, and composability in WebGPU, this is the right stack.
 		</p>
 		<div data-reveal="actions" class="flex items-center gap-2">
 			<Button

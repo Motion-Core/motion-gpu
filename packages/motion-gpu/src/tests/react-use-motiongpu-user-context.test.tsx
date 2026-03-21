@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { CurrentReadable } from '../lib/core/current-value.js';
 import { createCurrentWritable } from '../lib/core/current-value.js';
@@ -8,7 +8,8 @@ import type { MotionGPUContext } from '../lib/react/motiongpu-context.js';
 import { MotionGPUReactContext } from '../lib/react/motiongpu-context.js';
 import {
 	setMotionGPUUserContext,
-	useMotionGPUUserContext
+	useMotionGPUUserContext,
+	useSetMotionGPUUserContext
 } from '../lib/react/use-motiongpu-user-context.js';
 
 function createRuntimeHarness() {
@@ -63,6 +64,24 @@ describe('react useMotionGPUUserContext', () => {
 		}
 
 		expect(() => render(<OutsideProbe />)).toThrow(/useMotionGPU must be used inside <FragCanvas>/);
+	});
+
+	it('throws when setMotionGPUUserContext is called outside React render lifecycle', () => {
+		const payload = createRuntimeHarness();
+
+		function PrimeStore() {
+			useMotionGPUUserContext();
+			return null;
+		}
+
+		render(withProvider(<PrimeStore />, payload));
+
+		expect(() => {
+			setMotionGPUUserContext('plugin', () => ({ mode: 'outside-render' }), {
+				existing: 'replace'
+			});
+		}).toThrow();
+		expect(payload.context.user.current.plugin).toBeUndefined();
 	});
 
 	it('supports scoped set/get with skip, merge and replace modes', async () => {
@@ -169,6 +188,7 @@ describe('react useMotionGPUUserContext', () => {
 		function SubscribeProbe() {
 			const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
 			const pluginStore = useMotionGPUUserContext<unknown>('plugin');
+			const setUserContext = useSetMotionGPUUserContext();
 
 			useEffect(() => {
 				const allEvents: Array<Record<string | symbol, unknown>> = [];
@@ -181,16 +201,16 @@ describe('react useMotionGPUUserContext', () => {
 					pluginEvents.push(value);
 				});
 
-				setMotionGPUUserContext('plugin', () => ({ mode: 'first' }), {
+				setUserContext('plugin', () => ({ mode: 'first' }), {
 					existing: 'replace'
 				});
-				setMotionGPUUserContext('plugin', () => ({ enabled: true }), {
+				setUserContext('plugin', () => ({ enabled: true }), {
 					existing: 'merge'
 				});
-				setMotionGPUUserContext<unknown>('plugin', () => 7, {
+				setUserContext<unknown>('plugin', () => 7, {
 					existing: 'replace'
 				});
-				const mergedFallback = setMotionGPUUserContext('plugin', () => ({ mode: 'fallback' }), {
+				const mergedFallback = setUserContext('plugin', () => ({ mode: 'fallback' }), {
 					existing: 'merge'
 				});
 
@@ -202,7 +222,7 @@ describe('react useMotionGPUUserContext', () => {
 				unsubscribeAll();
 				unsubscribePlugin();
 
-				setMotionGPUUserContext('plugin', () => ({ mode: 'after-unsubscribe' }), {
+				setUserContext('plugin', () => ({ mode: 'after-unsubscribe' }), {
 					existing: 'replace'
 				});
 
@@ -213,7 +233,7 @@ describe('react useMotionGPUUserContext', () => {
 					mergedFallback,
 					currentPlugin: pluginStore.current
 				});
-			}, [allStore, onProbe, pluginStore]);
+			}, [allStore, onProbe, pluginStore, setUserContext]);
 
 			return null;
 		}
@@ -249,17 +269,18 @@ describe('react useMotionGPUUserContext', () => {
 
 		function MergeFallbackProbe() {
 			useMotionGPUUserContext<unknown>('plugin');
+			const setUserContext = useSetMotionGPUUserContext();
 
 			useEffect(() => {
-				setMotionGPUUserContext<unknown>('plugin', () => 7, {
+				setUserContext<unknown>('plugin', () => 7, {
 					existing: 'replace'
 				});
-				const mergedFallback = setMotionGPUUserContext('plugin', () => ({ mode: 'fallback' }), {
+				const mergedFallback = setUserContext('plugin', () => ({ mode: 'fallback' }), {
 					existing: 'merge'
 				});
 
 				onProbe({ mergedFallback });
-			}, [onProbe]);
+			}, [onProbe, setUserContext]);
 
 			return null;
 		}
@@ -273,5 +294,57 @@ describe('react useMotionGPUUserContext', () => {
 			mergedFallback: Record<string, unknown>;
 		};
 		expect(result.mergedFallback).toEqual({ mode: 'fallback' });
+	});
+
+	it('returns stable store references across rerenders for the same namespace', async () => {
+		const payload = createRuntimeHarness();
+		const onProbe = vi.fn();
+
+		function StabilityProbe({ step }: { step: number }) {
+			const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
+			const pluginStore = useMotionGPUUserContext<unknown>('plugin');
+			const lastRef = useRef<{
+				allStore: CurrentReadable<Record<string | symbol, unknown>>;
+				pluginStore: CurrentReadable<unknown | undefined>;
+			} | null>(null);
+
+			useEffect(() => {
+				onProbe({
+					step,
+					sameAllStore: lastRef.current ? lastRef.current.allStore === allStore : true,
+					samePluginStore: lastRef.current ? lastRef.current.pluginStore === pluginStore : true
+				});
+				lastRef.current = {
+					allStore,
+					pluginStore
+				};
+			}, [allStore, onProbe, pluginStore, step]);
+
+			return null;
+		}
+
+		const view = render(withProvider(<StabilityProbe step={0} />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		view.rerender(withProvider(<StabilityProbe step={1} />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(2);
+		});
+
+		view.rerender(withProvider(<StabilityProbe step={2} />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(3);
+		});
+
+		expect(onProbe.mock.calls[1]?.[0]).toMatchObject({
+			sameAllStore: true,
+			samePluginStore: true
+		});
+		expect(onProbe.mock.calls[2]?.[0]).toMatchObject({
+			sameAllStore: true,
+			samePluginStore: true
+		});
 	});
 });

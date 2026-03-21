@@ -134,6 +134,28 @@ describe('react adapter runtime hooks', () => {
 		expect(callback).toHaveBeenCalledTimes(1);
 	});
 
+	it('does not re-register useFrame when options object is semantically unchanged', async () => {
+		const payload = createRuntimeHarness();
+		const callback = vi.fn();
+		const registerSpy = vi.spyOn(payload.registry, 'register');
+
+		function Probe({ frame }: { frame: number }) {
+			void frame;
+			useFrame('stable-task', callback, { autoInvalidate: false });
+			return null;
+		}
+
+		const view = render(withProviders(<Probe frame={0} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		view.rerender(withProviders(<Probe frame={1} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	it('throws when useFrame is called outside FrameRegistry provider', () => {
 		function Probe() {
 			useFrame(() => undefined);

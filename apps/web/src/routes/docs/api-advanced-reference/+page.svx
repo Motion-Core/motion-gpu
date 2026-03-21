@@ -68,6 +68,9 @@ Available from both `@motion-core/motion-gpu/svelte/advanced` and `@motion-core/
 - `useMotionGPUUserContext`
 - `setMotionGPUUserContext`
 
+React-only advanced export:
+- `useSetMotionGPUUserContext`
+
 For detailed signatures: [Hooks API](/docs/api-hooks-reference).
 
 ## Related docs

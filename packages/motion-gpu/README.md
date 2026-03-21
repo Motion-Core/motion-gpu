@@ -146,6 +146,7 @@ Also exports runtime/core types:
 `@motion-core/motion-gpu/react/advanced` re-exports everything above, plus:
 
 - `useMotionGPUUserContext`
+- `useSetMotionGPUUserContext`
 - `setMotionGPUUserContext`
 - `applySchedulerPreset`
 - `captureSchedulerDebugSnapshot`

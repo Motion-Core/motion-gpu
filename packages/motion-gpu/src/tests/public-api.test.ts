@@ -93,6 +93,7 @@ describe('public api contract', () => {
 			'useFrame',
 			'useMotionGPU',
 			'useMotionGPUUserContext',
+			'useSetMotionGPUUserContext',
 			'useTexture'
 		]);
 	});

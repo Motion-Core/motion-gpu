@@ -19,6 +19,107 @@ import type {
 
 const PENDING_STAGE_KEY = Symbol('motiongpu-react-pending-stage');
 
+function toFrameKey(
+	reference: FrameKey | FrameTask | FrameStage | undefined
+): FrameKey | undefined {
+	if (reference === undefined) {
+		return undefined;
+	}
+
+	return typeof reference === 'string' || typeof reference === 'symbol' ? reference : reference.key;
+}
+
+function normalizeTaskDependencies(
+	value: (FrameKey | FrameTask) | (FrameKey | FrameTask)[] | undefined
+): FrameKey[] {
+	if (value === undefined) {
+		return [];
+	}
+
+	const list = Array.isArray(value) ? value : [value];
+	return list.map((entry) =>
+		typeof entry === 'string' || typeof entry === 'symbol' ? entry : entry.key
+	);
+}
+
+function areFrameKeyListsEqual(a: FrameKey[], b: FrameKey[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let index = 0; index < a.length; index += 1) {
+		if (!Object.is(a[index], b[index])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+function areInvalidationOptionsEqual(
+	a: FrameTaskInvalidation | undefined,
+	b: FrameTaskInvalidation | undefined
+): boolean {
+	if (Object.is(a, b)) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return a === b;
+	}
+
+	if (typeof a === 'string' || typeof b === 'string') {
+		return a === b;
+	}
+
+	const modeA = a.mode ?? 'always';
+	const modeB = b.mode ?? 'always';
+	if (modeA !== modeB) {
+		return false;
+	}
+
+	return Object.is(a.token, b.token);
+}
+
+function areUseFrameOptionsEqual(
+	a: UseFrameOptions | undefined,
+	b: UseFrameOptions | undefined
+): boolean {
+	if (Object.is(a, b)) {
+		return true;
+	}
+
+	if (a === undefined || b === undefined) {
+		return a === b;
+	}
+
+	if (!Object.is(a.autoStart, b.autoStart) || !Object.is(a.autoInvalidate, b.autoInvalidate)) {
+		return false;
+	}
+
+	if (!Object.is(a.running, b.running)) {
+		return false;
+	}
+
+	if (!Object.is(toFrameKey(a.stage), toFrameKey(b.stage))) {
+		return false;
+	}
+
+	if (!areInvalidationOptionsEqual(a.invalidation, b.invalidation)) {
+		return false;
+	}
+
+	const beforeA = normalizeTaskDependencies(a.before);
+	const beforeB = normalizeTaskDependencies(b.before);
+	if (!areFrameKeyListsEqual(beforeA, beforeB)) {
+		return false;
+	}
+
+	const afterA = normalizeTaskDependencies(a.after);
+	const afterB = normalizeTaskDependencies(b.after);
+	return areFrameKeyListsEqual(afterA, afterB);
+}
+
 /**
  * React context key for the active frame registry.
  */
@@ -86,6 +187,11 @@ export function useFrame(
 
 	const callbackRef = useRef(resolved.callback);
 	callbackRef.current = resolved.callback;
+	const stableOptionsRef = useRef(resolved.options);
+	if (!areUseFrameOptionsEqual(stableOptionsRef.current, resolved.options)) {
+		stableOptionsRef.current = resolved.options;
+	}
+	const stableOptions = stableOptionsRef.current;
 
 	const registrationRef = useRef<{
 		task: FrameTask;
@@ -107,8 +213,8 @@ export function useFrame(
 		};
 		const registration =
 			resolved.key === undefined
-				? registry.register(wrappedCallback, resolved.options)
-				: registry.register(resolved.key, wrappedCallback, resolved.options);
+				? registry.register(wrappedCallback, stableOptions)
+				: registry.register(resolved.key, wrappedCallback, stableOptions);
 		registrationRef.current = registration;
 		taskRef.current = registration.task;
 		const unsubscribeStarted = registration.started.subscribe((value) => {
@@ -123,7 +229,7 @@ export function useFrame(
 			}
 			startedStore.set(false);
 		};
-	}, [registry, resolved.key, resolved.options, startedStore]);
+	}, [registry, resolved.key, stableOptions, startedStore]);
 
 	useEffect(() => {
 		motiongpu.invalidate();

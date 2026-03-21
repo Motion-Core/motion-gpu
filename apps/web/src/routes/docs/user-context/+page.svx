@@ -3,7 +3,7 @@ title: User Context
 description: Advanced read/write API for namespaced, reactive shared state within the MotionGPU runtime.
 ---
 
-`useMotionGPUUserContext` + `setMotionGPUUserContext` provide a split read/write API for **namespaced, reactive shared state** within the MotionGPU runtime. This is designed for plugin-like patterns where multiple independent components need to coordinate shared data.
+`useMotionGPUUserContext` + `setMotionGPUUserContext` provide a split read/write API for **namespaced, reactive shared state** within the MotionGPU runtime. In React, `useSetMotionGPUUserContext` provides a context-bound setter for effect and event-handler writes.
 
 This hook is exported from the **advanced entrypoint**:
 
@@ -12,12 +12,16 @@ This hook is exported from the **advanced entrypoint**:
 import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
 
 // React
-import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
+import {
+  setMotionGPUUserContext,
+  useMotionGPUUserContext,
+  useSetMotionGPUUserContext
+} from '@motion-core/motion-gpu/react/advanced';
 ```
 
 The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
 
-Examples below use Svelte syntax. React uses the same runtime APIs.
+Examples below use Svelte syntax. React uses the same read API, and should use `useSetMotionGPUUserContext()` for writes in effects and handlers.
 
 ## Why use user context?
 
@@ -78,6 +82,7 @@ The return value depends on the overload:
 | --- | --- |
 | `useMotionGPUUserContext()` | `CurrentReadable<Record<string \| symbol, unknown>>` |
 | `useMotionGPUUserContext(namespace)` | `CurrentReadable<T \| undefined>` (reactive namespace view) |
+| `useSetMotionGPUUserContext()` | `(namespace, valueOrFactory, options?) => T \| undefined` (React write helper) |
 | `setMotionGPUUserContext(namespace, valueOrFactory, options?)` | `T \| undefined` (the effective value at namespace) |
 
 ## Practical patterns
@@ -131,6 +136,26 @@ setMotionGPUUserContext('config', () => ({
     setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
   }
 </script>
+```
+
+### React effect/event writes
+
+```tsx
+import { useSetMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
+
+function ConfigButton() {
+  const setUserContext = useSetMotionGPUUserContext();
+
+  return (
+    <button
+      onClick={() => {
+        setUserContext('config', { quality: 'medium' }, { existing: 'merge' });
+      }}
+    >
+      Medium
+    </button>
+  );
+}
 ```
 
 ### Full context read

@@ -12,11 +12,11 @@ Reference for hook-based runtime control in the Svelte and React adapters.
 | `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `useTexture` |
 | `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
 | `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `useTexture` |
-| `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
+| `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `useSetMotionGPUUserContext`, `setMotionGPUUserContext` |
 
 ## Context rule
 
-`useFrame()`, `useMotionGPU()`, and `useMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
+`useFrame()`, `useMotionGPU()`, `useMotionGPUUserContext()`, and `useSetMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
 
 ## `useFrame`
 
@@ -109,6 +109,16 @@ setMotionGPUUserContext<T>(
   options?: SetMotionGPUUserContextOptions
 ): T | undefined
 ```
+
+```ts
+useSetMotionGPUUserContext(): <T>(
+  namespace: MotionGPUUserNamespace,
+  value: T | (() => T),
+  options?: SetMotionGPUUserContextOptions
+) => T | undefined
+```
+
+In React, prefer `useSetMotionGPUUserContext()` for effect and event-handler writes.
 
 `SetMotionGPUUserContextOptions`:
 

@@ -3,7 +3,11 @@
  */
 export * from './index.js';
 export { applySchedulerPreset, captureSchedulerDebugSnapshot } from '../core/scheduler-helpers.js';
-export { setMotionGPUUserContext, useMotionGPUUserContext } from './use-motiongpu-user-context.js';
+export {
+	setMotionGPUUserContext,
+	useMotionGPUUserContext,
+	useSetMotionGPUUserContext
+} from './use-motiongpu-user-context.js';
 export type {
 	ApplySchedulerPresetOptions,
 	SchedulerDebugSnapshot,

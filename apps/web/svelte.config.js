@@ -101,7 +101,7 @@ const themes = {
 };
 const highlighter = await createHighlighter({
 	themes: Object.values(themes),
-	langs: ['svelte', 'bash', 'json', 'typescript', 'wgsl']
+	langs: ['svelte', 'bash', 'json', 'typescript', 'tsx', 'wgsl']
 });
 
 const markdownLayout = fileURLToPath(

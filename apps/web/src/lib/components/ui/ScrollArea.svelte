@@ -238,7 +238,7 @@
 	}
 
 	const viewportAttachment: Attachment<HTMLDivElement> = (node) => {
-		mode;
+		void mode;
 		viewport = node;
 		updateThumbs(node);
 
@@ -288,9 +288,7 @@
 		<div
 			class={cn(
 				'absolute top-0 right-0 w-2.5 p-px transition-opacity duration-300',
-				isScrolling ||
-					(isDragging && dragAxis === 'vertical') ||
-					isHoveringVerticalTrack
+				isScrolling || (isDragging && dragAxis === 'vertical') || isHoveringVerticalTrack
 					? 'opacity-100'
 					: 'opacity-0'
 			)}
@@ -322,10 +320,8 @@
 	{#if showHorizontalTrack}
 		<div
 			class={cn(
-				'absolute left-0 bottom-0 h-2.5 p-px transition-opacity duration-300',
-				isScrolling ||
-					(isDragging && dragAxis === 'horizontal') ||
-					isHoveringHorizontalTrack
+				'absolute bottom-0 left-0 h-2.5 p-px transition-opacity duration-300',
+				isScrolling || (isDragging && dragAxis === 'horizontal') || isHoveringHorizontalTrack
 					? 'opacity-100'
 					: 'opacity-0'
 			)}

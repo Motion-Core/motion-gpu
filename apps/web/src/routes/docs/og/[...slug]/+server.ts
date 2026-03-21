@@ -225,10 +225,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			</div>
 		</div>
 	`;
+	const satoriMarkup = markup as unknown as Parameters<typeof satoriStandalone>[0];
 
 	const renderSatori = async () => {
 		if (useStandaloneSatori) {
-			return satoriStandalone(markup, {
+			return satoriStandalone(satoriMarkup, {
 				width: OG_WIDTH,
 				height: OG_HEIGHT,
 				fonts: [
@@ -252,7 +253,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			defaultSatoriPromise = import('satori').then((module) => module.default);
 		}
 		const defaultSatori = await defaultSatoriPromise;
-		return defaultSatori(markup, {
+		return defaultSatori(satoriMarkup, {
 			width: OG_WIDTH,
 			height: OG_HEIGHT,
 			fonts: [

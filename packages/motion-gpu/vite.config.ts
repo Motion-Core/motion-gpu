@@ -6,11 +6,11 @@ export default defineConfig(() => ({
 	...(process.env['VITEST'] ? { resolve: { conditions: ['browser'] } } : {}),
 	test: {
 		environment: 'happy-dom',
-		include: ['src/**/*.test.ts'],
+		include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text-summary', 'json-summary', 'lcov'],
-			include: ['src/lib/**/*.{ts,svelte}'],
+			include: ['src/lib/**/*.{ts,tsx,svelte}'],
 			exclude: ['**/*.d.ts'],
 			thresholds: {
 				statements: 82,

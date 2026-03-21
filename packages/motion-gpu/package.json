@@ -1,10 +1,12 @@
 {
 	"name": "@motion-core/motion-gpu",
 	"version": "0.3.0",
-	"description": "Framework-agnostic WebGPU runtime for fullscreen WGSL shaders with explicit Svelte adapter entrypoints.",
+	"description": "Framework-agnostic WebGPU runtime for fullscreen WGSL shaders with explicit Svelte and React adapter entrypoints.",
 	"keywords": [
 		"svelte",
 		"svelte5",
+		"react",
+		"react18",
 		"webgpu",
 		"wgsl",
 		"shader",
@@ -46,6 +48,14 @@
 			"svelte": "./dist/svelte/advanced.js",
 			"default": "./dist/svelte/advanced.js"
 		},
+		"./react": {
+			"types": "./dist/react/index.d.ts",
+			"default": "./dist/react/index.js"
+		},
+		"./react/advanced": {
+			"types": "./dist/react/advanced.d.ts",
+			"default": "./dist/react/advanced.js"
+		},
 		"./core": {
 			"types": "./dist/core/index.d.ts",
 			"default": "./dist/core/index.js"
@@ -78,9 +88,17 @@
 		"format": "prettier --write ."
 	},
 	"peerDependencies": {
+		"react": "^18.0.0 || ^19.0.0",
+		"react-dom": "^18.0.0 || ^19.0.0",
 		"svelte": "^5.0.0"
 	},
 	"peerDependenciesMeta": {
+		"react": {
+			"optional": true
+		},
+		"react-dom": {
+			"optional": true
+		},
 		"svelte": {
 			"optional": true
 		}
@@ -91,7 +109,10 @@
 		"@playwright/test": "^1.58.2",
 		"@sveltejs/package": "^2.5.0",
 		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@testing-library/react": "^16.3.0",
 		"@testing-library/svelte": "^5.2.8",
+		"@types/react": "^19.2.2",
+		"@types/react-dom": "^19.2.2",
 		"@vitest/coverage-v8": "^4.0.18",
 		"@types/node": "^25.3.3",
 		"@webgpu/types": "^0.1.66",
@@ -104,6 +125,8 @@
 		"prettier-plugin-svelte": "^3.4.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
 		"publint": "^0.3.15",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
 		"svelte": "^5.51.0",
 		"svelte-check": "^4.3.6",
 		"typescript": "^5.9.3",

@@ -3,6 +3,8 @@ import * as advanced from '../lib/advanced';
 import * as core from '../lib/core/index';
 import * as coreAdvanced from '../lib/core/advanced';
 import * as api from '../lib/index';
+import * as react from '../lib/react/index';
+import * as reactAdvanced from '../lib/react/advanced';
 import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
 
@@ -53,6 +55,33 @@ describe('public api contract', () => {
 			'useTexture'
 		]);
 		expect(Object.keys(svelteAdvanced).sort()).toEqual([
+			'BlitPass',
+			'CopyPass',
+			'FragCanvas',
+			'ShaderPass',
+			'applySchedulerPreset',
+			'captureSchedulerDebugSnapshot',
+			'defineMaterial',
+			'setMotionGPUUserContext',
+			'useFrame',
+			'useMotionGPU',
+			'useMotionGPUUserContext',
+			'useTexture'
+		]);
+	});
+
+	it('exposes React runtime symbols only from adapter entrypoints', () => {
+		expect(Object.keys(react).sort()).toEqual([
+			'BlitPass',
+			'CopyPass',
+			'FragCanvas',
+			'ShaderPass',
+			'defineMaterial',
+			'useFrame',
+			'useMotionGPU',
+			'useTexture'
+		]);
+		expect(Object.keys(reactAdvanced).sort()).toEqual([
 			'BlitPass',
 			'CopyPass',
 			'FragCanvas',

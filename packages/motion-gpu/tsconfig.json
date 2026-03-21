@@ -3,6 +3,7 @@
 		"target": "ES2022",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
+		"jsx": "react-jsx",
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"exactOptionalPropertyTypes": true,
@@ -21,6 +22,7 @@
 	},
 	"include": [
 		"src/**/*.ts",
+		"src/**/*.tsx",
 		"src/**/*.svelte",
 		"e2e/**/*.ts",
 		"e2e/**/*.svelte",

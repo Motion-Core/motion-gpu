@@ -1,14 +1,14 @@
 {
-  "schemaVersion": 1,
-  "updatedAt": "2026-03-20T17:30:51.229Z",
-  "metrics": {
-    "always_scheduler_hz": 119.97600480047014,
-    "always_render_hz": 119.97600480047014,
-    "on_demand_idle_scheduler_hz": 0,
-    "on_demand_idle_render_hz": 0,
-    "manual_idle_scheduler_hz": 0,
-    "manual_idle_render_hz": 0,
-    "manual_advance_scheduler_hz": 58.20489120896612,
-    "manual_advance_render_hz": 58.20489120896612
-  }
+	"schemaVersion": 1,
+	"updatedAt": "2026-03-20T17:30:51.229Z",
+	"metrics": {
+		"always_scheduler_hz": 119.97600480047014,
+		"always_render_hz": 119.97600480047014,
+		"on_demand_idle_scheduler_hz": 0,
+		"on_demand_idle_render_hz": 0,
+		"manual_idle_scheduler_hz": 0,
+		"manual_idle_render_hz": 0,
+		"manual_advance_scheduler_hz": 58.20489120896612,
+		"manual_advance_render_hz": 58.20489120896612
+	}
 }

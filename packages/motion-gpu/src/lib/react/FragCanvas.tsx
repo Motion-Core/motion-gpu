@@ -8,8 +8,9 @@ import type {
 	RenderMode,
 	RenderTargetDefinitionMap
 } from '../core/types.js';
-import type { CSSProperties, ReactNode } from 'react';
-import { MotionGPUReactContext } from './motiongpu-context.js';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { FrameRegistryReactContext } from './frame-context.js';
+import { MotionGPUReactContext, type MotionGPUContext } from './motiongpu-context.js';
 
 export interface FragCanvasProps {
 	material: FragMaterial;
@@ -33,50 +34,79 @@ export interface FragCanvasProps {
 	children?: ReactNode;
 }
 
+interface FragCanvasRuntimeState {
+	registry: ReturnType<typeof createFrameRegistry>;
+	context: MotionGPUContext;
+	canvasRef: { current: HTMLCanvasElement | undefined };
+}
+
 /**
  * React implementation placeholder. Full runtime wiring is implemented in a follow-up step.
  */
 export function FragCanvas({ className, style, children }: FragCanvasProps) {
-	const registry = createFrameRegistry({ maxDelta: 0.1 });
-	const size = currentWritable({ width: 0, height: 0 });
-	const dprState = currentWritable(1);
-	const maxDeltaState = currentWritable(0.1);
-	const renderModeState = currentWritable<RenderMode>('always');
-	const autoRenderState = currentWritable<boolean>(true);
-	const userState = currentWritable<Record<string | symbol, unknown>>({});
+	const runtimeRef = useRef<FragCanvasRuntimeState | null>(null);
+	if (!runtimeRef.current) {
+		const registry = createFrameRegistry({ maxDelta: 0.1 });
+		const size = currentWritable({ width: 0, height: 0 });
+		const dprState = currentWritable(1);
+		const maxDeltaState = currentWritable(0.1);
+		const renderModeState = currentWritable<RenderMode>('always');
+		const autoRenderState = currentWritable<boolean>(true);
+		const userState = currentWritable<Record<string | symbol, unknown>>({});
+		const canvasRef = { current: undefined as HTMLCanvasElement | undefined };
 
-	const context = {
-		canvas: undefined,
-		size,
-		dpr: dprState,
-		maxDelta: maxDeltaState,
-		renderMode: renderModeState,
-		autoRender: autoRenderState,
-		user: userState,
-		invalidate: () => undefined,
-		advance: () => undefined,
-		scheduler: {
-			createStage: registry.createStage,
-			getStage: registry.getStage,
-			setDiagnosticsEnabled: registry.setDiagnosticsEnabled,
-			getDiagnosticsEnabled: registry.getDiagnosticsEnabled,
-			getLastRunTimings: registry.getLastRunTimings,
-			getSchedule: registry.getSchedule,
-			setProfilingEnabled: registry.setProfilingEnabled,
-			setProfilingWindow: registry.setProfilingWindow,
-			resetProfiling: registry.resetProfiling,
-			getProfilingEnabled: registry.getProfilingEnabled,
-			getProfilingWindow: registry.getProfilingWindow,
-			getProfilingSnapshot: registry.getProfilingSnapshot
-		}
-	};
+		runtimeRef.current = {
+			registry,
+			canvasRef,
+			context: {
+				get canvas() {
+					return canvasRef.current;
+				},
+				size,
+				dpr: dprState,
+				maxDelta: maxDeltaState,
+				renderMode: renderModeState,
+				autoRender: autoRenderState,
+				user: userState,
+				invalidate: () => {
+					registry.invalidate();
+				},
+				advance: () => {
+					registry.advance();
+				},
+				scheduler: {
+					createStage: registry.createStage,
+					getStage: registry.getStage,
+					setDiagnosticsEnabled: registry.setDiagnosticsEnabled,
+					getDiagnosticsEnabled: registry.getDiagnosticsEnabled,
+					getLastRunTimings: registry.getLastRunTimings,
+					getSchedule: registry.getSchedule,
+					setProfilingEnabled: registry.setProfilingEnabled,
+					setProfilingWindow: registry.setProfilingWindow,
+					resetProfiling: registry.resetProfiling,
+					getProfilingEnabled: registry.getProfilingEnabled,
+					getProfilingWindow: registry.getProfilingWindow,
+					getProfilingSnapshot: registry.getProfilingSnapshot
+				}
+			}
+		};
+	}
+	const runtime = runtimeRef.current;
 
 	return (
-		<MotionGPUReactContext.Provider value={context}>
-			<div className="motiongpu-canvas-wrap">
-				<canvas className={className} style={style} />
-				{children}
-			</div>
-		</MotionGPUReactContext.Provider>
+		<FrameRegistryReactContext.Provider value={runtime.registry}>
+			<MotionGPUReactContext.Provider value={runtime.context}>
+				<div className="motiongpu-canvas-wrap">
+					<canvas
+						className={className}
+						style={style}
+						ref={(node) => {
+							runtime.canvasRef.current = node ?? undefined;
+						}}
+					/>
+					{children}
+				</div>
+			</MotionGPUReactContext.Provider>
+		</FrameRegistryReactContext.Provider>
 	);
 }

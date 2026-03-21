@@ -7,10 +7,19 @@ import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context.j
 type UserContextStore = Record<MotionGPUUserNamespace, unknown>;
 
 /**
+ * Object-like context payload used by merge semantics.
+ */
+type UserContextEntry = Record<string, unknown>;
+
+/**
  * Controls how a namespaced user context value behaves when already present.
  */
 export interface SetMotionGPUUserContextOptions {
 	existing?: 'merge' | 'replace' | 'skip';
+}
+
+function isObjectEntry(value: unknown): value is UserContextEntry {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -69,8 +78,38 @@ export function setMotionGPUUserContext<UCT = unknown>(
 	value: UCT | (() => UCT),
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
-	void namespace;
-	void value;
-	void options;
-	throw new Error('setMotionGPUUserContext is not implemented yet');
+	const userStore = useMotionGPU().user;
+	const mode = options?.existing ?? 'skip';
+	let resolvedValue: UCT | undefined;
+
+	userStore.update((context) => {
+		const hasExisting = namespace in context;
+		if (hasExisting && mode === 'skip') {
+			resolvedValue = context[namespace] as UCT | undefined;
+			return context;
+		}
+
+		const nextValue = typeof value === 'function' ? (value as () => UCT)() : value;
+		if (hasExisting && mode === 'merge') {
+			const currentValue = context[namespace];
+			if (isObjectEntry(currentValue) && isObjectEntry(nextValue)) {
+				resolvedValue = {
+					...currentValue,
+					...nextValue
+				} as UCT;
+				return {
+					...context,
+					[namespace]: resolvedValue
+				};
+			}
+		}
+
+		resolvedValue = nextValue;
+		return {
+			...context,
+			[namespace]: nextValue
+		};
+	});
+
+	return resolvedValue;
 }

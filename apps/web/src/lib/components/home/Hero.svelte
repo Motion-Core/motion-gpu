@@ -26,7 +26,7 @@
 			class="max-w-3xl text-center text-3xl font-medium tracking-tight text-balance text-foreground sm:text-5xl"
 		>
 			<span class="text-accent">React & Svelte</span> runtime for modern
-			<span class="text-accent">WebGPU visuals.</span>
+			<span class="text-accent">WebGPU </span> visuals.
 		</h1>
 		<p
 			class="max-w-xl text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:text-lg"

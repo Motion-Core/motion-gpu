@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
 	import { useTexture, type UseTextureResult } from '../../lib/svelte/use-texture';
 	import type { TextureLoadOptions } from '../../lib/core/texture-loader';
 
@@ -10,16 +9,7 @@
 	}
 
 	let { urls, onProbe, options = {} }: Props = $props();
-	const textureOptions: TextureLoadOptions = untrack(() => ({ ...options }));
-
-	$effect(() => {
-		for (const key of Object.keys(textureOptions) as Array<keyof TextureLoadOptions>) {
-			delete textureOptions[key];
-		}
-		Object.assign(textureOptions, options);
-	});
-
-	const result = useTexture(() => urls, textureOptions);
+	const result = useTexture(() => urls, () => options);
 
 	$effect(() => {
 		onProbe(result);

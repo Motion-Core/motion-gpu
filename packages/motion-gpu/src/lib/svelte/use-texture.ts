@@ -43,6 +43,11 @@ export interface UseTextureResult {
 export type TextureUrlInput = string[] | (() => string[]);
 
 /**
+ * Supported options input variants for `useTexture`.
+ */
+export type TextureOptionsInput = TextureLoadOptions | (() => TextureLoadOptions);
+
+/**
  * Normalizes unknown thrown values to an `Error` instance.
  */
 function toError(error: unknown): Error {
@@ -110,12 +115,12 @@ function mergeAbortSignals(
  * Loads textures from URLs and exposes reactive loading/error state.
  *
  * @param urlInput - URLs array or lazy URL provider.
- * @param options - Loader options passed to URL fetch/decode pipeline.
+ * @param optionsInput - Loader options object or lazy options provider.
  * @returns Reactive texture loading state with reload support.
  */
 export function useTexture(
 	urlInput: TextureUrlInput,
-	options: TextureLoadOptions = {}
+	optionsInput: TextureOptionsInput = {}
 ): UseTextureResult {
 	const textures = currentWritable<LoadedTexture[] | null>(null);
 	const loading = currentWritable(true);
@@ -127,6 +132,10 @@ export function useTexture(
 	let runningLoad: Promise<void> | null = null;
 	let reloadQueued = false;
 	const getUrls = typeof urlInput === 'function' ? urlInput : () => urlInput;
+	const getOptions =
+		typeof optionsInput === 'function'
+			? (optionsInput as () => TextureLoadOptions)
+			: () => optionsInput;
 
 	const executeLoad = async (): Promise<void> => {
 		if (disposed) {
@@ -141,6 +150,7 @@ export function useTexture(
 		errorReport.set(null);
 
 		const previous = textures.current;
+		const options = getOptions() ?? {};
 		const mergedSignal = mergeAbortSignals(controller.signal, options.signal);
 		try {
 			const loaded = await loadTexturesFromUrls(getUrls(), {

@@ -56,10 +56,7 @@ export interface PreprocessedMaterialFragment {
 function normalizeTypedDefine(
 	name: string,
 	define: TypedMaterialDefineValue
-): {
-	type: TypedMaterialDefineValue['type'];
-	value: boolean | number;
-} {
+): TypedMaterialDefineValue {
 	const value = define.value;
 
 	if (define.type === 'bool') {
@@ -114,10 +111,7 @@ export function normalizeDefines(defines: MaterialDefines | undefined): Material
 		}
 
 		const normalized = normalizeTypedDefine(name, value);
-		resolved[name] = Object.freeze({
-			type: normalized.type,
-			value: normalized.value
-		});
+		resolved[name] = Object.freeze(normalized);
 	}
 
 	return resolved;

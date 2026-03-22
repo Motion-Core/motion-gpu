@@ -5,6 +5,7 @@ import {
 	preprocessMaterialFragment,
 	toDefineLine
 } from '../../lib/core/material-preprocess';
+import type { TypedMaterialDefineValue } from '../../lib/core/material';
 
 describe('material preprocess', () => {
 	it('normalizes typed define values and emits WGSL literals', () => {
@@ -75,5 +76,16 @@ describe('material preprocess', () => {
 		expect(preprocessed.defineBlockSource).toBe(
 			['const ALPHA: bool = true;', 'const ZED: bool = false;'].join('\n')
 		);
+	});
+
+	it('enforces typed define value compatibility at compile time', () => {
+		const typed: TypedMaterialDefineValue = {
+			type: 'bool',
+			value: true
+		};
+		expect(typed).toEqual({ type: 'bool', value: true });
+
+		// @ts-expect-error bool defines require boolean literals
+		({ type: 'bool', value: 1 } satisfies TypedMaterialDefineValue);
 	});
 });

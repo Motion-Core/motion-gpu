@@ -27,16 +27,27 @@ import type {
 /**
  * Typed compile-time define declaration.
  */
-export interface TypedMaterialDefineValue {
-	/**
-	 * WGSL scalar type.
-	 */
-	type: 'bool' | 'f32' | 'i32' | 'u32';
-	/**
-	 * Literal value for the selected WGSL type.
-	 */
-	value: boolean | number;
-}
+export type TypedMaterialDefineValue =
+	| {
+			/**
+			 * WGSL scalar type.
+			 */
+			type: 'bool';
+			/**
+			 * Literal value for the selected WGSL type.
+			 */
+			value: boolean;
+	  }
+	| {
+			/**
+			 * WGSL scalar type.
+			 */
+			type: 'f32' | 'i32' | 'u32';
+			/**
+			 * Literal value for the selected WGSL type.
+			 */
+			value: number;
+	  };
 
 /**
  * Allowed value types for WGSL `const` define injection.

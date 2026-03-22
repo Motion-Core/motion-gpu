@@ -9,7 +9,8 @@
   ],
   "scripts": {
     "dev": "bun run dev:web",
-    "dev:web": "bun run build:motion-gpu && bun run --cwd apps/web dev",
+    "dev:web": "bun run build:motion-gpu && bun run dev:web:live",
+    "dev:web:live": "bash -lc 'set -euo pipefail; bun run --cwd packages/motion-gpu build:watch & WATCH_PID=$!; trap \"kill $WATCH_PID 2>/dev/null || true\" EXIT INT TERM; bun run --cwd apps/web dev'",
     "build": "bun run build:motion-gpu && bun run build:web",
     "build:web": "bun run --cwd apps/web build",
     "build:motion-gpu": "bun run --cwd packages/motion-gpu build",

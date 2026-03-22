@@ -29,6 +29,7 @@ async function collectDeclarationFiles(directory) {
 async function patchWebGPUTypesReferences() {
 	const declarationFiles = await collectDeclarationFiles(distDirectory);
 	let patchedFilesCount = 0;
+	let patchedMapsCount = 0;
 
 	for (const declarationFile of declarationFiles) {
 		const source = await readFile(declarationFile, 'utf8');
@@ -39,9 +40,24 @@ async function patchWebGPUTypesReferences() {
 		const nextSource = `${WEBGPU_REFERENCE}\n${source}`;
 		await writeFile(declarationFile, nextSource, 'utf8');
 		patchedFilesCount += 1;
+
+		const declarationMapFile = `${declarationFile}.map`;
+		try {
+			const declarationMapSource = await readFile(declarationMapFile, 'utf8');
+			const declarationMap = JSON.parse(declarationMapSource);
+			if (typeof declarationMap.mappings === 'string') {
+				declarationMap.mappings = `;${declarationMap.mappings}`;
+				await writeFile(declarationMapFile, JSON.stringify(declarationMap), 'utf8');
+				patchedMapsCount += 1;
+			}
+		} catch {
+			// Declaration map may be absent (for example when declarationMap=false).
+		}
 	}
 
-	console.log(`Patched ${patchedFilesCount} declaration files with @webgpu/types reference`);
+	console.log(
+		`Patched ${patchedFilesCount} declaration files with @webgpu/types reference (${patchedMapsCount} declaration maps adjusted)`
+	);
 }
 
 await patchWebGPUTypesReferences();

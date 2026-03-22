@@ -464,10 +464,12 @@ function resolveTextures<TTextureKey extends string>(
 		[TTextureKey, TextureDefinition]
 	>) {
 		assertUniformName(name);
+		const source = definition?.source;
+		const normalizedSource = cloneTextureValue(source);
 
 		const clonedDefinition: TextureDefinition = {
 			...(definition ?? {}),
-			source: cloneTextureValue(definition?.source)
+			...(source !== undefined ? { source: normalizedSource } : {})
 		};
 
 		resolved[name] = Object.freeze(clonedDefinition);

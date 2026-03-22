@@ -4,6 +4,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 ### Added
+- Added full React adapter support with dedicated `react` and `react/advanced` package entrypoints.
+- Added React `FragCanvas` runtime integration, including error overlay and portal support.
+- Added React runtime context/frame hooks and typed user-context helpers.
+- Added React `useTexture` hook parity with runtime texture workflows.
+- Added React adapter test coverage across runtime, hooks, context, portal, and public API integration.
+- Added TSX support to the docs Shiki highlighter.
+
+### Changed
+- Updated package metadata and peer dependencies to include React/React DOM support.
+- Expanded README and docs to cover React adapter setup, usage, and advanced APIs.
+- Updated docs hero copy and replaced the hero preview image asset.
+
+### Fixed
+- Added support for lazy `options` inputs in Svelte `useTexture`.
+- Adopted Svelte attachments patterns in adapter components for parity and consistency.
+
+
+## [0.3.0] - 2026-03-21
+### Added
 - Added structured runtime error metadata: stable `code`, `severity`, and `recoverability` fields in normalized error reports.
 - Added runtime context attachment to shader diagnostics for better compile/runtime triage.
 - Added an optional runtime error history buffer in the `FragCanvas` runtime flow.
@@ -62,5 +81,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
 [Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/8a3e51e...HEAD
+[0.3.0]: https://github.com/Motion-Core/motion-gpu/compare/8a3e51e...758b6d7
 [0.2.0]: https://github.com/Motion-Core/motion-gpu/compare/49e3a57...8a3e51e
 [0.1.0]: https://github.com/Motion-Core/motion-gpu/tree/49e3a57

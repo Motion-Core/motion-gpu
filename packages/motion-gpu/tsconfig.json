@@ -15,7 +15,7 @@
 		"verbatimModuleSyntax": true,
 		"sourceMap": true,
 		"declaration": true,
-		"declarationMap": false,
+		"declarationMap": true,
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
 		"types": ["@webgpu/types", "vite/client", "vitest/globals"],
 		"skipLibCheck": true

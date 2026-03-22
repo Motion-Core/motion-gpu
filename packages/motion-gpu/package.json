@@ -1,6 +1,6 @@
 {
 	"name": "@motion-core/motion-gpu",
-	"version": "0.4.1",
+	"version": "0.4.2",
 	"description": "Framework-agnostic WebGPU runtime for fullscreen WGSL shaders with explicit Svelte and React adapter entrypoints.",
 	"keywords": [
 		"svelte",
@@ -66,11 +66,16 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/**/*.test.*",
+		"!dist/**/*.spec.*",
+		"src/lib",
+		"!src/lib/**/*.test.*",
+		"!src/lib/**/*.spec.*"
 	],
 	"scripts": {
-		"build": "svelte-package -i src/lib -o dist && node ./scripts/build/transpile-react-tsx.mjs && node ./scripts/build/patch-webgpu-types-dts.mjs",
-		"build:watch": "svelte-package -i src/lib -o dist -w --preserve-output",
+		"build": "vite build --config ./vite.package.config.ts",
+		"build:watch": "vite build --watch --config ./vite.package.config.ts",
 		"prepack": "bun run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && publint",
 		"test": "vitest run",
@@ -113,8 +118,7 @@
 		"@eslint/compat": "^2.0.2",
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.58.2",
-		"@sveltejs/package": "^2.5.0",
-		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@testing-library/react": "^16.3.0",
 		"@testing-library/svelte": "^5.2.8",
 		"@types/react": "^19.2.2",
@@ -133,10 +137,11 @@
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"svelte": "^5.51.0",
+		"svelte2tsx": "^0.7.51",
 		"svelte-check": "^4.3.6",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.54.0",
-		"vite": "^7.3.1",
+		"vite": "^8.0.1",
 		"vitest": "^4.0.18"
 	}
 }

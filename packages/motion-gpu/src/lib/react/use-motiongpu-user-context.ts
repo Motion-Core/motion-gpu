@@ -29,6 +29,14 @@ export interface SetMotionGPUUserContextOptions {
 	 * @default 'skip'
 	 */
 	existing?: 'merge' | 'replace' | 'skip';
+	/**
+	 * How function inputs should be interpreted:
+	 * - `factory`: call function and store its return value
+	 * - `value`: store function itself
+	 *
+	 * @default 'factory'
+	 */
+	functionValue?: 'factory' | 'value';
 }
 
 /**
@@ -50,6 +58,7 @@ function setMotionGPUUserContextInStore<UCT = unknown>(
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
 	const mode = options?.existing ?? 'skip';
+	const functionValueMode = options?.functionValue ?? 'factory';
 	let resolvedValue: UCT | undefined;
 
 	userStore.update((context) => {
@@ -59,7 +68,10 @@ function setMotionGPUUserContextInStore<UCT = unknown>(
 			return context;
 		}
 
-		const nextValue = typeof value === 'function' ? (value as () => UCT)() : value;
+		const nextValue =
+			typeof value === 'function' && functionValueMode === 'factory'
+				? (value as () => UCT)()
+				: (value as UCT);
 		if (hasExisting && mode === 'merge') {
 			const currentValue = context[namespace];
 			if (isObjectEntry(currentValue) && isObjectEntry(nextValue)) {

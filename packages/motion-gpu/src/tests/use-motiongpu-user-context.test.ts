@@ -2,6 +2,7 @@ import { render, waitFor } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import type { CurrentReadable } from '../lib/core/current-value';
 import MotionGPUUserOutside from './fixtures/MotionGPUUserOutside.svelte';
+import MotionGPUWithUserFunctionValueProbe from './fixtures/MotionGPUWithUserFunctionValueProbe.svelte';
 import MotionGPUWithUserProbe from './fixtures/MotionGPUWithUserProbe.svelte';
 import MotionGPUWithUserSubscribeProbe from './fixtures/MotionGPUWithUserSubscribeProbe.svelte';
 
@@ -96,5 +97,28 @@ describe('useMotionGPUUserContext', () => {
 			mergedFallback: Record<string, unknown>;
 		};
 		expect(result.mergedFallback).toEqual({ mode: 'fallback' });
+	});
+
+	it('stores function values when functionValue mode is set to value', async () => {
+		const onProbe = vi.fn();
+		render(MotionGPUWithUserFunctionValueProbe, { props: { onProbe } });
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as {
+			sameReference: boolean;
+			callsAfterSet: number;
+			invokedValue: string | null;
+			callsAfterInvoke: number;
+			lazyValue: { mode: string };
+		};
+
+		expect(result.sameReference).toBe(true);
+		expect(result.callsAfterSet).toBe(0);
+		expect(result.invokedValue).toBe('svelte-function');
+		expect(result.callsAfterInvoke).toBe(1);
+		expect(result.lazyValue).toEqual({ mode: 'lazy' });
 	});
 });

@@ -347,4 +347,52 @@ describe('react useMotionGPUUserContext', () => {
 			samePluginStore: true
 		});
 	});
+
+	it('stores function values when functionValue mode is set to value', async () => {
+		const payload = createRuntimeHarness();
+		const onProbe = vi.fn();
+		const storedFunction = vi.fn(() => 'react-function');
+
+		function FunctionValueProbe() {
+			const pluginStore = useMotionGPUUserContext<(() => string) | undefined>('plugin');
+			const setUserContext = useSetMotionGPUUserContext();
+
+			useEffect(() => {
+				const result = setUserContext<() => string>('plugin', storedFunction, {
+					existing: 'replace',
+					functionValue: 'value'
+				});
+				const current = pluginStore.current;
+				const callsAfterSet = storedFunction.mock.calls.length;
+				const invokedValue = current?.() ?? null;
+				const callsAfterInvoke = storedFunction.mock.calls.length;
+
+				onProbe({
+					sameReference: result === storedFunction && current === storedFunction,
+					callsAfterSet,
+					invokedValue,
+					callsAfterInvoke
+				});
+			}, [onProbe, pluginStore, setUserContext]);
+
+			return null;
+		}
+
+		render(withProvider(<FunctionValueProbe />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as {
+			sameReference: boolean;
+			callsAfterSet: number;
+			invokedValue: string | null;
+			callsAfterInvoke: number;
+		};
+
+		expect(result.sameReference).toBe(true);
+		expect(result.callsAfterSet).toBe(0);
+		expect(result.invokedValue).toBe('react-function');
+		expect(result.callsAfterInvoke).toBe(1);
+	});
 });

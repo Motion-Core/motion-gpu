@@ -17,8 +17,14 @@ import type {
 	UseFrameResult
 } from '../core/frame-registry.js';
 
+/**
+ * Placeholder stage used before a frame task registration becomes available.
+ */
 const PENDING_STAGE_KEY = Symbol('motiongpu-react-pending-stage');
 
+/**
+ * Resolves stage/task references to a stable frame key.
+ */
 function toFrameKey(
 	reference: FrameKey | FrameTask | FrameStage | undefined
 ): FrameKey | undefined {
@@ -29,6 +35,9 @@ function toFrameKey(
 	return typeof reference === 'string' || typeof reference === 'symbol' ? reference : reference.key;
 }
 
+/**
+ * Normalizes `before`/`after` dependency inputs to a flat key list.
+ */
 function normalizeTaskDependencies(
 	value: (FrameKey | FrameTask) | (FrameKey | FrameTask)[] | undefined
 ): FrameKey[] {
@@ -42,6 +51,9 @@ function normalizeTaskDependencies(
 	);
 }
 
+/**
+ * Compares two frame key lists with strict positional equality.
+ */
 function areFrameKeyListsEqual(a: FrameKey[], b: FrameKey[]): boolean {
 	if (a.length !== b.length) {
 		return false;
@@ -56,6 +68,9 @@ function areFrameKeyListsEqual(a: FrameKey[], b: FrameKey[]): boolean {
 	return true;
 }
 
+/**
+ * Compares frame invalidation options while accounting for default mode values.
+ */
 function areInvalidationOptionsEqual(
 	a: FrameTaskInvalidation | undefined,
 	b: FrameTaskInvalidation | undefined
@@ -81,6 +96,9 @@ function areInvalidationOptionsEqual(
 	return Object.is(a.token, b.token);
 }
 
+/**
+ * Compares `useFrame` options structurally to keep effect dependencies stable.
+ */
 function areUseFrameOptionsEqual(
 	a: UseFrameOptions | undefined,
 	b: UseFrameOptions | undefined
@@ -121,7 +139,7 @@ function areUseFrameOptionsEqual(
 }
 
 /**
- * React context key for the active frame registry.
+ * React context container for the active frame registry.
  */
 export const FrameRegistryReactContext = createContext<FrameRegistry | null>(null);
 
@@ -157,6 +175,13 @@ export function useFrame(
 
 /**
  * Registers a callback in the active frame registry and auto-unsubscribes on unmount.
+ *
+ * @param keyOrCallback - Task key or callback for auto-key registration.
+ * @param callbackOrOptions - Callback (keyed overload) or options (auto-key overload).
+ * @param maybeOptions - Optional registration options for keyed overload.
+ * @returns Registration control API with task, start/stop controls and started state.
+ * @throws {Error} When called outside `<FragCanvas>`.
+ * @throws {Error} When callback is missing in keyed overload.
  */
 export function useFrame(
 	keyOrCallback: FrameKey | FrameCallback,

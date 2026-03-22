@@ -20,13 +20,29 @@ type UserContextEntry = Record<string, unknown>;
  * Controls how a namespaced user context value behaves when already present.
  */
 export interface SetMotionGPUUserContextOptions {
+	/**
+	 * Conflict strategy when namespace already exists:
+	 * - `skip`: keep current value
+	 * - `replace`: replace current value
+	 * - `merge`: shallow merge object values, fallback to replace otherwise
+	 *
+	 * @default 'skip'
+	 */
 	existing?: 'merge' | 'replace' | 'skip';
 }
 
+/**
+ * Checks whether a value is a non-array object suitable for shallow merge.
+ */
 function isObjectEntry(value: unknown): value is UserContextEntry {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Sets a namespaced user context value in the provided user store.
+ *
+ * Returns the effective value stored under the namespace.
+ */
 function setMotionGPUUserContextInStore<UCT = unknown>(
 	userStore: MotionGPUUserContext,
 	namespace: MotionGPUUserNamespace,
@@ -83,7 +99,11 @@ export function useMotionGPUUserContext<UCT = unknown>(
 ): CurrentReadable<UCT | undefined>;
 
 /**
- * React implementation placeholder. Full runtime wiring is implemented in a follow-up step.
+ * Read-only user context hook:
+ * - no args: returns full user context store
+ * - namespace: returns namespaced store view
+ *
+ * @param namespace - Optional namespace key.
  */
 export function useMotionGPUUserContext<
 	UC extends UserContextStore = UserContextStore,
@@ -124,6 +144,8 @@ export function useMotionGPUUserContext<
 
 /**
  * Returns a stable setter bound to the active MotionGPU user context store.
+ *
+ * @returns Setter function that preserves namespace write semantics.
  */
 export function useSetMotionGPUUserContext() {
 	const userStore = useMotionGPU().user;
@@ -138,7 +160,9 @@ export function useSetMotionGPUUserContext() {
 }
 
 /**
- * Sets a namespaced user context value.
+ * Sets a namespaced user context value with explicit write semantics.
+ *
+ * Returns the effective value stored under the namespace.
  */
 export function setMotionGPUUserContext<UCT = unknown>(
 	namespace: MotionGPUUserNamespace,

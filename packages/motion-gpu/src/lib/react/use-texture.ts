@@ -15,10 +15,25 @@ import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error
  * Reactive state returned by `useTexture`.
  */
 export interface UseTextureResult {
+	/**
+	 * Loaded textures or `null` when unavailable/failed.
+	 */
 	textures: CurrentReadable<LoadedTexture[] | null>;
+	/**
+	 * `true` while an active load request is running.
+	 */
 	loading: CurrentReadable<boolean>;
+	/**
+	 * Last loading error.
+	 */
 	error: CurrentReadable<Error | null>;
+	/**
+	 * Last loading error normalized to MotionGPU diagnostics report shape.
+	 */
 	errorReport: CurrentReadable<MotionGPUErrorReport | null>;
+	/**
+	 * Reloads all textures using current URL input.
+	 */
 	reload: () => Promise<void>;
 }
 
@@ -93,6 +108,10 @@ function mergeAbortSignals(
 
 /**
  * Loads textures from URLs and exposes reactive loading/error state.
+ *
+ * @param urlInput - URLs array or lazy URL provider.
+ * @param options - Loader options passed to URL fetch/decode pipeline.
+ * @returns Reactive texture loading state with reload support.
  */
 export function useTexture(
 	urlInput: TextureUrlInput,

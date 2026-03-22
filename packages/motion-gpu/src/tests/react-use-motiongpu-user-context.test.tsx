@@ -12,6 +12,10 @@ import {
 	useSetMotionGPUUserContext
 } from '../lib/react/use-motiongpu-user-context.js';
 
+function assertType<T>(value: T): void {
+	void value;
+}
+
 function createRuntimeHarness() {
 	const registry = createFrameRegistry();
 	const context: MotionGPUContext = {
@@ -417,7 +421,7 @@ describe('react useMotionGPUUserContext', () => {
 			}, [onProbe, pluginStore, setUserContext]);
 
 			// @ts-expect-error mapped namespace value should not expose unknown fields
-			pluginStore.current?.missing;
+			assertType<boolean>(pluginStore.current?.missing);
 
 			return null;
 		}

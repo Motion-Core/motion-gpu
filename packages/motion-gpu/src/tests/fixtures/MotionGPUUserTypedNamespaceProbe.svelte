@@ -17,12 +17,15 @@
 
 	let { onProbe }: Props = $props();
 	const pluginStore = useMotionGPUUserContext<UserMap>('plugin');
+	const assertType = <T,>(value: T): void => {
+		void value;
+	};
 	setMotionGPUUserContext('plugin', () => ({ enabled: true }), {
 		existing: 'replace'
 	});
 
 	// @ts-expect-error mapped namespace value should not expose unknown fields
-	pluginStore.current?.missing;
+	assertType<boolean>(pluginStore.current?.missing);
 
 	onMount(() => {
 		onProbe({

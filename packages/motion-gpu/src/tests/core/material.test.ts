@@ -6,6 +6,10 @@ import {
 	resolveMaterial
 } from '../../lib/core/material';
 
+function assertType<T>(value: T): void {
+	void value;
+}
+
 describe('material', () => {
 	function withMockedStack<T>(stack: string, run: () => T): T {
 		const OriginalError = globalThis.Error;
@@ -54,11 +58,13 @@ describe('material', () => {
 		const textureKey: TextureKeys = 'uMain';
 		expect(uniformKey).toBe('uMix');
 		expect(textureKey).toBe('uMain');
+		expect(material.uniforms.uMix).toBe(0.5);
+		expect(material.textures.uMain).toEqual({});
 
 		// @ts-expect-error unknown uniform key should not be allowed
-		'uOther' satisfies UniformKeys;
+		assertType<UniformKeys>('uOther');
 		// @ts-expect-error unknown texture key should not be allowed
-		'uOther' satisfies TextureKeys;
+		assertType<TextureKeys>('uOther');
 	});
 
 	it('clones mutable uniform and texture inputs to avoid external mutation side effects', () => {

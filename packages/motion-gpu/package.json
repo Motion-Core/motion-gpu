@@ -78,6 +78,8 @@
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",
 		"e2e:serve": "vite --config e2e/vite.config.ts",
+		"e2e:serve:svelte": "MOTION_GPU_E2E_FRAMEWORK=svelte vite --config e2e/vite.config.ts",
+		"e2e:serve:react": "MOTION_GPU_E2E_FRAMEWORK=react vite --config e2e/vite.config.ts",
 		"perf:core": "bun run ./scripts/perf/core-benchmark.ts",
 		"perf:core:check": "bun run ./scripts/perf/core-benchmark.ts --strict",
 		"perf:core:baseline": "bun run ./scripts/perf/core-benchmark.ts --update-baseline",

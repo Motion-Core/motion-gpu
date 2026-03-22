@@ -25,6 +25,7 @@
 		"src/**/*.tsx",
 		"src/**/*.svelte",
 		"e2e/**/*.ts",
+		"e2e/**/*.tsx",
 		"e2e/**/*.svelte",
 		"scripts/**/*.ts",
 		"vite.config.ts",

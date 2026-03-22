@@ -156,6 +156,37 @@ describe('react adapter runtime hooks', () => {
 		});
 	});
 
+	it('freezes useFrame registration options after first render', async () => {
+		const payload = createRuntimeHarness();
+		const callback = vi.fn();
+		const registerSpy = vi.spyOn(payload.registry, 'register');
+
+		function Probe({ autoInvalidate }: { autoInvalidate: boolean }) {
+			useFrame('frozen-task', callback, { autoInvalidate });
+			return null;
+		}
+
+		const view = render(withProviders(<Probe autoInvalidate={false} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		payload.registry.setRenderMode('on-demand');
+		payload.registry.endFrame();
+		payload.registry.run(createState(payload.registry));
+		expect(payload.registry.shouldRender()).toBe(false);
+
+		view.rerender(withProviders(<Probe autoInvalidate={true} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		payload.registry.endFrame();
+		payload.registry.run(createState(payload.registry));
+		expect(payload.registry.shouldRender()).toBe(false);
+		expect(callback).toHaveBeenCalledTimes(2);
+	});
+
 	it('throws when useFrame is called outside FrameRegistry provider', () => {
 		function Probe() {
 			useFrame(() => undefined);

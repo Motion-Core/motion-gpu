@@ -23,122 +23,6 @@ import type {
 const PENDING_STAGE_KEY = Symbol('motiongpu-react-pending-stage');
 
 /**
- * Resolves stage/task references to a stable frame key.
- */
-function toFrameKey(
-	reference: FrameKey | FrameTask | FrameStage | undefined
-): FrameKey | undefined {
-	if (reference === undefined) {
-		return undefined;
-	}
-
-	return typeof reference === 'string' || typeof reference === 'symbol' ? reference : reference.key;
-}
-
-/**
- * Normalizes `before`/`after` dependency inputs to a flat key list.
- */
-function normalizeTaskDependencies(
-	value: (FrameKey | FrameTask) | (FrameKey | FrameTask)[] | undefined
-): FrameKey[] {
-	if (value === undefined) {
-		return [];
-	}
-
-	const list = Array.isArray(value) ? value : [value];
-	return list.map((entry) =>
-		typeof entry === 'string' || typeof entry === 'symbol' ? entry : entry.key
-	);
-}
-
-/**
- * Compares two frame key lists with strict positional equality.
- */
-function areFrameKeyListsEqual(a: FrameKey[], b: FrameKey[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-
-	for (let index = 0; index < a.length; index += 1) {
-		if (!Object.is(a[index], b[index])) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/**
- * Compares frame invalidation options while accounting for default mode values.
- */
-function areInvalidationOptionsEqual(
-	a: FrameTaskInvalidation | undefined,
-	b: FrameTaskInvalidation | undefined
-): boolean {
-	if (Object.is(a, b)) {
-		return true;
-	}
-
-	if (a === undefined || b === undefined) {
-		return a === b;
-	}
-
-	if (typeof a === 'string' || typeof b === 'string') {
-		return a === b;
-	}
-
-	const modeA = a.mode ?? 'always';
-	const modeB = b.mode ?? 'always';
-	if (modeA !== modeB) {
-		return false;
-	}
-
-	return Object.is(a.token, b.token);
-}
-
-/**
- * Compares `useFrame` options structurally to keep effect dependencies stable.
- */
-function areUseFrameOptionsEqual(
-	a: UseFrameOptions | undefined,
-	b: UseFrameOptions | undefined
-): boolean {
-	if (Object.is(a, b)) {
-		return true;
-	}
-
-	if (a === undefined || b === undefined) {
-		return a === b;
-	}
-
-	if (!Object.is(a.autoStart, b.autoStart) || !Object.is(a.autoInvalidate, b.autoInvalidate)) {
-		return false;
-	}
-
-	if (!Object.is(a.running, b.running)) {
-		return false;
-	}
-
-	if (!Object.is(toFrameKey(a.stage), toFrameKey(b.stage))) {
-		return false;
-	}
-
-	if (!areInvalidationOptionsEqual(a.invalidation, b.invalidation)) {
-		return false;
-	}
-
-	const beforeA = normalizeTaskDependencies(a.before);
-	const beforeB = normalizeTaskDependencies(b.before);
-	if (!areFrameKeyListsEqual(beforeA, beforeB)) {
-		return false;
-	}
-
-	const afterA = normalizeTaskDependencies(a.after);
-	const afterB = normalizeTaskDependencies(b.after);
-	return areFrameKeyListsEqual(afterA, afterB);
-}
-
-/**
  * React context container for the active frame registry.
  */
 export const FrameRegistryReactContext = createContext<FrameRegistry | null>(null);
@@ -179,6 +63,7 @@ export function useFrame(
  * @param keyOrCallback - Task key or callback for auto-key registration.
  * @param callbackOrOptions - Callback (keyed overload) or options (auto-key overload).
  * @param maybeOptions - Optional registration options for keyed overload.
+ * Registration key/options are frozen on first render; subsequent renders do not re-register.
  * @returns Registration control API with task, start/stop controls and started state.
  * @throws {Error} When called outside `<FragCanvas>`.
  * @throws {Error} When callback is missing in keyed overload.
@@ -212,11 +97,17 @@ export function useFrame(
 
 	const callbackRef = useRef(resolved.callback);
 	callbackRef.current = resolved.callback;
-	const stableOptionsRef = useRef(resolved.options);
-	if (!areUseFrameOptionsEqual(stableOptionsRef.current, resolved.options)) {
-		stableOptionsRef.current = resolved.options;
+	const registrationConfigRef = useRef<{
+		key: FrameKey | undefined;
+		options: UseFrameOptions | undefined;
+	} | null>(null);
+	if (!registrationConfigRef.current) {
+		registrationConfigRef.current = {
+			key: resolved.key,
+			options: resolved.options
+		};
 	}
-	const stableOptions = stableOptionsRef.current;
+	const registrationConfig = registrationConfigRef.current;
 
 	const registrationRef = useRef<{
 		task: FrameTask;
@@ -226,7 +117,10 @@ export function useFrame(
 		unsubscribe: () => void;
 	} | null>(null);
 	const taskRef = useRef<FrameTask>({
-		key: resolved.key !== undefined ? resolved.key : Symbol('motiongpu-react-pending-task-key'),
+		key:
+			registrationConfig.key !== undefined
+				? registrationConfig.key
+				: Symbol('motiongpu-react-pending-task-key'),
 		stage: PENDING_STAGE_KEY
 	});
 	const startedStoreRef = useRef(createCurrentWritable(false));
@@ -237,9 +131,9 @@ export function useFrame(
 			callbackRef.current(state);
 		};
 		const registration =
-			resolved.key === undefined
-				? registry.register(wrappedCallback, stableOptions)
-				: registry.register(resolved.key, wrappedCallback, stableOptions);
+			registrationConfig.key === undefined
+				? registry.register(wrappedCallback, registrationConfig.options)
+				: registry.register(registrationConfig.key, wrappedCallback, registrationConfig.options);
 		registrationRef.current = registration;
 		taskRef.current = registration.task;
 		const unsubscribeStarted = registration.started.subscribe((value) => {
@@ -253,8 +147,8 @@ export function useFrame(
 				registrationRef.current = null;
 			}
 			startedStore.set(false);
-		};
-	}, [registry, resolved.key, stableOptions, startedStore]);
+			};
+	}, [registrationConfig, registry, startedStore]);
 
 	useEffect(() => {
 		motiongpu.invalidate();

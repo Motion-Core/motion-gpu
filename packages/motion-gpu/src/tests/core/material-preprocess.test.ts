@@ -86,6 +86,6 @@ describe('material preprocess', () => {
 		expect(typed).toEqual({ type: 'bool', value: true });
 
 		// @ts-expect-error bool defines require boolean literals
-		({ type: 'bool', value: 1 } satisfies TypedMaterialDefineValue);
+		({ type: 'bool', value: 1 }) satisfies TypedMaterialDefineValue;
 	});
 });

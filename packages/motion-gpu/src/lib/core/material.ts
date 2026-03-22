@@ -57,17 +57,22 @@ export type MaterialDefineValue = boolean | number | TypedMaterialDefineValue;
 /**
  * Define map keyed by uniform-compatible identifier names.
  */
-export type MaterialDefines = Record<string, MaterialDefineValue>;
+export type MaterialDefines<TKey extends string = string> = Record<TKey, MaterialDefineValue>;
 
 /**
  * Include map keyed by include identifier used in `#include <name>` directives.
  */
-export type MaterialIncludes = Record<string, string>;
+export type MaterialIncludes<TKey extends string = string> = Record<TKey, string>;
 
 /**
  * External material input accepted by {@link defineMaterial}.
  */
-export interface FragMaterialInput {
+export interface FragMaterialInput<
+	TUniformKey extends string = string,
+	TTextureKey extends string = string,
+	TDefineKey extends string = string,
+	TIncludeKey extends string = string
+> {
 	/**
 	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
 	 */
@@ -75,25 +80,30 @@ export interface FragMaterialInput {
 	/**
 	 * Initial uniform values.
 	 */
-	uniforms?: UniformMap;
+	uniforms?: UniformMap<TUniformKey>;
 	/**
 	 * Texture definitions keyed by texture uniform name.
 	 */
-	textures?: TextureDefinitionMap;
+	textures?: TextureDefinitionMap<TTextureKey>;
 	/**
 	 * Optional compile-time define constants injected into WGSL.
 	 */
-	defines?: MaterialDefines;
+	defines?: MaterialDefines<TDefineKey>;
 	/**
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
-	includes?: MaterialIncludes;
+	includes?: MaterialIncludes<TIncludeKey>;
 }
 
 /**
  * Normalized and immutable material declaration consumed by `FragCanvas`.
  */
-export interface FragMaterial {
+export interface FragMaterial<
+	TUniformKey extends string = string,
+	TTextureKey extends string = string,
+	TDefineKey extends string = string,
+	TIncludeKey extends string = string
+> {
 	/**
 	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
 	 */
@@ -101,25 +111,29 @@ export interface FragMaterial {
 	/**
 	 * Initial uniform values.
 	 */
-	readonly uniforms: Readonly<UniformMap>;
+	readonly uniforms: Readonly<UniformMap<TUniformKey>>;
 	/**
 	 * Texture definitions keyed by texture uniform name.
 	 */
-	readonly textures: Readonly<TextureDefinitionMap>;
+	readonly textures: Readonly<TextureDefinitionMap<TTextureKey>>;
 	/**
 	 * Optional compile-time define constants injected into WGSL.
 	 */
-	readonly defines: Readonly<MaterialDefines>;
+	readonly defines: Readonly<MaterialDefines<TDefineKey>>;
 	/**
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
-	readonly includes: Readonly<MaterialIncludes>;
+	readonly includes: Readonly<MaterialIncludes<TIncludeKey>>;
 }
 
 /**
  * Fully resolved, immutable material snapshot used for renderer creation/caching.
  */
-export interface ResolvedMaterial {
+export interface ResolvedMaterial<
+	TUniformKey extends string = string,
+	TTextureKey extends string = string,
+	TIncludeKey extends string = string
+> {
 	/**
 	 * Final fragment WGSL after define injection.
 	 */
@@ -131,11 +145,11 @@ export interface ResolvedMaterial {
 	/**
 	 * Cloned uniforms.
 	 */
-	uniforms: UniformMap;
+	uniforms: UniformMap<TUniformKey>;
 	/**
 	 * Cloned texture definitions.
 	 */
-	textures: TextureDefinitionMap;
+	textures: TextureDefinitionMap<TTextureKey>;
 	/**
 	 * Resolved packed uniform layout.
 	 */
@@ -143,7 +157,7 @@ export interface ResolvedMaterial {
 	/**
 	 * Sorted texture keys.
 	 */
-	textureKeys: string[];
+	textureKeys: TTextureKey[];
 	/**
 	 * Deterministic JSON signature for cache invalidation.
 	 */
@@ -155,7 +169,7 @@ export interface ResolvedMaterial {
 	/**
 	 * Normalized include sources map.
 	 */
-	includeSources: MaterialIncludes;
+	includeSources: MaterialIncludes<TIncludeKey>;
 	/**
 	 * Deterministic define block source used for diagnostics mapping.
 	 */
@@ -176,9 +190,28 @@ const FRAGMENT_FUNCTION_NAME_PATTERN = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 /**
  * Cache of resolved material snapshots keyed by immutable material instance.
  */
-const resolvedMaterialCache = new WeakMap<FragMaterial, ResolvedMaterial>();
-const preprocessedFragmentCache = new WeakMap<FragMaterial, PreprocessedMaterialFragment>();
-const materialSourceMetadataCache = new WeakMap<FragMaterial, MaterialSourceMetadata | null>();
+type AnyFragMaterial = FragMaterial<string, string, string, string>;
+type AnyResolvedMaterial = ResolvedMaterial<string, string, string>;
+
+const resolvedMaterialCache = new WeakMap<AnyFragMaterial, AnyResolvedMaterial>();
+const preprocessedFragmentCache = new WeakMap<AnyFragMaterial, PreprocessedMaterialFragment>();
+const materialSourceMetadataCache = new WeakMap<AnyFragMaterial, MaterialSourceMetadata | null>();
+
+function getCachedResolvedMaterial<
+	TUniformKey extends string,
+	TTextureKey extends string,
+	TIncludeKey extends string
+>(
+	material: FragMaterial<TUniformKey, TTextureKey, string, TIncludeKey>
+): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> | null {
+	const cached = resolvedMaterialCache.get(material);
+	if (!cached) {
+		return null;
+	}
+
+	// Invariant: the cache key is the same material object used to produce this resolved payload.
+	return cached as ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey>;
+}
 
 const STACK_TRACE_CHROME_PATTERN = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
 const STACK_TRACE_FIREFOX_PATTERN = /^(.*?)@(.+?):(\d+):(\d+)$/;
@@ -285,7 +318,7 @@ function resolveSourceMetadata(
 /**
  * Asserts that material has been normalized by {@link defineMaterial}.
  */
-function assertDefinedMaterial(material: FragMaterial): void {
+function assertDefinedMaterial(material: AnyFragMaterial): void {
 	if (
 		!Object.isFrozen(material) ||
 		!material.uniforms ||
@@ -400,12 +433,16 @@ function resolveFragment(fragment: string): string {
 /**
  * Clones and validates uniform declarations.
  */
-function resolveUniforms(uniforms: UniformMap | undefined): UniformMap {
-	const resolved: UniformMap = {};
+function resolveUniforms<TUniformKey extends string>(
+	uniforms: UniformMap<TUniformKey> | undefined
+): UniformMap<TUniformKey> {
+	const resolved: UniformMap<TUniformKey> = {} as UniformMap<TUniformKey>;
 
-	for (const [name, value] of Object.entries(uniforms ?? {})) {
+	for (const [name, value] of Object.entries(uniforms ?? {}) as Array<
+		[TUniformKey, UniformValue]
+	>) {
 		assertUniformName(name);
-		const clonedValue = cloneUniformValue(value as UniformValue);
+		const clonedValue = cloneUniformValue(value);
 		const type = inferUniformType(clonedValue);
 		assertUniformValueForType(type, clonedValue);
 		resolved[name] = clonedValue;
@@ -418,10 +455,14 @@ function resolveUniforms(uniforms: UniformMap | undefined): UniformMap {
 /**
  * Clones and validates texture declarations.
  */
-function resolveTextures(textures: TextureDefinitionMap | undefined): TextureDefinitionMap {
-	const resolved: TextureDefinitionMap = {};
+function resolveTextures<TTextureKey extends string>(
+	textures: TextureDefinitionMap<TTextureKey> | undefined
+): TextureDefinitionMap<TTextureKey> {
+	const resolved: TextureDefinitionMap<TTextureKey> = {} as TextureDefinitionMap<TTextureKey>;
 
-	for (const [name, definition] of Object.entries(textures ?? {})) {
+	for (const [name, definition] of Object.entries(textures ?? {}) as Array<
+		[TTextureKey, TextureDefinition]
+	>) {
 		assertUniformName(name);
 
 		const clonedDefinition: TextureDefinition = {
@@ -438,14 +479,18 @@ function resolveTextures(textures: TextureDefinitionMap | undefined): TextureDef
 /**
  * Clones and validates define declarations.
  */
-function resolveDefines(defines: MaterialDefines | undefined): MaterialDefines {
+function resolveDefines<TDefineKey extends string>(
+	defines: MaterialDefines<TDefineKey> | undefined
+): MaterialDefines<TDefineKey> {
 	return normalizeDefines(defines);
 }
 
 /**
  * Clones and validates include declarations.
  */
-function resolveIncludes(includes: MaterialIncludes | undefined): MaterialIncludes {
+function resolveIncludes<TIncludeKey extends string>(
+	includes: MaterialIncludes<TIncludeKey> | undefined
+): MaterialIncludes<TIncludeKey> {
 	return normalizeIncludes(includes);
 }
 
@@ -456,11 +501,11 @@ function resolveIncludes(includes: MaterialIncludes | undefined): MaterialInclud
  * @param textureKeys - Sorted texture keys.
  * @returns Compact signature entries describing effective texture config per key.
  */
-function buildTextureConfigSignature(
-	textures: TextureDefinitionMap,
-	textureKeys: string[]
-): Record<string, string> {
-	const signature: Record<string, string> = {};
+function buildTextureConfigSignature<TTextureKey extends string>(
+	textures: TextureDefinitionMap<TTextureKey>,
+	textureKeys: TTextureKey[]
+): Record<TTextureKey, string> {
+	const signature = {} as Record<TTextureKey, string>;
 
 	for (const key of textureKeys) {
 		const normalized = normalizeTextureDefinition(textures[key]);
@@ -525,7 +570,14 @@ export function applyMaterialDefines(
  * @param input - User material declaration.
  * @returns Frozen material object safe to share and cache.
  */
-export function defineMaterial(input: FragMaterialInput): FragMaterial {
+export function defineMaterial<
+	TUniformKey extends string = string,
+	TTextureKey extends string = string,
+	TDefineKey extends string = string,
+	TIncludeKey extends string = string
+>(
+	input: FragMaterialInput<TUniformKey, TTextureKey, TDefineKey, TIncludeKey>
+): FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey> {
 	const fragment = resolveFragment(input.fragment);
 	const uniforms = Object.freeze(resolveUniforms(input.uniforms));
 	const textures = Object.freeze(resolveTextures(input.textures));
@@ -535,11 +587,11 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
 
 	const preprocessed = preprocessMaterialFragment({
 		fragment,
-		defines: defines as MaterialDefines,
-		includes: includes as MaterialIncludes
+		defines,
+		includes
 	});
 
-	const material = Object.freeze({
+	const material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey> = Object.freeze({
 		fragment,
 		uniforms,
 		textures,
@@ -558,24 +610,31 @@ export function defineMaterial(input: FragMaterialInput): FragMaterial {
  * @param material - Material input created via {@link defineMaterial}.
  * @returns Resolved material with packed uniform layout, sorted texture keys and cache signature.
  */
-export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
+export function resolveMaterial<
+	TUniformKey extends string = string,
+	TTextureKey extends string = string,
+	TDefineKey extends string = string,
+	TIncludeKey extends string = string
+>(
+	material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey>
+): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> {
 	assertDefinedMaterial(material);
 
-	const cached = resolvedMaterialCache.get(material);
+	const cached = getCachedResolvedMaterial(material);
 	if (cached) {
 		return cached;
 	}
 
-	const uniforms = material.uniforms as UniformMap;
-	const textures = material.textures as TextureDefinitionMap;
+	const uniforms = material.uniforms as UniformMap<TUniformKey>;
+	const textures = material.textures as TextureDefinitionMap<TTextureKey>;
 	const uniformLayout = resolveUniformLayout(uniforms);
-	const textureKeys = Object.keys(textures).sort();
+	const textureKeys = Object.keys(textures).sort() as TTextureKey[];
 	const preprocessed =
 		preprocessedFragmentCache.get(material) ??
 		preprocessMaterialFragment({
 			fragment: material.fragment,
-			defines: material.defines as MaterialDefines,
-			includes: material.includes as MaterialIncludes
+			defines: material.defines,
+			includes: material.includes
 		});
 	const fragmentWgsl = preprocessed.fragment;
 	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
@@ -587,7 +646,7 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 		textureConfig
 	});
 
-	const resolved: ResolvedMaterial = {
+	const resolved: ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> = {
 		fragmentWgsl,
 		fragmentLineMap: preprocessed.lineMap,
 		uniforms,
@@ -596,7 +655,7 @@ export function resolveMaterial(material: FragMaterial): ResolvedMaterial {
 		textureKeys,
 		signature,
 		fragmentSource: material.fragment,
-		includeSources: material.includes as MaterialIncludes,
+		includeSources: material.includes as MaterialIncludes<TIncludeKey>,
 		defineBlockSource: preprocessed.defineBlockSource,
 		source: materialSourceMetadataCache.get(material) ?? null
 	};

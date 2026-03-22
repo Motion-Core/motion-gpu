@@ -91,10 +91,14 @@ function normalizeTypedDefine(
 /**
  * Validates and normalizes define entries.
  */
-export function normalizeDefines(defines: MaterialDefines | undefined): MaterialDefines {
-	const resolved: MaterialDefines = {};
+export function normalizeDefines<TDefineKey extends string>(
+	defines: MaterialDefines<TDefineKey> | undefined
+): MaterialDefines<TDefineKey> {
+	const resolved: MaterialDefines<TDefineKey> = {} as MaterialDefines<TDefineKey>;
 
-	for (const [name, value] of Object.entries(defines ?? {})) {
+	for (const [name, value] of Object.entries(defines ?? {}) as Array<
+		[TDefineKey, MaterialDefineValue]
+	>) {
 		assertUniformName(name);
 
 		if (typeof value === 'boolean') {
@@ -120,10 +124,12 @@ export function normalizeDefines(defines: MaterialDefines | undefined): Material
 /**
  * Validates include map identifiers and source chunks.
  */
-export function normalizeIncludes(includes: MaterialIncludes | undefined): MaterialIncludes {
-	const resolved: MaterialIncludes = {};
+export function normalizeIncludes<TIncludeKey extends string>(
+	includes: MaterialIncludes<TIncludeKey> | undefined
+): MaterialIncludes<TIncludeKey> {
+	const resolved: MaterialIncludes<TIncludeKey> = {} as MaterialIncludes<TIncludeKey>;
 
-	for (const [name, source] of Object.entries(includes ?? {})) {
+	for (const [name, source] of Object.entries(includes ?? {}) as Array<[TIncludeKey, string]>) {
 		assertUniformName(name);
 		if (typeof source !== 'string' || source.trim().length === 0) {
 			throw new Error(`Invalid include "${name}". Include source must be a non-empty WGSL string.`);
@@ -168,7 +174,7 @@ function expandChunk(
 	source: string,
 	kind: 'fragment' | 'include',
 	includeName: string | undefined,
-	includes: MaterialIncludes,
+	includes: Record<string, string>,
 	stack: string[]
 ): { lines: string[]; mapEntries: MaterialSourceLocation[] } {
 	const sourceLines = source.split('\n');
@@ -223,10 +229,13 @@ function expandChunk(
 /**
  * Preprocesses material fragment with deterministic define/include expansion and line mapping.
  */
-export function preprocessMaterialFragment(input: {
+export function preprocessMaterialFragment<
+	TDefineKey extends string,
+	TIncludeKey extends string
+>(input: {
 	fragment: string;
-	defines?: MaterialDefines;
-	includes?: MaterialIncludes;
+	defines?: MaterialDefines<TDefineKey>;
+	includes?: MaterialIncludes<TIncludeKey>;
 }): PreprocessedMaterialFragment {
 	const normalizedDefines = normalizeDefines(input.defines);
 	const normalizedIncludes = normalizeIncludes(input.includes);
@@ -238,7 +247,9 @@ export function preprocessMaterialFragment(input: {
 		normalizedIncludes,
 		[]
 	);
-	const defineEntries = Object.entries(normalizedDefines).sort(([a], [b]) => a.localeCompare(b));
+	const defineEntries = (
+		Object.entries(normalizedDefines) as Array<[TDefineKey, MaterialDefineValue]>
+	).sort(([a], [b]) => a.localeCompare(b));
 	const lines: string[] = [];
 	const defineLines: string[] = [];
 	const mapEntries: Array<MaterialSourceLocation | null> = [];

@@ -40,6 +40,27 @@ describe('material', () => {
 		expect(Object.isFrozen(input.defines)).toBe(true);
 	});
 
+	it('preserves uniform and texture key unions on defined materials', () => {
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			uniforms: { uMix: 0.5 },
+			textures: { uMain: {} }
+		});
+
+		type UniformKeys = keyof typeof material.uniforms;
+		type TextureKeys = keyof typeof material.textures;
+
+		const uniformKey: UniformKeys = 'uMix';
+		const textureKey: TextureKeys = 'uMain';
+		expect(uniformKey).toBe('uMix');
+		expect(textureKey).toBe('uMain');
+
+		// @ts-expect-error unknown uniform key should not be allowed
+		'uOther' satisfies UniformKeys;
+		// @ts-expect-error unknown texture key should not be allowed
+		'uOther' satisfies TextureKeys;
+	});
+
 	it('clones mutable uniform and texture inputs to avoid external mutation side effects', () => {
 		const matrix = new Float32Array(16);
 		matrix[0] = 1;

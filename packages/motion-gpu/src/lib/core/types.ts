@@ -60,7 +60,7 @@ export type UniformValue =
 /**
  * Uniform map keyed by WGSL identifier names.
  */
-export type UniformMap = Record<string, UniformValue>;
+export type UniformMap<TKey extends string = string> = Record<TKey, UniformValue>;
 
 /**
  * Resolved layout metadata for a single uniform field inside the packed uniform buffer.
@@ -204,12 +204,12 @@ export interface TextureDefinition {
 /**
  * Texture definition map keyed by uniform-compatible texture names.
  */
-export type TextureDefinitionMap = Record<string, TextureDefinition>;
+export type TextureDefinitionMap<TKey extends string = string> = Record<TKey, TextureDefinition>;
 
 /**
  * Runtime texture value map keyed by texture uniform names.
  */
-export type TextureMap = Record<string, TextureValue>;
+export type TextureMap<TKey extends string = string> = Record<TKey, TextureValue>;
 
 /**
  * Output color space requested for final canvas presentation.
@@ -267,7 +267,10 @@ export interface RenderTarget {
 /**
  * Named render target definitions keyed by output slot names.
  */
-export type RenderTargetDefinitionMap = Record<string, RenderTargetDefinition>;
+export type RenderTargetDefinitionMap<TKey extends string = string> = Record<
+	TKey,
+	RenderTargetDefinition
+>;
 
 /**
  * User-defined render slot name (mapped to `renderTargets` keys).

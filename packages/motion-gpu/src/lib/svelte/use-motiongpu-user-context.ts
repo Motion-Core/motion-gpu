@@ -51,9 +51,10 @@ export function useMotionGPUUserContext<
 /**
  * Reads a namespaced user context value as a reactive readable store.
  */
-export function useMotionGPUUserContext<UCT = unknown>(
-	namespace: MotionGPUUserNamespace
-): CurrentReadable<UCT | undefined>;
+export function useMotionGPUUserContext<
+	UC extends UserContextStore = UserContextStore,
+	K extends keyof UC & MotionGPUUserNamespace = keyof UC & MotionGPUUserNamespace
+>(namespace: K): CurrentReadable<UC[K] | undefined>;
 
 /**
  * Read-only user context hook:
@@ -64,8 +65,8 @@ export function useMotionGPUUserContext<UCT = unknown>(
  */
 export function useMotionGPUUserContext<
 	UC extends UserContextStore = UserContextStore,
-	UCT = unknown
->(namespace?: MotionGPUUserNamespace): CurrentReadable<UC> | CurrentReadable<UCT | undefined> {
+	K extends keyof UC & MotionGPUUserNamespace = keyof UC & MotionGPUUserNamespace
+>(namespace?: K): CurrentReadable<UC> | CurrentReadable<UC[K] | undefined> {
 	const userStore = useMotionGPU().user;
 
 	if (namespace === undefined) {
@@ -81,12 +82,12 @@ export function useMotionGPUUserContext<
 		return allStore;
 	}
 
-	const scopedStore: CurrentReadable<UCT | undefined> = {
+	const scopedStore: CurrentReadable<UC[K] | undefined> = {
 		get current() {
-			return userStore.current[namespace] as UCT | undefined;
+			return userStore.current[namespace] as UC[K] | undefined;
 		},
 		subscribe(run) {
-			return userStore.subscribe((context) => run(context[namespace] as UCT | undefined));
+			return userStore.subscribe((context) => run(context[namespace] as UC[K] | undefined));
 		}
 	};
 

@@ -12,7 +12,7 @@
 	let { onProbe }: Props = $props();
 
 	const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
-	const pluginStore = useMotionGPUUserContext<unknown>('plugin');
+	const pluginStore = useMotionGPUUserContext<{ plugin: unknown }>('plugin');
 
 	onMount(() => {
 		const allEvents: Array<Record<string | symbol, unknown>> = [];

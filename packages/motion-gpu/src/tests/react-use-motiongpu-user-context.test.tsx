@@ -187,7 +187,7 @@ describe('react useMotionGPUUserContext', () => {
 
 		function SubscribeProbe() {
 			const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
-			const pluginStore = useMotionGPUUserContext<unknown>('plugin');
+			const pluginStore = useMotionGPUUserContext<{ plugin: unknown }>('plugin');
 			const setUserContext = useSetMotionGPUUserContext();
 
 			useEffect(() => {
@@ -268,7 +268,7 @@ describe('react useMotionGPUUserContext', () => {
 		const onProbe = vi.fn();
 
 		function MergeFallbackProbe() {
-			useMotionGPUUserContext<unknown>('plugin');
+			useMotionGPUUserContext<{ plugin: unknown }>('plugin');
 			const setUserContext = useSetMotionGPUUserContext();
 
 			useEffect(() => {
@@ -302,7 +302,7 @@ describe('react useMotionGPUUserContext', () => {
 
 		function StabilityProbe({ step }: { step: number }) {
 			const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
-			const pluginStore = useMotionGPUUserContext<unknown>('plugin');
+			const pluginStore = useMotionGPUUserContext<{ plugin: unknown }>('plugin');
 			const lastRef = useRef<{
 				allStore: CurrentReadable<Record<string | symbol, unknown>>;
 				pluginStore: CurrentReadable<unknown | undefined>;
@@ -354,7 +354,7 @@ describe('react useMotionGPUUserContext', () => {
 		const storedFunction = vi.fn(() => 'react-function');
 
 		function FunctionValueProbe() {
-			const pluginStore = useMotionGPUUserContext<(() => string) | undefined>('plugin');
+			const pluginStore = useMotionGPUUserContext<{ plugin: () => string }>('plugin');
 			const setUserContext = useSetMotionGPUUserContext();
 
 			useEffect(() => {
@@ -394,5 +394,39 @@ describe('react useMotionGPUUserContext', () => {
 		expect(result.callsAfterSet).toBe(0);
 		expect(result.invokedValue).toBe('react-function');
 		expect(result.callsAfterInvoke).toBe(1);
+	});
+
+	it('infers scoped namespace value type from typed context map', async () => {
+		const payload = createRuntimeHarness();
+		const onProbe = vi.fn();
+
+		type UserMap = {
+			plugin: {
+				enabled: boolean;
+			};
+		};
+
+		function TypedNamespaceProbe() {
+			const setUserContext = useSetMotionGPUUserContext();
+			const pluginStore = useMotionGPUUserContext<UserMap>('plugin');
+
+			useEffect(() => {
+				setUserContext('plugin', () => ({ enabled: true }), { existing: 'replace' });
+				const enabled = pluginStore.current?.enabled ?? false;
+				onProbe({ enabled });
+			}, [onProbe, pluginStore, setUserContext]);
+
+			// @ts-expect-error mapped namespace value should not expose unknown fields
+			pluginStore.current?.missing;
+
+			return null;
+		}
+
+		render(withProvider(<TypedNamespaceProbe />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		expect(onProbe.mock.calls[0]?.[0]).toEqual({ enabled: true });
 	});
 });

@@ -138,6 +138,6 @@ describe('uniform helpers', () => {
 		expect(typed.value).toEqual([1, 2]);
 
 		// @ts-expect-error vec2f uniforms require a 2-number tuple
-		({ type: 'vec2f', value: 1 } satisfies TypedUniform<'vec2f'>);
+		({ type: 'vec2f', value: 1 }) satisfies TypedUniform<'vec2f'>;
 	});
 });

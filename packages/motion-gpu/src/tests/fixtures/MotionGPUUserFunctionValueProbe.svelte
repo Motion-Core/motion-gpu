@@ -11,7 +11,7 @@
 
 	let { onProbe }: Props = $props();
 
-	const pluginStore = useMotionGPUUserContext<(() => string) | undefined>('plugin');
+	const pluginStore = useMotionGPUUserContext<{ plugin: () => string }>('plugin');
 	let invocationCount = 0;
 	const storedFunction = (): string => {
 		invocationCount += 1;

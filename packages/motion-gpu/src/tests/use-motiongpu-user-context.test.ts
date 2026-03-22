@@ -5,6 +5,7 @@ import MotionGPUUserOutside from './fixtures/MotionGPUUserOutside.svelte';
 import MotionGPUWithUserFunctionValueProbe from './fixtures/MotionGPUWithUserFunctionValueProbe.svelte';
 import MotionGPUWithUserProbe from './fixtures/MotionGPUWithUserProbe.svelte';
 import MotionGPUWithUserSubscribeProbe from './fixtures/MotionGPUWithUserSubscribeProbe.svelte';
+import MotionGPUWithUserTypedNamespaceProbe from './fixtures/MotionGPUWithUserTypedNamespaceProbe.svelte';
 
 describe('useMotionGPUUserContext', () => {
 	it('throws when used outside <FragCanvas>', () => {
@@ -120,5 +121,16 @@ describe('useMotionGPUUserContext', () => {
 		expect(result.invokedValue).toBe('svelte-function');
 		expect(result.callsAfterInvoke).toBe(1);
 		expect(result.lazyValue).toEqual({ mode: 'lazy' });
+	});
+
+	it('infers scoped namespace value type from typed context map', async () => {
+		const onProbe = vi.fn();
+		render(MotionGPUWithUserTypedNamespaceProbe, { props: { onProbe } });
+
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		expect(onProbe.mock.calls[0]?.[0]).toEqual({ enabled: true });
 	});
 });

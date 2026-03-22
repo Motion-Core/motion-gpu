@@ -9,7 +9,10 @@
 	}
 
 	let { urls, onProbe, options = {} }: Props = $props();
-	const result = useTexture(() => urls, () => options);
+	const result = useTexture(
+		() => urls,
+		() => options
+	);
 
 	$effect(() => {
 		onProbe(result);

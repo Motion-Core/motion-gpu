@@ -147,7 +147,7 @@ export function useFrame(
 				registrationRef.current = null;
 			}
 			startedStore.set(false);
-			};
+		};
 	}, [registrationConfig, registry, startedStore]);
 
 	useEffect(() => {

@@ -6,7 +6,7 @@ import {
 	packUniforms,
 	resolveUniformLayout
 } from '../../lib/core/uniforms';
-import type { UniformValue } from '../../lib/core/types';
+import type { TypedUniform, UniformValue } from '../../lib/core/types';
 
 describe('uniform helpers', () => {
 	it('infers uniform types from scalar, tuple and typed values', () => {
@@ -128,5 +128,16 @@ describe('uniform helpers', () => {
 				value: Number.NaN
 			})
 		).toThrow(/finite number/);
+	});
+
+	it('enforces typed uniform value compatibility at compile time', () => {
+		const typed: TypedUniform<'vec2f'> = {
+			type: 'vec2f',
+			value: [1, 2]
+		};
+		expect(typed.value).toEqual([1, 2]);
+
+		// @ts-expect-error vec2f uniforms require a 2-number tuple
+		({ type: 'vec2f', value: 1 } satisfies TypedUniform<'vec2f'>);
 	});
 });

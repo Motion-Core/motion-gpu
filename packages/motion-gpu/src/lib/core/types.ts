@@ -13,7 +13,26 @@ export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
  * @typeParam TType - WGSL type tag.
  * @typeParam TValue - Runtime value shape for the selected type.
  */
-export interface TypedUniform<TType extends UniformType = UniformType, TValue = unknown> {
+/**
+ * Accepted matrix value formats for `mat4x4f` uniforms.
+ */
+export type UniformMat4Value = number[] | Float32Array;
+
+/**
+ * Runtime value shape by WGSL uniform type tag.
+ */
+export interface UniformValueByType {
+	f32: number;
+	vec2f: [number, number];
+	vec3f: [number, number, number];
+	vec4f: [number, number, number, number];
+	mat4x4f: UniformMat4Value;
+}
+
+export interface TypedUniform<
+	TType extends UniformType = UniformType,
+	TValue extends UniformValueByType[TType] = UniformValueByType[TType]
+> {
 	/**
 	 * WGSL type tag.
 	 */
@@ -25,11 +44,6 @@ export interface TypedUniform<TType extends UniformType = UniformType, TValue = 
 }
 
 /**
- * Accepted matrix value formats for `mat4x4f` uniforms.
- */
-export type UniformMat4Value = number[] | Float32Array;
-
-/**
  * Supported uniform input shapes accepted by material and render APIs.
  */
 export type UniformValue =
@@ -37,11 +51,11 @@ export type UniformValue =
 	| [number, number]
 	| [number, number, number]
 	| [number, number, number, number]
-	| TypedUniform<'f32', number>
-	| TypedUniform<'vec2f', [number, number]>
-	| TypedUniform<'vec3f', [number, number, number]>
-	| TypedUniform<'vec4f', [number, number, number, number]>
-	| TypedUniform<'mat4x4f', UniformMat4Value>;
+	| TypedUniform<'f32'>
+	| TypedUniform<'vec2f'>
+	| TypedUniform<'vec3f'>
+	| TypedUniform<'vec4f'>
+	| TypedUniform<'mat4x4f'>;
 
 /**
  * Uniform map keyed by WGSL identifier names.

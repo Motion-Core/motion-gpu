@@ -14,33 +14,18 @@
 			: (input ?? document.body);
 	}
 
-	const portal = (node: HTMLDivElement, initialTarget: string | HTMLElement | null) => {
-		let targetElement = resolveTargetElement(initialTarget);
+	const portal = (node: HTMLDivElement) => {
+		const targetElement = resolveTargetElement(target);
 		targetElement.appendChild(node);
 
-		return {
-			update(nextTarget: string | HTMLElement | null) {
-				const nextTargetElement = resolveTargetElement(nextTarget);
-				if (nextTargetElement === targetElement) {
-					return;
-				}
-
-				if (node.parentNode === targetElement) {
-					targetElement.removeChild(node);
-				}
-
-				nextTargetElement.appendChild(node);
-				targetElement = nextTargetElement;
-			},
-			destroy() {
-				if (node.parentNode === targetElement) {
-					targetElement.removeChild(node);
-				}
+		return () => {
+			if (node.parentNode === targetElement) {
+				targetElement.removeChild(node);
 			}
 		};
 	};
 </script>
 
-<div use:portal={target}>
+<div {@attach portal}>
 	{@render children?.()}
 </div>

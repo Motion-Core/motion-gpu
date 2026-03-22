@@ -66,20 +66,18 @@
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
 	let errorHistory = $state<MotionGPUErrorReport[]>([]);
 
-	const getNormalizedErrorHistoryLimit = (): number => {
+	let normalizedErrorHistoryLimit = $derived.by(() => {
 		if (!Number.isFinite(errorHistoryLimit) || errorHistoryLimit <= 0) {
 			return 0;
 		}
 		return Math.floor(errorHistoryLimit);
-	};
+	});
 
 	const bindCanvas = (node: HTMLCanvasElement) => {
 		canvas = node;
-		return {
-			destroy: () => {
-				if (canvas === node) {
-					canvas = undefined;
-				}
+		return () => {
+			if (canvas === node) {
+				canvas = undefined;
 			}
 		};
 	};
@@ -144,26 +142,14 @@
 
 	$effect(() => {
 		renderModeState.set(renderMode);
-		requestFrame();
-	});
-
-	$effect(() => {
 		autoRenderState.set(autoRender);
-		requestFrame();
-	});
-
-	$effect(() => {
 		maxDeltaState.set(maxDelta);
-		requestFrame();
-	});
-
-	$effect(() => {
 		dprState.set(dpr);
 		requestFrame();
 	});
 
 	$effect(() => {
-		const limit = getNormalizedErrorHistoryLimit();
+		const limit = normalizedErrorHistoryLimit;
 		if (limit <= 0) {
 			if (errorHistory.length === 0) {
 				return;
@@ -189,7 +175,7 @@
 				'initialization'
 			);
 			errorReport = report;
-			const historyLimit = getNormalizedErrorHistoryLimit();
+			const historyLimit = normalizedErrorHistoryLimit;
 			if (historyLimit > 0) {
 				const nextHistory = [report].slice(-historyLimit);
 				errorHistory = nextHistory;
@@ -232,7 +218,7 @@
 </script>
 
 <div class="motiongpu-canvas-wrap">
-	<canvas use:bindCanvas class={className} {style}></canvas>
+	<canvas {@attach bindCanvas} class={className} {style}></canvas>
 	{#if showErrorOverlay && errorReport}
 		{#if errorRenderer}
 			{@render errorRenderer(errorReport)}

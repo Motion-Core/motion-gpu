@@ -1,18 +1,10 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { resolve } from '$app/paths';
-	import ChevronDown from 'carbon-icons-svelte/lib/ChevronDown.svelte';
-	import ChevronRight from 'carbon-icons-svelte/lib/ChevronRight.svelte';
-	import Close from 'carbon-icons-svelte/lib/Close.svelte';
-	import Document from 'carbon-icons-svelte/lib/Document.svelte';
-	import Folder from 'carbon-icons-svelte/lib/Folder.svelte';
-	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
-	import Return from 'carbon-icons-svelte/lib/Return.svelte';
-	import OpenPanelFilledLeft from 'carbon-icons-svelte/lib/OpenPanelFilledLeft.svelte';
-	import OpenPanelLeft from 'carbon-icons-svelte/lib/OpenPanelLeft.svelte';
-	import { brandingConfig } from '$lib/config/branding';
-	import Select from '$lib/components/ui/Select.svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
+	import PlaygroundHeader from './components/PlaygroundHeader.svelte';
+	import PlaygroundFileTree from './components/PlaygroundFileTree.svelte';
+	import PlaygroundEditor from './components/PlaygroundEditor.svelte';
+	import PlaygroundPreview from './components/PlaygroundPreview.svelte';
 
 	import type { PlaygroundController } from './playground-controller.svelte';
 
@@ -50,7 +42,6 @@
 	const MOBILE_TREE_MIN_HEIGHT = 120;
 	const MOBILE_TREE_MAX_VIEWPORT_RATIO = 0.42;
 
-	const isSvelteFile = (path: string) => path.endsWith('.svelte');
 	const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 	const getWorkspaceWidth = () => workspaceHost?.clientWidth ?? 0;
 	const isDesktopViewport = () =>
@@ -117,21 +108,11 @@
 		_collapsedDirs: Record<string, boolean>,
 		_rowCount: number
 	) => {};
-	const registerEditorHost = (node: HTMLDivElement) => {
-		onEditorHostChange(node);
-		return {
-			destroy() {
-				onEditorHostChange(null);
-			}
-		};
+	const handleSidebarHeaderHostChange = (host: HTMLDivElement | null) => {
+		sidebarHeaderHost = host;
 	};
-	const registerPreviewFrame = (node: HTMLIFrameElement) => {
-		onPreviewFrameChange(node);
-		return {
-			destroy() {
-				onPreviewFrameChange(null);
-			}
-		};
+	const handleSidebarListHostChange = (host: HTMLDivElement | null) => {
+		sidebarListHost = host;
 	};
 	const recomputeMobileTreeHeight = () => {
 		if (typeof window === 'undefined') return;
@@ -306,50 +287,13 @@
 </script>
 
 <main class="flex h-dvh min-h-0 flex-col overflow-hidden">
-	<div
-		class="flex h-9 items-center justify-between border-b border-border bg-background px-2 sm:px-3"
-	>
-		<div
-			class="inline-flex items-center gap-1 py-2 text-sm tracking-tight text-foreground transition-colors hover:text-foreground"
-		>
-			<a
-				href={resolve('/' as const)}
-				class="inline-flex items-center gap-1 py-1.5 text-xs font-medium tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-				aria-label="Back to Home"
-				title="Back to Home"
-			>
-				<Return size={16} />
-				Return to the homepage
-			</a>
-		</div>
-		<div class="flex items-center gap-4">
-			<div>
-				<label class="sr-only" for="playground-demo-select">Choose demo</label>
-				<Select
-					id="playground-demo-select"
-					class="w-48"
-					triggerClass="w-48"
-					value={controller.activeDemoId}
-					options={demoSelectOptions}
-					onValueChange={onSelectDemo}
-					ariaLabel="Choose demo"
-				/>
-			</div>
-			<button
-				type="button"
-				class={`layout-toggle ${isTreeVisible ? 'layout-toggle--active' : ''}`}
-				onclick={toggleTree}
-				aria-label="Toggle file tree"
-				title="Toggle file tree"
-			>
-				{#if isTreeVisible}
-					<OpenPanelFilledLeft size={16} />
-				{:else}
-					<OpenPanelLeft size={16} />
-				{/if}
-			</button>
-		</div>
-	</div>
+	<PlaygroundHeader
+		activeDemoId={controller.activeDemoId}
+		demoOptions={demoSelectOptions}
+		{isTreeVisible}
+		{onSelectDemo}
+		onToggleTree={toggleTree}
+	/>
 
 	<div
 		bind:this={workspaceHost}
@@ -358,73 +302,12 @@
 		}`}
 		style={`--playground-columns: ${workspaceColumns}; --playground-rows: ${workspaceRows};`}
 	>
-		<aside
-			inert={!isTreeVisible}
-			aria-hidden={!isTreeVisible}
-			class={`playground-sidebar flex min-h-0 flex-col overflow-hidden bg-background lg:max-h-none ${
-				isTreeVisible ? '' : 'playground-sidebar--collapsed'
-			} `}
-		>
-			<div
-				bind:this={sidebarHeaderHost}
-				class="flex h-8 items-center gap-1 border-b border-border px-3 text-sm whitespace-nowrap"
-			>
-				<span
-					class="flex items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
-					aria-hidden="true"
-				>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html brandingConfig.logoRaw}
-				</span>
-				<span class="font-medium text-foreground"
-					>{brandingConfig.name} <span class="text-xs text-accent">playground</span></span
-				>
-			</div>
-			<div bind:this={sidebarListHost} class="overflow-auto py-1 lg:min-h-0 lg:flex-1">
-				{#each controller.visibleFileTreeRows as row (row.path)}
-					{#if row.kind === 'directory'}
-						<button
-							type="button"
-							onclick={() => controller.toggleDirectory(row.path)}
-							class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-normal text-foreground-muted transition-colors duration-150 ease-out hover:bg-background-muted hover:text-foreground"
-							style={`padding-left: ${8 + row.depth * 12}px`}
-						>
-							<span class="inline-flex w-3 items-center justify-center text-foreground/60">
-								{#if controller.collapsedDirs[row.path]}
-									<ChevronRight size={16} />
-								{:else}
-									<ChevronDown size={16} />
-								{/if}
-							</span>
-							<span class="inline-flex items-center text-foreground/55">
-								<Folder size={16} />
-							</span>
-							<span class="truncate">{row.name}</span>
-						</button>
-					{:else}
-						<button
-							type="button"
-							onclick={() => controller.openFile(row.path)}
-							class={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-normal transition-colors duration-150 ease-out ${
-								controller.activeFilePath === row.path
-									? 'bg-background-muted text-foreground'
-									: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
-							}`}
-							style={`padding-left: ${8 + row.depth * 12}px`}
-						>
-							<span class="inline-flex items-center text-foreground/55">
-								{#if isSvelteFile(row.path)}
-									<LogoSvelte size={16} />
-								{:else}
-									<Document size={16} />
-								{/if}
-							</span>
-							<span class="truncate">{row.name}</span>
-						</button>
-					{/if}
-				{/each}
-			</div>
-		</aside>
+		<PlaygroundFileTree
+			{controller}
+			{isTreeVisible}
+			onHeaderHostChange={handleSidebarHeaderHostChange}
+			onListHostChange={handleSidebarListHostChange}
+		/>
 		<button
 			type="button"
 			aria-label="Resize file tree panel"
@@ -437,79 +320,7 @@
 			onkeydown={(event) => resizeByKeyboard('tree', event)}
 		></button>
 
-		<section class="flex min-h-0 flex-col bg-background">
-			<div class="h-8 border-b border-border">
-				<div class="flex items-stretch overflow-x-auto">
-					{#each controller.openFilePaths as filePath (filePath)}
-						<div
-							class={`group inline-flex shrink-0 items-center border-r border-border ${
-								controller.activeFilePath === filePath ? 'bg-background-inset' : 'bg-background'
-							}`}
-						>
-							<button
-								type="button"
-								onclick={() => controller.switchToFile(filePath)}
-								class={`px-2.5 py-2 text-left font-mono text-[11px] font-normal transition-colors duration-150 ease-out sm:px-3 sm:text-xs ${
-									controller.activeFilePath === filePath
-										? 'text-foreground'
-										: 'text-foreground-muted hover:text-foreground'
-								}`}
-							>
-								{filePath.split('/').at(-1)}
-							</button>
-							{#if controller.openFilePaths.length > 1}
-								<button
-									type="button"
-									onclick={(event) => {
-										event.stopPropagation();
-										controller.closeFile(filePath);
-									}}
-									class="inline-flex items-center px-3 py-2 text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-									aria-label={`Close ${filePath}`}
-								>
-									<Close size={16} />
-								</button>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			</div>
-
-			<div
-				use:registerEditorHost
-				class="min-h-0 flex-1 bg-background-inset"
-				aria-label="Svelte component editor"
-			></div>
-
-			{#if controller.syncError}
-				<p
-					class="border-t border-border bg-background px-3 py-2 font-mono text-xs font-normal text-red-500"
-					role="alert"
-				>
-					{controller.syncError}
-				</p>
-			{/if}
-
-			<section class=" bg-background">
-				{#if controller.runtimeLog}
-					<details>
-						<summary
-							class="cursor-pointer px-3 py-2 font-mono text-xs font-medium text-foreground-muted"
-						>
-							Runtime log ({controller.status})
-						</summary>
-						<pre
-							class="h-32 overflow-auto border-t border-border bg-background-inset px-3 py-2 font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
-					</details>
-				{:else}
-					<p
-						class="border-t border-border px-3 py-2 font-mono text-xs font-normal text-foreground-muted"
-					>
-						{controller.status}
-					</p>
-				{/if}
-			</section>
-		</section>
+		<PlaygroundEditor {controller} {onEditorHostChange} />
 		<button
 			type="button"
 			aria-label="Resize preview panel"
@@ -519,36 +330,7 @@
 			onkeydown={(event) => resizeByKeyboard('preview', event)}
 		></button>
 
-		<section class="flex min-h-0 flex-col overflow-hidden bg-background">
-			<div class="relative min-h-0 flex-1 bg-background-inset">
-				{#key controller.previewFrameKey}
-					<iframe
-						use:registerPreviewFrame
-						title="Playground preview"
-						srcdoc={controller.previewSrcdoc}
-						class="h-full w-full border-0"
-						loading="eager"
-						sandbox="allow-scripts allow-forms allow-modals allow-popups"
-						referrerpolicy="no-referrer"
-					></iframe>
-				{/key}
-			</div>
-
-			{#if controller.errorMessage}
-				<div class="border-t border-border bg-background px-3 py-2">
-					<p class="font-mono text-xs font-normal whitespace-pre-wrap text-red-500" role="alert">
-						{controller.errorMessage}
-					</p>
-					<button
-						type="button"
-						class="mt-2 inline-flex items-center rounded border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-inset"
-						onclick={controller.retryRuntime}
-					>
-						Retry runtime
-					</button>
-				</div>
-			{/if}
-		</section>
+		<PlaygroundPreview {controller} {onPreviewFrameChange} />
 	</div>
 </main>
 
@@ -620,15 +402,6 @@
 		.playground-workspace {
 			grid-template-rows: var(--playground-rows);
 			transition: grid-template-rows 240ms cubic-bezier(0.2, 0, 0, 1);
-		}
-
-		.playground-sidebar--collapsed {
-			pointer-events: none;
-			opacity: 0;
-		}
-
-		.playground-sidebar {
-			transition: opacity 240ms cubic-bezier(0.2, 0, 0, 1);
 		}
 
 		.panel-resizer {

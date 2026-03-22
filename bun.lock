@@ -74,7 +74,7 @@
     },
     "packages/motion-gpu": {
       "name": "@motion-core/motion-gpu",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "dependencies": {
         "@webgpu/types": "^0.1.66",
       },

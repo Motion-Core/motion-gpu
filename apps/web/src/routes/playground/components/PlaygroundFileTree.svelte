@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import ChevronDown from 'carbon-icons-svelte/lib/ChevronDown.svelte';
 	import ChevronRight from 'carbon-icons-svelte/lib/ChevronRight.svelte';
 	import Document from 'carbon-icons-svelte/lib/Document.svelte';
@@ -10,12 +11,10 @@
 
 	let {
 		controller,
-		isTreeVisible,
 		onHeaderHostChange,
 		onListHostChange
 	}: {
 		controller: PlaygroundController;
-		isTreeVisible: boolean;
 		onHeaderHostChange: (host: HTMLDivElement | null) => void;
 		onListHostChange: (host: HTMLDivElement | null) => void;
 	} = $props();
@@ -41,35 +40,33 @@
 	};
 </script>
 
-<aside
-	inert={!isTreeVisible}
-	aria-hidden={!isTreeVisible}
-	class={`playground-sidebar flex min-h-0 flex-col overflow-hidden bg-background lg:max-h-none ${
-		isTreeVisible ? '' : 'playground-sidebar--collapsed'
-	}`}
->
-	<div
-		use:registerSidebarHeaderHost
-		class="flex h-8 items-center gap-1 border-b border-border px-3 text-sm whitespace-nowrap"
-	>
-		<span
-			class="flex items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
-			aria-hidden="true"
+<aside class="playground-sidebar flex min-h-0 flex-col lg:max-h-none">
+	<div use:registerSidebarHeaderHost class="border-b border-border px-1 py-2">
+		<a
+			href={resolve('/' as const)}
+			class="inline-flex min-w-0 items-center gap-2 whitespace-nowrap text-accent [&>svg]:size-5 [&>svg]:fill-current"
+			aria-label="Back to Home"
+			title="Back to Home"
 		>
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html brandingConfig.logoRaw}
-		</span>
-		<span class="font-medium text-foreground"
-			>{brandingConfig.name} <span class="text-xs text-accent">playground</span></span
-		>
+			<span class="text-sm leading-none font-medium tracking-tight text-foreground">
+				{brandingConfig.name}
+			</span>
+		</a>
 	</div>
-	<div use:registerSidebarListHost class="overflow-auto py-1 lg:min-h-0 lg:flex-1">
+	<div use:registerSidebarListHost class="flex flex-col gap-0.5 overflow-auto lg:min-h-0 lg:flex-1">
+		<div
+			class="flex h-8 items-center gap-1 border-b border-border px-2 py-2 text-xs tracking-normal whitespace-nowrap text-foreground-muted"
+		>
+			File explorer
+		</div>
 		{#each controller.visibleFileTreeRows as row (row.path)}
 			{#if row.kind === 'directory'}
 				<button
 					type="button"
 					onclick={() => controller.toggleDirectory(row.path)}
-					class="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-normal text-foreground-muted transition-colors duration-150 ease-out hover:bg-background-muted hover:text-foreground"
+					class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-normal text-foreground-muted hover:bg-foreground-muted/10 hover:text-foreground"
 					style={`padding-left: ${8 + row.depth * 12}px`}
 				>
 					<span class="inline-flex w-3 items-center justify-center text-foreground/60">
@@ -88,10 +85,10 @@
 				<button
 					type="button"
 					onclick={() => controller.openFile(row.path)}
-					class={`flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs font-normal transition-colors duration-150 ease-out ${
+					class={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-normal ${
 						controller.activeFilePath === row.path
-							? 'bg-background-muted text-foreground'
-							: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
+							? 'bg-foreground-muted/10 text-foreground'
+							: 'text-foreground-muted hover:bg-foreground-muted/10 hover:text-foreground'
 					}`}
 					style={`padding-left: ${8 + row.depth * 12}px`}
 				>
@@ -108,16 +105,3 @@
 		{/each}
 	</div>
 </aside>
-
-<style>
-	@media (max-width: 1023px) {
-		.playground-sidebar--collapsed {
-			pointer-events: none;
-			opacity: 0;
-		}
-
-		.playground-sidebar {
-			transition: opacity 240ms cubic-bezier(0.2, 0, 0, 1);
-		}
-	}
-</style>

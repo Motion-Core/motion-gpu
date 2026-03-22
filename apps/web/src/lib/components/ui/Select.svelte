@@ -188,7 +188,7 @@
 		type="button"
 		{id}
 		class={cn(
-			'card inline-flex h-7 w-full items-center justify-between gap-1.5 rounded bg-background px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background-muted focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
+			'inset-shadow inline-flex h-7 w-full items-center justify-between gap-1.5 rounded-sm bg-background-inset px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background-muted focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
 			triggerClass
 		)}
 		{disabled}
@@ -212,7 +212,7 @@
 	{#if isOpen}
 		<div
 			class={cn(
-				'card absolute top-[calc(100%+4px)] left-0 z-50 min-w-full overflow-hidden rounded bg-background',
+				'card absolute top-[calc(100%+4px)] left-0 z-50 min-w-full overflow-hidden rounded-sm bg-background',
 				menuClass
 			)}
 			transition:scale={{ start: 0.98, duration: 130, easing: cubicOut }}

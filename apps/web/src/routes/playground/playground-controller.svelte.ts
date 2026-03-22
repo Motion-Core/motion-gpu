@@ -116,10 +116,18 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 				backgroundColor: 'var(--playground-editor-bg)',
 				borderRight: '1px solid var(--playground-editor-gutter-border)',
 				color: 'var(--playground-editor-gutter-fg)',
-				minWidth: '44px'
+				minWidth: '52px'
 			},
-			'.cm-gutterElement': {
-				padding: '0 10px 0 12px'
+			'.cm-lineNumbers': {
+				width: '52px',
+				minWidth: '52px',
+				maxWidth: '52px'
+			},
+			'.cm-lineNumbers .cm-gutterElement': {
+				boxSizing: 'border-box',
+				width: '100%',
+				padding: '0 8px 0 0',
+				textAlign: 'right'
 			},
 			'.cm-activeLine': {
 				backgroundColor: 'var(--playground-editor-active-line-bg)'

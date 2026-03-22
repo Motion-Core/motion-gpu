@@ -21,13 +21,17 @@
 	};
 </script>
 
-<section class="flex min-h-0 flex-col bg-background">
+<section
+	class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background-muted p-px dark:bg-background"
+>
 	<div class="h-8 border-b border-border">
 		<div class="flex items-stretch overflow-x-auto">
 			{#each controller.openFilePaths as filePath (filePath)}
 				<div
-					class={`group inline-flex shrink-0 items-center border-r border-border ${
-						controller.activeFilePath === filePath ? 'bg-background-inset' : 'bg-background'
+					class={`group inline-flex shrink-0 items-center rounded-t-md border-r ${
+						controller.activeFilePath === filePath
+							? 'border-border bg-background dark:bg-background-inset'
+							: 'border-transparent bg-transparent'
 					}`}
 				>
 					<button
@@ -61,20 +65,20 @@
 
 	<div
 		use:registerEditorHost
-		class="min-h-0 flex-1 bg-background-inset"
+		class="min-h-0 flex-1 bg-background dark:bg-background-inset"
 		aria-label="Svelte component editor"
 	></div>
 
 	{#if controller.syncError}
 		<p
-			class="border-t border-border bg-background px-3 py-2 font-mono text-xs font-normal text-red-500"
+			class="rounded-b-md border-t border-border bg-background p-px px-3 py-2 font-mono text-xs font-normal text-red-500 dark:bg-background-inset"
 			role="alert"
 		>
 			{controller.syncError}
 		</p>
 	{/if}
 
-	<section class="bg-background">
+	<section class="rounded-b-md border-t border-border bg-background p-px dark:bg-background-inset">
 		{#if controller.runtimeLog}
 			<details>
 				<summary
@@ -83,12 +87,10 @@
 					Runtime log ({controller.status})
 				</summary>
 				<pre
-					class="h-32 overflow-auto border-t border-border bg-background-inset px-3 py-2 font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
+					class="h-32 overflow-auto px-3 py-2 font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
 			</details>
 		{:else}
-			<p
-				class="border-t border-border px-3 py-2 font-mono text-xs font-normal text-foreground-muted"
-			>
+			<p class=" px-3 py-2 font-mono text-xs font-normal text-foreground-muted">
 				{controller.status}
 			</p>
 		{/if}

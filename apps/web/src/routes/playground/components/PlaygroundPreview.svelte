@@ -1,11 +1,23 @@
 <script lang="ts">
+	import Select from '$lib/components/ui/Select.svelte';
+
 	import type { PlaygroundController } from '../playground-controller.svelte';
+	type DemoSelectOption = {
+		value: string;
+		label: string;
+	};
 
 	let {
 		controller,
+		activeDemoId,
+		demoOptions,
+		onSelectDemo,
 		onPreviewFrameChange
 	}: {
 		controller: PlaygroundController;
+		activeDemoId: string;
+		demoOptions: DemoSelectOption[];
+		onSelectDemo: (demoId: string) => void;
 		onPreviewFrameChange: (frame: HTMLIFrameElement | null) => void;
 	} = $props();
 
@@ -19,14 +31,26 @@
 	};
 </script>
 
-<section class="flex min-h-0 flex-col overflow-hidden bg-background">
-	<div class="relative min-h-0 flex-1 bg-background-inset">
+<section class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background p-px">
+	<div class="relative min-h-0 flex-1 overflow-hidden rounded-[calc(var(--radius-base)*2.75)]">
+		<div class="absolute top-2 right-2 z-10">
+			<label class="sr-only" for="playground-preview-demo-select">Choose demo</label>
+			<Select
+				id="playground-preview-demo-select"
+				class="w-48"
+				triggerClass="w-48"
+				value={activeDemoId}
+				options={demoOptions}
+				onValueChange={onSelectDemo}
+				ariaLabel="Choose demo"
+			/>
+		</div>
 		{#key controller.previewFrameKey}
 			<iframe
 				use:registerPreviewFrame
 				title="Playground preview"
 				srcdoc={controller.previewSrcdoc}
-				class="h-full w-full border-0"
+				class="h-full w-full overflow-hidden rounded-[calc(var(--radius-base)*2.5)]"
 				loading="eager"
 				sandbox="allow-scripts allow-forms allow-modals allow-popups"
 				referrerpolicy="no-referrer"
@@ -35,7 +59,7 @@
 	</div>
 
 	{#if controller.errorMessage}
-		<div class="border-t border-border bg-background px-3 py-2">
+		<div class="px-3 py-2">
 			<p class="font-mono text-xs font-normal whitespace-pre-wrap text-red-500" role="alert">
 				{controller.errorMessage}
 			</p>

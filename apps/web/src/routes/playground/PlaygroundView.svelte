@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
-	import PlaygroundHeader from './components/PlaygroundHeader.svelte';
 	import PlaygroundFileTree from './components/PlaygroundFileTree.svelte';
 	import PlaygroundEditor from './components/PlaygroundEditor.svelte';
 	import PlaygroundPreview from './components/PlaygroundPreview.svelte';
@@ -19,7 +18,6 @@
 		onEditorHostChange: (host: HTMLDivElement | null) => void;
 		onPreviewFrameChange: (frame: HTMLIFrameElement | null) => void;
 	} = $props();
-	let isTreeVisible = $state(true);
 	let workspaceHost: HTMLDivElement | null = null;
 	let sidebarHeaderHost: HTMLDivElement | null = null;
 	let sidebarListHost: HTMLDivElement | null = null;
@@ -40,6 +38,7 @@
 	const MIN_EDITOR_WIDTH = 380;
 	const MIN_PREVIEW_WIDTH = 260;
 	const MOBILE_TREE_MIN_HEIGHT = 120;
+	const MOBILE_TREE_EXPANDED_FLOOR = 180;
 	const MOBILE_TREE_MAX_VIEWPORT_RATIO = 0.42;
 
 	const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -53,32 +52,28 @@
 			workspaceWidth - RESIZER_SIZE - RESIZER_SIZE - nextPreviewWidth - MIN_EDITOR_WIDTH
 		);
 
-	const getMaxPreviewWidth = (workspaceWidth: number, nextTreeWidth = treeWidth) => {
-		const treeAndHandleWidth = isTreeVisible ? nextTreeWidth + RESIZER_SIZE : 0;
-		return Math.max(
+	const getMaxPreviewWidth = (workspaceWidth: number, nextTreeWidth = treeWidth) =>
+		Math.max(
 			MIN_PREVIEW_WIDTH,
-			workspaceWidth - treeAndHandleWidth - RESIZER_SIZE - MIN_EDITOR_WIDTH
+			workspaceWidth - nextTreeWidth - RESIZER_SIZE - RESIZER_SIZE - MIN_EDITOR_WIDTH
 		);
-	};
 
 	const clampPanelWidths = () => {
 		const workspaceWidth = getWorkspaceWidth();
 		if (workspaceWidth <= 0) return;
 
-		if (isTreeVisible) {
-			treeWidth = clamp(treeWidth, MIN_TREE_WIDTH, getMaxTreeWidth(workspaceWidth));
-		}
+		treeWidth = clamp(treeWidth, MIN_TREE_WIDTH, getMaxTreeWidth(workspaceWidth));
 
 		previewWidth = clamp(
 			previewWidth,
 			MIN_PREVIEW_WIDTH,
-			getMaxPreviewWidth(workspaceWidth, isTreeVisible ? treeWidth : 0)
+			getMaxPreviewWidth(workspaceWidth, treeWidth)
 		);
 	};
 
 	const workspaceColumns = $derived.by(() => {
-		const treeColumn = isTreeVisible ? `${Math.round(treeWidth)}px` : '0px';
-		const treeResizerColumn = isTreeVisible ? `${RESIZER_SIZE}px` : '0px';
+		const treeColumn = `${Math.round(treeWidth)}px`;
+		const treeResizerColumn = `${RESIZER_SIZE}px`;
 		const previewResizerColumn = `${RESIZER_SIZE}px`;
 		const previewColumn = `${Math.round(previewWidth)}px`;
 		return `${treeColumn} ${treeResizerColumn} minmax(0,1fr) ${previewResizerColumn} ${previewColumn}`;
@@ -86,7 +81,7 @@
 	const workspaceRows = $derived.by(() => {
 		const isMobile =
 			typeof window !== 'undefined' && !window.matchMedia('(min-width: 1024px)').matches;
-		const treeRow = isMobile ? (isTreeVisible ? `${mobileTreeHeight}px` : '0px') : 'minmax(0,1fr)';
+		const treeRow = isMobile ? `${mobileTreeHeight}px` : 'minmax(0,1fr)';
 		return `${treeRow} minmax(0,1fr) minmax(0,1fr)`;
 	});
 	const demoSelectOptions = $derived.by(() =>
@@ -95,16 +90,7 @@
 			label: demo.name
 		}))
 	);
-	const toggleTree = () => {
-		isTreeVisible = !isTreeVisible;
-		if (typeof window !== 'undefined') {
-			requestAnimationFrame(() => {
-				clampPanelWidths();
-			});
-		}
-	};
 	const trackMobileTreeDependencies = (
-		_isTreeVisible: boolean,
 		_collapsedDirs: Record<string, boolean>,
 		_rowCount: number
 	) => {};
@@ -116,7 +102,7 @@
 	};
 	const recomputeMobileTreeHeight = () => {
 		if (typeof window === 'undefined') return;
-		if (!window.matchMedia('(max-width: 1023px)').matches || !isTreeVisible) {
+		if (!window.matchMedia('(max-width: 1023px)').matches) {
 			mobileTreeHeight = 0;
 			return;
 		}
@@ -128,12 +114,12 @@
 			MOBILE_TREE_MIN_HEIGHT,
 			Math.round(window.innerHeight * MOBILE_TREE_MAX_VIEWPORT_RATIO)
 		);
-		mobileTreeHeight = Math.min(desiredHeight, maxHeight);
+		const targetHeight = Math.max(desiredHeight, MOBILE_TREE_EXPANDED_FLOOR);
+		mobileTreeHeight = clamp(targetHeight, MOBILE_TREE_MIN_HEIGHT, maxHeight);
 	};
 
 	const beginResize = (target: 'tree' | 'preview', event: PointerEvent) => {
 		if (event.button !== 0 || !workspaceHost || !isDesktopViewport()) return;
-		if (target === 'tree' && !isTreeVisible) return;
 		const handle = event.currentTarget;
 		if (!(handle instanceof HTMLButtonElement)) return;
 
@@ -272,11 +258,7 @@
 	});
 	$effect(() => {
 		if (typeof window === 'undefined') return;
-		trackMobileTreeDependencies(
-			isTreeVisible,
-			controller.collapsedDirs,
-			controller.visibleFileTreeRows.length
-		);
+		trackMobileTreeDependencies(controller.collapsedDirs, controller.visibleFileTreeRows.length);
 		void tick().then(() => {
 			recomputeMobileTreeHeight();
 		});
@@ -286,41 +268,33 @@
 	});
 </script>
 
-<main class="flex h-dvh min-h-0 flex-col overflow-hidden">
-	<PlaygroundHeader
-		activeDemoId={controller.activeDemoId}
-		demoOptions={demoSelectOptions}
-		{isTreeVisible}
-		{onSelectDemo}
-		onToggleTree={toggleTree}
-	/>
-
+<main
+	class="flex h-dvh min-h-0 flex-col overflow-hidden bg-background-muted p-2 dark:bg-background"
+>
 	<div
 		bind:this={workspaceHost}
-		class={`playground-workspace min-h-0 flex-1 ${
+		class={`playground-workspace relative min-h-0 flex-1 ${
 			activeResize ? 'playground-workspace--resizing' : ''
 		}`}
 		style={`--playground-columns: ${workspaceColumns}; --playground-rows: ${workspaceRows};`}
 	>
 		<PlaygroundFileTree
 			{controller}
-			{isTreeVisible}
 			onHeaderHostChange={handleSidebarHeaderHostChange}
 			onListHostChange={handleSidebarListHostChange}
 		/>
 		<button
 			type="button"
 			aria-label="Resize file tree panel"
-			aria-hidden={!isTreeVisible}
-			tabindex={isTreeVisible ? 0 : -1}
-			class={`panel-resizer ${activeResize?.target === 'tree' ? 'panel-resizer--active' : ''} ${
-				isTreeVisible ? '' : 'panel-resizer--hidden'
-			}`}
+			tabindex={0}
+			class={`panel-resizer ${activeResize?.target === 'tree' ? 'panel-resizer--active' : ''}`}
 			onpointerdown={(event) => beginResize('tree', event)}
 			onkeydown={(event) => resizeByKeyboard('tree', event)}
 		></button>
 
-		<PlaygroundEditor {controller} {onEditorHostChange} />
+		<div class="playground-editor-slot flex min-h-0 overflow-hidden">
+			<PlaygroundEditor {controller} {onEditorHostChange} />
+		</div>
 		<button
 			type="button"
 			aria-label="Resize preview panel"
@@ -330,7 +304,13 @@
 			onkeydown={(event) => resizeByKeyboard('preview', event)}
 		></button>
 
-		<PlaygroundPreview {controller} {onPreviewFrameChange} />
+		<PlaygroundPreview
+			{controller}
+			activeDemoId={controller.activeDemoId}
+			demoOptions={demoSelectOptions}
+			{onSelectDemo}
+			{onPreviewFrameChange}
+		/>
 	</div>
 </main>
 
@@ -338,7 +318,14 @@
 	.playground-workspace {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		transition: grid-template-columns 240ms cubic-bezier(0.2, 0, 0, 1);
+		row-gap: 2px;
+		column-gap: 2px;
+	}
+
+	.playground-editor-slot > :global(*) {
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 0;
 	}
 
 	.playground-workspace--resizing {
@@ -360,7 +347,7 @@
 			height: 100%;
 			cursor: col-resize;
 			touch-action: none;
-			background: var(--color-border);
+			background: transparent;
 			z-index: 2;
 		}
 
@@ -385,23 +372,15 @@
 		}
 
 		.playground-workspace--resizing .panel-resizer--active::before {
-			border-left-color: color-mix(in srgb, currentColor 25%, transparent);
+			border-left-color: var(--color-accent);
 			opacity: 1;
-		}
-
-		.panel-resizer--hidden {
-			pointer-events: none;
-		}
-
-		.panel-resizer--hidden::before {
-			opacity: 0;
 		}
 	}
 
 	@media (max-width: 1023px) {
 		.playground-workspace {
 			grid-template-rows: var(--playground-rows);
-			transition: grid-template-rows 240ms cubic-bezier(0.2, 0, 0, 1);
+			row-gap: 4px;
 		}
 
 		.panel-resizer {
@@ -456,8 +435,16 @@
 		border-color: transparent !important;
 	}
 
-	:global(.cm-editor .cm-lineNumbers .cm-gutterElement) {
-		min-width: 3ch;
+	:global(.cm-editor .cm-foldGutter) {
+		width: 0 !important;
+		min-width: 0 !important;
+		padding: 0 !important;
+		margin: 0 !important;
+		overflow: hidden !important;
+	}
+
+	:global(.cm-editor .cm-foldGutter .cm-gutterElement) {
+		display: none !important;
 	}
 
 	:global(html:not(.dark)) {

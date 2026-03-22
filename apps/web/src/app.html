@@ -3,11 +3,13 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		%sveltekit.head%
 		<script>
 			(() => {
 				document.documentElement.classList.add('js');
-				const storageKey = 'theme';
-				const storedTheme = localStorage.getItem(storageKey);
+				const storageKeyMeta = document.querySelector('meta[name="motiongpu-theme-storage-key"]');
+				const storageKey = storageKeyMeta?.getAttribute('content')?.trim() || null;
+				const storedTheme = storageKey ? localStorage.getItem(storageKey) : null;
 				const isDark =
 					storedTheme === 'dark' ||
 					(storedTheme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -23,7 +25,6 @@
 			type="font/woff2"
 			crossorigin
 		/>
-		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>

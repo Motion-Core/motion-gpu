@@ -2,6 +2,7 @@
 	import './layout.css';
 	import { page } from '$app/state';
 	import CommandPalette from '$lib/components/docs/search/CommandPalette.svelte';
+	import { docsUiConfig } from '$lib/config/docs-ui';
 	import { siteConfig } from '$lib/config/site';
 
 	const { children } = $props();
@@ -50,6 +51,7 @@
 
 <svelte:head>
 	<meta name="theme-color" content="#ffffff" />
+	<meta name="motiongpu-theme-storage-key" content={docsUiConfig.theme.storageKey} />
 	<meta property="og:site_name" content={siteName} />
 	<meta property="og:locale" content="en_US" />
 	<meta name="twitter:card" content="summary_large_image" />

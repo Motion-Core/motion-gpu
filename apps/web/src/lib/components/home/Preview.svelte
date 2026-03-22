@@ -1,7 +1,7 @@
 <script lang="ts">
 	import GlassPane from '$lib/GlassPane.svelte';
 	import Section from './Section.svelte';
-	const image = '/hero.png';
+	const image = '/orange-portrait-001.jpg';
 </script>
 
 <Section
@@ -13,14 +13,15 @@
 		class="inset-shadow absolute! inset-x-4 -top-24 bottom-4 min-h-72 overflow-hidden rounded-xl bg-background-inset p-2 sm:inset-x-8 sm:-top-32 sm:bottom-8 sm:min-h-144"
 	>
 		<div class="card h-full rounded-lg bg-background">
-			<div class="h-full w-full overflow-hidden rounded-lg">
+			<div class="h-full w-full overflow-hidden rounded-lg bg-black dark:bg-background">
 				<GlassPane
 					{image}
-					distortion={0.25}
+					class="mix-blend-lighten"
+					distortion={0.5}
 					chromaticAberration={0.0025}
 					waviness={0.0}
 					speed={0.5}
-					rods={3}
+					rods={2.5}
 					aria-hidden="true"
 				/>
 			</div>

@@ -18,6 +18,29 @@ const enabledManagers = Array.from(
 export const packageManagers: PackageManager[] =
 	enabledManagers.length > 0 ? enabledManagers : ['npm'];
 
+const DATASET_KEY = 'motiongpuPackageManager';
+
+function isPackageManager(value: string | null): value is PackageManager {
+	return !!value && packageManagers.includes(value as PackageManager);
+}
+
+function getBootstrapPackageManager(): PackageManager | null {
+	if (!browser) {
+		return null;
+	}
+
+	const value = document.documentElement.dataset[DATASET_KEY] ?? null;
+	return isPackageManager(value) ? value : null;
+}
+
+function syncBootstrapPackageManager(value: PackageManager): void {
+	if (!browser) {
+		return;
+	}
+
+	document.documentElement.dataset[DATASET_KEY] = value;
+}
+
 function createPackageManagerStore() {
 	const configuredDefault = docsUiConfig.packageManager.default;
 	let active = $state<PackageManager>(
@@ -25,10 +48,18 @@ function createPackageManagerStore() {
 	);
 
 	if (browser) {
-		const stored = localStorage.getItem(docsUiConfig.packageManager.storageKey) as PackageManager;
-		if (stored && packageManagers.includes(stored)) {
-			active = stored;
+		const bootstrapped = getBootstrapPackageManager();
+		if (bootstrapped) {
+			active = bootstrapped;
+		} else {
+			const stored = localStorage.getItem(
+				docsUiConfig.packageManager.storageKey
+			) as PackageManager | null;
+			if (stored && packageManagers.includes(stored)) {
+				active = stored;
+			}
 		}
+		syncBootstrapPackageManager(active);
 	}
 
 	return {
@@ -39,6 +70,7 @@ function createPackageManagerStore() {
 			active = v;
 			if (browser) {
 				localStorage.setItem(docsUiConfig.packageManager.storageKey, v);
+				syncBootstrapPackageManager(v);
 			}
 		}
 	};

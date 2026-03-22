@@ -7,6 +7,10 @@
 		<script>
 			(() => {
 				document.documentElement.classList.add('js');
+
+				const readMetaContent = (name) =>
+					document.querySelector(`meta[name="${name}"]`)?.getAttribute('content')?.trim() || null;
+
 				const storageKeyMeta = document.querySelector('meta[name="motiongpu-theme-storage-key"]');
 				const storageKey = storageKeyMeta?.getAttribute('content')?.trim() || null;
 				const storedTheme = storageKey ? localStorage.getItem(storageKey) : null;
@@ -15,6 +19,24 @@
 					(storedTheme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 				document.documentElement.classList.toggle('dark', isDark);
 				document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+
+				const packageManagerStorageKey = readMetaContent('motiongpu-package-manager-storage-key');
+				const packageManagerDefault = readMetaContent('motiongpu-package-manager-default');
+				const enabledPackageManagers = (readMetaContent('motiongpu-package-manager-enabled') || '')
+					.split(',')
+					.map((item) => item.trim())
+					.filter(Boolean);
+				const storedPackageManager = packageManagerStorageKey
+					? localStorage.getItem(packageManagerStorageKey)
+					: null;
+				const activePackageManager =
+					storedPackageManager && enabledPackageManagers.includes(storedPackageManager)
+						? storedPackageManager
+						: packageManagerDefault;
+
+				if (activePackageManager) {
+					document.documentElement.dataset.motiongpuPackageManager = activePackageManager;
+				}
 			})();
 		</script>
 		<link rel="preload" href="/fonts/FKGroteskNeue.woff2" as="font" type="font/woff2" crossorigin />

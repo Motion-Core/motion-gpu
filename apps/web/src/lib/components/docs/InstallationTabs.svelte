@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { cn } from '$lib/utils/cn';
 	import CopyCodeButton from './markdown/CopyCodeButton.svelte';
 	import ShikiCodeBlock from './ShikiCodeBlock.svelte';
@@ -17,6 +18,7 @@
 	};
 
 	let { pkg = siteConfig.package.name, args, isDev = false }: Props = $props();
+	let isReady = $state(false);
 
 	const commands: Record<PackageManager, string> = $derived(
 		isDev
@@ -60,9 +62,17 @@
 			}
 		});
 	});
+
+	onMount(() => {
+		isReady = true;
+	});
 </script>
 
-<div class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5">
+<div
+	data-installation-tabs
+	data-ready={isReady ? 'true' : 'false'}
+	class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5"
+>
 	<div class="card relative w-full rounded-md bg-background">
 		<div class="flex items-center justify-between rounded-t-md border-b border-border">
 			<div class="flex items-center">
@@ -105,3 +115,9 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	:global(.js [data-installation-tabs]:not([data-ready='true'])) {
+		visibility: hidden;
+	}
+</style>

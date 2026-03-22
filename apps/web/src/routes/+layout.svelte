@@ -52,6 +52,15 @@
 <svelte:head>
 	<meta name="theme-color" content="#ffffff" />
 	<meta name="motiongpu-theme-storage-key" content={docsUiConfig.theme.storageKey} />
+	<meta
+		name="motiongpu-package-manager-storage-key"
+		content={docsUiConfig.packageManager.storageKey}
+	/>
+	<meta name="motiongpu-package-manager-default" content={docsUiConfig.packageManager.default} />
+	<meta
+		name="motiongpu-package-manager-enabled"
+		content={docsUiConfig.packageManager.enabled.join(',')}
+	/>
 	<meta property="og:site_name" content={siteName} />
 	<meta property="og:locale" content="en_US" />
 	<meta name="twitter:card" content="summary_large_image" />

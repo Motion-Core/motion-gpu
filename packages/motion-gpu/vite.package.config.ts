@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
@@ -6,16 +7,32 @@ import { defineConfig, type Plugin } from 'vite';
 const packageRoot = path.dirname(fileURLToPath(new URL('./package.json', import.meta.url)));
 const sourceRoot = path.resolve(packageRoot, 'src/lib');
 
-const entryPoints = {
-	index: path.resolve(sourceRoot, 'index.ts'),
-	advanced: path.resolve(sourceRoot, 'advanced.ts'),
-	'core/index': path.resolve(sourceRoot, 'core/index.ts'),
-	'core/advanced': path.resolve(sourceRoot, 'core/advanced.ts'),
-	'react/index': path.resolve(sourceRoot, 'react/index.ts'),
-	'react/advanced': path.resolve(sourceRoot, 'react/advanced.ts'),
-	'svelte/index': path.resolve(sourceRoot, 'svelte/index.ts'),
-	'svelte/advanced': path.resolve(sourceRoot, 'svelte/advanced.ts')
-} as const;
+function collectScriptEntryPoints(directory: string): Record<string, string> {
+	const entries = readdirSync(directory, { withFileTypes: true });
+	const entryPoints: Record<string, string> = {};
+
+	for (const entry of entries) {
+		const fullPath = path.join(directory, entry.name);
+		if (entry.isDirectory()) {
+			Object.assign(entryPoints, collectScriptEntryPoints(fullPath));
+			continue;
+		}
+
+		if (!entry.isFile()) {
+			continue;
+		}
+		if (!(fullPath.endsWith('.ts') || fullPath.endsWith('.tsx'))) {
+			continue;
+		}
+
+		const entryName = toPosixPath(path.relative(sourceRoot, fullPath)).replace(/\.[^/.]+$/, '');
+		entryPoints[entryName] = fullPath;
+	}
+
+	return entryPoints;
+}
+
+const entryPoints = collectScriptEntryPoints(sourceRoot);
 
 function toPosixPath(value: string) {
 	return value.split(path.sep).join('/');
@@ -57,6 +74,39 @@ function copySvelteFilesPlugin(): Plugin {
 	};
 }
 
+function runNodeScript(scriptPath: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(process.execPath, [scriptPath], {
+			cwd: packageRoot,
+			stdio: 'inherit'
+		});
+
+		child.once('error', reject);
+		child.once('exit', (code) => {
+			if (code === 0) {
+				resolve();
+				return;
+			}
+
+			reject(new Error(`Script failed (${scriptPath}) with exit code ${code ?? 'unknown'}`));
+		});
+	});
+}
+
+function emitTypesPlugin(): Plugin {
+	const emitDtsScript = path.resolve(packageRoot, 'scripts/build/emit-dts.mjs');
+	const patchDtsScript = path.resolve(packageRoot, 'scripts/build/patch-webgpu-types-dts.mjs');
+
+	return {
+		name: 'motion-gpu-emit-types',
+		apply: 'build',
+		async writeBundle() {
+			await runNodeScript(emitDtsScript);
+			await runNodeScript(patchDtsScript);
+		}
+	};
+}
+
 function isExternal(id: string): boolean {
 	if (id.endsWith('.svelte')) {
 		return true;
@@ -71,7 +121,7 @@ function isExternal(id: string): boolean {
 }
 
 export default defineConfig({
-	plugins: [copySvelteFilesPlugin()],
+	plugins: [copySvelteFilesPlugin(), emitTypesPlugin()],
 	build: {
 		target: 'es2022',
 		outDir: 'dist',
@@ -83,7 +133,8 @@ export default defineConfig({
 			entry: entryPoints,
 			formats: ['es']
 		},
-		rollupOptions: {
+		rolldownOptions: {
+			treeshake: false,
 			external: isExternal,
 			output: {
 				format: 'es',

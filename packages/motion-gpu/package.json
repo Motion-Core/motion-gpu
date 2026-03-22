@@ -74,7 +74,7 @@
 		"!src/lib/**/*.spec.*"
 	],
 	"scripts": {
-		"build": "vite build --config ./vite.package.config.ts && node ./scripts/build/emit-dts.mjs && node ./scripts/build/patch-webgpu-types-dts.mjs",
+		"build": "vite build --config ./vite.package.config.ts",
 		"build:watch": "vite build --watch --config ./vite.package.config.ts",
 		"prepack": "bun run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && publint",
@@ -118,7 +118,7 @@
 		"@eslint/compat": "^2.0.2",
 		"@eslint/js": "^10.0.1",
 		"@playwright/test": "^1.58.2",
-		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@testing-library/react": "^16.3.0",
 		"@testing-library/svelte": "^5.2.8",
 		"@types/react": "^19.2.2",
@@ -141,7 +141,7 @@
 		"svelte-check": "^4.3.6",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.54.0",
-		"vite": "npm:rolldown-vite@7.3.1",
+		"vite": "^8.0.1",
 		"vitest": "^4.0.18"
 	}
 }

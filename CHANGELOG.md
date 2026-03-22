@@ -4,8 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 ### Changed
-- Migrated the `@motion-core/motion-gpu` package build pipeline from `svelte-package` to `rolldown-vite` while preserving multi-entrypoint ESM output (`core`, `react`, `svelte`, and advanced entrypoints).
+- Migrated the `@motion-core/motion-gpu` package build pipeline from `svelte-package` to Vite 8 (Rolldown) while preserving multi-entrypoint ESM output (`core`, `react`, `svelte`, and advanced entrypoints).
 - Replaced declaration emission with a dedicated `svelte2tsx` step (`svelte-shims-v4`) and kept declaration maps enabled for published types.
+- Upgraded both `packages/motion-gpu` and `apps/web` from Vite 7 to Vite 8, including `@sveltejs/vite-plugin-svelte` compatibility updates.
 
 ### Fixed
 - Locked the Svelte `MotionGPUErrorOverlay` to a dark token palette and refined overlay surfaces so source tabs/code blocks render consistently regardless of host theme.

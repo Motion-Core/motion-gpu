@@ -5,7 +5,7 @@
 		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-cloudflare": "^7.2.8",
 		"@sveltejs/kit": "^2.53.0",
-		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.1.17",
 		"@testing-library/svelte": "^5.3.1",
 		"@types/estree": "^1.0.8",
@@ -27,7 +27,7 @@
 		"tailwindcss": "^4.1.18",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.56.1",
-		"vite": "^7.2.7",
+		"vite": "^8.0.1",
 		"vitest": "^4.0.18",
 		"wrangler": "^4.72.0"
 	},

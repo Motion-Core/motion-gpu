@@ -30,5 +30,5 @@ export function Portal({ target = 'body', children }: PortalProps) {
 		return null;
 	}
 
-	return createPortal(children ?? null, targetElement);
+	return createPortal(<div>{children ?? null}</div>, targetElement);
 }

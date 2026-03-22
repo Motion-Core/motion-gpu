@@ -23,11 +23,12 @@ describe('react Portal', () => {
 	it('mounts into body by default and removes portal root on unmount', async () => {
 		const view = render(<PortalHarness />);
 		const content = await screen.findByTestId('portal-content');
+		const portalRoot = content.parentElement;
 
-		expect(content.parentElement).toBe(document.body);
+		expect(portalRoot?.parentElement).toBe(document.body);
 
 		view.unmount();
-		expect(content.isConnected).toBe(false);
+		expect(portalRoot?.isConnected).toBe(false);
 		expect(screen.queryByTestId('portal-content')).toBeNull();
 	});
 
@@ -38,13 +39,13 @@ describe('react Portal', () => {
 
 		render(<PortalHarness target="#portal-target" />);
 		const selectedTargetContent = await screen.findByTestId('portal-content');
-		expect(selectedTargetContent.parentElement).toBe(target);
+		expect(selectedTargetContent.parentElement?.parentElement).toBe(target);
 
 		cleanup();
 
 		render(<PortalHarness target="#missing-target" />);
 		const fallbackContent = await screen.findByTestId('portal-content');
-		expect(fallbackContent.parentElement).toBe(document.body);
+		expect(fallbackContent.parentElement?.parentElement).toBe(document.body);
 
 		target.remove();
 	});
@@ -55,13 +56,13 @@ describe('react Portal', () => {
 
 		render(<PortalHarness target={target} />);
 		const elementTargetContent = await screen.findByTestId('portal-content');
-		expect(elementTargetContent.parentElement).toBe(target);
+		expect(elementTargetContent.parentElement?.parentElement).toBe(target);
 
 		cleanup();
 
 		render(<PortalHarness target={null} />);
 		const nullTargetContent = await screen.findByTestId('portal-content');
-		expect(nullTargetContent.parentElement).toBe(document.body);
+		expect(nullTargetContent.parentElement?.parentElement).toBe(document.body);
 
 		target.remove();
 	});
@@ -74,11 +75,11 @@ describe('react Portal', () => {
 
 		const view = render(<PortalHarness target={firstTarget} />);
 		const content = await screen.findByTestId('portal-content');
-		expect(content.parentElement).toBe(firstTarget);
+		expect(content.parentElement?.parentElement).toBe(firstTarget);
 
 		view.rerender(<PortalHarness target={secondTarget} />);
 		await waitFor(() => {
-			expect(screen.getByTestId('portal-content').parentElement).toBe(secondTarget);
+			expect(screen.getByTestId('portal-content').parentElement?.parentElement).toBe(secondTarget);
 		});
 
 		view.unmount();

@@ -39,6 +39,6 @@ export default [
 		}
 	},
 	{
-		ignores: ['build/', '.svelte-kit/', 'dist/', 'src/lib/playground-engine/**']
+		ignores: ['build/', '.svelte-kit/', 'dist/', '.wrangler/tmp/**', 'src/lib/playground-engine/**']
 	}
 ];

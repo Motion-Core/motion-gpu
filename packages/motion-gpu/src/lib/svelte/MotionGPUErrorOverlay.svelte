@@ -94,14 +94,16 @@
 
 <style>
 	.motiongpu-error-overlay {
-		--motiongpu-color-background: var(--color-background, #ffffff);
-		--motiongpu-color-background-muted: var(--color-background-inset, #f6f6f7);
-		--motiongpu-color-foreground: var(--color-foreground, #262626);
-		--motiongpu-color-foreground-muted: var(--color-foreground-muted, rgba(38, 38, 38, 0.64));
-		--motiongpu-color-card: var(--color-background, #ffffff);
-		--motiongpu-color-accent: var(--color-accent, #ff6900);
-		--motiongpu-color-accent-secondary: var(--color-accent-secondary, #bd4d00);
-		--motiongpu-color-border: var(--color-border, rgba(107, 107, 107, 0.2));
+		--motiongpu-base-hue: var(--base-hue, 265);
+		--motiongpu-color-background: oklch(0.2178 0.0056 var(--motiongpu-base-hue));
+		--motiongpu-color-background-muted: oklch(0.261 0.007 var(--motiongpu-base-hue));
+		--motiongpu-color-foreground: oklch(1 0 0);
+		--motiongpu-color-foreground-muted: oklch(0.6699 0.0081 var(--motiongpu-base-hue));
+		--motiongpu-color-card: var(--motiongpu-color-background);
+		--motiongpu-color-accent: oklch(0.6996 0.181959 44.4414);
+		--motiongpu-color-accent-secondary: oklch(0.5096 0.131959 44.4414);
+		--motiongpu-color-border: oklch(0.928 0.013 var(--motiongpu-base-hue) / 0.05);
+		--motiongpu-color-white-fixed: oklch(1 0 0);
 		--motiongpu-shadow-card: var(
 			--shadow-2xl,
 			0px 1px 1px -0.5px rgba(0, 0, 0, 0.06),
@@ -128,12 +130,11 @@
 		display: grid;
 		place-items: center;
 		padding: clamp(0.75rem, 1.4vw, 1.5rem);
-		background:
-			radial-gradient(125% 125% at 50% 0%, rgba(255, 105, 0, 0.12) 0%, rgba(255, 105, 0, 0) 56%),
-			rgba(12, 12, 14, 0.38);
+		background: rgba(0, 0, 0, 0.8);
 		backdrop-filter: blur(10px);
 		z-index: 2147483647;
 		font-family: var(--motiongpu-font-sans);
+		color-scheme: dark;
 	}
 
 	.motiongpu-error-dialog {
@@ -149,11 +150,7 @@
 		font-size: 0.875rem;
 		font-weight: 400;
 		line-height: 1.45;
-		background: linear-gradient(
-			180deg,
-			var(--motiongpu-color-card) 0%,
-			var(--motiongpu-color-background-muted) 100%
-		);
+		background: var(--motiongpu-color-card);
 		color: var(--motiongpu-color-foreground);
 		box-shadow: var(--motiongpu-shadow-card);
 	}
@@ -187,7 +184,7 @@
 		line-height: 1;
 		font-weight: 500;
 		text-transform: uppercase;
-		color: var(--motiongpu-color-background);
+		color: var(--motiongpu-color-white-fixed);
 		background: linear-gradient(
 			180deg,
 			var(--motiongpu-color-accent) 0%,
@@ -215,9 +212,9 @@
 	.motiongpu-error-message {
 		margin: 0;
 		padding: 0.72rem 0.78rem;
-		border: 1px solid color-mix(in srgb, var(--motiongpu-color-accent) 28%, transparent);
+		border: 1px solid color-mix(in oklch, var(--motiongpu-color-accent) 28%, transparent);
 		border-radius: var(--motiongpu-radius-md);
-		background: color-mix(in srgb, var(--motiongpu-color-accent) 9%, var(--motiongpu-color-card));
+		background: color-mix(in oklch, var(--motiongpu-color-accent) 10%, transparent);
 		font-size: 0.82rem;
 		line-height: 1.4;
 		font-weight: 400;
@@ -302,7 +299,7 @@
 	}
 
 	.motiongpu-error-source-row-active {
-		background: color-mix(in srgb, var(--motiongpu-color-accent) 10%, transparent);
+		background: color-mix(in oklch, var(--motiongpu-color-accent) 10%, transparent);
 	}
 
 	.motiongpu-error-source-line {

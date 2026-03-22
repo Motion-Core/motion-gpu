@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import typescript from 'typescript';
@@ -50,6 +50,7 @@ async function transpileReactTsxInDist() {
 
 		const outputPath = tsxFile.slice(0, -4) + '.js';
 		await writeFile(outputPath, result.outputText, 'utf8');
+		await unlink(tsxFile);
 	}
 
 	console.log(`Transpiled ${tsxFiles.length} React TSX files in dist/react`);

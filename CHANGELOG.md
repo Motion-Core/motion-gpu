@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 - Locked the Svelte `MotionGPUErrorOverlay` to a dark token palette and refined overlay surfaces so source tabs/code blocks render consistently regardless of host theme.
 - Matched the React `MotionGPUErrorOverlay` structure and styling 1:1 with the Svelte overlay implementation.
+- Fixed missing WebGPU type globals in published declarations by patching `dist/*.d.ts` with `@webgpu/types` references and removing leftover `dist/react/*.tsx` sources.
 
 ## [0.4.0] - 2026-03-22
 ### Added

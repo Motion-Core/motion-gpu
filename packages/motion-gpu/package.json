@@ -69,7 +69,7 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "svelte-package -i src/lib -o dist && node ./scripts/build/transpile-react-tsx.mjs",
+		"build": "svelte-package -i src/lib -o dist && node ./scripts/build/transpile-react-tsx.mjs && node ./scripts/build/patch-webgpu-types-dts.mjs",
 		"build:watch": "svelte-package -i src/lib -o dist -w --preserve-output",
 		"prepack": "bun run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && publint",
@@ -106,6 +106,9 @@
 			"optional": true
 		}
 	},
+	"dependencies": {
+		"@webgpu/types": "^0.1.66"
+	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",
 		"@eslint/js": "^10.0.1",
@@ -118,7 +121,6 @@
 		"@types/react-dom": "^19.2.2",
 		"@vitest/coverage-v8": "^4.0.18",
 		"@types/node": "^25.3.3",
-		"@webgpu/types": "^0.1.66",
 		"eslint": "^10.0.2",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.14.0",

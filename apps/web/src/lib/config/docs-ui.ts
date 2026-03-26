@@ -103,7 +103,7 @@ export const docsUiConfig: DocsUiConfig = {
 			enabled: true,
 			key: 'k',
 			metaOrCtrl: true,
-			label: '⌘K'
+			label: '⌘ K'
 		},
 		maxGroups: 20,
 		maxChildrenPerGroup: 5

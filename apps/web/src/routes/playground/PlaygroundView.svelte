@@ -447,6 +447,45 @@
 		display: none !important;
 	}
 
+	:global(.cm-editor .cm-scroller) {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in srgb, var(--color-foreground) 12%, transparent) transparent;
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar) {
+		width: 10px;
+		height: 10px;
+		--playground-cm-thumb-color: color-mix(in srgb, var(--color-foreground) 20%, transparent);
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar-track) {
+		background: transparent;
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar:hover) {
+		--playground-cm-thumb-color: color-mix(in srgb, var(--color-foreground) 52%, transparent);
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar-thumb) {
+		background-color: var(--playground-cm-thumb-color);
+		border: 1px solid transparent;
+		border-radius: 9999px;
+		background-clip: content-box;
+		transition: background-color 120ms ease-out;
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover) {
+		background-color: color-mix(in srgb, var(--color-foreground) 62%, transparent);
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar-thumb:active) {
+		background-color: color-mix(in srgb, var(--color-foreground) 70%, transparent);
+	}
+
+	:global(.cm-editor .cm-scroller::-webkit-scrollbar-corner) {
+		background: transparent;
+	}
+
 	:global(html:not(.dark)) {
 		--playground-editor-bg: transparent;
 		--playground-editor-fg: #1f2328;

@@ -28,6 +28,7 @@ fn frag(uv: vec2f) -> vec4f {
 | `textures` | `TextureDefinitionMap` | No | Named texture declarations with sampler/upload config |
 | `defines` | `MaterialDefines` | No | Compile-time constants injected as `const` |
 | `includes` | `MaterialIncludes` | No | Named WGSL source chunks for `#include` expansion |
+| `storageBuffers` | `StorageBufferDefinitionMap` | No | Named GPU storage buffer declarations for compute/fragment access |
 
 ## Fragment contract
 
@@ -50,14 +51,15 @@ fn frag(uv: vec2f) -> vec4f
 3. **Normalizes textures** — validates identifier names and clones definitions.
 4. **Normalizes defines** — validates identifier names, checks value constraints (finite numbers, integer checks for `i32`/`u32`, non-negative for `u32`).
 5. **Normalizes includes** — validates identifier names, checks for non-empty source strings.
-6. **Freezes** the output object and its top-level maps (`uniforms`, `textures`, `defines`, `includes`).
+6. **Normalizes storage buffers** — validates identifier names, checks `size > 0`, `size % 4 === 0`, valid type and access mode, optional `initialData` fits within declared size.
+7. **Freezes** the output object and its top-level maps (`uniforms`, `textures`, `defines`, `includes`, `storageBuffers`).
 
 ## Immutability
 
 The returned `FragMaterial` is frozen with `Object.freeze`. This means:
 
 - You **cannot** modify the material after creation.
-- The `uniforms`, `textures`, `defines`, and `includes` sub-objects are also frozen.
+- The `uniforms`, `textures`, `defines`, `includes`, and `storageBuffers` sub-objects are also frozen.
 - To change a material, create a new one with `defineMaterial(...)`.
 
 This immutability is critical for MotionGPU's caching: the material signature is computed once and used to detect when the renderer needs rebuilding.
@@ -70,6 +72,7 @@ When `FragCanvas` resolves a material, it computes a **deterministic signature**
 2. The **uniform layout** (sorted name/type sequence).
 3. The **texture key list** (sorted).
 4. The **normalized texture sampling/upload config** for each texture.
+5. The **storage buffer key list** (sorted) with size, type, and access mode.
 
 This signature is combined with `outputColorSpace` to form the final **pipeline signature**. Only changes in this combined signature trigger a renderer rebuild.
 
@@ -80,11 +83,14 @@ This signature is combined with `outputColorSpace` to form the final **pipeline 
 | Fragment shader text change | **Yes** |
 | Adding/removing a uniform | **Yes** |
 | Adding/removing a texture | **Yes** |
+| Adding/removing a storage buffer | **Yes** |
+| Changing storage buffer size/type/access | **Yes** |
 | Changing texture sampler config | **Yes** |
 | Changing a define value | **Yes** |
 | Changing `outputColorSpace` on `FragCanvas` | **Yes** |
 | Changing a uniform **value** at runtime | No — buffer update only |
 | Changing a texture **source** at runtime | No — upload only |
+| Writing to a storage buffer at runtime | No — pending write flushed next frame |
 
 ## Full example with all fields
 
@@ -142,6 +148,9 @@ fn sdCircle(p: vec2f, r: f32) -> f32 {
 | Fractional `i32` or `u32` define | Throws |
 | Negative `u32` define | Throws |
 | Empty include source | Throws |
+| Storage buffer `size <= 0` or not multiple of 4 | Throws |
+| Invalid storage buffer type or access mode | Throws |
+| Storage buffer `initialData` exceeds declared `size` | Throws |
 
 ## Practical guidance
 

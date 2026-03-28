@@ -34,6 +34,14 @@ export const docsNavigation: DocItem[] = [
 		]
 	},
 	{
+		slug: 'compute',
+		name: 'Compute',
+		items: [
+			{ slug: 'compute-shaders', name: 'Compute Shaders' },
+			{ slug: 'storage-buffers', name: 'Storage Buffers' }
+		]
+	},
+	{
 		slug: 'shaders-textures',
 		name: 'Shaders & Textures',
 		items: [

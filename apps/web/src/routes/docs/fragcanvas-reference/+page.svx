@@ -55,7 +55,7 @@ React uses the same runtime prop names (`material`, `passes`, `renderMode`, `onE
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `passes` | `RenderPass[]` | `[]` | Ordered array of post-process passes. See [Render Passes](/docs/render-passes). |
+| `passes` | `RenderPass[]` | `[]` | Ordered array of render and compute passes. See [Render Passes](/docs/render-passes) and [Compute Shaders](/docs/compute-shaders). |
 | `renderTargets` | `RenderTargetDefinitionMap` | `{}` | Named off-screen render targets. See [Render Targets](/docs/render-targets). |
 
 ### WebGPU configuration

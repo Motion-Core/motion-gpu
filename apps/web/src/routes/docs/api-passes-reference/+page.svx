@@ -1,17 +1,17 @@
 ---
 title: Passes API
-description: Reference for ShaderPass, BlitPass, CopyPass, and render pass slot contracts.
+description: Reference for ShaderPass, BlitPass, CopyPass, ComputePass, PingPongComputePass, and pass slot contracts.
 ---
 
-Reference for post-processing APIs shared by Svelte/React adapters and core entrypoints.
+Reference for post-processing and compute APIs shared by Svelte/React adapters and core entrypoints.
 
 ## Entrypoints
 
 | Entrypoint | Exports |
 | --- | --- |
-| `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass` |
-| `@motion-core/motion-gpu/react` | `ShaderPass`, `BlitPass`, `CopyPass` |
-| `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass` |
+| `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
+| `@motion-core/motion-gpu/react` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
+| `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 
 ## Shared pass options
 
@@ -63,6 +63,84 @@ Direct-copy path requires all of:
 - neither surface is `canvas`
 - matching dimensions and format
 
+## `ComputePass`
+
+GPU compute pass for single-dispatch workloads.
+
+Required shader contract:
+
+```wgsl
+@compute @workgroup_size(X, Y?, Z?)
+fn compute(@builtin(global_invocation_id) id: vec3u)
+```
+
+All three elements are validated at construction time: the `@compute` annotation, `@workgroup_size(...)`, and `@builtin(global_invocation_id)` parameter.
+
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `compute` | `string` | **Required** | WGSL compute shader source |
+| `dispatch` | `[number, number?, number?] \| 'auto' \| (ctx) => [number, number, number]` | `'auto'` | Workgroup dispatch strategy |
+| `enabled` | `boolean` | `true` | Whether pass is active |
+
+### Runtime update API
+
+```ts
+setCompute(source: string): void
+setDispatch(dispatch: ComputePassOptions['dispatch']): void
+getCompute(): string
+getWorkgroupSize(): [number, number, number]
+resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
+```
+
+### `ComputeDispatchContext`
+
+| Field | Type |
+| --- | --- |
+| `width` | `number` |
+| `height` | `number` |
+| `time` | `number` |
+| `delta` | `number` |
+| `workgroupSize` | `[number, number, number]` |
+
+## `PingPongComputePass`
+
+Iterative compute pass for multi-step GPU simulations.
+
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `compute` | `string` | **Required** | WGSL compute shader source |
+| `target` | `string` | **Required** | Texture key from `material.textures` |
+| `iterations` | `number` | `1` | Iterations per frame (must be `>= 1`) |
+| `dispatch` | dispatch mode | `'auto'` | Workgroup dispatch strategy |
+| `enabled` | `boolean` | `true` | Whether pass is active |
+
+### Runtime update API
+
+```ts
+getCurrentOutput(): string          // Texture key holding latest result ({target}A or {target}B)
+advanceFrame(): void                // Advance internal counter (called by renderer)
+setIterations(count: number): void
+setCompute(source: string): void
+setDispatch(dispatch): void
+getTarget(): string
+getIterations(): number
+getCompute(): string
+getWorkgroupSize(): [number, number, number]
+resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
+```
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `isCompute` | `true` | Discriminant for render graph |
+| `isPingPong` | `true` | Ping-pong identifier |
+| `enabled` | `boolean` | Active state |
+
 ## Slot constraints
 
 | Rule | Effect |
@@ -72,7 +150,11 @@ Direct-copy path requires all of:
 | Named targets must exist in `renderTargets` | Unknown target names throw |
 | Named targets must be written before read in frame plan | Read-before-write throws |
 
+Compute passes do **not** participate in slot routing. They have no `input`, `output`, or `needsSwap` options.
+
 ## Related docs
 
 - [Render Passes](/docs/render-passes)
 - [Render Targets](/docs/render-targets)
+- [Compute Shaders](/docs/compute-shaders)
+- [Storage Buffers](/docs/storage-buffers)

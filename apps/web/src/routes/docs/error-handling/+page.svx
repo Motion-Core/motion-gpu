@@ -83,6 +83,7 @@ The normalizer matches error messages against known patterns and assigns code, s
 | `Unable to acquire WebGPU adapter` | `WEBGPU_ADAPTER_UNAVAILABLE` | `fatal` | `false` | WebGPU adapter unavailable | GPU adapter request failed. Check browser permissions, flags and device support. |
 | `Canvas does not support webgpu context` | `WEBGPU_CONTEXT_UNAVAILABLE` | `error` | `true` | Canvas cannot create WebGPU context | Make sure this canvas is attached to DOM and not using an unsupported context option. |
 | `WGSL compilation failed` | `WGSL_COMPILATION_FAILED` | `error` | `true` | WGSL compilation failed | Check WGSL line numbers below and verify struct/binding/function signatures. |
+| `Compute shader compilation failed` | `COMPUTE_COMPILATION_FAILED` | `error` | `true` | Compute compilation failed | Check compute shader WGSL source and verify @workgroup_size/binding declarations. |
 | `WebGPU device lost` / `Device Lost` | `WEBGPU_DEVICE_LOST` | `fatal` | `false` | WebGPU device lost | GPU device/context was lost. Recreate the renderer and check OS/GPU stability. |
 | `WebGPU uncaptured error` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | WebGPU uncaptured error | A GPU command failed asynchronously. Review details and validate resource/state usage. |
 | `CreateBindGroup` / `bind group layout` | `BIND_GROUP_MISMATCH` | `error` | `true` | Bind group mismatch | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout. |

@@ -22,7 +22,12 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal. |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support. |
-| **Error report** | Classification pattern matching (including texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, hint generation. |
+| **Compute passes** | `ComputePass` contract enforcement (`@compute @workgroup_size(...)` + `fn compute(...)` required), dispatch resolution (static/auto/dynamic), `PingPongComputePass` iteration count, ping-pong A/B alternation, workgroup size extraction. |
+| **Compute shader** | Compute shader WGSL generation, storage buffer/texture binding generation, contract assertion, workgroup size parsing. |
+| **Storage buffers** | Definition validation (size/type/access), key resolution, normalization with defaults, storage texture format validation. |
+| **Storage runtime** | `FrameState` storage operations (`writeStorageBuffer`/`readStorageBuffer`), `StorageBufferDefinitionMap` type contracts, `initialData` support, frame callback context integration. |
+| **Renderer (compute)** | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, storage buffer cleanup on destroy. |
+| **Error report** | Classification pattern matching (including texture request/decode/abort, compute compilation), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, hint generation. |
 | **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
 | **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, and regression threshold checks. |
 
@@ -37,6 +42,8 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | `useTexture` exposes both raw and normalized errors | Enables app-level UX and telemetry off one loading failure path. |
 | FragCanvas error history stays bounded and deduplicated | Prevents unbounded memory growth and callback spam from repeated identical failures. |
 | `ShaderPass` contract enforcement | Keeps the `fn shade(inputColor, uv)` interface stable and validated upfront. |
+| `ComputePass` contract enforcement | Keeps the `@compute @workgroup_size(...)` + `fn compute(...)` interface validated upfront. |
+| Storage buffer definition validation | Catches invalid size, type, access, and identifier issues at material creation time. |
 | Uniform layout follows consistent sorted order | Ensures buffer packing is deterministic across material instances with the same shape. |
 | Render graph validates slot usage | Prevents nonsensical pass configurations (e.g., reading `target` or named targets before write, using undeclared named targets, or reading from `canvas`). |
 | Define and include name validation | Catches invalid WGSL identifiers at definition time, not at shader compile time. |
@@ -69,6 +76,21 @@ These notes are for maintainers working on the library internals:
 - Resolved definitions are **signature-compared** each frame: `key:format:widthxheight`.
 - Only targets with changed signatures trigger reallocation.
 - Removed targets are destroyed immediately.
+
+### Storage buffer lifecycle
+
+- Storage buffers are allocated during renderer creation with `GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC`.
+- `initialData` is uploaded via `device.queue.writeBuffer` immediately after allocation.
+- Pending writes from `writeStorageBuffer` are batched and flushed at the start of each render call.
+- Readback uses a staging buffer (`MAP_READ | COPY_DST`), `copyBufferToBuffer`, `mapAsync`, and returns a sliced copy.
+- All storage buffers are destroyed when the renderer is destroyed.
+
+### Compute pipeline lifecycle
+
+- Compute pipelines are built lazily on first dispatch and cached by compute shader source.
+- Each compute pass builds its own bind group layout: group(0) for uniforms, group(1) for storage buffers, group(2) for storage textures.
+- `PingPongComputePass` alternates A/B texture bindings across iterations.
+- Compute passes share the same `GPUCommandEncoder` as render passes within a frame.
 
 ### Diagnostics and profiling
 

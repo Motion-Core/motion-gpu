@@ -1,6 +1,6 @@
 ---
 name: motion-gpu-svelte-wgsl
-description: Build and edit Svelte 5 components that render WGSL with @motion-core/motion-gpu/svelte. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, render-mode scheduling, or MotionGPU error handling and diagnostics.
+description: Build and edit Svelte 5 components that render WGSL with @motion-core/motion-gpu/svelte. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
 ---
 
 # MotionGPU Svelte WGSL Skill
@@ -13,7 +13,7 @@ Follow the workflow exactly and enforce runtime contracts strictly.
 Treat the public package contract as authoritative:
 
 - `@motion-core/motion-gpu/svelte` exports:
-`FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass`
+`FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass`, `ComputePass`, `PingPongComputePass`
 - `@motion-core/motion-gpu/svelte/advanced` exports:
 everything above plus
 `useMotionGPUUserContext`, `setMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`
@@ -24,7 +24,7 @@ everything above plus
 `http://motion-gpu.dev/llms.txt`
 - Use `llms.txt` when deeper reference is needed; it links to raw markdown docs for the full library.
 - Official docs sections to consult when uncertain:
-Getting Started, Defining Materials, Writing Shaders, Uniforms, Textures, Texture Loading, Render Passes, Render Targets, Render Modes, Frame Scheduler, Hooks and Context, Error Handling, FragCanvas Reference, API Reference.
+Getting Started, Defining Materials, Writing Shaders, Uniforms, Textures, Texture Loading, Render Passes, Render Targets, Render Modes, Frame Scheduler, Compute Shaders, Storage Buffers, Hooks and Context, Error Handling, FragCanvas Reference, API Reference.
 
 If examples from app code conflict with exported runtime behavior, prefer exported API contracts.
 
@@ -48,6 +48,11 @@ Enforce these constraints without exceptions:
 11. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
 12. For `invalidation: { mode: 'on-change' }`, always provide `token`.
 13. Read/write named pass slots only when declared in `renderTargets`.
+14. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
+15. Storage buffer `size` must be `> 0` and a multiple of 4.
+16. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
+17. `PingPongComputePass` `iterations` must be `>= 1`.
+18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
 
 ## Component Architecture Pattern
 
@@ -75,6 +80,7 @@ Pick one main mode:
 - Interactive shader (pointer/state-driven updates).
 - Texture-driven shader (`useTexture` and `state.setTexture`).
 - Post-processing pipeline (`ShaderPass`/`BlitPass`/`CopyPass`).
+- Compute shader (`ComputePass`/`PingPongComputePass` with storage buffers).
 - Advanced scheduling/user context (`@motion-core/motion-gpu/svelte/advanced` for Svelte runtime APIs, `@motion-core/motion-gpu/advanced` for core scheduler helpers).
 
 ### 2. Design material boundary
@@ -84,6 +90,7 @@ Put in material:
 - Fragment WGSL source.
 - Uniform declarations and initial values.
 - Texture declarations and sampler/upload defaults.
+- Storage buffer declarations (`storageBuffers`) with size, type, access mode, and optional `initialData`.
 - `defines` for compile-time constants.
 - `includes` for reusable WGSL chunks.
 
@@ -91,6 +98,8 @@ Put in runtime (`useFrame`):
 
 - `state.setUniform(...)` for dynamic values.
 - `state.setTexture(...)` for dynamic texture sources.
+- `state.writeStorageBuffer(name, data, { offset? })` to write CPU data to GPU storage buffers.
+- `state.readStorageBuffer(name)` to read GPU storage buffer data back (returns `Promise<ArrayBuffer>`).
 - `state.invalidate(...)` and `state.advance()` control.
 
 ### 3. Pick render cadence intentionally
@@ -190,6 +199,17 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Use named `renderTargets` for multi-resolution or branching pipelines.
 - Validate slot availability order: write before read in same frame plan.
 
+### Compute Shaders and Storage Buffers
+
+- Declare storage buffers in `defineMaterial({ storageBuffers: { name: { size, type, access? } } })`.
+- Use `ComputePass` for single-dispatch GPU compute; `PingPongComputePass` for iterative simulations.
+- Compute passes run in the render graph alongside render passes but do not read/write ping-pong slots.
+- `dispatch` can be a static tuple `[x, y?, z?]`, `'auto'` (derived from canvas size / workgroup size), or a dynamic function.
+- Use `state.writeStorageBuffer(name, data)` in `useFrame` to upload CPU data to a storage buffer before compute.
+- Use `state.readStorageBuffer(name)` to asynchronously read back GPU results (staging buffer pattern).
+- Storage buffers are bound at group(1) in compute shaders, storage textures at group(2).
+- Fragment shaders can read storage buffers as read-only via `var<storage, read>` at group(1).
+
 ## Canonical Templates
 
 ### Minimal animated component
@@ -273,6 +293,51 @@ fn frag(uv: vec2f) -> vec4f {
 </script>
 ```
 
+### Compute shader with storage buffer
+
+```svelte
+<script lang="ts">
+  import { FragCanvas, defineMaterial, ComputePass } from '@motion-core/motion-gpu/svelte';
+  import Runtime from './Runtime.svelte';
+
+  const material = defineMaterial({
+    fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  return vec4f(uv, 0.5, 1.0);
+}
+`,
+    storageBuffers: {
+      particles: { size: 4096, type: 'array<vec4f>', access: 'read-write' }
+    }
+  });
+
+  const computePass = new ComputePass({
+    compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  particles[i] = vec4f(f32(i), 0.0, 0.0, 1.0);
+}
+`,
+    dispatch: [64]
+  });
+</script>
+
+<FragCanvas {material} passes={[computePass]}>
+  <Runtime />
+</FragCanvas>
+```
+
+```svelte
+<script lang="ts">
+  import { useFrame } from '@motion-core/motion-gpu/svelte';
+
+  useFrame((state) => {
+    state.setUniform('uTime', state.time);
+  });
+</script>
+```
+
 ## Debugging Playbook
 
 Follow this order:
@@ -292,6 +357,11 @@ Follow this order:
 6. Texture issues:
 - Confirm source readiness (`readyState` for video).
 - Check update mode and source dimensions.
+7. Compute shader errors:
+- Verify `@compute @workgroup_size(...)` and `fn compute(...)` entrypoint.
+- Ensure storage buffers are declared in material before use.
+- Check `writeStorageBuffer` offset + dataSize does not exceed buffer size.
+- Verify compute dispatch dimensions match workgroup layout.
 
 ## Quality Checklist Before Delivery
 
@@ -303,4 +373,6 @@ Ship only when all checks pass:
 4. Keep error handling present (`onError` at minimum).
 5. Keep passes/targets slot routing valid.
 6. Keep only public entrypoint imports (`@motion-core/motion-gpu/svelte`, `/svelte/advanced`, `/core`, `/core/advanced`, root core aliases).
-7. Keep checks/tests executed or report clearly what was not run.
+7. Keep storage buffer names declared in material before `writeStorageBuffer`/`readStorageBuffer` usage.
+8. Keep compute shader contracts valid (`@compute @workgroup_size(...)` + `fn compute(...)`).
+9. Keep checks/tests executed or report clearly what was not run.

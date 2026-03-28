@@ -3,6 +3,23 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added first-class compute support with new `ComputePass` and `PingPongComputePass` exports in root, core, Svelte, and React entrypoints.
+- Added `storageBuffers` material definitions with runtime validation (`size`, `type`, `access`, `initialData`) and immutable material snapshots.
+- Added storage-focused texture options for compute workflows (`storage`, `format`, `width`, `height`, `fragmentVisible`).
+- Added `FrameState.writeStorageBuffer(...)` and `FrameState.readStorageBuffer(...)` APIs for runtime CPU↔GPU storage-buffer workflows.
+- Added compute-shader contract/codegen utilities with strict `@compute @workgroup_size(...) fn compute(...)` validation and workgroup-size extraction.
+- Added broad compute/storage test coverage, including pass behavior, shader generation, storage runtime read/write, renderer integration, and public API snapshots.
+
+### Changed
+- Updated pass plumbing from render-only arrays to mixed `AnyPass[]`, allowing render and compute passes to coexist in one graph.
+- Updated renderer internals to allocate/manage storage buffers and storage textures, cache compute pipelines, and flush pending storage writes during frame submission.
+- Updated material resolution/signature inputs to include storage buffer definitions and storage texture bindings, triggering deterministic rebuilds when those contracts change.
+- Updated benchmark/runtime frame-state mocks to include the new storage-buffer APIs.
+
+### Fixed
+- Added explicit compute compilation error normalization with `COMPUTE_COMPILATION_FAILED` classification and recovery metadata.
+- Fixed compute-only pass plans to resolve a valid final output path for canvas presentation.
 
 ## [0.4.2] - 2026-03-22
 ### Changed

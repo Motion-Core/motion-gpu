@@ -234,6 +234,51 @@ export async function resolve_local(specifier: string) {
 	return new URL(subpath, LOCAL_PKG_URL).href;
 }
 
+const LOCAL_MOTIONGPU_PKG_URL = `${location.origin}/motion-gpu/package.json`;
+let local_motiongpu_pkg: Promise<any>;
+
+export async function resolve_local_motiongpu(specifier: string) {
+	const pkg = await (local_motiongpu_pkg ??= fetch(LOCAL_MOTIONGPU_PKG_URL).then((r) => r.json()));
+
+	// specifier is like '@motion-core/motion-gpu/svelte' -> subpath './svelte'
+	const subpath = specifier.replace('@motion-core/motion-gpu', '.') || '.';
+
+	const resolved = resolve.exports(pkg, subpath, {
+		browser: true,
+		conditions: ['svelte', 'module', 'browser', 'development']
+	})![0] as string;
+
+	// resolved is like './dist/svelte/index.js' -> serve from /motion-gpu/dist/svelte/index.js
+	// Strip leading './' and prefix with origin
+	const filePath = resolved.replace(/^\.\//, '');
+	return `${location.origin}/motion-gpu/${filePath}`;
+}
+
+const LOCAL_MOTIONGPU_BASE = `${location.origin}/motion-gpu/`;
+
+/**
+ * Resolves a URL from the local motion-gpu package, trying file extensions
+ * to normalize module identity (e.g., `./foo` and `./foo.js` → same URL).
+ */
+export async function resolve_local_motiongpu_relative(url: string): Promise<string> {
+	// Already has a known extension — return as-is
+	if (/\.(js|mjs|ts|svelte|json)$/.test(url)) return url;
+
+	// Try extensions to find the actual file, normalizing the module ID
+	for (const ext of ['.js', '.mjs', '.ts', '/index.js']) {
+		const candidate = url + ext;
+		try {
+			const res = await fetch(candidate, { method: 'HEAD' });
+			if (res.ok) return candidate;
+		} catch {
+			// try next
+		}
+	}
+
+	// Fallback — let the server try extension resolution
+	return url;
+}
+
 export function parse_npm_url(href: string) {
 	const match = /^npm:\/\/\$\/((?:@[^/]+\/)?[^/@]+)(?:@([^/]+))?(\/.+)?$/.exec(href);
 

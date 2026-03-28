@@ -30,7 +30,8 @@ describe('textures', () => {
 			anisotropy: 1,
 			filter: 'linear',
 			addressModeU: 'clamp-to-edge',
-			addressModeV: 'clamp-to-edge'
+			addressModeV: 'clamp-to-edge',
+			storage: false
 		});
 
 		expect(normalizeTextureDefinition({ update: 'onInvalidate' }).update).toBe('onInvalidate');
@@ -128,6 +129,61 @@ describe('textures', () => {
 
 		expect(isVideoTextureSource(video)).toBe(true);
 		expect(isVideoTextureSource(canvas)).toBe(false);
+	});
+
+	it('normalizes storage texture definitions with width, height and format', () => {
+		const storageDef = normalizeTextureDefinition({
+			storage: true,
+			format: 'rgba16float',
+			width: 512,
+			height: 256
+		});
+
+		expect(storageDef.storage).toBe(true);
+		expect(storageDef.format).toBe('rgba16float');
+		expect(storageDef.width).toBe(512);
+		expect(storageDef.height).toBe(256);
+	});
+
+	it('sets storage to false when not specified', () => {
+		expect(normalizeTextureDefinition(undefined).storage).toBe(false);
+		expect(normalizeTextureDefinition({}).storage).toBe(false);
+		expect(normalizeTextureDefinition({ filter: 'nearest' }).storage).toBe(false);
+	});
+
+	it('preserves explicit format from definition instead of deriving from colorSpace', () => {
+		const withFormat = normalizeTextureDefinition({ format: 'r32float' });
+		expect(withFormat.format).toBe('r32float');
+
+		const withoutFormat = normalizeTextureDefinition({ colorSpace: 'linear' });
+		expect(withoutFormat.format).toBe('rgba8unorm');
+	});
+
+	it('omits width and height when not provided', () => {
+		const norm = normalizeTextureDefinition(undefined);
+		expect(norm).not.toHaveProperty('width');
+		expect(norm).not.toHaveProperty('height');
+	});
+
+	it('normalizes storage textures in bulk via normalizeTextureDefinitions', () => {
+		const normalized = normalizeTextureDefinitions(
+			{
+				uDensity: {
+					storage: true,
+					format: 'rgba16float',
+					width: 256,
+					height: 256
+				},
+				uRegular: {}
+			},
+			['uDensity', 'uRegular']
+		);
+
+		expect(normalized.uDensity!.storage).toBe(true);
+		expect(normalized.uDensity!.width).toBe(256);
+		expect(normalized.uDensity!.format).toBe('rgba16float');
+		expect(normalized.uRegular!.storage).toBe(false);
+		expect(normalized.uRegular!).not.toHaveProperty('width');
 	});
 
 	it('resolves runtime texture update strategy', () => {

@@ -17,7 +17,10 @@ import {
 	toTextureData
 } from './textures.js';
 import { packUniformsInto } from './uniforms.js';
+import { buildComputeShaderSource, extractWorkgroupSize } from './compute-shader.js';
+import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import type {
+	AnyPass,
 	RenderPass,
 	RenderPassInputSlot,
 	RenderPassOutputSlot,
@@ -25,6 +28,8 @@ import type {
 	RenderTarget,
 	Renderer,
 	RendererOptions,
+	StorageBufferAccess,
+	StorageBufferType,
 	TextureSource,
 	TextureUpdateMode,
 	TextureValue
@@ -90,7 +95,7 @@ interface RuntimeRenderTarget {
  * Cached pass properties used to validate render-graph cache correctness.
  */
 interface RenderGraphPassSnapshot {
-	pass: RenderPass;
+	pass: AnyPass;
 	enabled: RenderPass['enabled'];
 	needsSwap: RenderPass['needsSwap'];
 	input: RenderPass['input'];
@@ -208,7 +213,7 @@ function toSortedUniqueStrings(values: string[]): string[] {
 }
 
 function buildPassGraphSnapshot(
-	passes: RenderPass[] | undefined
+	passes: AnyPass[] | undefined
 ): NonNullable<ShaderCompilationRuntimeContext['passGraph']> {
 	const declaredPasses = passes ?? [];
 	let enabledPassCount = 0;
@@ -221,9 +226,13 @@ function buildPassGraphSnapshot(
 		}
 
 		enabledPassCount += 1;
-		const needsSwap = pass.needsSwap ?? true;
-		const input = pass.input ?? 'source';
-		const output = pass.output ?? (needsSwap ? 'target' : 'source');
+		if ('isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true) {
+			continue;
+		}
+		const rp = pass as RenderPass;
+		const needsSwap = rp.needsSwap ?? true;
+		const input = rp.input ?? 'source';
+		const output = rp.output ?? (needsSwap ? 'target' : 'source');
 		inputs.push(input);
 		outputs.push(output);
 	}
@@ -665,7 +674,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				addressModeV: config.addressModeV,
 				maxAnisotropy: config.filter === 'linear' ? config.anisotropy : 1
 			});
-			const fallbackTexture = createFallbackTexture(device, config.format);
+			// Storage textures use a safe fallback format — the fallback is never
+			// sampled because storage textures are eagerly allocated with their
+			// real format/dimensions. Non-storage textures use their own format.
+			const fallbackFormat = config.storage ? 'rgba8unorm' : config.format;
+			const fallbackTexture = createFallbackTexture(device, fallbackFormat);
 			registerInitializationCleanup(() => {
 				fallbackTexture.destroy();
 			});
@@ -699,6 +712,26 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			if (config.update !== undefined) {
 				runtimeBinding.defaultUpdate = config.update;
+			}
+
+			// Storage textures: eagerly create GPU texture with explicit dimensions
+			if (config.storage && config.width && config.height) {
+				const storageUsage =
+					GPUTextureUsage.TEXTURE_BINDING |
+					GPUTextureUsage.STORAGE_BINDING |
+					GPUTextureUsage.COPY_DST;
+				const storageTexture = device.createTexture({
+					size: { width: config.width, height: config.height, depthOrArrayLayers: 1 },
+					format: config.format,
+					usage: storageUsage
+				});
+				registerInitializationCleanup(() => {
+					storageTexture.destroy();
+				});
+				runtimeBinding.texture = storageTexture as unknown as GPUTexture;
+				runtimeBinding.view = storageTexture.createView();
+				runtimeBinding.width = config.width;
+				runtimeBinding.height = config.height;
 			}
 
 			return runtimeBinding;
@@ -772,6 +805,223 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			addressModeV: 'clamp-to-edge'
 		});
 		let blitBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
+
+		// ── Storage buffer allocation ────────────────────────────────────────
+		const storageBufferKeys = options.storageBufferKeys ?? [];
+		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
+		const storageTextureKeys = options.storageTextureKeys ?? [];
+		const storageTextureKeySet = new Set(storageTextureKeys);
+		const storageBufferMap = new Map<string, GPUBuffer>();
+
+		for (const key of storageBufferKeys) {
+			const definition = storageBufferDefinitions[key];
+			if (!definition) {
+				continue;
+			}
+			const normalized = normalizeStorageBufferDefinition(definition);
+			const buffer = device.createBuffer({
+				size: normalized.size,
+				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+			});
+			registerInitializationCleanup(() => {
+				buffer.destroy();
+			});
+			if (definition.initialData) {
+				const data = definition.initialData;
+				device.queue.writeBuffer(buffer, 0, data.buffer as ArrayBuffer, data.byteOffset, data.byteLength);
+			}
+			storageBufferMap.set(key, buffer);
+		}
+
+		// ── Compute pipeline setup ──────────────────────────────────────────
+		interface ComputePipelineEntry {
+			pipeline: GPUComputePipeline;
+			bindGroup: GPUBindGroup;
+			workgroupSize: [number, number, number];
+			computeSource: string;
+		}
+		const computePipelineCache = new Map<string, ComputePipelineEntry>();
+
+		const buildComputePipelineEntry = (computeSource: string): ComputePipelineEntry => {
+			const cached = computePipelineCache.get(computeSource);
+			if (cached) {
+				return cached;
+			}
+
+			const storageBufferDefs: Record<string, { type: StorageBufferType; access: StorageBufferAccess }> = {};
+			for (const key of storageBufferKeys) {
+				const def = storageBufferDefinitions[key];
+				if (def) {
+					const norm = normalizeStorageBufferDefinition(def);
+					storageBufferDefs[key] = { type: norm.type, access: norm.access };
+				}
+			}
+			const storageTextureDefs: Record<string, { format: GPUTextureFormat }> = {};
+			for (const key of storageTextureKeys) {
+				const texDef = options.textureDefinitions[key];
+				if (texDef?.format) {
+					storageTextureDefs[key] = { format: texDef.format };
+				}
+			}
+
+			const shaderCode = buildComputeShaderSource({
+				compute: computeSource,
+				uniformLayout: options.uniformLayout,
+				storageBufferKeys,
+				storageBufferDefinitions: storageBufferDefs,
+				storageTextureKeys,
+				storageTextureDefinitions: storageTextureDefs
+			});
+
+			const computeShaderModule = device.createShaderModule({ code: shaderCode });
+			const workgroupSize = extractWorkgroupSize(computeSource);
+
+			// Compute bind group layout: group(0)=uniforms, group(1)=storage buffers, group(2)=storage textures
+			const computeUniformBGL = device.createBindGroupLayout({
+				entries: [
+					{
+						binding: FRAME_BINDING,
+						visibility: GPUShaderStage.COMPUTE,
+						buffer: { type: 'uniform', minBindingSize: 16 }
+					},
+					{
+						binding: UNIFORM_BINDING,
+						visibility: GPUShaderStage.COMPUTE,
+						buffer: { type: 'uniform' }
+					}
+				]
+			});
+
+			const storageBGLEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map((key, index) => {
+				const def = storageBufferDefinitions[key];
+				const access = def?.access ?? 'read-write';
+				const bufferType: GPUBufferBindingType = access === 'read' ? 'read-only-storage' : 'storage';
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: { type: bufferType }
+				};
+			});
+			const storageBGL = storageBGLEntries.length > 0
+				? device.createBindGroupLayout({ entries: storageBGLEntries })
+				: null;
+
+			const storageTextureBGLEntries: GPUBindGroupLayoutEntry[] = storageTextureKeys.map((key, index) => {
+				const texDef = options.textureDefinitions[key];
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					storageTexture: {
+						access: 'write-only' as GPUStorageTextureAccess,
+						format: (texDef?.format ?? 'rgba8unorm') as GPUTextureFormat,
+						viewDimension: '2d'
+					}
+				};
+			});
+			const storageTextureBGL = storageTextureBGLEntries.length > 0
+				? device.createBindGroupLayout({ entries: storageTextureBGLEntries })
+				: null;
+
+			// Bind group layout indices must match shader @group() indices:
+			// group(0) = uniforms, group(1) = storage buffers, group(2) = storage textures.
+			// When a group is unused, insert an empty placeholder to keep indices aligned.
+			const bindGroupLayouts: GPUBindGroupLayout[] = [computeUniformBGL];
+			if (storageBGL || storageTextureBGL) {
+				bindGroupLayouts.push(
+					storageBGL ?? device.createBindGroupLayout({ entries: [] })
+				);
+			}
+			if (storageTextureBGL) {
+				bindGroupLayouts.push(storageTextureBGL);
+			}
+
+			const computePipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
+			const pipeline = device.createComputePipeline({
+				layout: computePipelineLayout,
+				compute: {
+					module: computeShaderModule,
+					entryPoint: 'compute'
+				}
+			});
+
+			// Build uniform bind group for compute (group 0)
+			const computeUniformBindGroup = device.createBindGroup({
+				layout: computeUniformBGL,
+				entries: [
+					{ binding: FRAME_BINDING, resource: { buffer: frameBuffer } },
+					{ binding: UNIFORM_BINDING, resource: { buffer: uniformBuffer } }
+				]
+			});
+
+			const entry: ComputePipelineEntry = {
+				pipeline,
+				bindGroup: computeUniformBindGroup,
+				workgroupSize,
+				computeSource
+			};
+			computePipelineCache.set(computeSource, entry);
+			return entry;
+		};
+
+		// Helper to get the storage bind group for dispatch
+		const getComputeStorageBindGroup = (): GPUBindGroup | null => {
+			if (storageBufferKeys.length === 0) {
+				return null;
+			}
+			// Rebuild bind group with current storage buffers
+			const storageBGLEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map((key, index) => {
+				const def = storageBufferDefinitions[key];
+				const access = def?.access ?? 'read-write';
+				const bufferType: GPUBufferBindingType = access === 'read' ? 'read-only-storage' : 'storage';
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: { type: bufferType }
+				};
+			});
+			const storageBGL = device.createBindGroupLayout({ entries: storageBGLEntries });
+			const storageEntries: GPUBindGroupEntry[] = storageBufferKeys.map((key, index) => {
+				const buffer = storageBufferMap.get(key);
+				if (!buffer) {
+					throw new Error(`Storage buffer "${key}" not allocated.`);
+				}
+				return { binding: index, resource: { buffer } };
+			});
+			return device.createBindGroup({
+				layout: storageBGL,
+				entries: storageEntries
+			});
+		};
+
+		// Helper to get the storage texture bind group for compute dispatch (group 2)
+		const getComputeStorageTextureBindGroup = (): GPUBindGroup | null => {
+			if (storageTextureKeys.length === 0) {
+				return null;
+			}
+			const entries: GPUBindGroupLayoutEntry[] = storageTextureKeys.map((key, index) => {
+				const texDef = options.textureDefinitions[key];
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					storageTexture: {
+						access: 'write-only' as GPUStorageTextureAccess,
+						format: (texDef?.format ?? 'rgba8unorm') as GPUTextureFormat,
+						viewDimension: '2d' as GPUTextureViewDimension
+					}
+				};
+			});
+			const bgl = device.createBindGroupLayout({ entries });
+
+			const bgEntries: GPUBindGroupEntry[] = storageTextureKeys.map((key, index) => {
+				const binding = textureBindings.find((b) => b.key === key);
+				if (!binding || !binding.texture) {
+					throw new Error(`Storage texture "${key}" not allocated.`);
+				}
+				return { binding: index, resource: binding.view };
+			});
+
+			return device.createBindGroup({ layout: bgl, entries: bgEntries });
+		};
 
 		const frameBuffer = device.createBuffer({
 			size: 16,
@@ -891,14 +1141,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				return false;
 			}
 
+			let textureUsage =
+				GPUTextureUsage.TEXTURE_BINDING |
+				GPUTextureUsage.COPY_DST |
+				GPUTextureUsage.RENDER_ATTACHMENT;
+			if (storageTextureKeySet.has(binding.key)) {
+				textureUsage |= GPUTextureUsage.STORAGE_BINDING;
+			}
 			const texture = device.createTexture({
 				size: { width, height, depthOrArrayLayers: 1 },
 				format,
 				mipLevelCount,
-				usage:
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.COPY_DST |
-					GPUTextureUsage.RENDER_ATTACHMENT
+				usage: textureUsage
 			});
 			registerInitializationCleanup(() => {
 				texture.destroy();
@@ -924,6 +1178,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		};
 
 		for (const binding of textureBindings) {
+			// Skip storage textures — they are eagerly allocated and not source-driven
+			if (storageTextureKeySet.has(binding.key)) continue;
 			const defaultSource = normalizedTextureDefinitions[binding.key]?.source ?? null;
 			updateTextureBinding(binding, defaultSource, 'always');
 		}
@@ -942,18 +1198,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let configuredWidth = 0;
 		let configuredHeight = 0;
 		const runtimeRenderTargets = new Map<string, RuntimeRenderTarget>();
-		const activePasses: RenderPass[] = [];
-		const lifecyclePreviousSet = new Set<RenderPass>();
-		const lifecycleNextSet = new Set<RenderPass>();
-		const lifecycleUniquePasses: RenderPass[] = [];
-		let lifecyclePassesRef: RenderPass[] | null = null;
+		const activePasses: AnyPass[] = [];
+		const lifecyclePreviousSet = new Set<AnyPass>();
+		const lifecycleNextSet = new Set<AnyPass>();
+		const lifecycleUniquePasses: AnyPass[] = [];
+		let lifecyclePassesRef: AnyPass[] | null = null;
 		let passWidth = 0;
 		let passHeight = 0;
 
 		/**
 		 * Resolves active render pass list for current frame.
 		 */
-		const resolvePasses = (): RenderPass[] => {
+		const resolvePasses = (): AnyPass[] => {
 			return options.getPasses?.() ?? options.passes ?? [];
 		};
 
@@ -968,7 +1224,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		 * Checks whether cached render-graph plan can be reused for this frame.
 		 */
 		const isGraphPlanCacheValid = (
-			passes: RenderPass[],
+			passes: AnyPass[],
 			clearColor: [number, number, number, number]
 		): boolean => {
 			if (!cachedGraphPlan) {
@@ -994,6 +1250,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			for (let index = 0; index < passes.length; index += 1) {
 				const pass = passes[index];
+				const rp = pass as Partial<RenderPass>;
 				const snapshot = cachedGraphPasses[index];
 				if (!pass || !snapshot || snapshot.pass !== pass) {
 					return false;
@@ -1001,16 +1258,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 				if (
 					snapshot.enabled !== pass.enabled ||
-					snapshot.needsSwap !== pass.needsSwap ||
-					snapshot.input !== pass.input ||
-					snapshot.output !== pass.output ||
-					snapshot.clear !== pass.clear ||
-					snapshot.preserve !== pass.preserve
+					snapshot.needsSwap !== rp.needsSwap ||
+					snapshot.input !== rp.input ||
+					snapshot.output !== rp.output ||
+					snapshot.clear !== rp.clear ||
+					snapshot.preserve !== rp.preserve
 				) {
 					return false;
 				}
 
-				const passClearColor = pass.clearColor;
+				const passClearColor = rp.clearColor;
 				const hasPassClearColor = passClearColor !== undefined;
 				if (snapshot.hasClearColor !== hasPassClearColor) {
 					return false;
@@ -1035,7 +1292,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		 * Updates render-graph cache with current pass set.
 		 */
 		const updateGraphPlanCache = (
-			passes: RenderPass[],
+			passes: AnyPass[],
 			clearColor: [number, number, number, number],
 			graphPlan: RenderGraphPlan
 		): void => {
@@ -1049,18 +1306,19 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			let index = 0;
 			for (const pass of passes) {
-				const passClearColor = pass.clearColor;
+				const rp = pass as Partial<RenderPass>;
+				const passClearColor = rp.clearColor;
 				const hasPassClearColor = passClearColor !== undefined;
 				const snapshot = cachedGraphPasses[index];
 				if (!snapshot) {
 					cachedGraphPasses[index] = {
 						pass,
 						enabled: pass.enabled,
-						needsSwap: pass.needsSwap,
-						input: pass.input,
-						output: pass.output,
-						clear: pass.clear,
-						preserve: pass.preserve,
+						needsSwap: rp.needsSwap,
+						input: rp.input,
+						output: rp.output,
+						clear: rp.clear,
+						preserve: rp.preserve,
 						hasClearColor: hasPassClearColor,
 						clearColor0: passClearColor?.[0] ?? 0,
 						clearColor1: passClearColor?.[1] ?? 0,
@@ -1073,11 +1331,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 				snapshot.pass = pass;
 				snapshot.enabled = pass.enabled;
-				snapshot.needsSwap = pass.needsSwap;
-				snapshot.input = pass.input;
-				snapshot.output = pass.output;
-				snapshot.clear = pass.clear;
-				snapshot.preserve = pass.preserve;
+				snapshot.needsSwap = rp.needsSwap;
+				snapshot.input = rp.input;
+				snapshot.output = rp.output;
+				snapshot.clear = rp.clear;
+				snapshot.preserve = rp.preserve;
 				snapshot.hasClearColor = hasPassClearColor;
 				snapshot.clearColor0 = passClearColor?.[0] ?? 0;
 				snapshot.clearColor1 = passClearColor?.[1] ?? 0;
@@ -1090,7 +1348,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		/**
 		 * Synchronizes pass lifecycle callbacks and resize notifications.
 		 */
-		const syncPassLifecycle = (passes: RenderPass[], width: number, height: number): void => {
+		const syncPassLifecycle = (passes: AnyPass[], width: number, height: number): void => {
 			const resized = passWidth !== width || passHeight !== height;
 			if (!resized && lifecyclePassesRef === passes && passes.length === activePasses.length) {
 				let isSameOrder = true;
@@ -1292,7 +1550,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			renderMode,
 			uniforms,
 			textures,
-			canvasSize
+			canvasSize,
+			pendingStorageWrites
 		}) => {
 			if (deviceLostMessage) {
 				throw new Error(deviceLostMessage);
@@ -1361,6 +1620,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			let bindGroupDirty = false;
 			for (const binding of textureBindings) {
+				// Storage textures are managed by compute passes, skip source-driven updates
+				if (storageTextureKeySet.has(binding.key)) continue;
 				const nextTexture =
 					textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
 				if (updateTextureBinding(binding, nextTexture, renderMode)) {
@@ -1370,6 +1631,17 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			if (bindGroupDirty) {
 				bindGroup = createBindGroup();
+			}
+
+			// Apply pending storage buffer writes
+			if (pendingStorageWrites) {
+				for (const write of pendingStorageWrites) {
+					const buffer = storageBufferMap.get(write.name);
+					if (buffer) {
+						const data = write.data;
+						device.queue.writeBuffer(buffer, write.offset, data.buffer as ArrayBuffer, data.byteOffset, data.byteLength);
+					}
+				}
 			}
 
 			const commandEncoder = device.createCommandEncoder();
@@ -1401,6 +1673,44 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						}
 					: null;
 			const sceneOutput = slots ? slots.source : canvasSurface;
+
+			// Dispatch compute passes BEFORE scene render so storage textures
+			// and buffers are up-to-date when the fragment shader samples them.
+			if (slots) {
+				for (const step of graphPlan.steps) {
+					if (step.kind !== 'compute') {
+						continue;
+					}
+					const computePass = step.pass as { isCompute?: boolean; getCompute?: () => string; resolveDispatch?: (ctx: { width: number; height: number; time: number; delta: number; workgroupSize: [number, number, number] }) => [number, number, number]; getWorkgroupSize?: () => [number, number, number]; isPingPong?: boolean; getIterations?: () => number; advanceFrame?: () => void };
+					if (computePass.getCompute && computePass.resolveDispatch && computePass.getWorkgroupSize) {
+						const computeSource = computePass.getCompute();
+						const pipelineEntry = buildComputePipelineEntry(computeSource);
+						const workgroupSize = computePass.getWorkgroupSize();
+						const storageBindGroup = getComputeStorageBindGroup();
+						const storageTextureBindGroup = getComputeStorageTextureBindGroup();
+						const iterations = computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
+
+						for (let iter = 0; iter < iterations; iter += 1) {
+							const dispatch = computePass.resolveDispatch({ width, height, time, delta, workgroupSize });
+							const cPass = commandEncoder.beginComputePass();
+							cPass.setPipeline(pipelineEntry.pipeline);
+							cPass.setBindGroup(0, pipelineEntry.bindGroup);
+							if (storageBindGroup) {
+								cPass.setBindGroup(1, storageBindGroup);
+							}
+							if (storageTextureBindGroup) {
+								cPass.setBindGroup(2, storageTextureBindGroup);
+							}
+							cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
+							cPass.end();
+						}
+
+						if (computePass.isPingPong && computePass.advanceFrame) {
+							computePass.advanceFrame();
+						}
+					}
+				}
+			}
 
 			const scenePass = commandEncoder.beginRenderPass({
 				colorAttachments: [
@@ -1448,10 +1758,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				};
 
 				for (const step of graphPlan.steps) {
+					// Compute passes already dispatched above
+					if (step.kind === 'compute') {
+						continue;
+					}
+
 					const input = resolveStepSurface(step.input);
 					const output = resolveStepSurface(step.output);
 
-					step.pass.render({
+					(step.pass as RenderPass).render({
 						device,
 						commandEncoder,
 						source: slots.source,
@@ -1467,7 +1782,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						clear: step.clear,
 						clearColor: step.clearColor,
 						preserve: step.preserve,
-						beginRenderPass: (passOptions) => {
+						beginRenderPass: (passOptions?: { clear?: boolean; clearColor?: [number, number, number, number]; preserve?: boolean; view?: GPUTextureView }) => {
 							const clear = passOptions?.clear ?? step.clear;
 							const clearColor = passOptions?.clearColor ?? step.clearColor;
 							const preserve = passOptions?.preserve ?? step.preserve;
@@ -1510,11 +1825,22 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		initializationCleanups.length = 0;
 		return {
 			render,
+			getStorageBuffer: (name: string): GPUBuffer | undefined => {
+				return storageBufferMap.get(name);
+			},
+			getDevice: (): GPUDevice => {
+				return device;
+			},
 			destroy: () => {
 				isDestroyed = true;
 				device.removeEventListener('uncapturederror', handleUncapturedError);
 				frameBuffer.destroy();
 				uniformBuffer.destroy();
+				for (const buffer of storageBufferMap.values()) {
+					buffer.destroy();
+				}
+				storageBufferMap.clear();
+				computePipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
 				destroyRenderTexture(targetSlotTarget);
 				for (const target of runtimeRenderTargets.values()) {

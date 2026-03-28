@@ -29,6 +29,7 @@ interface MockWebGpuRuntime {
 		createBindGroupLayout: ReturnType<typeof vi.fn>;
 		createPipelineLayout: ReturnType<typeof vi.fn>;
 		createRenderPipeline: ReturnType<typeof vi.fn>;
+		createComputePipeline: ReturnType<typeof vi.fn>;
 		createBuffer: ReturnType<typeof vi.fn>;
 		createBindGroup: ReturnType<typeof vi.fn>;
 		createCommandEncoder: ReturnType<typeof vi.fn>;
@@ -89,6 +90,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 			return buffer as unknown as GPUBuffer;
 		}),
 		createBindGroup: vi.fn(() => ({}) as unknown as GPUBindGroup),
+		createComputePipeline: vi.fn(() => ({}) as unknown as GPUComputePipeline),
 		createCommandEncoder: vi.fn(() => {
 			const pass = {
 				setPipeline: vi.fn(),
@@ -96,9 +98,17 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 				draw: vi.fn(),
 				end: vi.fn()
 			};
+			const computePass = {
+				setPipeline: vi.fn(),
+				setBindGroup: vi.fn(),
+				dispatchWorkgroups: vi.fn(),
+				end: vi.fn()
+			};
 			return {
 				copyTextureToTexture: vi.fn(),
+				copyBufferToBuffer: vi.fn(),
 				beginRenderPass: vi.fn(() => pass as unknown as GPURenderPassEncoder),
+				beginComputePass: vi.fn(() => computePass as unknown as GPUComputePassEncoder),
 				finish: vi.fn(() => ({}) as unknown as GPUCommandBuffer)
 			} as unknown as GPUCommandEncoder;
 		}),
@@ -135,16 +145,20 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		getBoundingClientRect: vi.fn(() => ({ width: 10, height: 10 }))
 	} as unknown as HTMLCanvasElement;
 
-	Reflect.set(globalThis, 'GPUShaderStage', { FRAGMENT: 0x10 });
+	Reflect.set(globalThis, 'GPUShaderStage', { FRAGMENT: 0x10, COMPUTE: 0x20 });
 	Reflect.set(globalThis, 'GPUTextureUsage', {
 		TEXTURE_BINDING: 1,
 		COPY_DST: 2,
 		RENDER_ATTACHMENT: 4,
-		COPY_SRC: 8
+		COPY_SRC: 8,
+		STORAGE_BINDING: 16
 	});
 	Reflect.set(globalThis, 'GPUBufferUsage', {
 		UNIFORM: 1,
-		COPY_DST: 2
+		COPY_DST: 2,
+		COPY_SRC: 4,
+		STORAGE: 128,
+		MAP_READ: 256
 	});
 	Reflect.set(navigator, 'gpu', {
 		getPreferredCanvasFormat: () => 'rgba8unorm',
@@ -954,5 +968,203 @@ describe('createRenderer', () => {
 		expect(uploadedTexture?.destroy).toHaveBeenCalledTimes(1);
 		expect(runtimeTargetTexture?.destroy).toHaveBeenCalledTimes(1);
 		expect(fallbackTexture?.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('allocates GPU buffer with STORAGE usage for each storage buffer definition', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { size: 1024, type: 'array<vec4f>' }
+			}
+		});
+
+		const storageBuffer = runtime.buffers.find(
+			(b) => (b.descriptor.usage & 128) !== 0
+		);
+		expect(storageBuffer).toBeDefined();
+		expect(storageBuffer!.descriptor.size).toBe(1024);
+		expect(storageBuffer!.descriptor.usage & 128).toBe(128); // STORAGE
+		expect(storageBuffer!.descriptor.usage & 2).toBe(2); // COPY_DST
+		expect(storageBuffer!.descriptor.usage & 4).toBe(4); // COPY_SRC
+
+		renderer.destroy();
+	});
+
+	it('uploads initialData to storage buffer on creation', async () => {
+		const runtime = createWebGpuRuntime();
+		const initialData = new Float32Array([1, 2, 3, 4]);
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 16, type: 'array<f32>', initialData }
+			}
+		});
+
+		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
+		const storageBuffer = runtime.buffers.find(
+			(b) => (b.descriptor.usage & 128) !== 0
+		);
+		const storageWriteCall = writeBufferCalls.find(
+			(call) => call[0] === (storageBuffer as unknown as GPUBuffer)
+		);
+		expect(storageWriteCall).toBeDefined();
+
+		renderer.destroy();
+	});
+
+	it('destroys storage buffers on renderer.destroy()', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['a', 'b'],
+			storageBufferDefinitions: {
+				a: { size: 256, type: 'array<f32>' },
+				b: { size: 512, type: 'array<u32>' }
+			}
+		});
+
+		const storageBuffers = runtime.buffers.filter(
+			(b) => (b.descriptor.usage & 128) !== 0
+		);
+		expect(storageBuffers).toHaveLength(2);
+
+		renderer.destroy();
+
+		for (const buf of storageBuffers) {
+			expect(buf.destroy).toHaveBeenCalledTimes(1);
+		}
+	});
+
+	it('does not allocate storage buffers when none declared', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer(baseOptions(runtime));
+
+		const storageBuffers = runtime.buffers.filter(
+			(b) => (b.descriptor.usage & 128) !== 0
+		);
+		expect(storageBuffers).toHaveLength(0);
+
+		renderer.destroy();
+	});
+
+	it('applies pending storage writes during render', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { size: 64, type: 'array<f32>' }
+			}
+		});
+
+		const writeData = new Float32Array([5, 6, 7, 8]);
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {},
+			pendingStorageWrites: [
+				{ name: 'particles', data: writeData, offset: 16 }
+			]
+		});
+
+		const storageBuffer = runtime.buffers.find(
+			(b) => (b.descriptor.usage & 128) !== 0
+		);
+		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
+		const pendingWriteCall = writeBufferCalls.find(
+			(call) =>
+				call[0] === (storageBuffer as unknown as GPUBuffer) &&
+				call[1] === 16
+		);
+		expect(pendingWriteCall).toBeDefined();
+
+		renderer.destroy();
+	});
+
+	it('exposes getStorageBuffer to retrieve allocated GPU buffers', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { size: 256, type: 'array<vec4f>' }
+			}
+		});
+
+		const gpuBuffer = renderer.getStorageBuffer?.('particles');
+		expect(gpuBuffer).toBeDefined();
+		expect(renderer.getStorageBuffer?.('nonexistent')).toBeUndefined();
+
+		renderer.destroy();
+	});
+
+	it('exposes getDevice to retrieve active GPU device', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 64, type: 'array<f32>' }
+			}
+		});
+
+		const device = renderer.getDevice?.();
+		expect(device).toBeDefined();
+		expect(device?.createBuffer).toBeDefined();
+
+		renderer.destroy();
+	});
+
+	it('creates compute pipeline and dispatches compute pass', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: `@compute @workgroup_size(64) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			dispatch: [4, 1, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 256, type: 'array<f32>' }
+			},
+			passes: [computePass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(runtime.device.createComputePipeline).toHaveBeenCalled();
+		expect(runtime.device.queue.submit).toHaveBeenCalledTimes(1);
+
+		renderer.destroy();
+	});
+
+	it('does not create compute pipeline when no compute passes exist', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer(baseOptions(runtime));
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(runtime.device.createComputePipeline).not.toHaveBeenCalled();
+
+		renderer.destroy();
 	});
 });

@@ -1,6 +1,6 @@
 import { assertUniformName } from './uniforms.js';
 import type { MaterialLineMap, MaterialSourceLocation } from './material-preprocess.js';
-import type { UniformLayout } from './types.js';
+import type { StorageBufferType, UniformLayout } from './types.js';
 
 /**
  * Fallback uniform field used when no custom uniforms are provided.
@@ -67,6 +67,38 @@ function buildTextureBindings(textureKeys: string[]): string {
 		const binding = 2 + index * 2;
 		declarations.push(`@group(0) @binding(${binding}) var ${key}Sampler: sampler;`);
 		declarations.push(`@group(0) @binding(${binding + 1}) var ${key}: texture_2d<f32>;`);
+	}
+
+	return declarations.join('\n');
+}
+
+/**
+ * Builds read-only storage buffer bindings for fragment shader.
+ */
+function buildFragmentStorageBufferBindings(
+	storageBufferKeys: string[],
+	definitions: Record<string, { type: StorageBufferType }>
+): string {
+	if (storageBufferKeys.length === 0) {
+		return '';
+	}
+
+	const declarations: string[] = [];
+
+	for (let index = 0; index < storageBufferKeys.length; index += 1) {
+		const key = storageBufferKeys[index];
+		if (key === undefined) {
+			continue;
+		}
+
+		const definition = definitions[key];
+		if (!definition) {
+			continue;
+		}
+
+		declarations.push(
+			`@group(1) @binding(${index}) var<storage, read> ${key}: ${definition.type};`
+		);
 	}
 
 	return declarations.join('\n');
@@ -143,7 +175,11 @@ export function buildShaderSource(
 	fragmentWgsl: string,
 	uniformLayout: UniformLayout,
 	textureKeys: string[] = [],
-	options?: { convertLinearToSrgb?: boolean }
+	options?: {
+		convertLinearToSrgb?: boolean;
+		storageBufferKeys?: string[];
+		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;
+	}
 ): string {
 	const uniformFields = buildUniformStruct(uniformLayout);
 	const keepAliveExpression = getKeepAliveExpression(uniformLayout);
@@ -151,6 +187,10 @@ export function buildShaderSource(
 	const enableSrgbTransform = options?.convertLinearToSrgb ?? false;
 	const colorTransformHelpers = buildColorTransformHelpers(enableSrgbTransform);
 	const fragmentOutput = buildFragmentOutput(keepAliveExpression, enableSrgbTransform);
+	const storageBufferBindings = buildFragmentStorageBufferBindings(
+		options?.storageBufferKeys ?? [],
+		options?.storageBufferDefinitions ?? {}
+	);
 
 	return `
 struct MotionGPUFrame {
@@ -166,6 +206,7 @@ struct MotionGPUUniforms {
 @group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
 @group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
 ${textureBindings}
+${storageBufferBindings ? '\n' + storageBufferBindings : ''}
 ${colorTransformHelpers}
 
 struct MotionGPUVertexOut {
@@ -207,6 +248,8 @@ export function buildShaderSourceWithMap(
 	options?: {
 		convertLinearToSrgb?: boolean;
 		fragmentLineMap?: MaterialLineMap;
+		storageBufferKeys?: string[];
+		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;
 	}
 ): BuiltShaderSource {
 	const code = buildShaderSource(fragmentWgsl, uniformLayout, textureKeys, options);

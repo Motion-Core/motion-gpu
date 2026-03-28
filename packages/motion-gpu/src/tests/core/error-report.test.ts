@@ -321,4 +321,25 @@ describe('error report', () => {
 		expect(report.message).toBe('Unknown FragCanvas error');
 		expect(report.phase).toBe('render');
 	});
+
+	// --- Compute error tests ---
+
+	it('classifies compute compilation errors with correct code', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Compute shader compilation failed: invalid entry point'),
+			'render'
+		);
+		expect(report.title).toBe('Compute shader compilation failed');
+		expect(report.code).toBe('COMPUTE_COMPILATION_FAILED');
+		expect(report.severity).toBe('error');
+		expect(report.hint).toContain('storage bindings');
+	});
+
+	it('compute compilation error is recoverable', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Compute shader compilation failed: bad workgroup_size'),
+			'render'
+		);
+		expect(report.recoverable).toBe(true);
+	});
 });

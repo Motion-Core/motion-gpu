@@ -24,6 +24,7 @@ export type MotionGPUErrorCode =
 	| 'TEXTURE_REQUEST_FAILED'
 	| 'TEXTURE_DECODE_UNAVAILABLE'
 	| 'TEXTURE_REQUEST_ABORTED'
+	| 'COMPUTE_COMPILATION_FAILED'
 	| 'MOTIONGPU_RUNTIME_ERROR';
 
 /**
@@ -271,6 +272,16 @@ function classifyErrorMessage(
 			recoverable: true,
 			title: 'WGSL compilation failed',
 			hint: 'Check WGSL line numbers below and verify struct/binding/function signatures.'
+		};
+	}
+
+	if (message.includes('Compute shader compilation failed')) {
+		return {
+			code: 'COMPUTE_COMPILATION_FAILED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Compute shader compilation failed',
+			hint: 'Check WGSL compute shader sources below and verify storage bindings.'
 		};
 	}
 

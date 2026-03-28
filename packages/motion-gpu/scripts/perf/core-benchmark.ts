@@ -240,6 +240,8 @@ fn frag(uv: vec2f) -> vec4f {
 		delta: 1 / 60,
 		setUniform: () => {},
 		setTexture: () => {},
+		writeStorageBuffer: () => {},
+		readStorageBuffer: () => Promise.resolve(new ArrayBuffer(0)),
 		invalidate: () => {},
 		advance: () => {},
 		renderMode: 'always',

@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`compute shader source generation > snapshot: full compute shader with uniforms + buffers + textures 1`] = `
+"struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	uDt: f32,
+	uGravity: vec3f,
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+
+@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;
+@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;
+
+@group(2) @binding(0) var outputTex: texture_storage_2d<rgba8unorm, write>;
+
+
+@compute @workgroup_size(16, 16)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let x = id.x;
+	let y = id.y;
+}
+
+"
+`;

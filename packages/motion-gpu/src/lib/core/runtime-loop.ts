@@ -10,11 +10,13 @@ import { buildRendererPipelineSignature } from './recompile-policy.js';
 import { assertUniformValueForType } from './uniforms.js';
 import type { FrameRegistry } from './frame-registry.js';
 import type {
+	AnyPass,
 	FrameInvalidationToken,
 	OutputColorSpace,
-	RenderPass,
+	PendingStorageWrite,
 	Renderer,
 	RenderTargetDefinitionMap,
+	StorageBufferDefinitionMap,
 	TextureMap,
 	TextureValue,
 	UniformType,
@@ -29,7 +31,7 @@ export interface MotionGPURuntimeLoopOptions {
 	maxDelta: CurrentReadable<number>;
 	getMaterial: () => FragMaterial;
 	getRenderTargets: () => RenderTargetDefinitionMap;
-	getPasses: () => RenderPass[];
+	getPasses: () => AnyPass[];
 	getClearColor: () => [number, number, number, number];
 	getOutputColorSpace: () => OutputColorSpace;
 	getAdapterOptions: () => GPURequestAdapterOptions | undefined;
@@ -81,6 +83,10 @@ export function createMotionGPURuntimeLoop(
 	const renderUniforms: Record<string, UniformValue> = {};
 	const renderTextures: TextureMap = {};
 	const canvasSize = { width: 0, height: 0 };
+	let storageBufferKeys: string[] = [];
+	let storageBufferKeySet = new Set<string>();
+	let storageBufferDefinitions: StorageBufferDefinitionMap = {};
+	const pendingStorageWrites: PendingStorageWrite[] = [];
 	let shouldContinueAfterFrame = false;
 	let activeErrorKey: string | null = null;
 	let errorHistory: MotionGPUErrorReport[] = [];
@@ -241,6 +247,9 @@ export function createMotionGPURuntimeLoop(
 		textureKeys = materialState.textureKeys;
 		uniformKeySet = new Set(uniformKeys);
 		textureKeySet = new Set(textureKeys);
+		storageBufferKeys = materialState.storageBufferKeys;
+		storageBufferKeySet = new Set(storageBufferKeys);
+		storageBufferDefinitions = (options.getMaterial().storageBuffers ?? {}) as StorageBufferDefinitionMap;
 		resetRuntimeMaps();
 		resetRenderPayloadMaps();
 		activeMaterialSignature = materialState.signature;
@@ -267,6 +276,57 @@ export function createMotionGPURuntimeLoop(
 			throw new Error(`Unknown texture "${name}". Declare it in material.textures first.`);
 		}
 		runtimeTextures[name] = value;
+	};
+
+	const writeStorageBuffer = (name: string, data: ArrayBufferView, writeOptions?: { offset?: number }): void => {
+		if (!storageBufferKeySet.has(name)) {
+			throw new Error(`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`);
+		}
+		const definition = storageBufferDefinitions[name];
+		if (!definition) {
+			throw new Error(`Missing definition for storage buffer "${name}".`);
+		}
+		const offset = writeOptions?.offset ?? 0;
+		if (offset < 0 || offset + data.byteLength > definition.size) {
+			throw new Error(
+				`Storage buffer "${name}" write out of bounds: offset=${offset}, dataSize=${data.byteLength}, bufferSize=${definition.size}.`
+			);
+		}
+		pendingStorageWrites.push({ name, data, offset });
+	};
+
+	const readStorageBuffer = (name: string): Promise<ArrayBuffer> => {
+		if (!storageBufferKeySet.has(name)) {
+			throw new Error(`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`);
+		}
+		if (!renderer) {
+			return Promise.reject(new Error(`Cannot read storage buffer "${name}": renderer not initialized.`));
+		}
+		const gpuBuffer = renderer.getStorageBuffer?.(name);
+		if (!gpuBuffer) {
+			return Promise.reject(new Error(`Storage buffer "${name}" not allocated on GPU.`));
+		}
+		const device = renderer.getDevice?.();
+		if (!device) {
+			return Promise.reject(new Error('Cannot read storage buffer: GPU device unavailable.'));
+		}
+		const definition = storageBufferDefinitions[name];
+		if (!definition) {
+			return Promise.reject(new Error(`Missing definition for storage buffer "${name}".`));
+		}
+		const stagingBuffer = device.createBuffer({
+			size: definition.size,
+			usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+		});
+		const commandEncoder = device.createCommandEncoder();
+		commandEncoder.copyBufferToBuffer(gpuBuffer, 0, stagingBuffer, 0, definition.size);
+		device.queue.submit([commandEncoder.finish()]);
+		return stagingBuffer.mapAsync(GPUMapMode.READ).then(() => {
+			const result = stagingBuffer.getMappedRange().slice(0);
+			stagingBuffer.unmap();
+			stagingBuffer.destroy();
+			return result;
+		});
 	};
 
 	const renderFrame = (timestamp: number): void => {
@@ -324,6 +384,9 @@ export function createMotionGPURuntimeLoop(
 							uniformLayout: materialState.uniformLayout,
 							textureKeys: materialState.textureKeys,
 							textureDefinitions: materialState.textures,
+							storageBufferKeys: materialState.storageBufferKeys,
+							storageBufferDefinitions,
+							storageTextureKeys: materialState.storageTextureKeys,
 							getRenderTargets: options.getRenderTargets,
 							getPasses: options.getPasses,
 							outputColorSpace,
@@ -380,6 +443,8 @@ export function createMotionGPURuntimeLoop(
 				delta,
 				setUniform,
 				setTexture,
+				writeStorageBuffer,
+				readStorageBuffer,
 				invalidate,
 				advance,
 				renderMode: registry.getRenderMode(),
@@ -413,7 +478,8 @@ export function createMotionGPURuntimeLoop(
 					renderMode: registry.getRenderMode(),
 					uniforms: renderUniforms,
 					textures: renderTextures,
-					canvasSize
+					canvasSize,
+					...(pendingStorageWrites.length > 0 ? { pendingStorageWrites: pendingStorageWrites.splice(0) } : {})
 				});
 			}
 

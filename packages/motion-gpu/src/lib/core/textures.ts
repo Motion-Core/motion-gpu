@@ -55,6 +55,18 @@ export interface NormalizedTextureDefinition {
 	 * Effective V address mode.
 	 */
 	addressModeV: GPUAddressMode;
+	/**
+	 * Whether this texture is a storage texture (writable by compute).
+	 */
+	storage: boolean;
+	/**
+	 * Explicit width for storage textures. Undefined when derived from source.
+	 */
+	width?: number;
+	/**
+	 * Explicit height for storage textures. Undefined when derived from source.
+	 */
+	height?: number;
 }
 
 /**
@@ -90,18 +102,28 @@ export function resolveTextureKeys(textures: TextureDefinitionMap): string[] {
 export function normalizeTextureDefinition(
 	definition: TextureDefinition | undefined
 ): NormalizedTextureDefinition {
+	const isStorage = definition?.storage === true;
+	const defaultFormat = definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
 	const normalized: NormalizedTextureDefinition = {
 		source: definition?.source ?? null,
 		colorSpace: definition?.colorSpace ?? 'srgb',
-		format: definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb',
+		format: definition?.format ?? defaultFormat,
 		flipY: definition?.flipY ?? true,
 		generateMipmaps: definition?.generateMipmaps ?? false,
 		premultipliedAlpha: definition?.premultipliedAlpha ?? false,
 		anisotropy: Math.max(1, Math.min(16, Math.floor(definition?.anisotropy ?? 1))),
 		filter: definition?.filter ?? DEFAULT_TEXTURE_FILTER,
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
-		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE
+		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE,
+		storage: isStorage
 	};
+
+	if (definition?.width !== undefined) {
+		normalized.width = definition.width;
+	}
+	if (definition?.height !== undefined) {
+		normalized.height = definition.height;
+	}
 
 	if (definition?.update !== undefined) {
 		normalized.update = definition.update;

@@ -8,6 +8,8 @@ function createState(registry: ReturnType<typeof createFrameRegistry>, delta = 0
 		delta,
 		setUniform: vi.fn(),
 		setTexture: vi.fn(),
+		writeStorageBuffer: vi.fn(),
+		readStorageBuffer: vi.fn(() => Promise.resolve(new ArrayBuffer(0))),
 		invalidate: registry.invalidate,
 		advance: registry.advance,
 		renderMode: registry.getRenderMode(),

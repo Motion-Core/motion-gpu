@@ -1,13 +1,17 @@
-import type { RenderPass, RenderPassInputSlot, RenderPassOutputSlot } from './types.js';
+import type { AnyPass, RenderPass, RenderPassInputSlot, RenderPassOutputSlot } from './types.js';
 
 /**
  * Resolved render-pass step with defaults applied.
  */
 export interface RenderGraphStep {
 	/**
+	 * Step kind. 'render' for existing passes, 'compute' for compute passes.
+	 */
+	kind: 'render' | 'compute';
+	/**
 	 * User pass instance.
 	 */
-	pass: RenderPass;
+	pass: AnyPass;
 	/**
 	 * Resolved input slot.
 	 */
@@ -65,7 +69,7 @@ function cloneClearColor(
  * @returns Resolved render graph plan.
  */
 export function planRenderGraph(
-	passes: RenderPass[] | undefined,
+	passes: AnyPass[] | undefined,
 	defaultClearColor: [number, number, number, number],
 	renderTargetSlots?: Iterable<string>
 ): RenderGraphPlan {
@@ -80,9 +84,27 @@ export function planRenderGraph(
 			continue;
 		}
 
-		const needsSwap = pass.needsSwap ?? true;
-		const input: RenderPassInputSlot = pass.input ?? 'source';
-		const output: RenderPassOutputSlot = pass.output ?? (needsSwap ? 'target' : 'source');
+		// Compute passes don't participate in slot routing
+		const isCompute = 'isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true;
+		if (isCompute) {
+			steps.push({
+				kind: 'compute',
+				pass,
+				input: 'source',
+				output: 'source',
+				needsSwap: false,
+				clear: false,
+				clearColor: cloneClearColor(defaultClearColor),
+				preserve: true
+			});
+			continue;
+		}
+
+		// After compute guard, pass is a render pass
+		const rp = pass as RenderPass;
+		const needsSwap = rp.needsSwap ?? true;
+		const input: RenderPassInputSlot = rp.input ?? 'source';
+		const output: RenderPassOutputSlot = rp.output ?? (needsSwap ? 'target' : 'source');
 
 		if (input === 'canvas') {
 			throw new Error(`Render pass #${enabledIndex} cannot read from "canvas".`);
@@ -108,11 +130,12 @@ export function planRenderGraph(
 			throw new Error(`Render pass #${enabledIndex} reads "${input}" before it is written.`);
 		}
 
-		const clear = pass.clear ?? false;
-		const clearColor = cloneClearColor(pass.clearColor ?? defaultClearColor);
-		const preserve = pass.preserve ?? true;
+		const clear = rp.clear ?? false;
+		const clearColor = cloneClearColor(rp.clearColor ?? defaultClearColor);
+		const preserve = rp.preserve ?? true;
 
 		steps.push({
+			kind: 'render',
 			pass,
 			input,
 			output,
@@ -134,6 +157,13 @@ export function planRenderGraph(
 		}
 
 		enabledIndex += 1;
+	}
+
+	// When steps exist (even compute-only) but no render pass changed
+	// finalOutput from 'canvas', the scene was drawn to 'source' and
+	// needs blitting to the canvas surface.
+	if (steps.length > 0 && enabledIndex === 0) {
+		finalOutput = 'source';
 	}
 
 	return {

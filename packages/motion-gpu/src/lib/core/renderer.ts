@@ -673,7 +673,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			options.textureKeys,
 			{
 				convertLinearToSrgb,
-				fragmentLineMap: options.fragmentLineMap
+				fragmentLineMap: options.fragmentLineMap,
+				...(options.storageBufferKeys !== undefined
+					? { storageBufferKeys: options.storageBufferKeys }
+					: {}),
+				...(options.storageBufferDefinitions !== undefined
+					? { storageBufferDefinitions: options.storageBufferDefinitions }
+					: {})
 			}
 		);
 		const shaderModule = device.createShaderModule({ code: builtShader.code });
@@ -692,6 +698,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			options.textureDefinitions,
 			options.textureKeys
 		);
+		const storageBufferKeys = options.storageBufferKeys ?? [];
+		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
+		const storageTextureKeys = options.storageTextureKeys ?? [];
+		const storageTextureKeySet = new Set(storageTextureKeys);
 		const textureBindings = options.textureKeys.map((key, index): RuntimeTextureBinding => {
 			const config = normalizedTextureDefinitions[key];
 			if (!config) {
@@ -773,8 +783,20 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const bindGroupLayout = device.createBindGroupLayout({
 			entries: createBindGroupLayoutEntries(textureBindings)
 		});
+		const fragmentStorageBindGroupLayout =
+			storageBufferKeys.length > 0
+				? device.createBindGroupLayout({
+						entries: storageBufferKeys.map((_, index) => ({
+							binding: index,
+							visibility: GPUShaderStage.FRAGMENT,
+							buffer: { type: 'read-only-storage' as GPUBufferBindingType }
+						}))
+					})
+				: null;
 		const pipelineLayout = device.createPipelineLayout({
-			bindGroupLayouts: [bindGroupLayout]
+			bindGroupLayouts: fragmentStorageBindGroupLayout
+				? [bindGroupLayout, fragmentStorageBindGroupLayout]
+				: [bindGroupLayout]
 		});
 
 		const pipeline = device.createRenderPipeline({
@@ -840,10 +862,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let blitBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		// ── Storage buffer allocation ────────────────────────────────────────
-		const storageBufferKeys = options.storageBufferKeys ?? [];
-		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
-		const storageTextureKeys = options.storageTextureKeys ?? [];
-		const storageTextureKeySet = new Set(storageTextureKeys);
 		const storageBufferMap = new Map<string, GPUBuffer>();
 		const pingPongTexturePairs = new Map<string, PingPongTexturePair>();
 
@@ -872,6 +890,19 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 			storageBufferMap.set(key, buffer);
 		}
+		const fragmentStorageBindGroup =
+			fragmentStorageBindGroupLayout && storageBufferKeys.length > 0
+				? device.createBindGroup({
+						layout: fragmentStorageBindGroupLayout,
+						entries: storageBufferKeys.map((key, index) => {
+							const buffer = storageBufferMap.get(key);
+							if (!buffer) {
+								throw new Error(`Storage buffer "${key}" not allocated.`);
+							}
+							return { binding: index, resource: { buffer } };
+						})
+					})
+				: null;
 
 		const ensurePingPongTexturePair = (target: string): PingPongTexturePair => {
 			const existing = pingPongTexturePairs.get(target);
@@ -1974,6 +2005,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			scenePass.setPipeline(pipeline);
 			scenePass.setBindGroup(0, bindGroup);
+			if (fragmentStorageBindGroup) {
+				scenePass.setBindGroup(1, fragmentStorageBindGroup);
+			}
 			scenePass.draw(3);
 			scenePass.end();
 

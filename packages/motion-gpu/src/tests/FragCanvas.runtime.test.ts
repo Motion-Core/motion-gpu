@@ -390,7 +390,17 @@ describe('FragCanvas runtime', () => {
 					'}'
 				].join('\n'),
 				includeSources: {},
-				materialSource: { component: 'OverlayScene.svelte' }
+				materialSource: { component: 'OverlayScene.svelte' },
+				runtimeContext: {
+					materialSignature: '{"fragment":"overlay-hash"}',
+					passGraph: {
+						passCount: 3,
+						enabledPassCount: 2,
+						inputs: ['source', 'fxMain'],
+						outputs: ['fxA', 'canvas']
+					},
+					activeRenderTargets: ['fxMain', 'fxA']
+				}
 			}
 		);
 		diagnosticsError.stack = [
@@ -418,6 +428,19 @@ describe('FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('expected ;');
 		expect(overlay.textContent).toContain('Stack trace');
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
+		const metaValues = Array.from(overlay.querySelectorAll('.motiongpu-error-meta-value')).map((value) =>
+			value.textContent?.trim()
+		);
+		expect(metaValues).toContain('WGSL_COMPILATION_FAILED');
+		expect(metaValues).toContain('error');
+		expect(metaValues).toContain('yes');
+		expect(overlay.textContent).toContain('Runtime context');
+		expect(overlay.textContent).toContain('materialSignature: {"fragment":"overlay-hash"}');
+		expect(overlay.textContent).toContain('passGraph.passCount: 3');
+		expect(overlay.textContent).toContain('passGraph.enabledPassCount: 2');
+		expect(overlay.textContent).toContain('passGraph.inputs: source, fxMain');
+		expect(overlay.textContent).toContain('passGraph.outputs: fxA, canvas');
+		expect(overlay.textContent).toContain('activeRenderTargets: fxMain, fxA');
 	});
 
 	it('renders include diagnostics location in overlay source header', async () => {

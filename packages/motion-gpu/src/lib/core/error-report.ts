@@ -17,14 +17,22 @@ export type MotionGPUErrorCode =
 	| 'WEBGPU_ADAPTER_UNAVAILABLE'
 	| 'WEBGPU_CONTEXT_UNAVAILABLE'
 	| 'WGSL_COMPILATION_FAILED'
+	| 'MATERIAL_PREPROCESS_FAILED'
 	| 'WEBGPU_DEVICE_LOST'
 	| 'WEBGPU_UNCAPTURED_ERROR'
 	| 'BIND_GROUP_MISMATCH'
+	| 'RUNTIME_RESOURCE_MISSING'
+	| 'UNIFORM_VALUE_INVALID'
+	| 'STORAGE_BUFFER_OUT_OF_BOUNDS'
+	| 'STORAGE_BUFFER_READ_FAILED'
+	| 'RENDER_GRAPH_INVALID'
+	| 'PINGPONG_CONFIGURATION_INVALID'
 	| 'TEXTURE_USAGE_INVALID'
 	| 'TEXTURE_REQUEST_FAILED'
 	| 'TEXTURE_DECODE_UNAVAILABLE'
 	| 'TEXTURE_REQUEST_ABORTED'
 	| 'COMPUTE_COMPILATION_FAILED'
+	| 'COMPUTE_CONTRACT_INVALID'
 	| 'MOTIONGPU_RUNTIME_ERROR';
 
 /**
@@ -275,6 +283,22 @@ function classifyErrorMessage(
 		};
 	}
 
+	if (
+		message.includes('Invalid include directive in fragment shader.') ||
+		message.includes('Unknown include "') ||
+		message.includes('Circular include detected for "') ||
+		message.includes('Invalid define value for "') ||
+		message.includes('Invalid include "')
+	) {
+		return {
+			code: 'MATERIAL_PREPROCESS_FAILED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Material preprocess failed',
+			hint: 'Validate #include keys, define values and include expansion order before retrying.'
+		};
+	}
+
 	if (message.includes('Compute shader compilation failed')) {
 		return {
 			code: 'COMPUTE_COMPILATION_FAILED',
@@ -282,6 +306,22 @@ function classifyErrorMessage(
 			recoverable: true,
 			title: 'Compute shader compilation failed',
 			hint: 'Check WGSL compute shader sources below and verify storage bindings.'
+		};
+	}
+
+	if (
+		message.includes('Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`.') ||
+		message.includes('Compute shader must include a `@builtin(global_invocation_id)` parameter.') ||
+		message.includes('Could not extract @workgroup_size from compute shader source.') ||
+		message.includes('@workgroup_size dimensions must be integers in range') ||
+		message.includes('Unsupported storage buffer access mode "')
+	) {
+		return {
+			code: 'COMPUTE_CONTRACT_INVALID',
+			severity: 'error',
+			recoverable: true,
+			title: 'Compute contract is invalid',
+			hint: 'Ensure compute shader contract (@compute, @workgroup_size, global_invocation_id, storage access) is valid.'
 		};
 	}
 
@@ -312,6 +352,85 @@ function classifyErrorMessage(
 			recoverable: true,
 			title: 'Bind group mismatch',
 			hint: 'Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout.'
+		};
+	}
+
+	if (
+		message.includes('Storage buffer "') &&
+		message.includes('write out of bounds:')
+	) {
+		return {
+			code: 'STORAGE_BUFFER_OUT_OF_BOUNDS',
+			severity: 'error',
+			recoverable: true,
+			title: 'Storage buffer write out of bounds',
+			hint: 'Ensure offset + write byte length does not exceed declared storage buffer size.'
+		};
+	}
+
+	if (
+		message.includes('Cannot read storage buffer "') ||
+		message.includes('Cannot read storage buffer: GPU device unavailable.') ||
+		message.includes('not allocated on GPU.')
+	) {
+		return {
+			code: 'STORAGE_BUFFER_READ_FAILED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Storage buffer read failed',
+			hint: 'Readbacks require an initialized renderer, allocated GPU buffer and active device.'
+		};
+	}
+
+	if (
+		message.includes('Unknown uniform "') ||
+		message.includes('Unknown uniform type for "') ||
+		message.includes('Unknown texture "') ||
+		message.includes('Unknown storage buffer "') ||
+		message.includes('Missing definition for storage buffer "') ||
+		message.includes('Missing texture definition for "') ||
+		(message.includes('Storage buffer "') && message.includes('" not allocated.')) ||
+		(message.includes('Storage texture "') && message.includes('" not allocated.'))
+	) {
+		return {
+			code: 'RUNTIME_RESOURCE_MISSING',
+			severity: 'error',
+			recoverable: true,
+			title: 'Runtime resource binding failed',
+			hint: 'Check material declarations and runtime keys for uniforms, textures and storage resources.'
+		};
+	}
+
+	if (message.includes('Uniform ') && message.includes(' value must')) {
+		return {
+			code: 'UNIFORM_VALUE_INVALID',
+			severity: 'error',
+			recoverable: true,
+			title: 'Uniform value is invalid',
+			hint: 'Provide finite values with tuple/matrix sizes matching the uniform type.'
+		};
+	}
+
+	if (
+		message.includes('Render pass #') ||
+		message.includes('Render graph references unknown runtime target')
+	) {
+		return {
+			code: 'RENDER_GRAPH_INVALID',
+			severity: 'error',
+			recoverable: true,
+			title: 'Render graph configuration is invalid',
+			hint: 'Verify pass inputs/outputs, declared render targets and execution order.'
+		};
+	}
+
+	if (message.includes('PingPongComputePass must provide a target texture key.')) {
+		return {
+			code: 'PINGPONG_CONFIGURATION_INVALID',
+			severity: 'error',
+			recoverable: true,
+			title: 'Ping-pong compute pass is misconfigured',
+			hint: 'Configure a valid target texture key for PingPongComputePass.'
 		};
 	}
 

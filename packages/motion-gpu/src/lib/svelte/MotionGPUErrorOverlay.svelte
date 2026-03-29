@@ -18,6 +18,25 @@
 	const shouldShowErrorMessage = (value: MotionGPUErrorReport): boolean => {
 		return normalizeErrorText(value.message) !== normalizeErrorText(value.title);
 	};
+
+	const formatRuntimeContext = (context: MotionGPUErrorReport['context']): string => {
+		if (!context) {
+			return '';
+		}
+
+		const lines: string[] = [];
+		if (context.materialSignature) {
+			lines.push(`materialSignature: ${context.materialSignature}`);
+		}
+		if (context.passGraph) {
+			lines.push(`passGraph.passCount: ${context.passGraph.passCount}`);
+			lines.push(`passGraph.enabledPassCount: ${context.passGraph.enabledPassCount}`);
+			lines.push(`passGraph.inputs: ${context.passGraph.inputs.join(', ') || '<none>'}`);
+			lines.push(`passGraph.outputs: ${context.passGraph.outputs.join(', ') || '<none>'}`);
+		}
+		lines.push(`activeRenderTargets: ${context.activeRenderTargets.join(', ') || '<none>'}`);
+		return lines.join('\n');
+	};
 </script>
 
 <Portal>
@@ -34,6 +53,9 @@
 					<p class="motiongpu-error-phase">
 						{report.phase}
 					</p>
+					<p class="motiongpu-error-phase motiongpu-error-phase-severity">
+						{report.severity}
+					</p>
 				</div>
 				<h2 class="motiongpu-error-title">{report.title}</h2>
 			</header>
@@ -42,6 +64,20 @@
 					<p class="motiongpu-error-message">{report.message}</p>
 				{/if}
 				<p class="motiongpu-error-hint">{report.hint}</p>
+				<div class="motiongpu-error-meta" aria-label="Error metadata">
+					<p class="motiongpu-error-meta-item">
+						<span class="motiongpu-error-meta-label">Code</span>
+						<code class="motiongpu-error-meta-value">{report.code}</code>
+					</p>
+					<p class="motiongpu-error-meta-item">
+						<span class="motiongpu-error-meta-label">Severity</span>
+						<span class="motiongpu-error-meta-value">{report.severity}</span>
+					</p>
+					<p class="motiongpu-error-meta-item">
+						<span class="motiongpu-error-meta-label">Recoverable</span>
+						<span class="motiongpu-error-meta-value">{report.recoverable ? 'yes' : 'no'}</span>
+					</p>
+				</div>
 			</div>
 
 			{#if report.source}
@@ -85,6 +121,12 @@
 					<details class="motiongpu-error-details">
 						<summary>Stack trace</summary>
 						<pre>{report.stack.join('\n')}</pre>
+					</details>
+				{/if}
+				{#if report.context}
+					<details class="motiongpu-error-details" open>
+						<summary>Runtime context</summary>
+						<pre>{formatRuntimeContext(report.context)}</pre>
 					</details>
 				{/if}
 			</div>
@@ -193,6 +235,14 @@
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
 	}
 
+	.motiongpu-error-phase-severity {
+		background: linear-gradient(
+			180deg,
+			oklch(0.66 0.15 38) 0%,
+			oklch(0.5 0.1 38) 100%
+		);
+	}
+
 	.motiongpu-error-title {
 		margin: 0;
 		font-size: clamp(1.02rem, 1vw + 0.72rem, 1.32rem);
@@ -227,6 +277,36 @@
 		line-height: 1.45;
 		font-weight: 400;
 		color: var(--motiongpu-color-foreground-muted);
+	}
+
+	.motiongpu-error-meta {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.48rem;
+	}
+
+	.motiongpu-error-meta-item {
+		display: grid;
+		gap: 0.22rem;
+		margin: 0;
+		padding: 0.45rem 0.54rem;
+		border: 1px solid var(--motiongpu-color-border);
+		border-radius: var(--motiongpu-radius-md);
+		background: var(--motiongpu-color-background-muted);
+	}
+
+	.motiongpu-error-meta-label {
+		font-size: 0.65rem;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		color: var(--motiongpu-color-foreground-muted);
+	}
+
+	.motiongpu-error-meta-value {
+		font-size: 0.76rem;
+		line-height: 1.3;
+		font-family: var(--motiongpu-font-mono);
+		color: var(--motiongpu-color-foreground);
 	}
 
 	.motiongpu-error-sections {
@@ -371,6 +451,10 @@
 
 		.motiongpu-error-title {
 			font-size: 1.02rem;
+		}
+
+		.motiongpu-error-meta {
+			grid-template-columns: 1fr;
 		}
 	}
 

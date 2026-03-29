@@ -350,4 +350,102 @@ describe('error report', () => {
 		);
 		expect(report.recoverable).toBe(true);
 	});
+
+	it('classifies material preprocess failures from unknown includes', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Unknown include "tone" referenced in fragment shader.'),
+			'initialization'
+		);
+
+		expect(report.title).toBe('Material preprocess failed');
+		expect(report.code).toBe('MATERIAL_PREPROCESS_FAILED');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies missing runtime bindings from unknown uniforms/textures/storage resources', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Unknown uniform "uGain". Declare it in material.uniforms first.'),
+			'render'
+		);
+
+		expect(report.title).toBe('Runtime resource binding failed');
+		expect(report.code).toBe('RUNTIME_RESOURCE_MISSING');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies storage buffer writes that exceed declared bounds', () => {
+		const report = toMotionGPUErrorReport(
+			new Error(
+				'Storage buffer "particles" write out of bounds: offset=64, dataSize=256, bufferSize=128.'
+			),
+			'render'
+		);
+
+		expect(report.title).toBe('Storage buffer write out of bounds');
+		expect(report.code).toBe('STORAGE_BUFFER_OUT_OF_BOUNDS');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies storage buffer read failures', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Cannot read storage buffer "particles": renderer not initialized.'),
+			'render'
+		);
+
+		expect(report.title).toBe('Storage buffer read failed');
+		expect(report.code).toBe('STORAGE_BUFFER_READ_FAILED');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies invalid render graph configurations', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Render pass #2 reads "target" before it is written.'),
+			'initialization'
+		);
+
+		expect(report.title).toBe('Render graph configuration is invalid');
+		expect(report.code).toBe('RENDER_GRAPH_INVALID');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies ping-pong pass misconfiguration', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('PingPongComputePass must provide a target texture key.'),
+			'render'
+		);
+
+		expect(report.title).toBe('Ping-pong compute pass is misconfigured');
+		expect(report.code).toBe('PINGPONG_CONFIGURATION_INVALID');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies compute contract errors from invalid WGSL entrypoint requirements', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Compute shader must include a `@builtin(global_invocation_id)` parameter.'),
+			'initialization'
+		);
+
+		expect(report.title).toBe('Compute contract is invalid');
+		expect(report.code).toBe('COMPUTE_CONTRACT_INVALID');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
+	it('classifies invalid uniform value payloads', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('Uniform vec3f value must be a tuple with 3 numbers'),
+			'render'
+		);
+
+		expect(report.title).toBe('Uniform value is invalid');
+		expect(report.code).toBe('UNIFORM_VALUE_INVALID');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
 });

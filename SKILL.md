@@ -209,6 +209,12 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Use `state.readStorageBuffer(name)` to asynchronously read back GPU results (staging buffer pattern).
 - Storage buffers are bound at group(1) in compute shaders, storage textures at group(2).
 - Fragment shaders can read storage buffers as read-only via `var<storage, read>` at group(1).
+- `PingPongComputePass` generates two texture bindings from the `target` key:
+  `{target}A` — sampled read texture (`texture_2d<f32>`) at `@group(2) @binding(0)`.
+  `{target}B` — write storage texture (`texture_storage_2d<format, write>`) at `@group(2) @binding(1)`.
+  The renderer swaps which physical texture is bound to A/B each iteration.
+  Example: `target: 'sim'` produces shader variables `simA` and `simB`.
+- `PingPongComputePass` requires the target texture to be declared with `storage: true` and explicit `width`/`height` in `defineMaterial({ textures })`.
 
 ## Canonical Templates
 
@@ -336,6 +342,57 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     state.setUniform('uTime', state.time);
   });
 </script>
+```
+
+### Ping-pong compute simulation
+
+```svelte
+<script lang="ts">
+  import { FragCanvas, defineMaterial, PingPongComputePass } from '@motion-core/motion-gpu/svelte';
+  import Runtime from './Runtime.svelte';
+
+  const material = defineMaterial({
+    fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  return vec4f(uv, 0.5, 1.0);
+}
+`,
+    storageBuffers: {
+      scratch: { size: 16, type: 'array<f32>', access: 'read-write' }
+    },
+    textures: {
+      sim: {
+        storage: true,
+        format: 'rgba8unorm',
+        width: 256,
+        height: 256
+      }
+    }
+  });
+
+  // target: 'sim' → shader variables: simA (read), simB (write)
+  const simulation = new PingPongComputePass({
+    compute: `
+@compute @workgroup_size(8, 8)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let pos = id.xy;
+  let dims = textureDimensions(simA);
+  if (pos.x < dims.x && pos.y < dims.y) {
+    let prev = textureLoad(simA, vec2i(pos), 0);
+    let next = prev * 0.99 + vec4f(0.01, 0.0, 0.0, 0.0);
+    textureStore(simB, pos, next);
+  }
+}
+`,
+    target: 'sim',
+    iterations: 4,
+    dispatch: [32, 32]
+  });
+</script>
+
+<FragCanvas {material} passes={[simulation]}>
+  <Runtime />
+</FragCanvas>
 ```
 
 ## Debugging Playbook

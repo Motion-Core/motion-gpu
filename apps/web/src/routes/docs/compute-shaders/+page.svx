@@ -43,7 +43,8 @@ The WGSL source **must** contain:
 
 1. A `@compute @workgroup_size(X)` (or `@workgroup_size(X, Y)` / `@workgroup_size(X, Y, Z)`) attribute.
 2. A function named `compute` — e.g., `fn compute(@builtin(global_invocation_id) id: vec3u)`.
-3. A `@builtin(global_invocation_id)` parameter in the compute function signature.
+3. A `@builtin(global_invocation_id)` parameter in the `compute` function signature (not only elsewhere in the module).
+4. Numeric `@workgroup_size` dimensions as integers in valid WebGPU range (`1..65535` per axis).
 
 The library extracts the workgroup size from the attribute and validates the entrypoint at construction time.
 

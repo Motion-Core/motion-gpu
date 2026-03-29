@@ -17,7 +17,11 @@ import {
 import { resolveUniformLayout } from '../../lib/core/uniforms';
 import { planRenderGraph } from '../../lib/core/render-graph';
 import { createRenderer } from '../../lib/core/renderer';
-import type { TextureDefinitionMap, RenderPass, StorageBufferDefinition } from '../../lib/core/types';
+import type {
+	TextureDefinitionMap,
+	RenderPass,
+	StorageBufferDefinition
+} from '../../lib/core/types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -43,13 +47,21 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 }
 `;
 
-function makeCtx(overrides: Partial<{ width: number; height: number; time: number; delta: number; workgroupSize: [number, number, number] }> = {}) {
+function makeCtx(
+	overrides: Partial<{
+		width: number;
+		height: number;
+		time: number;
+		delta: number;
+		workgroupSize: [number, number, number];
+	}> = {}
+) {
 	return {
 		width: overrides.width ?? 1920,
 		height: overrides.height ?? 1080,
 		time: overrides.time ?? 0,
 		delta: overrides.delta ?? 0.016,
-		workgroupSize: overrides.workgroupSize ?? [256, 1, 1] as [number, number, number]
+		workgroupSize: overrides.workgroupSize ?? ([256, 1, 1] as [number, number, number])
 	};
 }
 
@@ -268,7 +280,9 @@ fn compute(
 			storageTextureDefinitions: { outTex: { format: 'rgba8unorm' as GPUTextureFormat } }
 		});
 		expect(source).not.toContain('@group(1)');
-		expect(source).toContain('@group(2) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>');
+		expect(source).toContain(
+			'@group(2) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>'
+		);
 	});
 
 	it('storage buffer bindings skip undefined definitions gracefully', () => {
@@ -484,11 +498,14 @@ describe('PingPongComputePass: edge cases', () => {
 	});
 
 	it('constructor rejects 0 iterations', () => {
-		expect(() => new PingPongComputePass({
-			compute: VALID_2D,
-			target: 's',
-			iterations: 0
-		})).toThrow(/positive integer >= 1/);
+		expect(
+			() =>
+				new PingPongComputePass({
+					compute: VALID_2D,
+					target: 's',
+					iterations: 0
+				})
+		).toThrow(/positive integer >= 1/);
 	});
 
 	it('setDispatch(undefined) resets to auto', () => {
@@ -544,13 +561,17 @@ describe('storage buffer validation: edge cases', () => {
 
 	it('accepts all valid buffer types', () => {
 		const types: StorageBufferDefinition['type'][] = [
-			'array<f32>', 'array<vec2f>', 'array<vec3f>', 'array<vec4f>',
-			'array<u32>', 'array<i32>', 'array<vec4u>', 'array<vec4i>'
+			'array<f32>',
+			'array<vec2f>',
+			'array<vec3f>',
+			'array<vec4f>',
+			'array<u32>',
+			'array<i32>',
+			'array<vec4u>',
+			'array<vec4i>'
 		];
 		for (const type of types) {
-			expect(() =>
-				assertStorageBufferDefinition('buf', { size: 16, type })
-			).not.toThrow();
+			expect(() => assertStorageBufferDefinition('buf', { size: 16, type })).not.toThrow();
 		}
 	});
 
@@ -599,11 +620,16 @@ describe('render graph: compute pass edge cases', () => {
 	it('compute pass between two render passes does not break slot tracking', () => {
 		const render1: RenderPass = { render: () => {}, needsSwap: false, output: 'target' };
 		const compute = { isCompute: true as const, enabled: true } as unknown as RenderPass;
-		const render2: RenderPass = { render: () => {}, needsSwap: false, input: 'target', output: 'canvas' };
+		const render2: RenderPass = {
+			render: () => {},
+			needsSwap: false,
+			input: 'target',
+			output: 'canvas'
+		};
 
 		const plan = planRenderGraph([render1, compute, render2], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(3);
-		expect(plan.steps.map(s => s.kind)).toEqual(['render', 'compute', 'render']);
+		expect(plan.steps.map((s) => s.kind)).toEqual(['render', 'compute', 'render']);
 		expect(plan.finalOutput).toBe('canvas');
 	});
 
@@ -726,22 +752,35 @@ describe('renderer: compute pipeline bind group alignment', () => {
 
 	it('ping-pong compute pass dispatches correct number of iterations', async () => {
 		const runtime = createWebGpuRuntime();
+		const textureDefinitions: TextureDefinitionMap = {
+			sim: {
+				storage: true,
+				format: 'rgba8unorm',
+				width: 32,
+				height: 32
+			}
+		};
 
 		const advanceFrame = vi.fn();
 		const pingPongPass = {
 			isCompute: true as const,
 			enabled: true,
 			isPingPong: true as const,
+			getTarget: () => 'sim',
+			getCurrentOutput: () => 'simA',
 			getCompute: () =>
-				'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
+				'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  let v = textureLoad(simA, vec2u(id.x, id.y), 0);\n  textureStore(simB, vec2u(id.x, id.y), v);\n}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
-			getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
 			getIterations: () => 3,
 			advanceFrame
 		};
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
+				textureKeys: ['sim'],
+				textureDefinitions,
+				storageTextureKeys: ['sim'],
 				getPasses: () => [pingPongPass]
 			})
 		);
@@ -761,10 +800,145 @@ describe('renderer: compute pipeline bind group alignment', () => {
 		expect(advanceFrame).toHaveBeenCalledTimes(1);
 	});
 
+	it('ping-pong compute pipeline injects targetA/targetB bindings', async () => {
+		const runtime = createWebGpuRuntime();
+		const textureDefinitions: TextureDefinitionMap = {
+			sim: {
+				storage: true,
+				format: 'rgba16float',
+				width: 16,
+				height: 16
+			}
+		};
+		const pingPongPass = new PingPongComputePass({
+			target: 'sim',
+			compute: `
+@compute @workgroup_size(8, 8)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let v = textureLoad(simA, vec2u(id.x, id.y), 0);
+	textureStore(simB, vec2u(id.x, id.y), v);
+}
+`,
+			dispatch: [1, 1, 1]
+		});
+
+		const renderer = await createRenderer(
+			baseOptions(runtime, {
+				textureKeys: ['sim'],
+				textureDefinitions,
+				storageTextureKeys: ['sim'],
+				getPasses: () => [pingPongPass]
+			})
+		);
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const computeShaderCall = runtime.device.createShaderModule.mock.calls.find(
+			(call: unknown[]) => {
+				const input = call[0] as { code?: string };
+				return typeof input.code === 'string' && input.code.includes('@compute');
+			}
+		);
+		expect(computeShaderCall).toBeDefined();
+		const shaderInput = computeShaderCall?.[0] as { code: string };
+		expect(shaderInput.code).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
+		expect(shaderInput.code).toContain(
+			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
+		);
+	});
+
+	it('ping-pong compute swaps A/B bindings between iterations and frames', async () => {
+		const runtime = createWebGpuRuntime();
+		const textureDefinitions: TextureDefinitionMap = {
+			sim: {
+				storage: true,
+				format: 'rgba8unorm',
+				width: 32,
+				height: 32
+			}
+		};
+		const pingPongPass = new PingPongComputePass({
+			target: 'sim',
+			compute: `
+@compute @workgroup_size(8, 8)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let v = textureLoad(simA, vec2u(id.x, id.y), 0);
+	textureStore(simB, vec2u(id.x, id.y), v);
+}
+`,
+			iterations: 2,
+			dispatch: [1, 1, 1]
+		});
+
+		const renderer = await createRenderer(
+			baseOptions(runtime, {
+				textureKeys: ['sim'],
+				textureDefinitions,
+				storageTextureKeys: ['sim'],
+				getPasses: () => [pingPongPass]
+			})
+		);
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const pingPongBindGroupCalls = runtime.device.createBindGroup.mock.calls.filter(
+			(call: unknown[]) => {
+				const input = call[0] as { entries?: Array<{ resource?: unknown }> };
+				return (
+					Array.isArray(input.entries) &&
+					input.entries.length === 2 &&
+					input.entries.every((entry) => {
+						const resource = entry.resource as
+							| { textureDescriptor?: GPUTextureDescriptor }
+							| undefined;
+						return Boolean(
+							resource && typeof resource === 'object' && 'textureDescriptor' in resource
+						);
+					})
+				);
+			}
+		);
+
+		expect(pingPongBindGroupCalls).toHaveLength(4);
+		const first = (pingPongBindGroupCalls[0]![0] as { entries: Array<{ resource: unknown }> })
+			.entries;
+		const second = (pingPongBindGroupCalls[1]![0] as { entries: Array<{ resource: unknown }> })
+			.entries;
+		const third = (pingPongBindGroupCalls[2]![0] as { entries: Array<{ resource: unknown }> })
+			.entries;
+
+		expect(second[0]?.resource).toBe(first[1]?.resource);
+		expect(second[1]?.resource).toBe(first[0]?.resource);
+		// Next frame with even iterations starts from the same orientation.
+		expect(third[0]?.resource).toBe(first[0]?.resource);
+		expect(third[1]?.resource).toBe(first[1]?.resource);
+	});
+
 	it('compute pass caches pipeline by shader source', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const shaderSource = '@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}';
+		const shaderSource =
+			'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}';
 		const pass1 = {
 			isCompute: true as const,
 			enabled: true,

@@ -4,6 +4,8 @@ import {
 	buildComputeShaderSource,
 	buildComputeStorageBufferBindings,
 	buildComputeStorageTextureBindings,
+	buildPingPongComputeShaderSource,
+	storageTextureSampleScalarType,
 	extractWorkgroupSize
 } from '../../lib/core/compute-shader';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
@@ -116,8 +118,12 @@ describe('compute shader source generation', () => {
 			1
 		);
 
-		expect(bindings).toContain('@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;');
-		expect(bindings).toContain('@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;');
+		expect(bindings).toContain(
+			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
+		);
+		expect(bindings).toContain(
+			'@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;'
+		);
 	});
 
 	it('generates storage texture bindings on group(2)', () => {
@@ -187,5 +193,32 @@ describe('compute shader source generation', () => {
 		});
 
 		expect(source).toMatchSnapshot();
+	});
+
+	it('builds ping-pong shader bindings for targetA/targetB', () => {
+		const source = buildPingPongComputeShaderSource({
+			compute: validComputeShader2D,
+			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { type: 'array<vec4f>', access: 'read-write' }
+			},
+			target: 'sim',
+			targetFormat: 'rgba16float'
+		});
+
+		expect(source).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
+		expect(source).toContain(
+			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
+		);
+		expect(source).toContain(
+			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
+		);
+	});
+
+	it('maps storage format to sampled scalar type for ping-pong read binding', () => {
+		expect(storageTextureSampleScalarType('rgba8unorm')).toBe('f32');
+		expect(storageTextureSampleScalarType('r32uint')).toBe('u32');
+		expect(storageTextureSampleScalarType('rgba16sint')).toBe('i32');
 	});
 });

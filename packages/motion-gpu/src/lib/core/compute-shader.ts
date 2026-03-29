@@ -1,27 +1,22 @@
-import type {
-	StorageBufferAccess,
-	StorageBufferType,
-	UniformLayout
-} from './types.js';
+import type { StorageBufferAccess, StorageBufferType, UniformLayout } from './types.js';
 
 /**
  * Regex contract for compute entrypoint.
  * Matches: @compute @workgroup_size(...) fn compute(
  * with @builtin(global_invocation_id) parameter.
  */
-export const COMPUTE_ENTRY_CONTRACT =
-	/@compute\s+@workgroup_size\s*\([^)]+\)\s*fn\s+compute\s*\(/;
+export const COMPUTE_ENTRY_CONTRACT = /@compute\s+@workgroup_size\s*\([^)]+\)\s*fn\s+compute\s*\(/;
 
 /**
  * Regex to extract @workgroup_size values.
  */
-const WORKGROUP_SIZE_PATTERN = /@workgroup_size\s*\(\s*(\d+)(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)/;
+const WORKGROUP_SIZE_PATTERN =
+	/@workgroup_size\s*\(\s*(\d+)(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)/;
 
 /**
  * Regex to verify @builtin(global_invocation_id) parameter.
  */
-const GLOBAL_INVOCATION_ID_PATTERN =
-	/@builtin\s*\(\s*global_invocation_id\s*\)/;
+const GLOBAL_INVOCATION_ID_PATTERN = /@builtin\s*\(\s*global_invocation_id\s*\)/;
 
 /**
  * Default uniform field used when no custom uniforms are provided in compute.
@@ -43,9 +38,7 @@ export function assertComputeContract(compute: string): void {
 	}
 
 	if (!GLOBAL_INVOCATION_ID_PATTERN.test(compute)) {
-		throw new Error(
-			'Compute shader must include a `@builtin(global_invocation_id)` parameter.'
-		);
+		throw new Error('Compute shader must include a `@builtin(global_invocation_id)` parameter.');
 	}
 }
 
@@ -171,6 +164,69 @@ export function buildComputeStorageTextureBindings(
 }
 
 /**
+ * Maps storage texture format to sampled texture scalar type for `texture_2d<T>`.
+ */
+export function storageTextureSampleScalarType(format: GPUTextureFormat): 'f32' | 'u32' | 'i32' {
+	const normalized = String(format).toLowerCase();
+	if (normalized.endsWith('uint')) {
+		return 'u32';
+	}
+	if (normalized.endsWith('sint')) {
+		return 'i32';
+	}
+	return 'f32';
+}
+
+/**
+ * Assembles compute shader WGSL for ping-pong workflows.
+ *
+ * Exposes two generated bindings under group(2):
+ * - `${target}A`: sampled read texture (`texture_2d<T>`)
+ * - `${target}B`: storage write texture (`texture_storage_2d<format, write>`)
+ */
+export function buildPingPongComputeShaderSource(options: {
+	compute: string;
+	uniformLayout: UniformLayout;
+	storageBufferKeys: string[];
+	storageBufferDefinitions: Record<
+		string,
+		{ type: StorageBufferType; access: StorageBufferAccess }
+	>;
+	target: string;
+	targetFormat: GPUTextureFormat;
+}): string {
+	const uniformFields = buildUniformStructForCompute(options.uniformLayout);
+	const storageBufferBindings = buildComputeStorageBufferBindings(
+		options.storageBufferKeys,
+		options.storageBufferDefinitions,
+		1
+	);
+	const sampledType = storageTextureSampleScalarType(options.targetFormat);
+	const pingPongTextureBindings = [
+		`@group(2) @binding(0) var ${options.target}A: texture_2d<${sampledType}>;`,
+		`@group(2) @binding(1) var ${options.target}B: texture_storage_2d<${options.targetFormat}, write>;`
+	].join('\n');
+
+	return `struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	${uniformFields}
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+${storageBufferBindings ? '\n' + storageBufferBindings : ''}
+${pingPongTextureBindings ? '\n' + pingPongTextureBindings : ''}
+
+${options.compute}
+`;
+}
+
+/**
  * Assembles full compute shader WGSL with preamble.
  *
  * @param options - Compute shader build options.
@@ -180,7 +236,10 @@ export function buildComputeShaderSource(options: {
 	compute: string;
 	uniformLayout: UniformLayout;
 	storageBufferKeys: string[];
-	storageBufferDefinitions: Record<string, { type: StorageBufferType; access: StorageBufferAccess }>;
+	storageBufferDefinitions: Record<
+		string,
+		{ type: StorageBufferType; access: StorageBufferAccess }
+	>;
 	storageTextureKeys: string[];
 	storageTextureDefinitions: Record<string, { format: GPUTextureFormat }>;
 }): string {

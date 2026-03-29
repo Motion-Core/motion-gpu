@@ -33,7 +33,10 @@
 	},
 	"private": true,
 	"scripts": {
+		"docs:changelog": "node ../../scripts/generate-changelog-docs.mjs",
+		"predev": "bun run docs:changelog",
 		"dev": "vite dev",
+		"prebuild": "bun run docs:changelog",
 		"build": "vite build && node ./scripts/patch-cloudflare-worker-wasm.mjs",
 		"preview": "vite preview",
 		"preview:cf": "bun run build && wrangler dev",

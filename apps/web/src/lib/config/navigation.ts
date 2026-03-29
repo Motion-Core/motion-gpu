@@ -72,7 +72,8 @@ export const docsNavigation: DocItem[] = [
 		name: 'Advanced',
 		items: [
 			{ slug: 'error-handling', name: 'Error Handling' },
-			{ slug: 'testing-and-internals', name: 'Testing & Internals' }
+			{ slug: 'testing-and-internals', name: 'Testing & Internals' },
+			{ slug: 'changelog', name: 'Changelog' }
 		]
 	}
 ];

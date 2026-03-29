@@ -47,6 +47,10 @@ Each texture named `uFoo` creates two WGSL bindings:
 | `filter` | `GPUFilterMode` | `'linear'` | Min/mag filter mode (`'nearest'` or `'linear'`) |
 | `addressModeU` | `GPUAddressMode` | `'clamp-to-edge'` | Horizontal wrap mode |
 | `addressModeV` | `GPUAddressMode` | `'clamp-to-edge'` | Vertical wrap mode |
+| `storage` | `boolean` | `false` | Marks texture as compute-writable storage texture |
+| `format` | `GPUTextureFormat` | Color-space derived default | **Required when `storage: true`** (must be storage-compatible) |
+| `width` | `number` | `undefined` | Optional explicit width (used for storage texture allocation) |
+| `height` | `number` | `undefined` | Optional explicit height (used for storage texture allocation) |
 
 ## Runtime texture value forms
 
@@ -96,6 +100,14 @@ The update mode controls **when** the texture is re-uploaded to the GPU:
 1. **Runtime override** — `TextureData.update` (from `state.setTexture({ source, update: '...' })`)
 2. **Definition default** — `TextureDefinition.update` (from `defineMaterial({ textures: { ... } })`)
 3. **Automatic fallback** — `HTMLVideoElement` → `perFrame`, everything else → `once`
+
+## Storage textures (compute)
+
+When `storage: true` is enabled, the texture participates in compute bindings (`group(2)`):
+
+- `format` must be a storage-compatible format.
+- For `PingPongComputePass`, the target texture must have explicit `width` and `height`.
+- Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
 
 ## Upload behavior
 

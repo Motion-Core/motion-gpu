@@ -80,6 +80,8 @@ The `state` parameter passed to your callback provides everything you need for p
 | `autoRender` | `boolean` | Current auto-render state |
 | `setUniform(name, value)` | function | Set a runtime uniform override |
 | `setTexture(name, value)` | function | Set a runtime texture source |
+| `writeStorageBuffer(name, data, options?)` | function | Queue a CPU → GPU write into a declared storage buffer |
+| `readStorageBuffer(name)` | function | Async GPU → CPU readback from a declared storage buffer |
 | `invalidate(token?)` | function | Trigger invalidation for on-demand mode |
 | `advance()` | function | Request one frame in manual mode |
 

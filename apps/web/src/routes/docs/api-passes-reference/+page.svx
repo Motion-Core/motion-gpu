@@ -113,7 +113,7 @@ Iterative compute pass for multi-step GPU simulations.
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `compute` | `string` | **Required** | WGSL compute shader source |
-| `target` | `string` | **Required** | Texture key from `material.textures` |
+| `target` | `string` | **Required** | Storage texture key from `material.textures` (`storage: true`). Use explicit `width` and `height` for ping-pong allocation. |
 | `iterations` | `number` | `1` | Iterations per frame (must be `>= 1`) |
 | `dispatch` | dispatch mode | `'auto'` | Workgroup dispatch strategy |
 | `enabled` | `boolean` | `true` | Whether pass is active |

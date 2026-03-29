@@ -29,7 +29,9 @@
 
 	const DRAG_SENSITIVITY = 0.005;
 	const DRAG_SMOOTHING = 0.14;
-	const MAX_ROTATE_X = 1.1;
+	const DRAG_VELOCITY_SMOOTHING = 0.2;
+	const MOMENTUM_DECAY = 3.25;
+	const MOMENTUM_MIN_SPEED = 0.015;
 	const AUTO_ROTATE_SPEED = 0.24;
 	const BASE_CUBE_SCALE = 0.9;
 	const BASE_CUBE_GAP = 0.05;
@@ -143,11 +145,16 @@
 	let isDragging = false;
 	let lastPointerX = 0;
 	let lastPointerY = 0;
+	let lastPointerTime = 0;
 	let targetRotateY = 0;
 	let targetRotateX = 0;
 	let smoothRotateY = 0;
 	let smoothRotateX = 0;
 	let autoRotateY = 0;
+	let dragVelocityY = 0;
+	let dragVelocityX = 0;
+	let momentumVelocityY = 0;
+	let momentumVelocityX = 0;
 
 	const updateSceneBuffers = (
 		sceneQuat: Quat,
@@ -252,41 +259,75 @@
 			isDragging = true;
 			lastPointerX = event.clientX;
 			lastPointerY = event.clientY;
+			lastPointerTime = performance.now();
+			dragVelocityY = 0;
+			dragVelocityX = 0;
+			momentumVelocityY = 0;
+			momentumVelocityX = 0;
 			canvas.style.cursor = 'grabbing';
 		};
 
 		const handlePointerMove = (event: PointerEvent) => {
 			if (!isDragging) return;
+			const now = performance.now();
 			const dx = event.clientX - lastPointerX;
 			const dy = event.clientY - lastPointerY;
 			lastPointerX = event.clientX;
 			lastPointerY = event.clientY;
+			const dt = Math.max(0.001, (now - lastPointerTime) * 0.001);
+			lastPointerTime = now;
 
-			targetRotateY += dx * DRAG_SENSITIVITY;
-			targetRotateX += dy * DRAG_SENSITIVITY;
-			targetRotateX = Math.max(-MAX_ROTATE_X, Math.min(MAX_ROTATE_X, targetRotateX));
+			const rotateDeltaY = dx * DRAG_SENSITIVITY;
+			const rotateDeltaX = dy * DRAG_SENSITIVITY;
+			targetRotateY += rotateDeltaY;
+			targetRotateX += rotateDeltaX;
+
+			const instantVelocityY = rotateDeltaY / dt;
+			const instantVelocityX = rotateDeltaX / dt;
+			dragVelocityY += (instantVelocityY - dragVelocityY) * DRAG_VELOCITY_SMOOTHING;
+			dragVelocityX += (instantVelocityX - dragVelocityX) * DRAG_VELOCITY_SMOOTHING;
 		};
 
 		const endDrag = () => {
+			if (!isDragging) return;
 			isDragging = false;
+			momentumVelocityY = dragVelocityY;
+			momentumVelocityX = dragVelocityX;
 			canvas.style.cursor = 'grab';
 		};
 
 		canvas.addEventListener('pointerdown', handlePointerDown);
 		window.addEventListener('pointermove', handlePointerMove);
 		window.addEventListener('pointerup', endDrag);
-		canvas.addEventListener('pointerleave', endDrag);
+		canvas.addEventListener('pointercancel', endDrag);
 
 		return () => {
 			canvas.removeEventListener('pointerdown', handlePointerDown);
 			window.removeEventListener('pointermove', handlePointerMove);
 			window.removeEventListener('pointerup', endDrag);
-			canvas.removeEventListener('pointerleave', endDrag);
+			canvas.removeEventListener('pointercancel', endDrag);
 		};
 	});
 
 	useFrame((state) => {
 		autoRotateY += state.delta * AUTO_ROTATE_SPEED;
+
+		if (!isDragging) {
+			targetRotateY += momentumVelocityY * state.delta;
+			targetRotateX += momentumVelocityX * state.delta;
+
+			const decay = Math.exp(-MOMENTUM_DECAY * state.delta);
+			momentumVelocityY *= decay;
+			momentumVelocityX *= decay;
+
+			if (Math.abs(momentumVelocityY) < MOMENTUM_MIN_SPEED) {
+				momentumVelocityY = 0;
+			}
+			if (Math.abs(momentumVelocityX) < MOMENTUM_MIN_SPEED) {
+				momentumVelocityX = 0;
+			}
+		}
+
 		smoothRotateY += (targetRotateY - smoothRotateY) * DRAG_SMOOTHING;
 		smoothRotateX += (targetRotateX - smoothRotateX) * DRAG_SMOOTHING;
 

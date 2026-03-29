@@ -32,6 +32,7 @@
 	const DRAG_VELOCITY_SMOOTHING = 0.2;
 	const MOMENTUM_DECAY = 3.25;
 	const MOMENTUM_MIN_SPEED = 0.015;
+	const UPSIDE_DOWN_HYSTERESIS = 0.12;
 	const AUTO_ROTATE_SPEED = 0.24;
 	const BASE_CUBE_SCALE = 0.9;
 	const BASE_CUBE_GAP = 0.05;
@@ -155,6 +156,7 @@
 	let dragVelocityX = 0;
 	let momentumVelocityY = 0;
 	let momentumVelocityX = 0;
+	let horizontalDragSign: Direction = 1;
 
 	const updateSceneBuffers = (
 		sceneQuat: Quat,
@@ -277,7 +279,7 @@
 			const dt = Math.max(0.001, (now - lastPointerTime) * 0.001);
 			lastPointerTime = now;
 
-			const rotateDeltaY = dx * DRAG_SENSITIVITY;
+			const rotateDeltaY = dx * DRAG_SENSITIVITY * horizontalDragSign;
 			const rotateDeltaX = dy * DRAG_SENSITIVITY;
 			targetRotateY += rotateDeltaY;
 			targetRotateX += rotateDeltaX;
@@ -330,6 +332,12 @@
 
 		smoothRotateY += (targetRotateY - smoothRotateY) * DRAG_SMOOTHING;
 		smoothRotateX += (targetRotateX - smoothRotateX) * DRAG_SMOOTHING;
+		const upY = Math.cos(smoothRotateX);
+		if (upY > UPSIDE_DOWN_HYSTERESIS) {
+			horizontalDragSign = 1;
+		} else if (upY < -UPSIDE_DOWN_HYSTERESIS) {
+			horizontalDragSign = -1;
+		}
 
 		if (isAnimating && currentMove) {
 			moveProgress = Math.min(1, moveProgress + state.delta / MOVE_DURATION);

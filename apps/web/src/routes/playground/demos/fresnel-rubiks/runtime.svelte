@@ -28,11 +28,9 @@
 	const HALF_PI = Math.PI * 0.5;
 
 	const DRAG_SENSITIVITY = 0.005;
-	const DRAG_SMOOTHING = 0.14;
 	const DRAG_VELOCITY_SMOOTHING = 0.2;
 	const MOMENTUM_DECAY = 3.25;
 	const MOMENTUM_MIN_SPEED = 0.015;
-	const UPSIDE_DOWN_HYSTERESIS = 0.12;
 	const AUTO_ROTATE_SPEED = 0.24;
 	const BASE_CUBE_SCALE = 0.9;
 	const BASE_CUBE_GAP = 0.05;
@@ -124,12 +122,6 @@
 		];
 	};
 
-	const quatFromIcoLikeOrbit = (rotateX: number, rotateY: number): Quat => {
-		const qy = quatFromAxisAngle([0, 1, 0], rotateY);
-		const qx = quatFromAxisAngle([1, 0, 0], rotateX);
-		return quatMultiply(qx, qy);
-	};
-
 	const cubelets = initializeCubelets();
 	const gridPositionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
 	const worldPositionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
@@ -147,16 +139,21 @@
 	let lastPointerX = 0;
 	let lastPointerY = 0;
 	let lastPointerTime = 0;
-	let targetRotateY = 0;
-	let targetRotateX = 0;
-	let smoothRotateY = 0;
-	let smoothRotateX = 0;
-	let autoRotateY = 0;
+	let sceneQuat: Quat = [0, 0, 0, 1];
 	let dragVelocityY = 0;
 	let dragVelocityX = 0;
 	let momentumVelocityY = 0;
 	let momentumVelocityX = 0;
-	let horizontalDragSign: Direction = 1;
+
+	const applyOrbitDelta = (horizontalDelta: number, verticalDelta: number) => {
+		const angle = Math.hypot(horizontalDelta, verticalDelta);
+		if (angle < 1e-6) return;
+
+		// Screen-space trackball: drag right always rotates around screen up, drag up/down around screen right.
+		const axis: Vec3 = [verticalDelta / angle, horizontalDelta / angle, 0];
+		const qDelta = quatFromAxisAngle(axis, angle);
+		sceneQuat = quatMultiply(qDelta, sceneQuat);
+	};
 
 	const updateSceneBuffers = (
 		sceneQuat: Quat,
@@ -279,10 +276,9 @@
 			const dt = Math.max(0.001, (now - lastPointerTime) * 0.001);
 			lastPointerTime = now;
 
-			const rotateDeltaY = dx * DRAG_SENSITIVITY * horizontalDragSign;
+			const rotateDeltaY = dx * DRAG_SENSITIVITY;
 			const rotateDeltaX = dy * DRAG_SENSITIVITY;
-			targetRotateY += rotateDeltaY;
-			targetRotateX += rotateDeltaX;
+			applyOrbitDelta(rotateDeltaY, rotateDeltaX);
 
 			const instantVelocityY = rotateDeltaY / dt;
 			const instantVelocityX = rotateDeltaX / dt;
@@ -312,11 +308,13 @@
 	});
 
 	useFrame((state) => {
-		autoRotateY += state.delta * AUTO_ROTATE_SPEED;
+		let yawDelta = 0;
+		let pitchDelta = 0;
 
 		if (!isDragging) {
-			targetRotateY += momentumVelocityY * state.delta;
-			targetRotateX += momentumVelocityX * state.delta;
+			yawDelta += state.delta * AUTO_ROTATE_SPEED;
+			yawDelta += momentumVelocityY * state.delta;
+			pitchDelta += momentumVelocityX * state.delta;
 
 			const decay = Math.exp(-MOMENTUM_DECAY * state.delta);
 			momentumVelocityY *= decay;
@@ -330,14 +328,7 @@
 			}
 		}
 
-		smoothRotateY += (targetRotateY - smoothRotateY) * DRAG_SMOOTHING;
-		smoothRotateX += (targetRotateX - smoothRotateX) * DRAG_SMOOTHING;
-		const upY = Math.cos(smoothRotateX);
-		if (upY > UPSIDE_DOWN_HYSTERESIS) {
-			horizontalDragSign = 1;
-		} else if (upY < -UPSIDE_DOWN_HYSTERESIS) {
-			horizontalDragSign = -1;
-		}
+		applyOrbitDelta(yawDelta, pitchDelta);
 
 		if (isAnimating && currentMove) {
 			moveProgress = Math.min(1, moveProgress + state.delta / MOVE_DURATION);
@@ -354,7 +345,7 @@
 			}
 		}
 
-		const sceneQuat: Quat = quatFromIcoLikeOrbit(smoothRotateX, autoRotateY + smoothRotateY);
+		const currentSceneQuat: Quat = sceneQuat;
 		const canvas = motion.canvas;
 		let cubeScale = BASE_CUBE_SCALE;
 		let cubeGap = BASE_CUBE_GAP;
@@ -384,7 +375,7 @@
 			activeLayer = currentMove.layer;
 		}
 
-		updateSceneBuffers(sceneQuat, spacing, activeMoveQuat, activeAxisIndex, activeLayer);
+		updateSceneBuffers(currentSceneQuat, spacing, activeMoveQuat, activeAxisIndex, activeLayer);
 
 		state.setUniform('uCubeScale', cubeScale);
 		state.setUniform('uRoundRadius', roundRadius);

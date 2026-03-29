@@ -304,14 +304,6 @@
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
 	}
 
-	.motiongpu-error-badge-severity {
-		background: linear-gradient(
-			180deg,
-			oklch(0.66 0.15 38) 0%,
-			oklch(0.5 0.1 38) 100%
-		);
-	}
-
 	.motiongpu-error-recoverable {
 		margin: 0;
 		font-size: 0.67rem;

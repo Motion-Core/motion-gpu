@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
+	import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
 	import Runtime from './runtime.svelte';
 
 	const CUBE_COUNT = 27;
@@ -166,7 +166,8 @@ fn frag(uv: vec2f) -> vec4f {
     }
 
     prev_t = t;
-    t += clamp(s.dist, 0.002, 0.75);  }
+    t += clamp(s.dist, 0.002, 0.75);
+  }
 
   if (!hit) {
     return vec4f(bg, 1.0);
@@ -228,37 +229,124 @@ fn frag(uv: vec2f) -> vec4f {
 			uRimIntensity: { type: 'f32', value: 2.2 },
 			uCubeScale: { type: 'f32', value: 0.9 },
 			uRoundRadius: { type: 'f32', value: 0.075 },
-			uSceneBound: { type: 'f32', value: 2.7 }
+			uSceneBound: { type: 'f32', value: 2.7 },
+			uSceneQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
+			uMoveQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
+			uSpacing: { type: 'f32', value: 1 },
+			uActiveAxis: { type: 'f32', value: 0 },
+			uActiveLayer: { type: 'f32', value: 0 },
+			uMoveActive: { type: 'f32', value: 0 }
 		},
 		storageBuffers: {
+			cubeBasePositions: {
+				size: BUFFER_SIZE,
+				type: 'array<vec4f>',
+				access: 'read-write',
+				initialData: createInitialGridPositions()
+			},
+			cubeBaseQuaternions: {
+				size: BUFFER_SIZE,
+				type: 'array<vec4f>',
+				access: 'read-write',
+				initialData: createInitialIdentityQuaternions()
+			},
 			cubeGridPositions: {
 				size: BUFFER_SIZE,
 				type: 'array<vec4f>',
-				access: 'read',
+				access: 'read-write',
 				initialData: createInitialGridPositions()
 			},
 			cubeWorldPositions: {
 				size: BUFFER_SIZE,
 				type: 'array<vec4f>',
-				access: 'read',
+				access: 'read-write',
 				initialData: createInitialGridPositions()
 			},
 			cubeWorldQuaternions: {
 				size: BUFFER_SIZE,
 				type: 'array<vec4f>',
-				access: 'read',
+				access: 'read-write',
 				initialData: createInitialIdentityQuaternions()
 			},
 			cubeInvWorldQuaternions: {
 				size: BUFFER_SIZE,
 				type: 'array<vec4f>',
-				access: 'read',
+				access: 'read-write',
 				initialData: createInitialIdentityQuaternions()
 			}
 		}
 	});
+
+	const transformPass = new ComputePass({
+		compute: `
+const CUBE_COUNT: u32 = ${CUBE_COUNT}u;
+
+fn quat_normalize(q: vec4f) -> vec4f {
+  let m = max(length(q), 1e-6);
+  return q / m;
+}
+
+fn quat_mul(a: vec4f, b: vec4f) -> vec4f {
+  return quat_normalize(vec4f(
+    a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+  ));
+}
+
+fn quat_conj(q: vec4f) -> vec4f {
+  return vec4f(-q.x, -q.y, -q.z, q.w);
+}
+
+fn quat_rotate(q: vec4f, v: vec3f) -> vec3f {
+  let qv = q.xyz;
+  let uv = cross(qv, v);
+  let uuv = cross(qv, uv);
+  return v + ((uv * q.w) + uuv) * 2.0;
+}
+
+fn axis_coord(v: vec3f, axis: i32) -> f32 {
+  if (axis == 0) { return v.x; }
+  if (axis == 1) { return v.y; }
+  return v.z;
+}
+
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  if (i >= CUBE_COUNT) { return; }
+
+  var gridPos = cubeBasePositions[i].xyz;
+  var cubeQuat = cubeBaseQuaternions[i];
+
+  if (motiongpuUniforms.uMoveActive > 0.5) {
+    let axis = i32(round(motiongpuUniforms.uActiveAxis));
+    let layer = i32(round(motiongpuUniforms.uActiveLayer));
+    let coord = i32(round(axis_coord(gridPos, axis)));
+
+    if (coord == layer) {
+      let moveQuat = motiongpuUniforms.uMoveQuat;
+      gridPos = quat_rotate(moveQuat, gridPos);
+      cubeQuat = quat_mul(moveQuat, cubeQuat);
+    }
+  }
+
+  let sceneQuat = motiongpuUniforms.uSceneQuat;
+  let worldPos = quat_rotate(sceneQuat, gridPos * motiongpuUniforms.uSpacing);
+  let worldQuat = quat_mul(sceneQuat, cubeQuat);
+  let invWorldQuat = quat_conj(worldQuat);
+
+  cubeGridPositions[i] = vec4f(gridPos, 1.0);
+  cubeWorldPositions[i] = vec4f(worldPos, 1.0);
+  cubeWorldQuaternions[i] = worldQuat;
+  cubeInvWorldQuaternions[i] = invWorldQuat;
+}
+`,
+		dispatch: [1]
+	});
 </script>
 
-<FragCanvas {material} outputColorSpace="linear">
+<FragCanvas {material} passes={[transformPass]} outputColorSpace="linear">
 	<Runtime />
 </FragCanvas>

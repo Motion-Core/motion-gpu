@@ -29,8 +29,10 @@
 
 	const DRAG_SENSITIVITY = 0.005;
 	const DRAG_VELOCITY_SMOOTHING = 0.2;
+	const ANGULAR_VELOCITY_SMOOTHING = 0.22;
 	const MOMENTUM_DECAY = 3.25;
 	const MOMENTUM_MIN_SPEED = 0.015;
+	const MOMENTUM_MIN_ANGULAR_SPEED = 0.02;
 	const AUTO_ROTATE_SPEED = 0.24;
 	const BASE_CUBE_SCALE = 0.9;
 	const BASE_CUBE_GAP = 0.05;
@@ -93,8 +95,6 @@
 			a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]
 		]);
 
-	const quatConjugate = (q: Quat): Quat => [-q[0], -q[1], -q[2], q[3]];
-
 	const quatFromAxisAngle = (axis: Vec3, angle: number): Quat => {
 		const half = angle * 0.5;
 		const s = Math.sin(half);
@@ -123,10 +123,8 @@
 	};
 
 	const cubelets = initializeCubelets();
-	const gridPositionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
-	const worldPositionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
-	const worldQuaternionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
-	const invWorldQuaternionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
+	const basePositionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
+	const baseQuaternionBuffer = new Float32Array(CUBE_COUNT * ENTRY_STRIDE);
 
 	let currentMove: Move | null = null;
 	let isAnimating = false;
@@ -139,65 +137,91 @@
 	let lastPointerX = 0;
 	let lastPointerY = 0;
 	let lastPointerTime = 0;
+	let lastArcballVec: Vec3 | null = null;
 	let sceneQuat: Quat = [0, 0, 0, 1];
 	let dragVelocityY = 0;
 	let dragVelocityX = 0;
+	let dragAngularSpeed = 0;
+	let dragAngularAxis: Vec3 = [0, 1, 0];
 	let momentumVelocityY = 0;
 	let momentumVelocityX = 0;
+	let momentumAngularSpeed = 0;
+	let momentumAngularAxis: Vec3 = [0, 1, 0];
+	let baseBuffersDirty = true;
+
+	const syncBaseBuffers = () => {
+		for (let index = 0; index < CUBE_COUNT; index += 1) {
+			const cubelet = cubelets[index];
+			const base = index * ENTRY_STRIDE;
+
+			basePositionBuffer[base] = cubelet.position[0];
+			basePositionBuffer[base + 1] = cubelet.position[1];
+			basePositionBuffer[base + 2] = cubelet.position[2];
+			basePositionBuffer[base + 3] = 1;
+
+			baseQuaternionBuffer[base] = cubelet.quaternion[0];
+			baseQuaternionBuffer[base + 1] = cubelet.quaternion[1];
+			baseQuaternionBuffer[base + 2] = cubelet.quaternion[2];
+			baseQuaternionBuffer[base + 3] = cubelet.quaternion[3];
+		}
+	};
+
+	syncBaseBuffers();
 
 	const applyOrbitDelta = (horizontalDelta: number, verticalDelta: number) => {
 		const angle = Math.hypot(horizontalDelta, verticalDelta);
 		if (angle < 1e-6) return;
 
-		// Screen-space trackball: drag right always rotates around screen up, drag up/down around screen right.
 		const axis: Vec3 = [verticalDelta / angle, horizontalDelta / angle, 0];
 		const qDelta = quatFromAxisAngle(axis, angle);
 		sceneQuat = quatMultiply(qDelta, sceneQuat);
 	};
 
-	const updateSceneBuffers = (
-		sceneQuat: Quat,
-		spacing: number,
-		moveQuat: Quat,
-		activeAxisIndex: 0 | 1 | 2 | null,
-		activeLayer: Layer
-	) => {
-		for (let index = 0; index < CUBE_COUNT; index += 1) {
-			const cubelet = cubelets[index];
-			let gridPos: Vec3 = cubelet.position;
-			let cubeQuat: Quat = cubelet.quaternion;
+	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-			if (activeAxisIndex !== null && Math.round(gridPos[activeAxisIndex]) === activeLayer) {
-				gridPos = quatRotateVec(moveQuat, gridPos);
-				cubeQuat = quatMultiply(moveQuat, cubeQuat);
-			}
+	const normalizeVec3 = (v: Vec3): Vec3 => {
+		const length = Math.hypot(v[0], v[1], v[2]) || 1;
+		return [v[0] / length, v[1] / length, v[2] / length];
+	};
 
-			const scaledGrid: Vec3 = [gridPos[0] * spacing, gridPos[1] * spacing, gridPos[2] * spacing];
-			const worldPos = quatRotateVec(sceneQuat, scaledGrid);
-			const worldQuat = quatMultiply(sceneQuat, cubeQuat);
-			const invWorldQuat = quatConjugate(worldQuat);
-			const base = index * ENTRY_STRIDE;
+	const crossVec3 = (a: Vec3, b: Vec3): Vec3 => [
+		a[1] * b[2] - a[2] * b[1],
+		a[2] * b[0] - a[0] * b[2],
+		a[0] * b[1] - a[1] * b[0]
+	];
 
-			gridPositionBuffer[base] = gridPos[0];
-			gridPositionBuffer[base + 1] = gridPos[1];
-			gridPositionBuffer[base + 2] = gridPos[2];
-			gridPositionBuffer[base + 3] = 1;
+	const dotVec3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-			worldPositionBuffer[base] = worldPos[0];
-			worldPositionBuffer[base + 1] = worldPos[1];
-			worldPositionBuffer[base + 2] = worldPos[2];
-			worldPositionBuffer[base + 3] = 1;
+	const quatFromUnitVectors = (from: Vec3, to: Vec3): Quat => {
+		const d = clamp(dotVec3(from, to), -1, 1);
+		const cross = crossVec3(from, to);
+		const crossLen = Math.hypot(cross[0], cross[1], cross[2]);
 
-			worldQuaternionBuffer[base] = worldQuat[0];
-			worldQuaternionBuffer[base + 1] = worldQuat[1];
-			worldQuaternionBuffer[base + 2] = worldQuat[2];
-			worldQuaternionBuffer[base + 3] = worldQuat[3];
-
-			invWorldQuaternionBuffer[base] = invWorldQuat[0];
-			invWorldQuaternionBuffer[base + 1] = invWorldQuat[1];
-			invWorldQuaternionBuffer[base + 2] = invWorldQuat[2];
-			invWorldQuaternionBuffer[base + 3] = invWorldQuat[3];
+		if (crossLen < 1e-6 && d < -0.9999) {
+			const fallback = Math.abs(from[0]) < 0.9 ? crossVec3(from, [1, 0, 0]) : crossVec3(from, [0, 1, 0]);
+			const axis = normalizeVec3(fallback);
+			return quatFromAxisAngle(axis, Math.PI);
 		}
+
+		return quatNormalize([cross[0], cross[1], cross[2], 1 + d]);
+	};
+
+	const projectPointerToArcball = (clientX: number, clientY: number, canvas: HTMLCanvasElement): Vec3 => {
+		const rect = canvas.getBoundingClientRect();
+		const width = Math.max(rect.width, 1);
+		const height = Math.max(rect.height, 1);
+		let x = ((clientX - rect.left) / width) * 2 - 1;
+		let y = ((clientY - rect.top) / height) * 2 - 1;
+
+		const radiusSq = x * x + y * y;
+		if (radiusSq > 1) {
+			const inv = 1 / Math.sqrt(radiusSq);
+			x *= inv;
+			y *= inv;
+			return [x, y, 0];
+		}
+
+		return [x, y, Math.sqrt(1 - radiusSq)];
 	};
 
 	const commitMove = () => {
@@ -221,6 +245,9 @@
 			];
 			cubelet.quaternion = quatMultiply(deltaQ, cubelet.quaternion);
 		}
+
+		syncBaseBuffers();
+		baseBuffersDirty = true;
 
 		isAnimating = false;
 		moveProgress = 0;
@@ -259,10 +286,15 @@
 			lastPointerX = event.clientX;
 			lastPointerY = event.clientY;
 			lastPointerTime = performance.now();
+			lastArcballVec = projectPointerToArcball(event.clientX, event.clientY, canvas);
 			dragVelocityY = 0;
 			dragVelocityX = 0;
+			dragAngularSpeed = 0;
+			dragAngularAxis = [0, 1, 0];
 			momentumVelocityY = 0;
 			momentumVelocityX = 0;
+			momentumAngularSpeed = 0;
+			momentumAngularAxis = [0, 1, 0];
 			canvas.style.cursor = 'grabbing';
 		};
 
@@ -278,12 +310,26 @@
 
 			const rotateDeltaY = dx * DRAG_SENSITIVITY;
 			const rotateDeltaX = dy * DRAG_SENSITIVITY;
-			applyOrbitDelta(rotateDeltaY, rotateDeltaX);
+			const arcballNow = projectPointerToArcball(event.clientX, event.clientY, canvas);
+			const arcballPrev = lastArcballVec ?? arcballNow;
+			const dragQuat = quatFromUnitVectors(arcballPrev, arcballNow);
+			sceneQuat = quatMultiply(dragQuat, sceneQuat);
+			lastArcballVec = arcballNow;
 
 			const instantVelocityY = rotateDeltaY / dt;
 			const instantVelocityX = rotateDeltaX / dt;
 			dragVelocityY += (instantVelocityY - dragVelocityY) * DRAG_VELOCITY_SMOOTHING;
 			dragVelocityX += (instantVelocityX - dragVelocityX) * DRAG_VELOCITY_SMOOTHING;
+
+			const halfAngle = Math.acos(clamp(dragQuat[3], -1, 1));
+			const fullAngle = halfAngle * 2;
+			const sinHalf = Math.sin(halfAngle);
+			if (sinHalf > 1e-4 && fullAngle > 1e-5) {
+				dragAngularAxis = normalizeVec3([dragQuat[0] / sinHalf, dragQuat[1] / sinHalf, dragQuat[2] / sinHalf]);
+				const instantAngularSpeed = fullAngle / dt;
+				dragAngularSpeed +=
+					(instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
+			}
 		};
 
 		const endDrag = () => {
@@ -291,6 +337,9 @@
 			isDragging = false;
 			momentumVelocityY = dragVelocityY;
 			momentumVelocityX = dragVelocityX;
+			momentumAngularSpeed = dragAngularSpeed;
+			momentumAngularAxis = dragAngularAxis;
+			lastArcballVec = null;
 			canvas.style.cursor = 'grab';
 		};
 
@@ -309,16 +358,15 @@
 
 	useFrame((state) => {
 		let yawDelta = 0;
-		let pitchDelta = 0;
 
 		if (!isDragging) {
 			yawDelta += state.delta * AUTO_ROTATE_SPEED;
 			yawDelta += momentumVelocityY * state.delta;
-			pitchDelta += momentumVelocityX * state.delta;
 
 			const decay = Math.exp(-MOMENTUM_DECAY * state.delta);
 			momentumVelocityY *= decay;
 			momentumVelocityX *= decay;
+			momentumAngularSpeed *= decay;
 
 			if (Math.abs(momentumVelocityY) < MOMENTUM_MIN_SPEED) {
 				momentumVelocityY = 0;
@@ -326,9 +374,16 @@
 			if (Math.abs(momentumVelocityX) < MOMENTUM_MIN_SPEED) {
 				momentumVelocityX = 0;
 			}
+			if (momentumAngularSpeed < MOMENTUM_MIN_ANGULAR_SPEED) {
+				momentumAngularSpeed = 0;
+			}
 		}
 
-		applyOrbitDelta(yawDelta, pitchDelta);
+		applyOrbitDelta(yawDelta, 0);
+		if (!isDragging && momentumAngularSpeed > 0) {
+			const momentumQuat = quatFromAxisAngle(momentumAngularAxis, momentumAngularSpeed * state.delta);
+			sceneQuat = quatMultiply(momentumQuat, sceneQuat);
+		}
 
 		if (isAnimating && currentMove) {
 			moveProgress = Math.min(1, moveProgress + state.delta / MOVE_DURATION);
@@ -345,7 +400,6 @@
 			}
 		}
 
-		const currentSceneQuat: Quat = sceneQuat;
 		const canvas = motion.canvas;
 		let cubeScale = BASE_CUBE_SCALE;
 		let cubeGap = BASE_CUBE_GAP;
@@ -365,25 +419,33 @@
 		}
 
 		const spacing = cubeScale + cubeGap;
-		let activeMoveQuat = IDENTITY_QUAT;
-		let activeAxisIndex: 0 | 1 | 2 | null = null;
-		let activeLayer: Layer = 0;
+		let activeMoveQuat: Quat = IDENTITY_QUAT;
+		let activeAxis = 0;
+		let activeLayer = 0;
+		let moveActive = 0;
 
 		if (isAnimating && currentMove) {
 			activeMoveQuat = quatFromAxisAngle(AXIS_VECTORS[currentMove.axis], currentMoveAngle);
-			activeAxisIndex = AXIS_INDEX[currentMove.axis];
+			activeAxis = AXIS_INDEX[currentMove.axis];
 			activeLayer = currentMove.layer;
+			moveActive = 1;
 		}
 
-		updateSceneBuffers(currentSceneQuat, spacing, activeMoveQuat, activeAxisIndex, activeLayer);
+		state.setUniform('uSceneQuat', sceneQuat);
+		state.setUniform('uMoveQuat', activeMoveQuat);
+		state.setUniform('uSpacing', spacing);
+		state.setUniform('uActiveAxis', activeAxis);
+		state.setUniform('uActiveLayer', activeLayer);
+		state.setUniform('uMoveActive', moveActive);
 
 		state.setUniform('uCubeScale', cubeScale);
 		state.setUniform('uRoundRadius', roundRadius);
 		state.setUniform('uSceneBound', sceneBound);
 
-		state.writeStorageBuffer('cubeGridPositions', gridPositionBuffer);
-		state.writeStorageBuffer('cubeWorldPositions', worldPositionBuffer);
-		state.writeStorageBuffer('cubeWorldQuaternions', worldQuaternionBuffer);
-		state.writeStorageBuffer('cubeInvWorldQuaternions', invWorldQuaternionBuffer);
+		if (baseBuffersDirty) {
+			state.writeStorageBuffer('cubeBasePositions', basePositionBuffer);
+			state.writeStorageBuffer('cubeBaseQuaternions', baseQuaternionBuffer);
+			baseBuffersDirty = false;
+		}
 	});
 </script>

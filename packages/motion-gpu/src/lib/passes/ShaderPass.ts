@@ -65,8 +65,9 @@ export class ShaderPass extends FullscreenPass {
 	 * Replaces current shader fragment and invalidates pipeline cache.
 	 */
 	setFragment(fragment: string): void {
+		const nextProgram = buildShaderPassProgram(fragment);
 		this.fragment = fragment;
-		this.program = buildShaderPassProgram(fragment);
+		this.program = nextProgram;
 		this.invalidateFullscreenCache();
 	}
 

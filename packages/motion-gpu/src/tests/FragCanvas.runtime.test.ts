@@ -428,19 +428,30 @@ describe('FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('expected ;');
 		expect(overlay.textContent).toContain('Stack trace');
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
-		const metaValues = Array.from(overlay.querySelectorAll('.motiongpu-error-meta-value')).map((value) =>
-			value.textContent?.trim()
-		);
-		expect(metaValues).toContain('WGSL_COMPILATION_FAILED');
-		expect(metaValues).toContain('error');
-		expect(metaValues).toContain('yes');
+		expect(overlay.querySelector('.motiongpu-error-code')).toBeNull();
+		expect(overlay.textContent).not.toContain('WGSL_COMPILATION_FAILED');
+		expect(overlay.querySelector('.motiongpu-error-badge-severity')?.textContent).toContain('error');
+		expect(overlay.querySelector('.motiongpu-error-recoverable')?.textContent).toContain('yes');
+		expect(overlay.querySelectorAll('.motiongpu-error-badge')).toHaveLength(2);
+		expect(overlay.querySelectorAll('.motiongpu-error-badge-wrap')).toHaveLength(2);
 		expect(overlay.textContent).toContain('Runtime context');
-		expect(overlay.textContent).toContain('materialSignature: {"fragment":"overlay-hash"}');
-		expect(overlay.textContent).toContain('passGraph.passCount: 3');
-		expect(overlay.textContent).toContain('passGraph.enabledPassCount: 2');
-		expect(overlay.textContent).toContain('passGraph.inputs: source, fxMain');
-		expect(overlay.textContent).toContain('passGraph.outputs: fxA, canvas');
-		expect(overlay.textContent).toContain('activeRenderTargets: fxMain, fxA');
+		expect(overlay.textContent).toContain('materialSignature:');
+		expect(overlay.textContent).toContain('"fragment": "overlay-hash"');
+		expect(overlay.textContent).toContain('passGraph:');
+		expect(overlay.textContent).toContain('passCount: 3');
+		expect(overlay.textContent).toContain('enabledPassCount: 2');
+		expect(overlay.textContent).toContain('inputs:');
+		expect(overlay.textContent).toContain('- source');
+		expect(overlay.textContent).toContain('- fxMain');
+		expect(overlay.textContent).toContain('outputs:');
+		expect(overlay.textContent).toContain('- fxA');
+		expect(overlay.textContent).toContain('- canvas');
+		expect(overlay.textContent).toContain('activeRenderTargets:');
+		const runtimeContextDetails = Array.from(overlay.querySelectorAll('.motiongpu-error-details')).find(
+			(section) => section.querySelector('summary')?.textContent?.includes('Runtime context')
+		);
+		expect(runtimeContextDetails).toBeTruthy();
+		expect(runtimeContextDetails?.hasAttribute('open')).toBe(false);
 	});
 
 	it('renders include diagnostics location in overlay source header', async () => {

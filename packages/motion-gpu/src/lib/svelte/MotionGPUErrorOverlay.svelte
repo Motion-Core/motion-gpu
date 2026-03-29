@@ -16,7 +16,25 @@
 	};
 
 	const shouldShowErrorMessage = (value: MotionGPUErrorReport): boolean => {
-		return normalizeErrorText(value.message) !== normalizeErrorText(value.title);
+		return resolveDisplayMessage(value).length > 0;
+	};
+
+	const resolveDisplayMessage = (value: MotionGPUErrorReport): string => {
+		const rawMessage = value.message.trim();
+		if (rawMessage.length === 0) {
+			return '';
+		}
+
+		const normalizedMessage = normalizeErrorText(rawMessage);
+		const normalizedTitle = normalizeErrorText(value.title);
+		if (normalizedMessage === normalizedTitle) {
+			return '';
+		}
+
+		const escapedTitle = value.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const prefixPattern = new RegExp(`^${escapedTitle}\\s*[:\\-|]\\s*`, 'i');
+		const stripped = rawMessage.replace(prefixPattern, '').trim();
+		return stripped.length > 0 ? stripped : rawMessage;
 	};
 
 	const formatRuntimeContext = (context: MotionGPUErrorReport['context']): string => {
@@ -24,17 +42,60 @@
 			return '';
 		}
 
+		const indentBlock = (value: string, spaces = 2): string => {
+			const prefix = ' '.repeat(spaces);
+			return value
+				.split('\n')
+				.map((line) => `${prefix}${line}`)
+				.join('\n');
+		};
+
+		const formatMaterialSignature = (value: string): string => {
+			const trimmed = value.trim();
+			if (trimmed.length === 0) {
+				return '<empty>';
+			}
+			try {
+				return JSON.stringify(JSON.parse(trimmed), null, 2);
+			} catch {
+				return trimmed;
+			}
+		};
+
 		const lines: string[] = [];
 		if (context.materialSignature) {
-			lines.push(`materialSignature: ${context.materialSignature}`);
+			lines.push('materialSignature:');
+			lines.push(indentBlock(formatMaterialSignature(context.materialSignature)));
 		}
 		if (context.passGraph) {
-			lines.push(`passGraph.passCount: ${context.passGraph.passCount}`);
-			lines.push(`passGraph.enabledPassCount: ${context.passGraph.enabledPassCount}`);
-			lines.push(`passGraph.inputs: ${context.passGraph.inputs.join(', ') || '<none>'}`);
-			lines.push(`passGraph.outputs: ${context.passGraph.outputs.join(', ') || '<none>'}`);
+			lines.push('passGraph:');
+			lines.push(`  passCount: ${context.passGraph.passCount}`);
+			lines.push(`  enabledPassCount: ${context.passGraph.enabledPassCount}`);
+			lines.push('  inputs:');
+			if (context.passGraph.inputs.length === 0) {
+				lines.push('    - <none>');
+			} else {
+				for (const input of context.passGraph.inputs) {
+					lines.push(`    - ${input}`);
+				}
+			}
+			lines.push('  outputs:');
+			if (context.passGraph.outputs.length === 0) {
+				lines.push('    - <none>');
+			} else {
+				for (const output of context.passGraph.outputs) {
+					lines.push(`    - ${output}`);
+				}
+			}
 		}
-		lines.push(`activeRenderTargets: ${context.activeRenderTargets.join(', ') || '<none>'}`);
+		lines.push('activeRenderTargets:');
+		if (context.activeRenderTargets.length === 0) {
+			lines.push('  - <none>');
+		} else {
+			for (const target of context.activeRenderTargets) {
+				lines.push(`  - ${target}`);
+			}
+		}
 		return lines.join('\n');
 	};
 </script>
@@ -49,35 +110,30 @@
 			data-testid="motiongpu-error"
 		>
 			<header class="motiongpu-error-header">
-				<div class="motiongpu-error-badge-wrap">
-					<p class="motiongpu-error-phase">
-						{report.phase}
-					</p>
-					<p class="motiongpu-error-phase motiongpu-error-phase-severity">
-						{report.severity}
-					</p>
+				<div class="motiongpu-error-header-top">
+					<div class="motiongpu-error-badges">
+						<div class="motiongpu-error-badge-wrap">
+							<p class="motiongpu-error-badge motiongpu-error-badge-phase">
+								{report.phase}
+							</p>
+						</div>
+						<div class="motiongpu-error-badge-wrap">
+							<p class="motiongpu-error-badge motiongpu-error-badge-severity">
+								{report.severity}
+							</p>
+						</div>
+					</div>
 				</div>
 				<h2 class="motiongpu-error-title">{report.title}</h2>
+				<p class="motiongpu-error-recoverable">
+					Recoverable: <span>{report.recoverable ? 'yes' : 'no'}</span>
+				</p>
 			</header>
 			<div class="motiongpu-error-body">
 				{#if shouldShowErrorMessage(report)}
-					<p class="motiongpu-error-message">{report.message}</p>
+					<p class="motiongpu-error-message">{resolveDisplayMessage(report)}</p>
 				{/if}
 				<p class="motiongpu-error-hint">{report.hint}</p>
-				<div class="motiongpu-error-meta" aria-label="Error metadata">
-					<p class="motiongpu-error-meta-item">
-						<span class="motiongpu-error-meta-label">Code</span>
-						<code class="motiongpu-error-meta-value">{report.code}</code>
-					</p>
-					<p class="motiongpu-error-meta-item">
-						<span class="motiongpu-error-meta-label">Severity</span>
-						<span class="motiongpu-error-meta-value">{report.severity}</span>
-					</p>
-					<p class="motiongpu-error-meta-item">
-						<span class="motiongpu-error-meta-label">Recoverable</span>
-						<span class="motiongpu-error-meta-value">{report.recoverable ? 'yes' : 'no'}</span>
-					</p>
-				</div>
 			</div>
 
 			{#if report.source}
@@ -124,7 +180,7 @@
 					</details>
 				{/if}
 				{#if report.context}
-					<details class="motiongpu-error-details" open>
+					<details class="motiongpu-error-details">
 						<summary>Runtime context</summary>
 						<pre>{formatRuntimeContext(report.context)}</pre>
 					</details>
@@ -204,6 +260,19 @@
 		border-bottom: 1px solid var(--motiongpu-color-border);
 	}
 
+	.motiongpu-error-header-top {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+
+	.motiongpu-error-badges {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+	}
+
 	.motiongpu-error-badge-wrap {
 		display: inline-flex;
 		align-items: center;
@@ -215,7 +284,7 @@
 		background: var(--motiongpu-color-background-muted);
 	}
 
-	.motiongpu-error-phase {
+	.motiongpu-error-badge {
 		display: inline-flex;
 		align-items: center;
 		margin: 0;
@@ -235,12 +304,26 @@
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
 	}
 
-	.motiongpu-error-phase-severity {
+	.motiongpu-error-badge-severity {
 		background: linear-gradient(
 			180deg,
 			oklch(0.66 0.15 38) 0%,
 			oklch(0.5 0.1 38) 100%
 		);
+	}
+
+	.motiongpu-error-recoverable {
+		margin: 0;
+		font-size: 0.67rem;
+		line-height: 1.2;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--motiongpu-color-foreground-muted);
+	}
+
+	.motiongpu-error-recoverable span {
+		font-family: var(--motiongpu-font-mono);
+		color: var(--motiongpu-color-foreground);
 	}
 
 	.motiongpu-error-title {
@@ -277,36 +360,6 @@
 		line-height: 1.45;
 		font-weight: 400;
 		color: var(--motiongpu-color-foreground-muted);
-	}
-
-	.motiongpu-error-meta {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 0.48rem;
-	}
-
-	.motiongpu-error-meta-item {
-		display: grid;
-		gap: 0.22rem;
-		margin: 0;
-		padding: 0.45rem 0.54rem;
-		border: 1px solid var(--motiongpu-color-border);
-		border-radius: var(--motiongpu-radius-md);
-		background: var(--motiongpu-color-background-muted);
-	}
-
-	.motiongpu-error-meta-label {
-		font-size: 0.65rem;
-		letter-spacing: 0.07em;
-		text-transform: uppercase;
-		color: var(--motiongpu-color-foreground-muted);
-	}
-
-	.motiongpu-error-meta-value {
-		font-size: 0.76rem;
-		line-height: 1.3;
-		font-family: var(--motiongpu-font-mono);
-		color: var(--motiongpu-color-foreground);
 	}
 
 	.motiongpu-error-sections {
@@ -453,8 +506,9 @@
 			font-size: 1.02rem;
 		}
 
-		.motiongpu-error-meta {
-			grid-template-columns: 1fr;
+		.motiongpu-error-header-top {
+			flex-direction: column;
+			align-items: flex-start;
 		}
 	}
 

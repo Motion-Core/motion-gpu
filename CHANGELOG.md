@@ -10,12 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added `FrameState.writeStorageBuffer(...)` and `FrameState.readStorageBuffer(...)` APIs for runtime CPU↔GPU storage-buffer workflows.
 - Added compute-shader contract/codegen utilities with strict `@compute @workgroup_size(...) fn compute(...)` validation and workgroup-size extraction.
 - Added broad compute/storage test coverage, including pass behavior, shader generation, storage runtime read/write, renderer integration, and public API snapshots.
+- Added expanded runtime error classification coverage with dedicated codes for material preprocessing, compute-contract violations, runtime resource binding failures, storage read/write bounds failures, render-graph validation failures, ping-pong configuration failures, and invalid uniform payloads.
 
 ### Changed
 - Updated pass plumbing from render-only arrays to mixed `AnyPass[]`, allowing render and compute passes to coexist in one graph.
 - Updated renderer internals to allocate/manage storage buffers and storage textures, cache compute pipelines, and flush pending storage writes during frame submission.
 - Updated material resolution/signature inputs to include storage buffer definitions and storage texture bindings, triggering deterministic rebuilds when those contracts change.
 - Updated benchmark/runtime frame-state mocks to include the new storage-buffer APIs.
+- Updated runtime-context presentation to structured multi-line formatting with pretty-printed `materialSignature` JSON and list-based `passGraph`/target sections.
 
 ### Fixed
 - Added explicit compute compilation error normalization with `COMPUTE_COMPILATION_FAILED` classification and recovery metadata.

@@ -1,32 +1,85 @@
 ---
-name: motion-gpu-svelte-wgsl
-description: Build and edit Svelte 5 components that render WGSL with @motion-core/motion-gpu/svelte. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
+name: motion-gpu-adapters-wgsl
+description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
 ---
 
-# MotionGPU Svelte WGSL Skill
+# MotionGPU Core + Adapters Skill
 
-Use this skill to produce production-grade Svelte 5 components on top of `@motion-core/motion-gpu/svelte`.
-Follow the workflow exactly and enforce runtime contracts strictly.
+Use this skill to produce production-grade MotionGPU code across:
+- framework-agnostic core (`@motion-core/motion-gpu`, `@motion-core/motion-gpu/core`),
+- Svelte adapter (`@motion-core/motion-gpu/svelte`),
+- React adapter (`@motion-core/motion-gpu/react`).
+
+Treat Svelte and React as first-class adapters. Do not assume Svelte-only APIs.
 
 ## Source of Truth
 
-Treat the public package contract as authoritative:
+Treat public package entrypoints as authoritative:
 
-- `@motion-core/motion-gpu/svelte` exports:
-`FragCanvas`, `defineMaterial`, `useMotionGPU`, `useFrame`, `useTexture`, `BlitPass`, `CopyPass`, `ShaderPass`, `ComputePass`, `PingPongComputePass`
-- `@motion-core/motion-gpu/svelte/advanced` exports:
-everything above plus
-`useMotionGPUUserContext`, `setMotionGPUUserContext`, `applySchedulerPreset`, `captureSchedulerDebugSnapshot`
-- `@motion-core/motion-gpu` and `@motion-core/motion-gpu/core` export framework-agnostic core primitives.
-- `@motion-core/motion-gpu/advanced` and `@motion-core/motion-gpu/core/advanced` export core primitives plus scheduler helper utilities.
-- Import only from public entrypoints above. Do not import from internal package paths (`/src`, `/lib/core`, etc.).
-- Full documentation index for LLMs is available at:
-`http://motion-gpu.dev/llms.txt`
-- Use `llms.txt` when deeper reference is needed; it links to raw markdown docs for the full library.
-- Official docs sections to consult when uncertain:
-Getting Started, Defining Materials, Writing Shaders, Uniforms, Textures, Texture Loading, Render Passes, Render Targets, Render Modes, Frame Scheduler, Compute Shaders, Storage Buffers, Hooks and Context, Error Handling, FragCanvas Reference, API Reference.
+| Entrypoint | Layer | What it exposes |
+| --- | --- | --- |
+| `@motion-core/motion-gpu` | Core | Framework-agnostic runtime primitives (`defineMaterial`, `resolveMaterial`, scheduler/runtime builders, passes, texture loader, error normalization) |
+| `@motion-core/motion-gpu/advanced` | Core | Core + scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
+| `@motion-core/motion-gpu/core` | Core | Same core API surface as root, explicit core path |
+| `@motion-core/motion-gpu/core/advanced` | Core | Same advanced core helper surface |
+| `@motion-core/motion-gpu/svelte` | Adapter | Svelte `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `useTexture`), passes, material helpers |
+| `@motion-core/motion-gpu/svelte/advanced` | Adapter | Svelte adapter + user context APIs + scheduler helpers |
+| `@motion-core/motion-gpu/react` | Adapter | React `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `useTexture`), passes, material helpers |
+| `@motion-core/motion-gpu/react/advanced` | Adapter | React adapter + user context APIs + scheduler helpers |
 
-If examples from app code conflict with exported runtime behavior, prefer exported API contracts.
+Advanced adapter exports:
+- Both Svelte and React advanced entrypoints export:
+  - `useMotionGPUUserContext`
+  - `setMotionGPUUserContext`
+  - `applySchedulerPreset`
+  - `captureSchedulerDebugSnapshot`
+- React advanced additionally exports:
+  - `useSetMotionGPUUserContext`
+
+Import only from public entrypoints above. Never import from internal package paths (`/src`, `/lib/core`, etc.).
+
+Documentation sources:
+- LLM docs index: `http://motion-gpu.dev/llms.txt`
+- Docs generated from source live under `apps/web/src/routes/docs`
+
+If examples conflict with exported runtime behavior, prefer exported API contracts from entrypoints.
+
+## Adapter Differences (Must Be Preserved)
+
+When writing or refactoring code, keep these differences explicit.
+
+### `FragCanvas` props
+
+Shared runtime props (both adapters):
+- `material`, `renderTargets`, `passes`, `clearColor`, `outputColorSpace`, `renderMode`, `autoRender`, `maxDelta`, `adapterOptions`, `deviceDescriptor`, `showErrorOverlay`, `onError`, `errorHistoryLimit`, `onErrorHistory`
+
+Adapter-specific differences:
+- Svelte:
+  - `class?: string`
+  - `style?: string`
+  - `children?: Snippet`
+  - `errorRenderer?: Snippet<[MotionGPUErrorReport]>`
+- React:
+  - `className?: string`
+  - `style?: React.CSSProperties`
+  - `children?: ReactNode`
+  - `errorRenderer?: (report: MotionGPUErrorReport) => ReactNode`
+
+### User context writes
+
+- Both adapters support `setMotionGPUUserContext(namespace, valueOrFactory, options?)`.
+- React additionally supports `useSetMotionGPUUserContext()` and should prefer it for effect/event-handler writes.
+- `SetMotionGPUUserContextOptions` supports:
+  - `existing?: 'skip' | 'replace' | 'merge'`
+  - `functionValue?: 'factory' | 'value'`
+
+### `useTexture` signature
+
+- Shared return shape: `{ textures, loading, error, errorReport, reload }`
+- Shared URL input: `string[] | () => string[]`
+- Options input:
+  - Svelte: `TextureLoadOptions | () => TextureLoadOptions`
+  - React: `TextureLoadOptions`
 
 ## Hard Contracts
 
@@ -36,32 +89,33 @@ Enforce these constraints without exceptions:
 `fn frag(uv: vec2f) -> vec4f`
 2. `ShaderPass` shader entrypoint must be exactly:
 `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`
-3. Call `useFrame()` and `useMotionGPU()` only inside the `<FragCanvas>` subtree.
-4. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
-5. Use WGSL-safe identifiers only for uniforms/textures/defines/includes:
+3. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
+4. Call `useFrame()` and `useMotionGPU()` only inside the `<FragCanvas>` subtree.
+5. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
+6. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:
 `[A-Za-z_][A-Za-z0-9_]*`
-6. Use `needsSwap: true` only with `input: 'source'` and `output: 'target'`.
-7. Never read from `input: 'canvas'` in render passes.
-8. Use explicit `{ type: 'mat4x4f', value: [...] }` for matrix uniforms.
-9. Keep `maxDelta > 0` and scheduler profiling window `> 0`.
-10. Build materials via `defineMaterial(...)`; never handcraft `FragMaterial`.
-11. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
-12. For `invalidation: { mode: 'on-change' }`, always provide `token`.
-13. Read/write named pass slots only when declared in `renderTargets`.
-14. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
-15. Storage buffer `size` must be `> 0` and a multiple of 4.
-16. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
+7. Use `needsSwap: true` only with `input: 'source'` and `output: 'target'`.
+8. Never read from `input: 'canvas'` in render passes.
+9. Use explicit `{ type: 'mat4x4f', value: [...] }` for matrix uniforms.
+10. Keep `maxDelta > 0` and scheduler profiling window `> 0`.
+11. Build materials via `defineMaterial(...)`; never handcraft `FragMaterial`.
+12. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
+13. For `invalidation: { mode: 'on-change' }`, always provide `token`.
+14. Read/write named pass slots only when declared in `renderTargets`.
+15. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
+16. Storage buffer `size` must be `> 0` and a multiple of 4.
 17. `PingPongComputePass` `iterations` must be `>= 1`.
 18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
 
-## Component Architecture Pattern
+## Architecture Pattern
 
-Default to this two-component shape:
+Default to host + runtime split in both adapters.
 
-1. Canvas host component:
+1. Host component:
 - Create stable `material` with `defineMaterial(...)`.
-- Render `<FragCanvas {material}>`.
+- Render `FragCanvas` with `material`.
 - Attach `passes`, `renderTargets`, `renderMode`, `onError` as needed.
+
 2. Runtime child component:
 - Call `useFrame(...)` for per-frame updates.
 - Call `useMotionGPU()` for canvas/scheduler/render controls.
@@ -71,22 +125,29 @@ Prefer this split even for simple effects. It keeps context usage valid and read
 
 ## Implementation Workflow
 
-### 1. Classify the request
+### 1. Classify request
 
 Pick one main mode:
-
 - Static shader (no runtime updates).
 - Animated shader (uniform updates in `useFrame`).
 - Interactive shader (pointer/state-driven updates).
 - Texture-driven shader (`useTexture` and `state.setTexture`).
 - Post-processing pipeline (`ShaderPass`/`BlitPass`/`CopyPass`).
 - Compute shader (`ComputePass`/`PingPongComputePass` with storage buffers).
-- Advanced scheduling/user context (`@motion-core/motion-gpu/svelte/advanced` for Svelte runtime APIs, `@motion-core/motion-gpu/advanced` for core scheduler helpers).
+- Advanced scheduling/user context (advanced entrypoints).
 
-### 2. Design material boundary
+### 2. Pick layer and adapter
+
+- If building framework runtime usage, pick adapter entrypoint (`/svelte` or `/react`).
+- If building framework-independent tooling, adapter internals, or low-level integrations, use core entrypoints (`@motion-core/motion-gpu` or `/core`).
+- If adapter is not explicitly stated:
+  - follow existing imports/files in the target codebase,
+  - preserve current adapter,
+  - avoid mixing adapter APIs in one component.
+
+### 3. Design material boundary
 
 Put in material:
-
 - Fragment WGSL source.
 - Uniform declarations and initial values.
 - Texture declarations and sampler/upload defaults.
@@ -95,41 +156,37 @@ Put in material:
 - `includes` for reusable WGSL chunks.
 
 Put in runtime (`useFrame`):
-
 - `state.setUniform(...)` for dynamic values.
 - `state.setTexture(...)` for dynamic texture sources.
 - `state.writeStorageBuffer(name, data, { offset? })` to write CPU data to GPU storage buffers.
-- `state.readStorageBuffer(name)` to read GPU storage buffer data back (returns `Promise<ArrayBuffer>`).
+- `state.readStorageBuffer(name)` to read GPU storage buffer data back (`Promise<ArrayBuffer>`).
 - `state.invalidate(...)` and `state.advance()` control.
 
-### 3. Pick render cadence intentionally
+### 4. Pick render cadence intentionally
 
 Choose mode by behavior:
-
 - `always`: continuous animation/video.
 - `on-demand`: interaction or sporadic updates.
 - `manual`: explicit frame stepping/testing/capture.
 
 If using `on-demand`, define invalidation policy explicitly:
-
 - Keep `autoInvalidate: true` for frame-driven effects.
 - Use `autoInvalidate: false` + `invalidation: { mode: 'on-change', token: ... }` for state-driven redraws.
 
-Render-mode semantics to keep in mind:
-
+Render-mode semantics:
 - `on-demand` renders one initial frame, then sleeps until invalidated.
 - Switching to `on-demand` triggers one frame.
-- `manual` ignores invalidation-only flow; require `advance()`.
+- `manual` ignores invalidation-only flow; requires `advance()`.
 
-### 4. Add error strategy at creation time
+### 5. Add error strategy at creation time
 
 Always wire `onError`.
 Keep default overlay in dev unless the task explicitly requires custom UI.
-Disable overlay only when user asks for silent/custom error handling.
+Disable overlay only when the user asks for silent/custom handling.
 
-### 5. Validate before finalizing
+### 6. Validate before finalizing
 
-Run checks available in the target application:
+Run checks available in the target package/app:
 
 ```bash
 npm run check
@@ -137,8 +194,8 @@ npm run test
 npm run lint
 ```
 
-If the project uses another package manager, use equivalent commands (`pnpm`/`yarn`/`bun`).
-If a script does not exist, run the closest available static/type/test checks and report exactly what was not run.
+If repository scripts use other package manager commands, run equivalents (`pnpm`/`yarn`/`bun`).
+If a script is missing, run closest available static/type/test checks and report what was not run.
 
 If touching `.svelte` files and `svelte-autofixer` is available, run:
 
@@ -152,15 +209,12 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Use `motiongpuFrame.time`, `motiongpuFrame.delta`, `motiongpuFrame.resolution` for frame data.
 - Read user uniforms through `motiongpuUniforms.<name>`.
-- Sample textures with generated pairs:
-`uTex` and `uTexSampler`.
-- Flip Y when mapping DOM pointer to UV:
-`uvY = 1.0 - domNormalizedY`.
+- Sample textures with generated pairs: `uTex` and `uTexSampler`.
+- Flip Y when mapping DOM pointer to UV: `uvY = 1.0 - domNormalizedY`.
 
 ### Uniforms
 
-- Prefer shorthand for scalar/vector:
-`0`, `[x,y]`, `[x,y,z]`, `[x,y,z,w]`.
+- Prefer shorthand for scalar/vector: `0`, `[x,y]`, `[x,y,z]`, `[x,y,z,w]`.
 - Use explicit typed form for clarity and matrices.
 - Keep types stable; type/shape changes require new material.
 
@@ -169,9 +223,9 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Set static sampling defaults in `defineMaterial({ textures })`.
 - Use runtime `state.setTexture` for source changes.
 - Update-mode guidance:
-`once` for static images,
-`onInvalidate` for event-driven updates,
-`perFrame` for video/canvas streams.
+  - `once` for static images,
+  - `onInvalidate` for event-driven updates,
+  - `perFrame` for video/canvas streams.
 - Use `null` safely to unbind user source (fallback texture remains valid).
 
 ### Includes and Defines
@@ -185,12 +239,13 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 ### Scheduler and User Context
 
-- Use `applySchedulerPreset(...)` when selecting `performance`, `balanced`, or `debug` scheduler behavior.
+- Use `applySchedulerPreset(...)` when selecting `performance`, `balanced`, or `debug` behavior.
 - Keep `diagnosticsEnabled` and `profilingEnabled` equal when overriding preset options.
 - Keep `profilingWindow` finite and `> 0`.
 - Use `setMotionGPUUserContext(namespace, value)` for shared canvas-subtree state.
-- Remember default `setMotionGPUUserContext` conflict behavior is `existing: 'skip'`; pass `existing: 'replace'` or `existing: 'merge'` intentionally.
-- Use `useMotionGPUUserContext(namespace?)` as read-only consumer API.
+- Default conflict behavior is `existing: 'skip'`; pass `existing: 'replace'` or `existing: 'merge'` intentionally.
+- In React, prefer `useSetMotionGPUUserContext()` for writes in effects and event handlers.
+- Use `useMotionGPUUserContext(namespace?)` as read API.
 
 ### Passes and Targets
 
@@ -203,22 +258,20 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Declare storage buffers in `defineMaterial({ storageBuffers: { name: { size, type, access? } } })`.
 - Use `ComputePass` for single-dispatch GPU compute; `PingPongComputePass` for iterative simulations.
-- Compute passes run in the render graph alongside render passes but do not read/write ping-pong slots.
-- `dispatch` can be a static tuple `[x, y?, z?]`, `'auto'` (derived from canvas size / workgroup size), or a dynamic function.
-- Use `state.writeStorageBuffer(name, data)` in `useFrame` to upload CPU data to a storage buffer before compute.
-- Use `state.readStorageBuffer(name)` to asynchronously read back GPU results (staging buffer pattern).
-- Storage buffers are bound at group(1) in compute shaders, storage textures at group(2).
+- Compute passes run alongside render passes but do not read/write render pass slots.
+- `dispatch` can be static tuple `[x, y?, z?]`, `'auto'`, or dynamic function.
+- Use `state.writeStorageBuffer(name, data)` in `useFrame` to upload CPU data before compute.
+- Use `state.readStorageBuffer(name)` to read back GPU results asynchronously.
+- Storage buffers are bound at group(1) in compute shaders; storage textures at group(2).
 - Fragment shaders can read storage buffers as read-only via `var<storage, read>` at group(1).
-- `PingPongComputePass` generates two texture bindings from the `target` key:
-  `{target}A` — sampled read texture (`texture_2d<f32>`) at `@group(2) @binding(0)`.
-  `{target}B` — write storage texture (`texture_storage_2d<format, write>`) at `@group(2) @binding(1)`.
-  The renderer swaps which physical texture is bound to A/B each iteration.
-  Example: `target: 'sim'` produces shader variables `simA` and `simB`.
-- `PingPongComputePass` requires the target texture to be declared with `storage: true` and explicit `width`/`height` in `defineMaterial({ textures })`.
+- `PingPongComputePass` generates two texture bindings from `target`:
+  - `{target}A` sampled read texture at `@group(2) @binding(0)`
+  - `{target}B` write storage texture at `@group(2) @binding(1)`
+- `PingPongComputePass` requires target texture declared with `storage: true` and explicit `width`/`height`.
 
 ## Canonical Templates
 
-### Minimal animated component
+### Svelte minimal animated component
 
 ```svelte
 <script lang="ts">
@@ -251,148 +304,56 @@ fn frag(uv: vec2f) -> vec4f {
 </script>
 ```
 
-### Interactive on-demand runtime
+### React minimal animated component
 
-```svelte
-<script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
+```tsx
+import { FragCanvas, defineMaterial, useFrame } from '@motion-core/motion-gpu/react';
 
-  const gpu = useMotionGPU();
-  let x = 0.5;
-  let y = 0.5;
-
-  $effect(() => {
-    gpu.renderMode.set('on-demand');
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-    const onMove = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      x = (e.clientX - rect.left) / rect.width;
-      y = 1 - (e.clientY - rect.top) / rect.height;
-      gpu.invalidate();
-    };
-    canvas.addEventListener('pointermove', onMove);
-    return () => canvas.removeEventListener('pointermove', onMove);
-  });
-
-  useFrame((state) => {
-    state.setUniform('uMouse', [x, y]);
-  }, { autoInvalidate: false });
-</script>
-```
-
-### Texture loading + binding
-
-```svelte
-<script lang="ts">
-  import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
-
-  const loaded = useTexture(['/assets/albedo.png'], {
-    colorSpace: 'srgb',
-    generateMipmaps: true
-  });
-
-  useFrame((state) => {
-    const tex = loaded.textures.current?.[0];
-    state.setTexture('uAlbedo', tex ? { source: tex.source } : null);
-  });
-</script>
-```
-
-### Compute shader with storage buffer
-
-```svelte
-<script lang="ts">
-  import { FragCanvas, defineMaterial, ComputePass } from '@motion-core/motion-gpu/svelte';
-  import Runtime from './Runtime.svelte';
-
-  const material = defineMaterial({
-    fragment: `
+const material = defineMaterial({
+  fragment: `
 fn frag(uv: vec2f) -> vec4f {
-  return vec4f(uv, 0.5, 1.0);
+  let t = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
+  return vec4f(vec3f(t), 1.0);
 }
 `,
-    storageBuffers: {
-      particles: { size: 4096, type: 'array<vec4f>', access: 'read-write' }
-    }
-  });
+  uniforms: { uTime: 0 }
+});
 
-  const computePass = new ComputePass({
-    compute: `
-@compute @workgroup_size(64)
-fn compute(@builtin(global_invocation_id) id: vec3u) {
-  let i = id.x;
-  particles[i] = vec4f(f32(i), 0.0, 0.0, 1.0);
-}
-`,
-    dispatch: [64]
-  });
-</script>
-
-<FragCanvas {material} passes={[computePass]}>
-  <Runtime />
-</FragCanvas>
-```
-
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
+function Runtime() {
   useFrame((state) => {
     state.setUniform('uTime', state.time);
   });
-</script>
+
+  return null;
+}
+
+export function App() {
+  return (
+    <FragCanvas material={material}>
+      <Runtime />
+    </FragCanvas>
+  );
+}
 ```
 
-### Ping-pong compute simulation
+### React advanced user-context write
 
-```svelte
-<script lang="ts">
-  import { FragCanvas, defineMaterial, PingPongComputePass } from '@motion-core/motion-gpu/svelte';
-  import Runtime from './Runtime.svelte';
+```tsx
+import { useSetMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
 
-  const material = defineMaterial({
-    fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  return vec4f(uv, 0.5, 1.0);
+export function QualityButton() {
+  const setUserContext = useSetMotionGPUUserContext();
+
+  return (
+    <button
+      onClick={() => {
+        setUserContext('config', { quality: 'medium' }, { existing: 'merge' });
+      }}
+    >
+      Medium
+    </button>
+  );
 }
-`,
-    storageBuffers: {
-      scratch: { size: 16, type: 'array<f32>', access: 'read-write' }
-    },
-    textures: {
-      sim: {
-        storage: true,
-        format: 'rgba8unorm',
-        width: 256,
-        height: 256
-      }
-    }
-  });
-
-  // target: 'sim' → shader variables: simA (read), simB (write)
-  const simulation = new PingPongComputePass({
-    compute: `
-@compute @workgroup_size(8, 8)
-fn compute(@builtin(global_invocation_id) id: vec3u) {
-  let pos = id.xy;
-  let dims = textureDimensions(simA);
-  if (pos.x < dims.x && pos.y < dims.y) {
-    let prev = textureLoad(simA, vec2i(pos), 0);
-    let next = prev * 0.99 + vec4f(0.01, 0.0, 0.0, 0.0);
-    textureStore(simB, pos, next);
-  }
-}
-`,
-    target: 'sim',
-    iterations: 4,
-    dispatch: [32, 32]
-  });
-</script>
-
-<FragCanvas {material} passes={[simulation]}>
-  <Runtime />
-</FragCanvas>
 ```
 
 ## Debugging Playbook
@@ -410,26 +371,26 @@ Follow this order:
 - Verify `needsSwap`, input/output slots, and target declarations.
 5. No redraw in `on-demand`:
 - Check invalidation path and `autoInvalidate` settings.
-- If mode is `manual`, check `advance()` usage instead of invalidation.
+- If mode is `manual`, use `advance()`.
 6. Texture issues:
 - Confirm source readiness (`readyState` for video).
 - Check update mode and source dimensions.
 7. Compute shader errors:
-- Verify `@compute @workgroup_size(...)` and `fn compute(...)` entrypoint.
-- Ensure storage buffers are declared in material before use.
-- Check `writeStorageBuffer` offset + dataSize does not exceed buffer size.
-- Verify compute dispatch dimensions match workgroup layout.
+- Verify `@compute @workgroup_size(...)` and `fn compute(...)`.
+- Ensure storage buffers are declared before use.
+- Check `writeStorageBuffer` offset + data size does not exceed buffer size.
+- Verify dispatch dimensions match workgroup layout.
 
 ## Quality Checklist Before Delivery
 
 Ship only when all checks pass:
 
-1. Keep shader contracts valid (`frag`/`shade` signatures).
+1. Keep shader contracts valid (`frag`/`shade`/`compute` signatures).
 2. Keep all runtime-updated keys predeclared in material.
-3. Keep render mode and invalidation strategy intentional and documented in code.
+3. Keep render mode and invalidation strategy intentional and documented.
 4. Keep error handling present (`onError` at minimum).
-5. Keep passes/targets slot routing valid.
-6. Keep only public entrypoint imports (`@motion-core/motion-gpu/svelte`, `/svelte/advanced`, `/core`, `/core/advanced`, root core aliases).
-7. Keep storage buffer names declared in material before `writeStorageBuffer`/`readStorageBuffer` usage.
-8. Keep compute shader contracts valid (`@compute @workgroup_size(...)` + `fn compute(...)`).
-9. Keep checks/tests executed or report clearly what was not run.
+5. Keep passes/targets routing valid.
+6. Keep imports on public entrypoints only.
+7. Keep storage buffer names declared before `writeStorageBuffer`/`readStorageBuffer` usage.
+8. Keep adapter-specific API differences correct (`class` vs `className`, `errorRenderer`, `children`, `useSetMotionGPUUserContext`).
+9. Keep checks/tests executed or report what was not run.

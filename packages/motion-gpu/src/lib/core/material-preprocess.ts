@@ -175,7 +175,8 @@ function expandChunk(
 	kind: 'fragment' | 'include',
 	includeName: string | undefined,
 	includes: Record<string, string>,
-	stack: string[]
+	stack: string[],
+	expandedIncludes: Set<string>
 ): { lines: string[]; mapEntries: MaterialSourceLocation[] } {
 	const sourceLines = source.split('\n');
 	const lines: string[] = [];
@@ -209,19 +210,24 @@ function expandChunk(
 			throw new Error(`Unknown include "${includeKey}" referenced in fragment shader.`);
 		}
 
-		if (stack.includes(includeKey)) {
-			throw new Error(
-				`Circular include detected for "${includeKey}". Include stack: ${[...stack, includeKey].join(' -> ')}.`
-			);
-		}
+			if (stack.includes(includeKey)) {
+				throw new Error(
+					`Circular include detected for "${includeKey}". Include stack: ${[...stack, includeKey].join(' -> ')}.`
+				);
+			}
 
-		const nested = expandChunk(includeSource, 'include', includeKey, includes, [
-			...stack,
-			includeKey
-		]);
-		lines.push(...nested.lines);
-		mapEntries.push(...nested.mapEntries);
-	}
+			if (expandedIncludes.has(includeKey)) {
+				continue;
+			}
+			expandedIncludes.add(includeKey);
+
+			const nested = expandChunk(includeSource, 'include', includeKey, includes, [
+				...stack,
+				includeKey
+			], expandedIncludes);
+			lines.push(...nested.lines);
+			mapEntries.push(...nested.mapEntries);
+		}
 
 	return { lines, mapEntries };
 }
@@ -245,7 +251,8 @@ export function preprocessMaterialFragment<
 		'fragment',
 		undefined,
 		normalizedIncludes,
-		[]
+		[],
+		new Set()
 	);
 	const defineEntries = (
 		Object.entries(normalizedDefines) as Array<[TDefineKey, MaterialDefineValue]>

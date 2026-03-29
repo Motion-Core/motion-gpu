@@ -2089,6 +2089,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					buffer.destroy();
 				}
 				storageBufferMap.clear();
+				for (const pair of pingPongTexturePairs.values()) {
+					pair.textureA.destroy();
+					pair.textureB.destroy();
+				}
+				pingPongTexturePairs.clear();
 				computePipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
 				destroyRenderTexture(targetSlotTarget);

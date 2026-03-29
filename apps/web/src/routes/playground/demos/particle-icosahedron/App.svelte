@@ -266,11 +266,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   let facing = max(dot(normal, viewDir), 0.0);
   if (facing <= 0.02) { return; }
 
-  let ambient = 5.34;
-  let diffuse = max(dot(normal, lightDir), 0.0) * 0.94;
+  let ambient = 3.34;
+  let diffuse = max(dot(normal, lightDir), 0.0) * 8.14;
 
-  let hemiBottom = baseColor * 2.8;
-  let hemiTop = baseColor * 7.2;
+  let hemiBottom = baseColor * 0.28;
+  let hemiTop = baseColor * 0.72;
   let hemi = mix(hemiBottom, hemiTop, normal.y * 0.5 + 0.5) * 0.25;
 
   let reflectDir = reflect(-lightDir, normal);
@@ -294,8 +294,8 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   let ty = i32((-sy * 0.78 + 0.5) * TEX_SIZE_F);
 
   if (tx >= 0 && tx < TEX_SIZE_I && ty >= 0 && ty < TEX_SIZE_I) {
-    let energy = (0.42 + n * 0.58 + ridge * 0.2) * clamp(perspective, 0.6, 1.7) * facing;
-    let color = lit * energy * 0.145;
+    let energy = (0.42 + n * 0.58 + ridge * 5.5) * clamp(perspective, 0.6, 1.7) * facing;
+    let color = lit * energy * 0.045;
     textureStore(densityMap, vec2u(u32(tx), u32(ty)), vec4f(color, 1.0));
   }
 }

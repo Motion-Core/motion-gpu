@@ -1,7 +1,7 @@
 <script lang="ts">
 	import GlassPane from '$lib/GlassPane.svelte';
+	import { themeStore } from '$lib/stores/theme.svelte';
 	import Section from './Section.svelte';
-	const image = '/orange-portrait-001.jpg';
 </script>
 
 <Section
@@ -14,16 +14,18 @@
 	>
 		<div class="card h-full rounded-lg bg-background">
 			<div class="h-full w-full overflow-hidden rounded-lg bg-black dark:bg-background">
-				<GlassPane
-					{image}
-					class="mix-blend-lighten"
-					distortion={0.5}
-					chromaticAberration={0.0025}
-					waviness={0.0}
-					speed={0.5}
-					rods={2.5}
-					aria-hidden="true"
-				/>
+				{#key themeStore.isDark}
+					<GlassPane
+						image={themeStore.isDark ? '/night.png' : '/day.png'}
+						class="mix-blend-lighten"
+						distortion={0.2}
+						chromaticAberration={0.0035}
+						waviness={0.0}
+						speed={0}
+						rods={5}
+						aria-hidden="true"
+					/>
+				{/key}
 			</div>
 		</div>
 	</div>

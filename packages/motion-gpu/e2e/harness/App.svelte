@@ -4,14 +4,16 @@
 	import TextureScenario from './scenarios/TextureScenario.svelte';
 	import PassesScenario from './scenarios/PassesScenario.svelte';
 	import PerfScenario from './scenarios/PerfScenario.svelte';
+	import ComputeScenario from './scenarios/ComputeScenario.svelte';
 
-	type Scenario = 'runtime' | 'shader-recovery' | 'textures' | 'passes' | 'perf';
+	type Scenario = 'runtime' | 'shader-recovery' | 'textures' | 'passes' | 'perf' | 'compute';
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
 	const scenario: Scenario =
 		queryScenario === 'shader-recovery' ||
 		queryScenario === 'textures' ||
 		queryScenario === 'passes' ||
-		queryScenario === 'perf'
+		queryScenario === 'perf' ||
+		queryScenario === 'compute'
 			? queryScenario
 			: 'runtime';
 </script>
@@ -26,6 +28,8 @@
 	<TextureScenario />
 {:else if scenario === 'perf'}
 	<PerfScenario />
+{:else if scenario === 'compute'}
+	<ComputeScenario />
 {:else}
 	<PassesScenario />
 {/if}

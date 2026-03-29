@@ -214,14 +214,11 @@ function baseOptions(
 
 describe('compute shader: edge cases', () => {
 	it('rejects @workgroup_size with non-numeric values', () => {
-		// Contract regex accepts any content inside parens; extraction requires digits
 		const shader = `
 @compute @workgroup_size(THREAD_COUNT)
 fn compute(@builtin(global_invocation_id) id: vec3u) {}
 `;
-		// Contract passes because [^)]+ matches "THREAD_COUNT"
-		expect(() => assertComputeContract(shader)).not.toThrow();
-		// But extraction fails because there are no digits
+		expect(() => assertComputeContract(shader)).toThrow(/workgroup_size/i);
 		expect(() => extractWorkgroupSize(shader)).toThrow(/Could not extract @workgroup_size/);
 	});
 

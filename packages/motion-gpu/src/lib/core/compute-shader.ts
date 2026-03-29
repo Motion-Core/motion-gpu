@@ -17,6 +17,51 @@ const WORKGROUP_SIZE_PATTERN =
  * Regex to verify @builtin(global_invocation_id) parameter.
  */
 const GLOBAL_INVOCATION_ID_PATTERN = /@builtin\s*\(\s*global_invocation_id\s*\)/;
+const WORKGROUP_DIMENSION_MIN = 1;
+const WORKGROUP_DIMENSION_MAX = 65535;
+
+function extractComputeParamList(compute: string): string | null {
+	const computeFnIndex = compute.indexOf('fn compute');
+	if (computeFnIndex === -1) {
+		return null;
+	}
+
+	const openParenIndex = compute.indexOf('(', computeFnIndex);
+	if (openParenIndex === -1) {
+		return null;
+	}
+
+	let depth = 0;
+	for (let index = openParenIndex; index < compute.length; index += 1) {
+		const char = compute[index];
+		if (char === '(') {
+			depth += 1;
+			continue;
+		}
+
+		if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				return compute.slice(openParenIndex + 1, index);
+			}
+		}
+	}
+
+	return null;
+}
+
+function assertWorkgroupDimension(value: number): void {
+	if (
+		!Number.isFinite(value) ||
+		!Number.isInteger(value) ||
+		value < WORKGROUP_DIMENSION_MIN ||
+		value > WORKGROUP_DIMENSION_MAX
+	) {
+		throw new Error(
+			`@workgroup_size dimensions must be integers in range ${WORKGROUP_DIMENSION_MIN}-${WORKGROUP_DIMENSION_MAX}, got ${value}.`
+		);
+	}
+}
 
 /**
  * Default uniform field used when no custom uniforms are provided in compute.
@@ -33,13 +78,16 @@ export function assertComputeContract(compute: string): void {
 	if (!COMPUTE_ENTRY_CONTRACT.test(compute)) {
 		throw new Error(
 			'Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`. ' +
-				'Ensure the function is named `compute` and includes @compute and @workgroup_size annotations.'
+					'Ensure the function is named `compute` and includes @compute and @workgroup_size annotations.'
 		);
 	}
 
-	if (!GLOBAL_INVOCATION_ID_PATTERN.test(compute)) {
+	const params = extractComputeParamList(compute);
+	if (!params || !GLOBAL_INVOCATION_ID_PATTERN.test(params)) {
 		throw new Error('Compute shader must include a `@builtin(global_invocation_id)` parameter.');
 	}
+
+	extractWorkgroupSize(compute);
 }
 
 /**
@@ -57,6 +105,9 @@ export function extractWorkgroupSize(compute: string): [number, number, number] 
 	const x = Number.parseInt(match[1] ?? '1', 10);
 	const y = Number.parseInt(match[2] ?? '1', 10);
 	const z = Number.parseInt(match[3] ?? '1', 10);
+	assertWorkgroupDimension(x);
+	assertWorkgroupDimension(y);
+	assertWorkgroupDimension(z);
 
 	return [x, y, z];
 }
@@ -71,7 +122,7 @@ function toWgslAccessMode(access: StorageBufferAccess): string {
 		case 'read-write':
 			return 'read_write';
 		default:
-			return 'read_write';
+			throw new Error(`Unsupported storage buffer access mode "${String(access)}".`);
 	}
 }
 

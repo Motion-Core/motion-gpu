@@ -34,6 +34,14 @@ export const docsNavigation: DocItem[] = [
 		]
 	},
 	{
+		slug: 'compute',
+		name: 'Compute',
+		items: [
+			{ slug: 'compute-shaders', name: 'Compute Shaders' },
+			{ slug: 'storage-buffers', name: 'Storage Buffers' }
+		]
+	},
+	{
 		slug: 'shaders-textures',
 		name: 'Shaders & Textures',
 		items: [
@@ -64,7 +72,8 @@ export const docsNavigation: DocItem[] = [
 		name: 'Advanced',
 		items: [
 			{ slug: 'error-handling', name: 'Error Handling' },
-			{ slug: 'testing-and-internals', name: 'Testing & Internals' }
+			{ slug: 'testing-and-internals', name: 'Testing & Internals' },
+			{ slug: 'changelog', name: 'Changelog' }
 		]
 	}
 ];

@@ -7,9 +7,9 @@
 	import MotionGPUErrorOverlay from './MotionGPUErrorOverlay.svelte';
 	import { createMotionGPURuntimeLoop } from '../core/runtime-loop';
 	import type {
+		AnyPass,
 		FrameInvalidationToken,
 		OutputColorSpace,
-		RenderPass,
 		RenderMode,
 		RenderTargetDefinitionMap
 	} from '../core/types';
@@ -19,7 +19,7 @@
 	interface Props {
 		material: FragMaterial;
 		renderTargets?: RenderTargetDefinitionMap;
-		passes?: RenderPass[];
+		passes?: AnyPass[];
 		clearColor?: [number, number, number, number];
 		outputColorSpace?: OutputColorSpace;
 		renderMode?: RenderMode;

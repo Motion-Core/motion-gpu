@@ -12,7 +12,9 @@ describe('public api contract', () => {
 	it('exports framework-agnostic runtime symbols from root and /core entrypoints', () => {
 		expect(Object.keys(api).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
+			'PingPongComputePass',
 			'ShaderPass',
 			'createCurrentWritable',
 			'createFrameRegistry',
@@ -28,7 +30,9 @@ describe('public api contract', () => {
 	it('exposes framework-agnostic advanced symbols from root /advanced and /core/advanced', () => {
 		expect(Object.keys(advanced).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
+			'PingPongComputePass',
 			'ShaderPass',
 			'applySchedulerPreset',
 			'captureSchedulerDebugSnapshot',
@@ -46,8 +50,10 @@ describe('public api contract', () => {
 	it('exposes Svelte runtime symbols only from adapter entrypoints', () => {
 		expect(Object.keys(svelte).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
 			'FragCanvas',
+			'PingPongComputePass',
 			'ShaderPass',
 			'defineMaterial',
 			'useFrame',
@@ -56,8 +62,10 @@ describe('public api contract', () => {
 		]);
 		expect(Object.keys(svelteAdvanced).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
 			'FragCanvas',
+			'PingPongComputePass',
 			'ShaderPass',
 			'applySchedulerPreset',
 			'captureSchedulerDebugSnapshot',
@@ -73,8 +81,10 @@ describe('public api contract', () => {
 	it('exposes React runtime symbols only from adapter entrypoints', () => {
 		expect(Object.keys(react).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
 			'FragCanvas',
+			'PingPongComputePass',
 			'ShaderPass',
 			'defineMaterial',
 			'useFrame',
@@ -83,8 +93,10 @@ describe('public api contract', () => {
 		]);
 		expect(Object.keys(reactAdvanced).sort()).toEqual([
 			'BlitPass',
+			'ComputePass',
 			'CopyPass',
 			'FragCanvas',
+			'PingPongComputePass',
 			'ShaderPass',
 			'applySchedulerPreset',
 			'captureSchedulerDebugSnapshot',

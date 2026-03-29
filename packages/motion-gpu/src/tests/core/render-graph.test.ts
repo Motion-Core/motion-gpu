@@ -152,4 +152,158 @@ describe('render graph planner', () => {
 			)
 		).toThrow(/before it is written/);
 	});
+
+	// --- Compute pass tests ---
+
+	it('plans compute pass as kind="compute" step', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			render: () => {}
+		};
+		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		expect(plan.steps).toHaveLength(1);
+		expect(plan.steps[0]?.kind).toBe('compute');
+	});
+
+	it('compute pass does not affect slot availability', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			render: () => {}
+		};
+		// After compute pass, 'target' should still not be available
+		expect(() =>
+			planRenderGraph(
+				[
+					computePass as unknown as RenderPass,
+					createPass({ needsSwap: false, input: 'target', output: 'canvas' })
+				],
+				[0, 0, 0, 1]
+			)
+		).toThrow(/before it is written/);
+	});
+
+	it('compute-only passes set finalOutput to source for blit', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			render: () => {}
+		};
+		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		expect(plan.finalOutput).toBe('source');
+	});
+
+	it('compute pass ordering is preserved relative to render passes', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			render: () => {}
+		};
+		const renderPass = createPass({ needsSwap: false, output: 'canvas' });
+		const plan = planRenderGraph(
+			[computePass as unknown as RenderPass, renderPass],
+			[0, 0, 0, 1]
+		);
+		expect(plan.steps).toHaveLength(2);
+		expect(plan.steps[0]?.kind).toBe('compute');
+		expect(plan.steps[1]?.kind).toBe('render');
+	});
+
+	it('skips disabled compute passes', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: false,
+			render: () => {}
+		};
+		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		expect(plan.steps).toHaveLength(0);
+	});
+
+	it('mixed compute and render passes maintain correct order', () => {
+		const compute1 = { isCompute: true as const, enabled: true, render: () => {} };
+		const render1 = createPass({ needsSwap: false, output: 'target' });
+		const compute2 = { isCompute: true as const, enabled: true, render: () => {} };
+		const render2 = createPass({ needsSwap: false, input: 'target', output: 'canvas' });
+
+		const plan = planRenderGraph(
+			[
+				compute1 as unknown as RenderPass,
+				render1,
+				compute2 as unknown as RenderPass,
+				render2
+			],
+			[0, 0, 0, 1]
+		);
+
+		expect(plan.steps.map((s) => s.kind)).toEqual(['compute', 'render', 'compute', 'render']);
+	});
+
+	it('backward compat: existing render-only plans set kind to render', () => {
+		const plan = planRenderGraph([createPass()], [0, 0, 0, 1]);
+		expect(plan.steps[0]?.kind).toBe('render');
+	});
+
+	it('rejects reading from canvas as input', () => {
+		expect(() =>
+			planRenderGraph(
+				[createPass({ input: 'canvas' as RenderPass['input'], needsSwap: false, output: 'target' })],
+				[0, 0, 0, 1]
+			)
+		).toThrow(/cannot read from "canvas"/);
+	});
+
+	it('rejects needsSwap=true with input=target', () => {
+		expect(() =>
+			planRenderGraph(
+				[createPass({ needsSwap: true, input: 'target', output: 'target' })],
+				[0, 0, 0, 1]
+			)
+		).toThrow(/source->target flow/);
+	});
+
+	it('chains multiple swap passes correctly', () => {
+		const plan = planRenderGraph(
+			[createPass(), createPass(), createPass()],
+			[0, 0, 0, 1]
+		);
+
+		expect(plan.steps).toHaveLength(3);
+		for (const step of plan.steps) {
+			expect(step.input).toBe('source');
+			expect(step.output).toBe('target');
+			expect(step.needsSwap).toBe(true);
+		}
+		expect(plan.finalOutput).toBe('source');
+	});
+
+	it('handles undefined passes parameter like empty array', () => {
+		const plan = planRenderGraph(undefined, [0, 0, 0, 1]);
+		expect(plan.steps).toEqual([]);
+		expect(plan.finalOutput).toBe('canvas');
+	});
+
+	it('supports writing to source without swap', () => {
+		const plan = planRenderGraph(
+			[createPass({ needsSwap: false, output: 'source' })],
+			[0, 0, 0, 1]
+		);
+
+		expect(plan.steps).toHaveLength(1);
+		expect(plan.steps[0]).toMatchObject({
+			input: 'source',
+			output: 'source',
+			needsSwap: false
+		});
+		expect(plan.finalOutput).toBe('source');
+	});
+
+	it('uses default clear color when pass does not specify one', () => {
+		const plan = planRenderGraph(
+			[createPass({ clear: true })],
+			[0.5, 0.6, 0.7, 1]
+		);
+
+		expect(plan.steps[0]?.clearColor).toEqual([0.5, 0.6, 0.7, 1]);
+	});
 });

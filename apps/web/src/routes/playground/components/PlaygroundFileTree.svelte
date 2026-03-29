@@ -41,18 +41,19 @@
 </script>
 
 <aside class="playground-sidebar flex min-h-0 flex-col lg:max-h-none">
-	<div use:registerSidebarHeaderHost class="border-b border-border px-1 py-2">
+	<div use:registerSidebarHeaderHost class="border-b border-border p-1">
 		<a
 			href={resolve('/' as const)}
-			class="inline-flex min-w-0 items-center gap-2 whitespace-nowrap text-accent [&>svg]:size-5 [&>svg]:fill-current"
-			aria-label="Back to Home"
-			title="Back to Home"
+			class="inline-flex items-center gap-1 text-sm tracking-tight text-foreground transition-colors duration-150 ease-out hover:text-foreground"
 		>
-			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-			{@html brandingConfig.logoRaw}
-			<span class="text-sm leading-none font-medium tracking-tight text-foreground">
-				{brandingConfig.name}
+			<span
+				class="inline-flex shrink-0 items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
+				aria-hidden="true"
+			>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html brandingConfig.logoRaw}
 			</span>
+			<span class="font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
 		</a>
 	</div>
 	<div use:registerSidebarListHost class="flex flex-col gap-0.5 overflow-auto lg:min-h-0 lg:flex-1">

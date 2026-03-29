@@ -1,0 +1,229 @@
+---
+title: Compute Shaders
+description: Running GPU compute workloads with ComputePass, PingPongComputePass, and storage buffers.
+---
+
+MotionGPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes run in the render graph alongside render passes, giving you GPU-accelerated parallel computation for particle systems, physics simulations, image processing, and more.
+
+Examples below use Svelte syntax. The same pass constructors are framework-agnostic and available from all entrypoints.
+
+## Overview
+
+Compute shaders operate on **storage buffers** and **storage textures** rather than rendering pixels. They execute a user-defined WGSL kernel across a configurable grid of workgroups.
+
+The typical workflow:
+
+1. **Declare storage buffers** in `defineMaterial({ storageBuffers })`.
+2. **Create a compute pass** with `new ComputePass({ compute, dispatch })`.
+3. **Pass it to `FragCanvas`** via the `passes` prop.
+4. **Read/write storage buffers** in `useFrame` callbacks via `state.writeStorageBuffer()` and `state.readStorageBuffer()`.
+
+## ComputePass
+
+A single-dispatch compute pass that runs a WGSL compute shader.
+
+```ts
+import { ComputePass } from '@motion-core/motion-gpu';
+
+const computePass = new ComputePass({
+  compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  particles[i] = vec4f(f32(i) * 0.01, 0.0, 0.0, 1.0);
+}
+`,
+  dispatch: [16] // 16 workgroups × 64 threads = 1024 invocations
+});
+```
+
+### Compute shader contract
+
+The WGSL source **must** contain:
+
+1. A `@compute @workgroup_size(X)` (or `@workgroup_size(X, Y)` / `@workgroup_size(X, Y, Z)`) attribute.
+2. A function named `compute` — e.g., `fn compute(@builtin(global_invocation_id) id: vec3u)`.
+3. A `@builtin(global_invocation_id)` parameter in the `compute` function signature (not only elsewhere in the module).
+4. Numeric `@workgroup_size` dimensions as integers in valid WebGPU range (`1..65535` per axis).
+
+The library extracts the workgroup size from the attribute and validates the entrypoint at construction time.
+
+### Dispatch modes
+
+The `dispatch` option controls how many workgroups are launched:
+
+| Mode | Value | Behavior |
+| --- | --- | --- |
+| **Static** | `[x]`, `[x, y]`, or `[x, y, z]` | Fixed workgroup counts |
+| **Auto** | `'auto'` | Derived from `ceil(canvasSize / workgroupSize)` per axis |
+| **Dynamic** | `(ctx) => [x, y, z]` | Called each frame with `ComputeDispatchContext` |
+
+```ts
+// Auto dispatch — scales with canvas resolution
+const autoPass = new ComputePass({
+  compute: myShader,
+  dispatch: 'auto'
+});
+
+// Dynamic dispatch based on frame time
+const dynamicPass = new ComputePass({
+  compute: myShader,
+  dispatch: (ctx) => [
+    Math.ceil(ctx.width / ctx.workgroupSize[0]),
+    Math.ceil(ctx.height / ctx.workgroupSize[1]),
+    1
+  ]
+});
+```
+
+### `ComputeDispatchContext`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `width` | `number` | Canvas width in pixels |
+| `height` | `number` | Canvas height in pixels |
+| `time` | `number` | Frame timestamp in seconds |
+| `delta` | `number` | Frame delta in seconds |
+| `workgroupSize` | `[number, number, number]` | Parsed `@workgroup_size` values |
+
+### Runtime API
+
+| Method | Description |
+| --- | --- |
+| `setCompute(source)` | Replace compute shader (triggers pipeline rebuild) |
+| `setDispatch(dispatch)` | Update dispatch strategy |
+| `getCompute()` | Get current shader source |
+| `getWorkgroupSize()` | Get parsed `[x, y, z]` workgroup size |
+
+## PingPongComputePass
+
+An iterative compute pass for simulations that require multiple compute iterations per frame (fluid dynamics, reaction-diffusion, etc.).
+
+```ts
+import { PingPongComputePass } from '@motion-core/motion-gpu';
+
+const simulation = new PingPongComputePass({
+  compute: `
+@compute @workgroup_size(8, 8)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  // Read from buffer A, write to buffer B (alternates each iteration)
+  let value = textureLoad(simA, id.xy, 0);
+  let next = value + vec4f(0.01, 0.0, 0.0, 0.0);
+  textureStore(simB, id.xy, next);
+}
+`,
+  target: 'sim',       // Texture key — engine creates simA/simB bindings
+  iterations: 4,       // 4 compute iterations per frame
+  dispatch: 'auto'
+});
+```
+
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `compute` | `string` | **Required** | WGSL compute shader source |
+| `target` | `string` | **Required** | Storage texture key from `material.textures` (`storage: true`). For ping-pong allocation, use explicit `width` and `height`. |
+| `iterations` | `number` | `1` | Iterations per frame (must be `>= 1`) |
+| `dispatch` | dispatch mode | `'auto'` | Workgroup dispatch strategy |
+| `enabled` | `boolean` | `true` | Whether pass is active |
+
+### Runtime API
+
+| Method | Description |
+| --- | --- |
+| `getCurrentOutput()` | Get texture key holding latest result (alternates A/B) |
+| `advanceFrame()` | Advance internal frame counter (called by renderer) |
+| `setIterations(count)` | Update iteration count (must be `>= 1`) |
+| `setCompute(source)` | Replace compute shader |
+| `setDispatch(dispatch)` | Update dispatch strategy |
+
+## Bind group layout
+
+`ComputePass` shaders use this bind group layout:
+
+| Group | Contents |
+| --- | --- |
+| `group(0)` | Frame uniforms (`motiongpuFrame`) + user uniforms (`motiongpuUniforms`) |
+| `group(1)` | Storage buffers (one binding per declared buffer) |
+| `group(2)` | Storage textures (one binding per declared storage texture) |
+
+`PingPongComputePass` uses generated A/B texture bindings at `group(2)`:
+
+| Binding | Contents |
+| --- | --- |
+| `@group(2) @binding(0)` | `${target}A` (read texture) |
+| `@group(2) @binding(1)` | `${target}B` (write storage texture) |
+
+Storage buffers are automatically bound in alphabetical order by name. You access them by their declared name directly in WGSL:
+
+```wgsl
+// Declared as: storageBuffers: { particles: { size: 4096, type: 'array<vec4f>' } }
+// Available in compute shader as:
+@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;
+// ^ The library generates this binding automatically
+```
+
+## Compute + fragment integration
+
+Compute passes and render passes coexist in the same `passes` array. Compute passes dispatch **before** the scene render so that storage textures and buffers are up-to-date when the fragment shader reads them:
+
+```ts
+const material = defineMaterial({
+  fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  // Read particle data from storage buffer (read-only in fragment)
+  let idx = u32(uv.x * 255.0);
+  let particle = particles[idx];
+  return vec4f(particle.rgb, 1.0);
+}
+`,
+  storageBuffers: {
+    particles: {
+      size: 1024 * 16, // 1024 vec4f particles
+      type: 'array<vec4f>',
+      access: 'read-write'
+    }
+  }
+});
+
+const simulate = new ComputePass({
+  compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  let pos = particles[i];
+  particles[i] = pos + vec4f(0.0, -0.001, 0.0, 0.0);
+}
+`,
+  dispatch: [16]
+});
+```
+
+```svelte
+<FragCanvas {material} passes={[simulate]} />
+```
+
+The compute pass runs first, updating the `particles` buffer. The fragment shader then reads the updated data for visualization.
+
+## Render graph behavior
+
+Compute passes have `kind: 'compute'` in the render graph and behave differently from render passes:
+
+- They do **not** participate in slot routing (`source`/`target`/`canvas`).
+- They do **not** swap ping-pong buffers.
+- They execute their compute pipeline and dispatch workgroups directly.
+- They share the same command encoder and submit queue as render passes.
+
+Disabled compute passes (`enabled: false`) are fully skipped.
+
+## Error handling
+
+Compute shader compilation errors are classified as `COMPUTE_COMPILATION_FAILED` with `severity: 'error'` and `recoverable: true`. They go through the same error normalization pipeline as fragment shader errors.
+
+## Related docs
+
+- [Storage Buffers](/docs/storage-buffers)
+- [Render Passes](/docs/render-passes)
+- [Defining Materials](/docs/defining-materials)
+- [Passes API](/docs/api-passes-reference)

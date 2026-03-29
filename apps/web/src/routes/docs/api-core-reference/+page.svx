@@ -26,6 +26,8 @@ Reference for framework-neutral exports available from root and `/core` entrypoi
 | `ShaderPass` | class | Programmable post-process pass |
 | `BlitPass` | class | Fullscreen texture sample pass |
 | `CopyPass` | class | Copy pass with optimized direct-copy path |
+| `ComputePass` | class | GPU compute pass with configurable dispatch |
+| `PingPongComputePass` | class | Iterative compute pass for multi-step simulations |
 
 ## Use cases
 

@@ -142,7 +142,7 @@ Each loaded texture provides:
 | `flipY` | `boolean` | Effective flip-y metadata |
 | `premultipliedAlpha` | `boolean` | Effective premultiplied alpha metadata |
 | `generateMipmaps` | `boolean` | Effective mipmap metadata |
-| `dispose` | `() => void` | Releases the bitmap resources |
+| `dispose` | `() => void` | Releases the bitmap resources (idempotent: safe to call more than once) |
 
 ## Abort, reload, and race safety
 

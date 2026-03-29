@@ -199,6 +199,26 @@ export interface TextureDefinition {
 	 * V axis address mode.
 	 */
 	addressModeV?: GPUAddressMode;
+	/**
+	 * When true, this texture is also writable by compute passes.
+	 */
+	storage?: boolean;
+	/**
+	 * Required when storage is true. Must be a storage-compatible format.
+	 */
+	format?: GPUTextureFormat;
+	/**
+	 * Explicit texture width. Required for storage textures without a source.
+	 */
+	width?: number;
+	/**
+	 * Explicit texture height. Required for storage textures without a source.
+	 */
+	height?: number;
+	/**
+	 * When true, texture is visible (sampled) in fragment shader. Default: true.
+	 */
+	fragmentVisible?: boolean;
 }
 
 /**
@@ -210,6 +230,56 @@ export type TextureDefinitionMap<TKey extends string = string> = Record<TKey, Te
  * Runtime texture value map keyed by texture uniform names.
  */
 export type TextureMap<TKey extends string = string> = Record<TKey, TextureValue>;
+
+// ── Storage buffer types ────────────────────────────────────────────────────
+
+/**
+ * Access mode for storage buffers in compute shaders.
+ */
+export type StorageBufferAccess = 'read' | 'read-write';
+
+/**
+ * WGSL storage buffer element type.
+ */
+export type StorageBufferType =
+	| 'array<f32>'
+	| 'array<vec2f>'
+	| 'array<vec3f>'
+	| 'array<vec4f>'
+	| 'array<u32>'
+	| 'array<i32>'
+	| 'array<vec4u>'
+	| 'array<vec4i>';
+
+/**
+ * Definition of a single storage buffer resource.
+ */
+export interface StorageBufferDefinition {
+	/**
+	 * Buffer size in bytes. Must be > 0 and multiple of 4.
+	 */
+	size: number;
+	/**
+	 * WGSL type annotation for codegen.
+	 */
+	type: StorageBufferType;
+	/**
+	 * Access mode in compute shader. Default: 'read-write'.
+	 */
+	access?: StorageBufferAccess;
+	/**
+	 * Initial data uploaded on creation.
+	 */
+	initialData?: Float32Array | Uint32Array | Int32Array;
+}
+
+/**
+ * Map of named storage buffer definitions.
+ */
+export type StorageBufferDefinitionMap<TKey extends string = string> = Record<
+	TKey,
+	StorageBufferDefinition
+>;
 
 /**
  * Output color space requested for final canvas presentation.
@@ -369,6 +439,40 @@ export interface RenderPassContext extends Required<RenderPassFlags> {
 }
 
 /**
+ * Context provided to compute pass render calls.
+ */
+export interface ComputePassContext {
+	/**
+	 * Active GPU device.
+	 */
+	device: GPUDevice;
+	/**
+	 * Shared command encoder for this frame.
+	 */
+	commandEncoder: GPUCommandEncoder;
+	/**
+	 * Frame width in pixels.
+	 */
+	width: number;
+	/**
+	 * Frame height in pixels.
+	 */
+	height: number;
+	/**
+	 * Frame timestamp in seconds.
+	 */
+	time: number;
+	/**
+	 * Frame delta in seconds.
+	 */
+	delta: number;
+	/**
+	 * Begins a compute pass on the shared command encoder.
+	 */
+	beginComputePass: () => GPUComputePassEncoder;
+}
+
+/**
  * Formal render pass contract used by MotionGPU render graph.
  */
 export interface RenderPass extends RenderPassFlags {
@@ -403,6 +507,22 @@ export interface RenderPass extends RenderPassFlags {
 }
 
 /**
+ * Minimal interface for compute passes in the render graph.
+ * Compute passes do not participate in slot routing.
+ */
+export interface ComputePassLike {
+	readonly isCompute: true;
+	enabled?: boolean;
+	setSize?: (width: number, height: number) => void;
+	dispose?: () => void;
+}
+
+/**
+ * Union type for all pass types accepted by the render graph.
+ */
+export type AnyPass = RenderPass | ComputePassLike;
+
+/**
  * Frame submission strategy for the scheduler.
  */
 export type RenderMode = 'always' | 'on-demand' | 'manual';
@@ -433,6 +553,14 @@ export interface FrameState {
 	 */
 	setTexture: (name: string, value: TextureValue) => void;
 	/**
+	 * Writes data to a named storage buffer.
+	 */
+	writeStorageBuffer: (name: string, data: ArrayBufferView, options?: { offset?: number }) => void;
+	/**
+	 * Async readback of storage buffer data.
+	 */
+	readStorageBuffer: (name: string) => Promise<ArrayBuffer>;
+	/**
 	 * Invalidates frame for on-demand rendering.
 	 */
 	invalidate: (token?: FrameInvalidationToken) => void;
@@ -457,6 +585,18 @@ export interface FrameState {
 /**
  * Internal renderer construction options resolved from material/context state.
  */
+/**
+ * Pending storage buffer write queued from FrameState.
+ */
+export interface PendingStorageWrite {
+	/** Storage buffer name. */
+	name: string;
+	/** Data to write. */
+	data: ArrayBufferView;
+	/** Byte offset into the storage buffer. */
+	offset: number;
+}
+
 export interface RendererOptions {
 	/**
 	 * Target canvas.
@@ -514,21 +654,33 @@ export interface RendererOptions {
 	 */
 	textureDefinitions: TextureDefinitionMap;
 	/**
+	 * Sorted storage buffer keys.
+	 */
+	storageBufferKeys?: string[];
+	/**
+	 * Storage buffer definitions by key.
+	 */
+	storageBufferDefinitions?: Record<string, import('./types.js').StorageBufferDefinition>;
+	/**
+	 * Sorted storage texture keys (textures with storage:true).
+	 */
+	storageTextureKeys?: string[];
+	/**
 	 * Static render target definitions.
 	 */
 	renderTargets?: RenderTargetDefinitionMap;
 	/**
-	 * Static render passes.
+	 * Static render and compute passes.
 	 */
-	passes?: RenderPass[];
+	passes?: AnyPass[];
 	/**
 	 * Dynamic render targets provider.
 	 */
 	getRenderTargets?: () => RenderTargetDefinitionMap | undefined;
 	/**
-	 * Dynamic render passes provider.
+	 * Dynamic render and compute passes provider.
 	 */
-	getPasses?: () => RenderPass[] | undefined;
+	getPasses?: () => AnyPass[] | undefined;
 	/**
 	 * Requested output color space.
 	 */
@@ -574,7 +726,16 @@ export interface Renderer {
 			width: number;
 			height: number;
 		};
+		pendingStorageWrites?: PendingStorageWrite[];
 	}) => void;
+	/**
+	 * Returns the GPU buffer for a named storage buffer, if allocated.
+	 */
+	getStorageBuffer?: (name: string) => GPUBuffer | undefined;
+	/**
+	 * Returns the active GPU device (for readback operations).
+	 */
+	getDevice?: () => GPUDevice;
 	/**
 	 * Releases GPU resources and subscriptions.
 	 */

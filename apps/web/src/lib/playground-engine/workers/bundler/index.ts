@@ -22,6 +22,8 @@ import {
 	load_svelte,
 	parse_npm_url,
 	resolve_local,
+	resolve_local_motiongpu,
+	resolve_local_motiongpu_relative,
 	resolve_subpath,
 	resolve_version,
 	type Package
@@ -159,7 +161,15 @@ async function get_bundle(
 					return normalize_path(current, path, importee, importer);
 				}
 
-				return new URL(importee, importer).href;
+				const resolved_url = new URL(importee, importer).href;
+
+				// Normalize local motion-gpu imports to include file extension,
+				// so that './foo' and './foo.js' resolve to the same module ID.
+				if (resolved_url.startsWith(`${location.origin}/motion-gpu/`)) {
+					return await resolve_local_motiongpu_relative(resolved_url);
+				}
+
+				return resolved_url;
 			}
 
 			// importing a file from the same package via pkg.imports
@@ -179,6 +189,11 @@ async function get_bundle(
 
 			if (pkg_name === 'svelte' && svelte_version === 'local') {
 				return await resolve_local(importee);
+			}
+
+			// Always resolve @motion-core/motion-gpu from local workspace
+			if (pkg_name === '@motion-core/motion-gpu') {
+				return await resolve_local_motiongpu(importee);
 			}
 
 			let default_version = 'latest';

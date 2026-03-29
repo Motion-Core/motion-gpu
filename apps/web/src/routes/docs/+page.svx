@@ -3,7 +3,7 @@ title: MotionGPU Documentation
 description: Framework-agnostic WebGPU core with Svelte 5 and React 19 adapters for fullscreen WGSL rendering.
 ---
 
-`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5** and **React 19** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, and a composable post-processing pipeline — wired into a single `<FragCanvas>` component in both adapters.
+`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5** and **React 19** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in both adapters.
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 
@@ -21,7 +21,8 @@ MotionGPU documentation is also available for AI tools via [Context7](https://co
 | **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
 | **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
 | **Frame scheduler** | `core/frame-registry.ts` + `svelte/frame-context.ts` + `react/frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling (core), with Svelte/React hook-context adapter wrappers. |
-| **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, and three built-in pass types. |
+| **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, three built-in render pass types, and two compute pass types (`ComputePass`, `PingPongComputePass`). |
+| **Compute pipeline** | `compute-shader.ts` + `storage-buffers.ts` | Builds compute shader WGSL, validates contracts, manages storage buffer allocation/readback, and dispatches compute workgroups within the render graph. |
 | **Texture loading** | `core/texture-loader.ts` + `svelte/use-texture.ts` + `react/use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive adapter state. |
 | **Diagnostics** | `error-report.ts` + `error-diagnostics.ts` | Maps low-level WebGPU and WGSL errors to structured reports with hints and source snippets. |
 
@@ -29,7 +30,7 @@ MotionGPU documentation is also available for AI tools via [Context7](https://co
 
 | Entrypoint | Key exports |
 | --- | --- |
-| `@motion-core/motion-gpu` | Framework-agnostic core runtime primitives (`defineMaterial`, `createFrameRegistry`, `createMotionGPURuntimeLoop`, `createCurrentWritable`, passes, texture loader, error normalization) |
+| `@motion-core/motion-gpu` | Framework-agnostic core runtime primitives (`defineMaterial`, `createFrameRegistry`, `createMotionGPURuntimeLoop`, `createCurrentWritable`, passes incl. `ComputePass`/`PingPongComputePass`, texture loader, error normalization) |
 | `@motion-core/motion-gpu/advanced` | Core runtime plus scheduler helper utilities (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
 | `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `useTexture`, passes, material helpers) |
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
@@ -42,12 +43,14 @@ The export contract is verified in `src/tests/public-api.test.ts`.
 
 Understanding the frame-by-frame flow is the single most useful thing you can learn about MotionGPU:
 
-1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, ... })`.
-2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, and texture bindings).
+1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, storageBuffers, ... })`.
+2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture bindings, and storage buffer definitions).
 3. If the signature changes, the WebGPU **renderer is rebuilt** from scratch. If it stays the same, only uniform buffers and texture bindings are updated — no recompilation.
 4. Every animation frame:
    - **Scheduler tasks** run in topological order (your `useFrame` callbacks).
    - Runtime **uniforms and textures** are merged with material defaults.
+   - **Pending storage buffer writes** are flushed to the GPU.
+   - **Compute passes** dispatch their workgroups through the render graph.
    - The **base fullscreen pass** renders your fragment shader.
    - Optional **post-process passes** execute through the render graph.
    - The **final result** is presented to the canvas.
@@ -60,7 +63,9 @@ These are enforced at runtime and will throw immediately if violated:
 | --- | --- |
 | Fragment function must be `fn frag(uv: vec2f) -> vec4f` | `defineMaterial` validation |
 | `ShaderPass` fragment must define `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` | `ShaderPass` constructor |
-| Uniform / texture / define / include keys must be WGSL-safe identifiers (`[A-Za-z_][A-Za-z0-9_]*`) | Validators in `uniforms.ts`, `textures.ts`, `material-preprocess.ts` |
+| `ComputePass` shader must contain `@compute @workgroup_size(...)` and `fn compute(...)` | `ComputePass` constructor |
+| Storage buffer `size` must be `> 0` and a multiple of 4 | `defineMaterial` validation |
+| Uniform / texture / define / include / storage buffer keys must be WGSL-safe identifiers (`[A-Za-z_][A-Za-z0-9_]*`) | Validators in `uniforms.ts`, `textures.ts`, `material-preprocess.ts`, `storage-buffers.ts` |
 | `renderMode` API contract is `'always'`, `'on-demand'`, or `'manual'` | Scheduler types/runtime |
 | `maxDelta > 0` and `profilingWindow > 0` | Scheduler assertions |
 | Render target `scale`, `width`, `height` must be finite and `> 0` | Render-target resolver |
@@ -84,7 +89,7 @@ These are enforced at runtime and will throw immediately if violated:
 
 ## Scope and boundaries
 
-- This package targets **fullscreen fragment workflows** — it is not a general-purpose scene graph or 3D engine.
+- This package targets **fullscreen fragment workflows and GPU compute** — it is not a general-purpose scene graph or 3D engine.
 - Root entrypoints (`@motion-core/motion-gpu`, `/advanced`) are framework-agnostic core APIs.
 - Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, `@motion-core/motion-gpu/react`).
 - Adapter runtimes work without advanced entrypoints; `@motion-core/motion-gpu/svelte/advanced` and `@motion-core/motion-gpu/react/advanced` add namespaced user state and extended scheduler ergonomics.

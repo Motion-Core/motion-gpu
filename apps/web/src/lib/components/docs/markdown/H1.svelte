@@ -14,7 +14,7 @@
 <h1
 	{...restProps}
 	class={cn(
-		'scroll-m-24 text-3xl font-medium tracking-tight text-foreground [&_code]:text-2xl',
+		'scroll-m-24 text-3xl font-medium tracking-tight text-foreground [&_a]:text-2xl [&_code]:text-2xl',
 		className
 	)}
 >

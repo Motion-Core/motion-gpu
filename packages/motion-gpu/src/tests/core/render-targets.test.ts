@@ -69,4 +69,73 @@ describe('render targets', () => {
 
 		expect(signature).toBe('uA:rgba8unorm:100x100|uB:rgba16float:200x100');
 	});
+
+	it('returns empty array for undefined definitions', () => {
+		const resolved = resolveRenderTargetDefinitions(undefined, 800, 600, 'rgba8unorm');
+		expect(resolved).toEqual([]);
+	});
+
+	it('returns empty array for null definitions', () => {
+		const resolved = resolveRenderTargetDefinitions(
+			null as unknown as Parameters<typeof resolveRenderTargetDefinitions>[0],
+			800,
+			600,
+			'rgba8unorm'
+		);
+		expect(resolved).toEqual([]);
+	});
+
+	it('clamps small scaled dimensions to minimum 1', () => {
+		const resolved = resolveRenderTargetDefinitions(
+			{ uTiny: { scale: 0.5 } },
+			1,
+			1,
+			'rgba8unorm'
+		);
+		expect(resolved[0]).toMatchObject({ key: 'uTiny', width: 1, height: 1 });
+	});
+
+	it('supports scale > 1 (upscaling)', () => {
+		const resolved = resolveRenderTargetDefinitions(
+			{ uUp: { scale: 2 } },
+			400,
+			300,
+			'rgba8unorm'
+		);
+		expect(resolved[0]).toMatchObject({ key: 'uUp', width: 800, height: 600 });
+	});
+
+	it('handles fractional scale values correctly', () => {
+		const resolved = resolveRenderTargetDefinitions(
+			{ uFrac: { scale: 0.333 } },
+			1000,
+			1000,
+			'rgba8unorm'
+		);
+		expect(resolved[0]).toMatchObject({ key: 'uFrac', width: 333, height: 333 });
+	});
+
+	it('rejects NaN and Infinity for explicit dimensions', () => {
+		expect(() =>
+			resolveRenderTargetDefinitions({ uA: { width: Number.NaN } }, 200, 100, 'rgba8unorm')
+		).toThrow(/RenderTarget dimension/);
+
+		expect(() =>
+			resolveRenderTargetDefinitions(
+				{ uA: { width: Number.POSITIVE_INFINITY } },
+				200,
+				100,
+				'rgba8unorm'
+			)
+		).toThrow(/RenderTarget dimension/);
+	});
+
+	it('returns empty string for empty signature input', () => {
+		expect(buildRenderTargetSignature([])).toBe('');
+	});
+
+	it('returns empty array for empty definitions map', () => {
+		const resolved = resolveRenderTargetDefinitions({}, 800, 600, 'rgba8unorm');
+		expect(resolved).toEqual([]);
+	});
 });

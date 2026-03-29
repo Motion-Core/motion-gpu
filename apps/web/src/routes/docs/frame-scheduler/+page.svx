@@ -80,6 +80,8 @@ The `state` parameter passed to your callback provides everything you need for p
 | `autoRender` | `boolean` | Current auto-render state |
 | `setUniform(name, value)` | function | Set a runtime uniform override |
 | `setTexture(name, value)` | function | Set a runtime texture source |
+| `writeStorageBuffer(name, data, options?)` | function | Queue a CPU → GPU write into a declared storage buffer |
+| `readStorageBuffer(name)` | function | Async GPU → CPU readback from a declared storage buffer |
 | `invalidate(token?)` | function | Trigger invalidation for on-demand mode |
 | `advance()` | function | Request one frame in manual mode |
 
@@ -192,3 +194,4 @@ Dependencies are resolved via topological sort.
 - `useFrame` automatically **unregisters** the task when the component is destroyed (adapter lifecycle cleanup).
 - The `stop()` / `start()` methods pause/resume without unregistering — the task remains in the schedule but is skipped.
 - The `running` gate is checked each frame — a stopped task or a task with `running: () => false` is simply skipped, not removed.
+- Re-registering the same explicit key replaces the previous task registration; stale unsubscribe handlers from the replaced task will not remove the newer one.

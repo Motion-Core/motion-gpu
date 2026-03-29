@@ -103,7 +103,7 @@ export const docsUiConfig: DocsUiConfig = {
 			enabled: true,
 			key: 'k',
 			metaOrCtrl: true,
-			label: '⌘K'
+			label: '⌘ K'
 		},
 		maxGroups: 20,
 		maxChildrenPerGroup: 5
@@ -120,7 +120,7 @@ export const docsUiConfig: DocsUiConfig = {
 		emptyLabel: 'No headings',
 		minViewportWidth: 1280,
 		defaultSelector: '[data-doc-content] h2, [data-doc-content] h3',
-		selectorOverrides: [{ slugPrefix: 'changelog/', selector: '[data-doc-content] h2' }]
+		selectorOverrides: [{ slugPrefix: 'changelog', selector: '[data-doc-content] h2' }]
 	},
 	docActions: {
 		enabled: true,

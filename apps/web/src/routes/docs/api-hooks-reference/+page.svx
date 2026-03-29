@@ -50,6 +50,8 @@ Dependency validation is strict: cyclic graphs and missing `before`/`after` refe
 | `autoRender` | `boolean` |
 | `setUniform` | `(name: string, value: UniformValue) => void` |
 | `setTexture` | `(name: string, value: TextureValue) => void` |
+| `writeStorageBuffer` | `(name: string, data: ArrayBufferView, options?: { offset?: number }) => void` |
+| `readStorageBuffer` | `(name: string) => Promise<ArrayBuffer>` |
 | `invalidate` | `(token?: FrameInvalidationToken) => void` |
 | `advance` | `() => void` |
 

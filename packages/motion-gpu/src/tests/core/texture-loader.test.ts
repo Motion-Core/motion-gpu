@@ -56,8 +56,18 @@ describe('texture-loader', () => {
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(createImageBitmap).toHaveBeenCalledTimes(1);
 
-		texture.dispose();
+			texture.dispose();
+			const close = (texture.source as unknown as { close: () => void }).close;
+			expect(close).toHaveBeenCalledTimes(1);
+	});
+
+	it('treats LoadedTexture.dispose as idempotent', async () => {
+		const texture = await loadTextureFromUrl('/assets/pic-idempotent.png');
 		const close = (texture.source as unknown as { close: () => void }).close;
+
+		texture.dispose();
+		texture.dispose();
+
 		expect(close).toHaveBeenCalledTimes(1);
 	});
 

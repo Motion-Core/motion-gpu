@@ -162,6 +162,86 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
+	it('falls back to blit when source and target dimensions mismatch', () => {
+		const pass = new CopyPass();
+		const context = createPassContext();
+		context.output = { ...context.output, width: context.input.width + 1 };
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(fallbackRender).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back to blit when source and target formats mismatch', () => {
+		const pass = new CopyPass();
+		const context = createPassContext();
+		context.output = { ...context.output, format: 'rgba16float' };
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(fallbackRender).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back to blit when copying to the same texture', () => {
+		const pass = new CopyPass();
+		const context = createPassContext();
+		context.output = context.input;
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(fallbackRender).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back to blit when preserve=false', () => {
+		const pass = new CopyPass();
+		const context = createPassContext({ preserve: false });
+		const fallbackRender = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+
+		pass.render(context);
+
+		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(fallbackRender).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back to blit when source or target resolves to canvas texture', () => {
+		const pass = new CopyPass();
+		const sourceCanvasContext = createPassContext();
+		sourceCanvasContext.input = sourceCanvasContext.canvas;
+		const sourceFallback = vi.spyOn(
+			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
+			'render'
+		);
+		pass.render(sourceCanvasContext);
+		expect(sourceCanvasContext.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(sourceFallback).toHaveBeenCalledTimes(1);
+
+		sourceFallback.mockClear();
+
+		const targetCanvasContext = createPassContext();
+		targetCanvasContext.output = targetCanvasContext.canvas;
+		pass.render(targetCanvasContext);
+		expect(targetCanvasContext.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(sourceFallback).toHaveBeenCalledTimes(1);
+	});
+
 	it('disposes internal blit pass when CopyPass is disposed', () => {
 		const pass = new CopyPass();
 		const disposeSpy = vi.spyOn(
@@ -194,6 +274,22 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 `);
 		pass.render(context);
 		expect(device.createRenderPipeline).toHaveBeenCalledTimes(2);
+	});
+
+	it('rejects invalid ShaderPass fragments in setFragment without mutating active fragment', () => {
+		const originalFragment = `
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
+}
+`;
+		const pass = new ShaderPass({
+			fragment: originalFragment
+		});
+
+		expect(() => pass.setFragment('fn broken() {}')).toThrow(
+			/fn shade\(inputColor: vec4f, uv: vec2f\) -> vec4f/
+		);
+		expect(pass.getFragment()).toBe(originalFragment);
 	});
 
 	it('reuses BlitPass pipeline cache and resets it for a different device', () => {

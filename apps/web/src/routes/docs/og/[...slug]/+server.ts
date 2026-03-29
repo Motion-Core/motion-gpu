@@ -3,14 +3,9 @@ import satoriStandalone, { init as initSatoriWasm } from 'satori/standalone';
 import { html } from 'satori-html';
 import { Resvg, initWasm } from '@resvg/resvg-wasm';
 import type { RequestHandler } from './$types';
-import {
-	brandLogoRaw,
-	getDocBySlug,
-	getDocMetadata,
-	fkGroteskNeueRegularDataUri,
-	fkGroteskNeueSemiBoldDataUri,
-	siteConfig
-} from '$lib';
+import apkGaleriaRegularDataUri from '$lib/assets/fonts/APK-Galeria-Regular.woff?inline';
+import apkGaleriaMediumDataUri from '$lib/assets/fonts/APK-Galeria-Medium.woff?inline';
+import { brandLogoRaw, getDocBySlug, getDocMetadata, siteConfig } from '$lib';
 
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
@@ -26,12 +21,6 @@ const clampText = (value: string, maxLength: number) => {
 
 const dataUriToArrayBuffer = (dataUri: string) => {
 	const base64 = dataUri.slice(dataUri.indexOf(',') + 1);
-
-	if (typeof Buffer !== 'undefined') {
-		const bytes = Buffer.from(base64, 'base64');
-		return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-	}
-
 	const binary = atob(base64);
 	const bytes = new Uint8Array(binary.length);
 	for (let index = 0; index < binary.length; index += 1) {
@@ -39,10 +28,9 @@ const dataUriToArrayBuffer = (dataUri: string) => {
 	}
 	return bytes.buffer;
 };
-
 const fontDataPromise = Promise.all([
-	Promise.resolve(dataUriToArrayBuffer(fkGroteskNeueRegularDataUri)),
-	Promise.resolve(dataUriToArrayBuffer(fkGroteskNeueSemiBoldDataUri))
+	Promise.resolve(dataUriToArrayBuffer(apkGaleriaRegularDataUri)),
+	Promise.resolve(dataUriToArrayBuffer(apkGaleriaMediumDataUri))
 ]);
 
 type ResvgWasmState = {
@@ -72,7 +60,7 @@ if (!ogWasmState.__docsOgSatoriWasmState) {
 	ogWasmState.__docsOgSatoriWasmState = {};
 }
 
-const ensureResvgWasm = (origin: string) => {
+const ensureResvgWasm = (origin: string, fetcher: typeof fetch) => {
 	const state = ogWasmState.__docsOgResvgWasmState as ResvgWasmState;
 	if (state.initialized) {
 		return Promise.resolve();
@@ -82,7 +70,7 @@ const ensureResvgWasm = (origin: string) => {
 		const precompiledWasmModule = ogWasmState.__docsOgResvgWasmModule;
 		const loadWasm = precompiledWasmModule
 			? Promise.resolve(precompiledWasmModule)
-			: fetch(new URL('/resvg-index_bg.wasm', origin)).then((response) => {
+			: fetcher('/resvg-index_bg.wasm').then((response) => {
 					if (!response.ok) {
 						throw new Error(`Failed to load resvg wasm: ${response.status}`);
 					}
@@ -171,7 +159,7 @@ const extractLogoAspectRatio = (svgMarkup: string) => {
 
 const logoDisplayWidth = Math.round(LOGO_DISPLAY_HEIGHT * extractLogoAspectRatio(brandLogoRaw));
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async ({ params, url, fetch }) => {
 	const rawSlug = (params.slug ?? '').replace(/^\/+|\/+$/g, '');
 	const slug = rawSlug === '' || rawSlug === 'index' || rawSlug === 'docs' ? '' : rawSlug;
 
@@ -187,8 +175,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
 		MAX_DESCRIPTION_LENGTH
 	);
 	const pageUrl = new URL(`/docs/${metadata.slug}`, canonicalOrigin).href;
-	const [fkGroteskNeueRegular, fkGroteskNeueSemiBold] = await fontDataPromise;
-	await ensureResvgWasm(url.origin);
+	const [apkGaleriaRegular, apkGaleriaMedium] = await fontDataPromise;
+	await ensureResvgWasm(url.origin, fetch);
 	const useStandaloneSatori = Boolean(ogWasmState.__docsOgYogaWasmModule);
 	if (useStandaloneSatori) {
 		await ensureSatoriWasm();
@@ -234,14 +222,14 @@ export const GET: RequestHandler = async ({ params, url }) => {
 				height: OG_HEIGHT,
 				fonts: [
 					{
-						name: 'FK Grotesk Neue',
-						data: fkGroteskNeueRegular,
+						name: 'APK Galeria Regular',
+						data: apkGaleriaRegular,
 						weight: 400,
 						style: 'normal'
 					},
 					{
-						name: 'FK Grotesk Neue',
-						data: fkGroteskNeueSemiBold,
+						name: 'APK Galeria Medium',
+						data: apkGaleriaMedium,
 						weight: 600,
 						style: 'normal'
 					}
@@ -258,14 +246,14 @@ export const GET: RequestHandler = async ({ params, url }) => {
 			height: OG_HEIGHT,
 			fonts: [
 				{
-					name: 'FK Grotesk Neue',
-					data: fkGroteskNeueRegular,
+					name: 'APK Galeria Regular',
+					data: apkGaleriaRegular,
 					weight: 400,
 					style: 'normal'
 				},
 				{
-					name: 'FK Grotesk Neue',
-					data: fkGroteskNeueSemiBold,
+					name: 'APK Galeria Medium',
+					data: apkGaleriaMedium,
 					weight: 600,
 					style: 'normal'
 				}

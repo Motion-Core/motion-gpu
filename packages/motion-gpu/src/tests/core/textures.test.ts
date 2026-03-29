@@ -30,7 +30,8 @@ describe('textures', () => {
 			anisotropy: 1,
 			filter: 'linear',
 			addressModeU: 'clamp-to-edge',
-			addressModeV: 'clamp-to-edge'
+			addressModeV: 'clamp-to-edge',
+			storage: false
 		});
 
 		expect(normalizeTextureDefinition({ update: 'onInvalidate' }).update).toBe('onInvalidate');
@@ -130,6 +131,61 @@ describe('textures', () => {
 		expect(isVideoTextureSource(canvas)).toBe(false);
 	});
 
+	it('normalizes storage texture definitions with width, height and format', () => {
+		const storageDef = normalizeTextureDefinition({
+			storage: true,
+			format: 'rgba16float',
+			width: 512,
+			height: 256
+		});
+
+		expect(storageDef.storage).toBe(true);
+		expect(storageDef.format).toBe('rgba16float');
+		expect(storageDef.width).toBe(512);
+		expect(storageDef.height).toBe(256);
+	});
+
+	it('sets storage to false when not specified', () => {
+		expect(normalizeTextureDefinition(undefined).storage).toBe(false);
+		expect(normalizeTextureDefinition({}).storage).toBe(false);
+		expect(normalizeTextureDefinition({ filter: 'nearest' }).storage).toBe(false);
+	});
+
+	it('preserves explicit format from definition instead of deriving from colorSpace', () => {
+		const withFormat = normalizeTextureDefinition({ format: 'r32float' });
+		expect(withFormat.format).toBe('r32float');
+
+		const withoutFormat = normalizeTextureDefinition({ colorSpace: 'linear' });
+		expect(withoutFormat.format).toBe('rgba8unorm');
+	});
+
+	it('omits width and height when not provided', () => {
+		const norm = normalizeTextureDefinition(undefined);
+		expect(norm).not.toHaveProperty('width');
+		expect(norm).not.toHaveProperty('height');
+	});
+
+	it('normalizes storage textures in bulk via normalizeTextureDefinitions', () => {
+		const normalized = normalizeTextureDefinitions(
+			{
+				uDensity: {
+					storage: true,
+					format: 'rgba16float',
+					width: 256,
+					height: 256
+				},
+				uRegular: {}
+			},
+			['uDensity', 'uRegular']
+		);
+
+		expect(normalized.uDensity!.storage).toBe(true);
+		expect(normalized.uDensity!.width).toBe(256);
+		expect(normalized.uDensity!.format).toBe('rgba16float');
+		expect(normalized.uRegular!.storage).toBe(false);
+		expect(normalized.uRegular!).not.toHaveProperty('width');
+	});
+
 	it('resolves runtime texture update strategy', () => {
 		const video = document.createElement('video');
 		const canvas = document.createElement('canvas');
@@ -140,5 +196,45 @@ describe('textures', () => {
 		);
 		expect(resolveTextureUpdateMode({ source: canvas, override: 'perFrame' })).toBe('perFrame');
 		expect(resolveTextureUpdateMode({ source: video })).toBe('perFrame');
+	});
+
+	it('clamps anisotropy at lower bound to 1', () => {
+		expect(normalizeTextureDefinition({ anisotropy: 0 }).anisotropy).toBe(1);
+		expect(normalizeTextureDefinition({ anisotropy: -5 }).anisotropy).toBe(1);
+		expect(normalizeTextureDefinition({ anisotropy: -100 }).anisotropy).toBe(1);
+	});
+
+	it('floors fractional anisotropy values', () => {
+		expect(normalizeTextureDefinition({ anisotropy: 3.7 }).anisotropy).toBe(3);
+		expect(normalizeTextureDefinition({ anisotropy: 15.9 }).anisotropy).toBe(15);
+		expect(normalizeTextureDefinition({ anisotropy: 1.1 }).anisotropy).toBe(1);
+	});
+
+	it('resolves texture size from naturalWidth/naturalHeight (image-like source)', () => {
+		const img = { naturalWidth: 200, naturalHeight: 100 };
+		expect(resolveTextureSize({ source: img as unknown as TexImageSource })).toEqual({
+			width: 200,
+			height: 100
+		});
+	});
+
+	it('resolves texture size from videoWidth/videoHeight', () => {
+		const video = { videoWidth: 1920, videoHeight: 1080 };
+		expect(resolveTextureSize({ source: video as unknown as TexImageSource })).toEqual({
+			width: 1920,
+			height: 1080
+		});
+	});
+
+	it('computes mip levels for non-power-of-two dimensions', () => {
+		expect(getTextureMipLevelCount(300, 200)).toBe(9);
+		expect(getTextureMipLevelCount(100, 1)).toBe(7);
+		expect(getTextureMipLevelCount(1, 100)).toBe(7);
+	});
+
+	it('throws on source with no dimension properties', () => {
+		expect(() =>
+			resolveTextureSize({ source: {} as unknown as TexImageSource })
+		).toThrow(/positive width and height/);
 	});
 });

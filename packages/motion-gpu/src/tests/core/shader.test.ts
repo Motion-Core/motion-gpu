@@ -123,4 +123,70 @@ describe('buildShaderSource', () => {
 			formatShaderSourceLocation(mappedLines[mappedLines.length - 1]?.location ?? null)
 		).toContain('fragment line 3');
 	});
+
+	it('generates read-only storage buffer bindings for fragment shader', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({}),
+			[],
+			{
+				storageBufferKeys: ['particles', 'velocities'],
+				storageBufferDefinitions: {
+					particles: { type: 'array<vec4f>' },
+					velocities: { type: 'array<vec4f>' }
+				}
+			}
+		);
+
+		expect(shader).toContain('@group(1) @binding(0) var<storage, read> particles: array<vec4f>;');
+		expect(shader).toContain(
+			'@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;'
+		);
+	});
+
+	it('places storage buffer bindings in group(1)', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({}),
+			[],
+			{
+				storageBufferKeys: ['data'],
+				storageBufferDefinitions: { data: { type: 'array<f32>' } }
+			}
+		);
+
+		expect(shader).toContain('@group(1) @binding(0)');
+		expect(shader).not.toContain('@group(2)');
+	});
+
+	it('skips storage buffer bindings when list is empty', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({}),
+			[],
+			{
+				storageBufferKeys: [],
+				storageBufferDefinitions: {}
+			}
+		);
+
+		expect(shader).not.toContain('@group(1)');
+	});
+
+	it('snapshot: fragment shader with storage buffers', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			resolveUniformLayout({ uMix: 0.5 }),
+			['uTexture'],
+			{
+				storageBufferKeys: ['positions', 'colors'],
+				storageBufferDefinitions: {
+					positions: { type: 'array<vec4f>' },
+					colors: { type: 'array<vec4f>' }
+				}
+			}
+		);
+
+		expect(shader).toMatchSnapshot();
+	});
 });

@@ -4,8 +4,8 @@ import type { FragMaterial } from '../core/material.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import type {
+	AnyPass,
 	OutputColorSpace,
-	RenderPass,
 	RenderMode,
 	RenderTargetDefinitionMap
 } from '../core/types.js';
@@ -17,7 +17,7 @@ import { MotionGPUReactContext, type MotionGPUContext } from './motiongpu-contex
 export interface FragCanvasProps {
 	material: FragMaterial;
 	renderTargets?: RenderTargetDefinitionMap;
-	passes?: RenderPass[];
+	passes?: AnyPass[];
 	clearColor?: [number, number, number, number];
 	outputColorSpace?: OutputColorSpace;
 	renderMode?: RenderMode;
@@ -39,7 +39,7 @@ export interface FragCanvasProps {
 interface RuntimePropsSnapshot {
 	material: FragMaterial;
 	renderTargets: RenderTargetDefinitionMap;
-	passes: RenderPass[];
+	passes: AnyPass[];
 	clearColor: [number, number, number, number];
 	outputColorSpace: OutputColorSpace;
 	adapterOptions: GPURequestAdapterOptions | undefined;

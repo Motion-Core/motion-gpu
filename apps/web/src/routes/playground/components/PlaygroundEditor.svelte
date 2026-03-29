@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Close from 'carbon-icons-svelte/lib/Close.svelte';
+	import ScrollArea from '$lib/components/ui/ScrollArea.svelte';
 
 	import type { PlaygroundController } from '../playground-controller.svelte';
 
@@ -25,42 +26,44 @@
 	class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background-muted p-px dark:bg-background"
 >
 	<div class="h-8 border-b border-border">
-		<div class="flex items-stretch overflow-x-auto">
-			{#each controller.openFilePaths as filePath (filePath)}
-				<div
-					class={`group inline-flex shrink-0 items-center rounded-t-md border-r ${
-						controller.activeFilePath === filePath
-							? 'border-border bg-background dark:bg-background-inset'
-							: 'border-transparent bg-transparent'
-					}`}
-				>
-					<button
-						type="button"
-						onclick={() => controller.switchToFile(filePath)}
-						class={`px-2.5 py-2 text-left font-mono text-[11px] font-normal transition-colors duration-150 ease-out sm:px-3 sm:text-xs ${
+		<ScrollArea mode="horizontal" class="h-full" viewportClass="h-full">
+			<div class="flex items-stretch">
+				{#each controller.openFilePaths as filePath (filePath)}
+					<div
+						class={`group inline-flex shrink-0 items-center rounded-t-md border-r ${
 							controller.activeFilePath === filePath
-								? 'text-foreground'
-								: 'text-foreground-muted hover:text-foreground'
+								? 'border-border bg-background dark:bg-background-inset'
+								: 'border-transparent bg-transparent'
 						}`}
 					>
-						{filePath.split('/').at(-1)}
-					</button>
-					{#if controller.openFilePaths.length > 1}
 						<button
 							type="button"
-							onclick={(event) => {
-								event.stopPropagation();
-								controller.closeFile(filePath);
-							}}
-							class="inline-flex items-center px-3 py-2 text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-							aria-label={`Close ${filePath}`}
+							onclick={() => controller.switchToFile(filePath)}
+							class={`px-2.5 py-2 text-left font-mono text-[11px] font-normal transition-colors duration-150 ease-out sm:px-3 sm:text-xs ${
+								controller.activeFilePath === filePath
+									? 'text-foreground'
+									: 'text-foreground-muted hover:text-foreground'
+							}`}
 						>
-							<Close size={16} />
+							{filePath.split('/').at(-1)}
 						</button>
-					{/if}
-				</div>
-			{/each}
-		</div>
+						{#if controller.openFilePaths.length > 1}
+							<button
+								type="button"
+								onclick={(event) => {
+									event.stopPropagation();
+									controller.closeFile(filePath);
+								}}
+								class="inline-flex items-center px-3 py-2 text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
+								aria-label={`Close ${filePath}`}
+							>
+								<Close size={16} />
+							</button>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</ScrollArea>
 	</div>
 
 	<div
@@ -86,8 +89,11 @@
 				>
 					Runtime log ({controller.status})
 				</summary>
-				<pre
-					class="h-32 overflow-auto px-3 py-2 font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
+				<ScrollArea class="h-32" viewportClass="px-3 py-2">
+					<pre class="font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted"
+						>{controller.runtimeLogTail}</pre
+					>
+				</ScrollArea>
 			</details>
 		{:else}
 			<p class=" px-3 py-2 font-mono text-xs font-normal text-foreground-muted">

@@ -3,6 +3,23 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added first-class compute support with new `ComputePass` and `PingPongComputePass` exports in root, core, Svelte, and React entrypoints.
+- Added `storageBuffers` material definitions with runtime validation (`size`, `type`, `access`, `initialData`) and immutable material snapshots.
+- Added storage-focused texture options for compute workflows (`storage`, `format`, `width`, `height`, `fragmentVisible`).
+- Added `FrameState.writeStorageBuffer(...)` and `FrameState.readStorageBuffer(...)` APIs for runtime CPU↔GPU storage-buffer workflows.
+- Added compute-shader contract/codegen utilities with strict `@compute @workgroup_size(...) fn compute(...)` validation and workgroup-size extraction.
+- Added broad compute/storage test coverage, including pass behavior, shader generation, storage runtime read/write, renderer integration, and public API snapshots.
+
+### Changed
+- Updated pass plumbing from render-only arrays to mixed `AnyPass[]`, allowing render and compute passes to coexist in one graph.
+- Updated renderer internals to allocate/manage storage buffers and storage textures, cache compute pipelines, and flush pending storage writes during frame submission.
+- Updated material resolution/signature inputs to include storage buffer definitions and storage texture bindings, triggering deterministic rebuilds when those contracts change.
+- Updated benchmark/runtime frame-state mocks to include the new storage-buffer APIs.
+
+### Fixed
+- Added explicit compute compilation error normalization with `COMPUTE_COMPILATION_FAILED` classification and recovery metadata.
+- Fixed compute-only pass plans to resolve a valid final output path for canvas presentation.
 
 ## [0.4.2] - 2026-03-22
 ### Changed
@@ -97,7 +114,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/8a3e51e...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/3955915...HEAD
+[0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915
+[0.4.1]: https://github.com/Motion-Core/motion-gpu/compare/889adfc...148c1e4
+[0.4.0]: https://github.com/Motion-Core/motion-gpu/compare/758b6d7...889adfc
 [0.3.0]: https://github.com/Motion-Core/motion-gpu/compare/8a3e51e...758b6d7
 [0.2.0]: https://github.com/Motion-Core/motion-gpu/compare/49e3a57...8a3e51e
 [0.1.0]: https://github.com/Motion-Core/motion-gpu/tree/49e3a57

@@ -26,6 +26,7 @@ Validates and freezes material definitions. Use this for all user-facing materia
 | `textures` | `TextureDefinitionMap` | No |
 | `defines` | `MaterialDefines` | No |
 | `includes` | `MaterialIncludes` | No |
+| `storageBuffers` | `StorageBufferDefinitionMap` | No |
 
 ### Output: `FragMaterial`
 
@@ -35,6 +36,7 @@ Immutable, validated object with frozen top-level maps:
 - `textures`
 - `defines`
 - `includes`
+- `storageBuffers`
 
 `signature` and preprocessed WGSL are internal runtime outputs, not public fields of `FragMaterial`.
 
@@ -44,6 +46,7 @@ Framework-agnostic core helper that turns a validated `FragMaterial` into runtim
 - preprocessed WGSL source
 - uniform layout metadata
 - texture binding metadata
+- storage buffer keys and definitions
 - deterministic material signature
 
 Use this in adapter implementations or low-level tooling.
@@ -53,7 +56,8 @@ Use this in adapter implementations or low-level tooling.
 | Contract | Behavior |
 | --- | --- |
 | Fragment entrypoint must be `fn frag(uv: vec2f) -> vec4f` | Throws during validation |
-| Uniform/texture/define/include keys must be WGSL-safe identifiers | Throws during validation |
+| Uniform/texture/define/include/storage buffer keys must be WGSL-safe identifiers | Throws during validation |
+| Storage buffer `size` must be `> 0` and a multiple of 4 | Throws during validation |
 | Matrix uniforms should use typed form `{ type: 'mat4x4f', value: [...] }` | Ensures stable layout and packing |
 
 ## Related docs
@@ -61,3 +65,5 @@ Use this in adapter implementations or low-level tooling.
 - [Defining Materials](/docs/defining-materials)
 - [Writing Shaders](/docs/writing-shaders)
 - [Shader Includes and Defines](/docs/shader-includes-and-defines)
+- [Storage Buffers](/docs/storage-buffers)
+- [Compute Shaders](/docs/compute-shaders)

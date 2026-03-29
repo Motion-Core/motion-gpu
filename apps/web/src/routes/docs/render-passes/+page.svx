@@ -3,9 +3,9 @@ title: Render Passes
 description: Building post-processing pipelines with the render graph and built-in pass types.
 ---
 
-MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, and the three built-in pass types.
+MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, the three built-in render pass types, and two compute pass types.
 
-For named render targets, see [Render Targets](/docs/render-targets).
+For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders).
 
 Examples below use Svelte syntax for `<FragCanvas>`, but pass constructors are framework-agnostic and can be imported from root/core entrypoints.
 
@@ -99,7 +99,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 | Named input must be available | Reading declared named target before first write in frame |
 | Disabled passes (`enabled: false`) | Fully skipped from the plan |
 
-## Built-in passes
+## Built-in render passes
 
 ### BlitPass
 
@@ -255,3 +255,52 @@ When implementing custom passes, the `render(context)` method receives:
 | `width`, `height` | Canvas dimensions |
 | `clear`, `clearColor`, `preserve` | Resolved flags |
 | `beginRenderPass(options?)` | Helper that creates a `GPURenderPassEncoder` with correct load/store ops |
+
+## Compute passes
+
+Compute passes run GPU compute workloads within the same render graph. They do **not** participate in slot routing and operate on storage buffers and storage textures instead.
+
+### ComputePass
+
+Single-dispatch compute pass:
+
+```ts
+import { ComputePass } from '@motion-core/motion-gpu';
+
+const simulate = new ComputePass({
+  compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  particles[id.x] = vec4f(f32(id.x) * 0.01, 0.0, 0.0, 1.0);
+}
+`,
+  dispatch: [16]
+});
+```
+
+### PingPongComputePass
+
+Iterative compute pass for multi-step simulations:
+
+```ts
+import { PingPongComputePass } from '@motion-core/motion-gpu';
+
+const diffuse = new PingPongComputePass({
+  compute: myDiffuseShader,
+  target: 'sim',
+  iterations: 8,
+  dispatch: 'auto'
+});
+```
+
+### Compute in the render graph
+
+Compute and render passes coexist in the `passes` array:
+
+```svelte
+<FragCanvas {material} passes={[simulate, bloomPrefilter, gamma]} />
+```
+
+Compute passes dispatch their workgroups **before** the scene render, so storage textures and buffers are up-to-date when the fragment shader samples them. Render passes execute **after** the scene as post-processing steps. All passes share the same command encoder.
+
+For full compute shader documentation, see [Compute Shaders](/docs/compute-shaders) and [Storage Buffers](/docs/storage-buffers).

@@ -369,4 +369,203 @@ fn colorize(uv: vec2f) -> vec4f {
 			/defineMaterial/
 		);
 	});
+
+	// --- Storage buffer tests ---
+
+	it('creates material with frozen storageBuffers', () => {
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 1024, type: 'array<vec4f>' }
+			}
+		});
+
+		expect(material.storageBuffers).toBeDefined();
+		expect(Object.isFrozen(material.storageBuffers)).toBe(true);
+		expect(material.storageBuffers.particles?.size).toBe(1024);
+	});
+
+	it('defaults to empty storageBuffers when not provided', () => {
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+
+		expect(material.storageBuffers).toEqual({});
+	});
+
+	it('deep clones initialData to prevent mutation', () => {
+		const initialData = new Float32Array([1, 2, 3, 4]);
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				buf: { size: 16, type: 'array<f32>', initialData }
+			}
+		});
+
+		initialData[0] = 999;
+		expect(material.storageBuffers.buf?.initialData?.[0]).toBe(1);
+	});
+
+	it('rejects invalid storage buffer name', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				storageBuffers: {
+					'123bad': { size: 16, type: 'array<f32>' }
+				}
+			})
+		).toThrow(/Invalid uniform name/);
+	});
+
+	it('rejects storage buffer with size 0', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				storageBuffers: {
+					buf: { size: 0, type: 'array<f32>' }
+				}
+			})
+		).toThrow(/greater than 0/);
+	});
+
+	it('resolves storageBufferKeys in sorted order', () => {
+		const resolved = resolveMaterial(
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				storageBuffers: {
+					zBuf: { size: 16, type: 'array<f32>' },
+					aBuf: { size: 32, type: 'array<vec4f>' }
+				}
+			})
+		);
+
+		expect(resolved.storageBufferKeys).toEqual(['aBuf', 'zBuf']);
+	});
+
+	it('includes storageBufferKeys in material signature', () => {
+		const resolved = resolveMaterial(
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				storageBuffers: {
+					particles: { size: 1024, type: 'array<vec4f>' }
+				}
+			})
+		);
+
+		expect(resolved.signature).toContain('storageBufferKeys');
+		expect(resolved.signature).toContain('particles');
+	});
+
+	it('changes signature when storage buffer type changes', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const a = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>' } }
+			})
+		);
+		const b = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<vec4f>' } }
+			})
+		);
+
+		expect(a.signature).not.toEqual(b.signature);
+	});
+
+	it('changes signature when storage buffer size changes', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const a = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>' } }
+			})
+		);
+		const b = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 128, type: 'array<f32>' } }
+			})
+		);
+
+		expect(a.signature).not.toEqual(b.signature);
+	});
+
+	it('changes signature when storage buffer access mode changes', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const readOnly = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>', access: 'read' } }
+			})
+		);
+		const readWrite = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>', access: 'read-write' } }
+			})
+		);
+
+		expect(readOnly.signature).not.toEqual(readWrite.signature);
+	});
+
+	it('accepts texture with storage:true and valid format', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: { storage: true, format: 'rgba8unorm' }
+				}
+			})
+		).not.toThrow();
+	});
+
+	it('rejects texture with storage:true but no format', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: { storage: true }
+				}
+			})
+		).toThrow(/requires a `format` field/);
+	});
+
+	it('rejects texture with storage:true and invalid format', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: { storage: true, format: 'rgba8unorm-srgb' }
+				}
+			})
+		).toThrow(/storage-compatible format/);
+	});
+
+	it('preserves backward compatibility (no storageBuffers field)', () => {
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			uniforms: { uMix: 0.5 }
+		});
+
+		expect(material.storageBuffers).toEqual({});
+		const resolved = resolveMaterial(material);
+		expect(resolved.storageBufferKeys).toEqual([]);
+		expect(resolved.storageTextureKeys).toEqual([]);
+	});
+
+	it('resolves storageTextureKeys for textures with storage:true', () => {
+		const resolved = resolveMaterial(
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					normalTex: {},
+					storageTex: { storage: true, format: 'rgba8unorm' }
+				}
+			})
+		);
+
+		expect(resolved.storageTextureKeys).toEqual(['storageTex']);
+	});
 });

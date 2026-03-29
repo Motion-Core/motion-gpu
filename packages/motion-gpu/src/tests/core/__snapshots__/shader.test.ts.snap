@@ -16,6 +16,7 @@ struct MotionGPUUniforms {
 @group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
 
 
+
 fn motiongpuLinearToSrgb(linearColor: vec3f) -> vec3f {
 	let cutoff = vec3f(0.0031308);
 	let lower = linearColor * 12.92;
@@ -78,6 +79,7 @@ struct MotionGPUUniforms {
 @group(0) @binding(3) var uTexture1: texture_2d<f32>;
 
 
+
 struct MotionGPUVertexOut {
 	@builtin(position) position: vec4f,
 	@location(0) uv: vec2f,
@@ -105,6 +107,60 @@ fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
 	
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = motiongpuUniforms.intensity.x;
+	return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+
+}
+"
+`;
+
+exports[`buildShaderSource > snapshot: fragment shader with storage buffers 1`] = `
+"
+struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	uMix: f32,
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+@group(0) @binding(2) var uTextureSampler: sampler;
+@group(0) @binding(3) var uTexture: texture_2d<f32>;
+
+@group(1) @binding(0) var<storage, read> positions: array<vec4f>;
+@group(1) @binding(1) var<storage, read> colors: array<vec4f>;
+
+
+struct MotionGPUVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: MotionGPUVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+
+@fragment
+fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = motiongpuUniforms.uMix;
 	return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
 
 }

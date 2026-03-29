@@ -14,7 +14,7 @@
 <h3
 	{...restProps}
 	class={cn(
-		'mt-10 scroll-m-24 text-xl font-medium tracking-tight text-foreground [&_code]:text-lg',
+		'mt-10 scroll-m-24 text-xl font-medium tracking-tight text-foreground [&_a]:text-2xl [&_code]:text-lg',
 		className
 	)}
 >

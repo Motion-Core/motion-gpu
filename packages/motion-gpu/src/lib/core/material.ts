@@ -14,7 +14,13 @@ import {
 	type MaterialLineMap,
 	type PreprocessedMaterialFragment
 } from './material-preprocess.js';
+import {
+	assertStorageBufferDefinition,
+	assertStorageTextureFormat
+} from './storage-buffers.js';
 import type {
+	StorageBufferDefinition,
+	StorageBufferDefinitionMap,
 	TextureData,
 	TextureDefinition,
 	TextureDefinitionMap,
@@ -71,7 +77,8 @@ export interface FragMaterialInput<
 	TUniformKey extends string = string,
 	TTextureKey extends string = string,
 	TDefineKey extends string = string,
-	TIncludeKey extends string = string
+	TIncludeKey extends string = string,
+	TStorageBufferKey extends string = string
 > {
 	/**
 	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
@@ -93,6 +100,10 @@ export interface FragMaterialInput<
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	includes?: MaterialIncludes<TIncludeKey>;
+	/**
+	 * Optional storage buffer definitions for compute shaders.
+	 */
+	storageBuffers?: StorageBufferDefinitionMap<TStorageBufferKey>;
 }
 
 /**
@@ -102,7 +113,8 @@ export interface FragMaterial<
 	TUniformKey extends string = string,
 	TTextureKey extends string = string,
 	TDefineKey extends string = string,
-	TIncludeKey extends string = string
+	TIncludeKey extends string = string,
+	TStorageBufferKey extends string = string
 > {
 	/**
 	 * User WGSL source containing `frag(uv: vec2f) -> vec4f`.
@@ -124,6 +136,10 @@ export interface FragMaterial<
 	 * Optional WGSL include chunks used by `#include <name>` directives.
 	 */
 	readonly includes: Readonly<MaterialIncludes<TIncludeKey>>;
+	/**
+	 * Storage buffer definitions for compute shaders. Empty when not provided.
+	 */
+	readonly storageBuffers: Readonly<StorageBufferDefinitionMap<TStorageBufferKey>>;
 }
 
 /**
@@ -132,7 +148,8 @@ export interface FragMaterial<
 export interface ResolvedMaterial<
 	TUniformKey extends string = string,
 	TTextureKey extends string = string,
-	TIncludeKey extends string = string
+	TIncludeKey extends string = string,
+	TStorageBufferKey extends string = string
 > {
 	/**
 	 * Final fragment WGSL after define injection.
@@ -178,6 +195,14 @@ export interface ResolvedMaterial<
 	 * Source metadata used for diagnostics.
 	 */
 	source: Readonly<MaterialSourceMetadata> | null;
+	/**
+	 * Sorted storage buffer keys. Empty array when no storage buffers declared.
+	 */
+	storageBufferKeys: TStorageBufferKey[];
+	/**
+	 * Sorted storage texture keys (textures with storage: true).
+	 */
+	storageTextureKeys: TTextureKey[];
 }
 
 /**
@@ -190,8 +215,8 @@ const FRAGMENT_FUNCTION_NAME_PATTERN = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 /**
  * Cache of resolved material snapshots keyed by immutable material instance.
  */
-type AnyFragMaterial = FragMaterial<string, string, string, string>;
-type AnyResolvedMaterial = ResolvedMaterial<string, string, string>;
+type AnyFragMaterial = FragMaterial<string, string, string, string, string>;
+type AnyResolvedMaterial = ResolvedMaterial<string, string, string, string>;
 
 const resolvedMaterialCache = new WeakMap<AnyFragMaterial, AnyResolvedMaterial>();
 const preprocessedFragmentCache = new WeakMap<AnyFragMaterial, PreprocessedMaterialFragment>();
@@ -200,17 +225,18 @@ const materialSourceMetadataCache = new WeakMap<AnyFragMaterial, MaterialSourceM
 function getCachedResolvedMaterial<
 	TUniformKey extends string,
 	TTextureKey extends string,
-	TIncludeKey extends string
+	TIncludeKey extends string,
+	TStorageBufferKey extends string
 >(
-	material: FragMaterial<TUniformKey, TTextureKey, string, TIncludeKey>
-): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> | null {
+	material: FragMaterial<TUniformKey, TTextureKey, string, TIncludeKey, TStorageBufferKey>
+): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> | null {
 	const cached = resolvedMaterialCache.get(material);
 	if (!cached) {
 		return null;
 	}
 
 	// Invariant: the cache key is the same material object used to produce this resolved payload.
-	return cached as ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey>;
+	return cached as ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey>;
 }
 
 const STACK_TRACE_CHROME_PATTERN = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?$/;
@@ -576,10 +602,11 @@ export function defineMaterial<
 	TUniformKey extends string = string,
 	TTextureKey extends string = string,
 	TDefineKey extends string = string,
-	TIncludeKey extends string = string
+	TIncludeKey extends string = string,
+	TStorageBufferKey extends string = string
 >(
-	input: FragMaterialInput<TUniformKey, TTextureKey, TDefineKey, TIncludeKey>
-): FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey> {
+	input: FragMaterialInput<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey>
+): FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey> {
 	const fragment = resolveFragment(input.fragment);
 	const uniforms = Object.freeze(resolveUniforms(input.uniforms));
 	const textures = Object.freeze(resolveTextures(input.textures));
@@ -587,18 +614,53 @@ export function defineMaterial<
 	const includes = Object.freeze(resolveIncludes(input.includes));
 	const source = Object.freeze(resolveSourceMetadata(undefined));
 
+	// Validate and freeze storage buffers
+	const rawStorageBuffers = input.storageBuffers ?? ({} as StorageBufferDefinitionMap<TStorageBufferKey>);
+	for (const [name, definition] of Object.entries(rawStorageBuffers) as Array<[string, StorageBufferDefinition]>) {
+		assertStorageBufferDefinition(name, definition);
+	}
+	const storageBuffers = Object.freeze(
+		Object.fromEntries(
+			Object.entries(rawStorageBuffers).map(([name, definition]) => {
+				const def = definition as StorageBufferDefinition;
+				const cloned: StorageBufferDefinition = {
+					size: def.size,
+					type: def.type,
+					...(def.access !== undefined ? { access: def.access } : {}),
+					...(def.initialData !== undefined
+						? { initialData: def.initialData.slice() as typeof def.initialData }
+						: {})
+				};
+				return [name, Object.freeze(cloned)];
+			})
+		)
+	) as Readonly<StorageBufferDefinitionMap<TStorageBufferKey>>;
+
+	// Validate storage textures
+	for (const [name, definition] of Object.entries(textures) as Array<[string, TextureDefinition]>) {
+		if (definition?.storage) {
+			if (!definition.format) {
+				throw new Error(
+					`Texture "${name}" with storage:true requires a \`format\` field.`
+				);
+			}
+			assertStorageTextureFormat(name, definition.format);
+		}
+	}
+
 	const preprocessed = preprocessMaterialFragment({
 		fragment,
 		defines,
 		includes
 	});
 
-	const material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey> = Object.freeze({
+	const material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey> = Object.freeze({
 		fragment,
 		uniforms,
 		textures,
 		defines,
-		includes
+		includes,
+		storageBuffers
 	});
 
 	preprocessedFragmentCache.set(material, preprocessed);
@@ -616,10 +678,11 @@ export function resolveMaterial<
 	TUniformKey extends string = string,
 	TTextureKey extends string = string,
 	TDefineKey extends string = string,
-	TIncludeKey extends string = string
+	TIncludeKey extends string = string,
+	TStorageBufferKey extends string = string
 >(
-	material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey>
-): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> {
+	material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey>
+): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> {
 	assertDefinedMaterial(material);
 
 	const cached = getCachedResolvedMaterial(material);
@@ -641,14 +704,24 @@ export function resolveMaterial<
 	const fragmentWgsl = preprocessed.fragment;
 	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
 
+	const storageBufferKeys = Object.keys(material.storageBuffers ?? {}).sort() as TStorageBufferKey[];
+	const storageTextureKeys = textureKeys.filter(
+		(key) => (textures[key] as TextureDefinition)?.storage === true
+	);
+
 	const signature = JSON.stringify({
 		fragmentWgsl,
 		uniforms: uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`),
 		textureKeys,
-		textureConfig
+		textureConfig,
+		storageBufferKeys: storageBufferKeys.map((key) => {
+			const def = (material.storageBuffers as StorageBufferDefinitionMap)[key];
+			return `${key}:${def?.type ?? '?'}:${def?.size ?? 0}:${def?.access ?? 'read-write'}`;
+		}),
+		storageTextureKeys
 	});
 
-	const resolved: ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey> = {
+	const resolved: ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> = {
 		fragmentWgsl,
 		fragmentLineMap: preprocessed.lineMap,
 		uniforms,
@@ -659,7 +732,9 @@ export function resolveMaterial<
 		fragmentSource: material.fragment,
 		includeSources: material.includes as MaterialIncludes<TIncludeKey>,
 		defineBlockSource: preprocessed.defineBlockSource,
-		source: materialSourceMetadataCache.get(material) ?? null
+		source: materialSourceMetadataCache.get(material) ?? null,
+		storageBufferKeys,
+		storageTextureKeys
 	};
 
 	resolvedMaterialCache.set(material, resolved);

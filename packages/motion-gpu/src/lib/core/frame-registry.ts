@@ -997,18 +997,19 @@ export function createFrameRegistry(options?: {
 				resolveEffectiveRunning(internalTask);
 			};
 
-			return {
-				task: internalTask.task,
-				start,
-				stop,
-				started: internalTask.startedStore,
-				unsubscribe: () => {
-					if (stage.tasks.delete(key)) {
-						markScheduleDirty();
+				return {
+					task: internalTask.task,
+					start,
+					stop,
+					started: internalTask.startedStore,
+					unsubscribe: () => {
+						const current = stage.tasks.get(key);
+						if (current === internalTask && stage.tasks.delete(key)) {
+							markScheduleDirty();
+						}
 					}
-				}
-			};
-		},
+				};
+			},
 		run(state) {
 			const clampedDelta = Math.min(state.delta, maxDelta);
 			const frameState =

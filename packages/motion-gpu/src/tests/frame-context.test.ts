@@ -46,6 +46,44 @@ describe('frame registry', () => {
 		expect(callback).not.toHaveBeenCalled();
 	});
 
+	it('clear() removes all registered callbacks from every stage', () => {
+		const registry = createFrameRegistry();
+		const callbackA = vi.fn();
+		const callbackB = vi.fn();
+		registry.createStage('post');
+		registry.register('a', callbackA);
+		registry.register('b', callbackB, { stage: 'post' });
+
+		registry.run(createState(registry));
+		expect(callbackA).toHaveBeenCalledTimes(1);
+		expect(callbackB).toHaveBeenCalledTimes(1);
+
+		registry.clear();
+		registry.run(createState(registry));
+		expect(callbackA).toHaveBeenCalledTimes(1);
+		expect(callbackB).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not let stale unsubscribe from replaced task key remove newer registration', () => {
+		const registry = createFrameRegistry();
+		const firstCallback = vi.fn();
+		const secondCallback = vi.fn();
+
+		const first = registry.register('shared', firstCallback);
+		registry.run(createState(registry));
+		expect(firstCallback).toHaveBeenCalledTimes(1);
+		expect(secondCallback).toHaveBeenCalledTimes(0);
+
+		registry.register('shared', secondCallback);
+		registry.run(createState(registry));
+		expect(firstCallback).toHaveBeenCalledTimes(1);
+		expect(secondCallback).toHaveBeenCalledTimes(1);
+
+		first.unsubscribe();
+		registry.run(createState(registry));
+		expect(secondCallback).toHaveBeenCalledTimes(2);
+	});
+
 	it('supports on-demand invalidation flow', () => {
 		const registry = createFrameRegistry({ renderMode: 'on-demand' });
 

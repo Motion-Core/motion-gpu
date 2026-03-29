@@ -322,6 +322,14 @@ describe('error report', () => {
 		expect(report.phase).toBe('render');
 	});
 
+	it('normalizes string-thrown values into report message and rawMessage', () => {
+		const report = toMotionGPUErrorReport('raw string failure', 'render');
+		expect(report.rawMessage).toBe('raw string failure');
+		expect(report.message).toBe('raw string failure');
+		expect(report.details).toEqual([]);
+		expect(report.phase).toBe('render');
+	});
+
 	// --- Compute error tests ---
 
 	it('classifies compute compilation errors with correct code', () => {

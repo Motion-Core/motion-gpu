@@ -77,6 +77,30 @@ fn compute(id: vec3u) {}
 		expect(() => assertComputeContract(bad)).toThrow(/global_invocation_id/);
 	});
 
+	it('rejects when global_invocation_id is not declared in compute entrypoint params', () => {
+		const bad = `
+fn helper(@builtin(global_invocation_id) id: vec3u) {}
+@compute @workgroup_size(8, 8)
+fn compute() {}
+`;
+		expect(() => assertComputeContract(bad)).toThrow(/global_invocation_id/);
+	});
+
+	it('rejects zero and oversized workgroup_size dimensions', () => {
+		const zero = `
+@compute @workgroup_size(0)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		const oversized = `
+@compute @workgroup_size(65536, 1, 1)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(zero)).toThrow(/workgroup_size/i);
+		expect(() => assertComputeContract(oversized)).toThrow(/workgroup_size/i);
+		expect(() => extractWorkgroupSize(zero)).toThrow(/workgroup_size/i);
+		expect(() => extractWorkgroupSize(oversized)).toThrow(/workgroup_size/i);
+	});
+
 	it('extracts workgroup size [256, 1, 1] from 1D', () => {
 		expect(extractWorkgroupSize(validComputeShader)).toEqual([256, 1, 1]);
 	});
@@ -150,6 +174,18 @@ describe('compute shader source generation', () => {
 
 		expect(bindings).toContain('var<storage, read> readBuf');
 		expect(bindings).toContain('var<storage, read_write> rwBuf');
+	});
+
+	it('rejects unsupported storage buffer access mode', () => {
+		expect(() =>
+			buildComputeStorageBufferBindings(
+				['buf'],
+				{
+					buf: { type: 'array<f32>', access: 'write' as 'read' | 'read-write' }
+				},
+				1
+			)
+		).toThrow(/Unsupported storage buffer access mode/);
 	});
 
 	it('uses correct format in texture_storage_2d<format, write>', () => {

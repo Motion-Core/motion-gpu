@@ -105,6 +105,66 @@ describe('storage buffer validation', () => {
 			})
 		).toThrow(/exceeds buffer size/);
 	});
+
+	it('rejects invalid access mode string', () => {
+		expect(() =>
+			assertStorageBufferDefinition('buf', {
+				size: 16,
+				type: 'array<f32>',
+				access: 'write' as StorageBufferDefinition['access']
+			})
+		).toThrow(/invalid access mode/);
+
+		expect(() =>
+			assertStorageBufferDefinition('buf', {
+				size: 16,
+				type: 'array<f32>',
+				access: 'write-only' as StorageBufferDefinition['access']
+			})
+		).toThrow(/invalid access mode/);
+	});
+
+	it('accepts initialData smaller than buffer size (partial fill)', () => {
+		expect(() =>
+			assertStorageBufferDefinition('buf', {
+				size: 64,
+				type: 'array<f32>',
+				initialData: new Float32Array(4) // 16 bytes < 64
+			})
+		).not.toThrow();
+	});
+
+	it('accepts empty initialData (zero-length typed array)', () => {
+		expect(() =>
+			assertStorageBufferDefinition('buf', {
+				size: 16,
+				type: 'array<f32>',
+				initialData: new Float32Array(0)
+			})
+		).not.toThrow();
+	});
+
+	it('skips undefined definitions in resolveStorageBufferKeys', () => {
+		const keys = resolveStorageBufferKeys({
+			aBuf: { size: 16, type: 'array<f32>' },
+			bBuf: undefined as unknown as StorageBufferDefinition
+		});
+		expect(keys).toEqual(['aBuf', 'bBuf']);
+	});
+
+	it('normalizeStorageBufferDefinition excludes initialData from output', () => {
+		const normalized = normalizeStorageBufferDefinition({
+			size: 64,
+			type: 'array<vec4f>',
+			initialData: new Float32Array(16)
+		});
+		expect(normalized).not.toHaveProperty('initialData');
+		expect(normalized).toEqual({
+			size: 64,
+			type: 'array<vec4f>',
+			access: 'read-write'
+		});
+	});
 });
 
 describe('storage texture format validation', () => {

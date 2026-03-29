@@ -125,6 +125,84 @@ describe('PingPongComputePass', () => {
 		expect(() => pass.setCompute('fn bad() {}')).toThrow(/@compute/);
 	});
 
+	it('resolveDispatch supports auto dispatch', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			dispatch: 'auto'
+		});
+		const dispatch = pass.resolveDispatch({
+			width: 1024,
+			height: 512,
+			time: 0,
+			delta: 0.016,
+			workgroupSize: [16, 16, 1]
+		});
+		expect(dispatch).toEqual([Math.ceil(1024 / 16), Math.ceil(512 / 16), 1]);
+	});
+
+	it('resolveDispatch supports dynamic callback dispatch', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			dispatch: (ctx) => [ctx.width / 2, ctx.height / 2, 3]
+		});
+		const dispatch = pass.resolveDispatch({
+			width: 64,
+			height: 32,
+			time: 1,
+			delta: 0.1,
+			workgroupSize: [16, 16, 1]
+		});
+		expect(dispatch).toEqual([32, 16, 3]);
+	});
+
+	it('resolveDispatch supports tuple dispatch with defaults', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			dispatch: [7]
+		});
+		const dispatch = pass.resolveDispatch({
+			width: 320,
+			height: 240,
+			time: 0,
+			delta: 0.016,
+			workgroupSize: [16, 16, 1]
+		});
+		expect(dispatch).toEqual([7, 1, 1]);
+	});
+
+	it('resolveDispatch falls back to [1, 1, 1] for unexpected dispatch mode', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim'
+		});
+		pass.setDispatch('unexpected' as unknown as Parameters<typeof pass.setDispatch>[0]);
+		const dispatch = pass.resolveDispatch({
+			width: 100,
+			height: 100,
+			time: 0,
+			delta: 0.016,
+			workgroupSize: [16, 16, 1]
+		});
+		expect(dispatch).toEqual([1, 1, 1]);
+	});
+
+	it('keeps output on A for even iteration counts across frames', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			iterations: 2
+		});
+
+		expect(pass.getCurrentOutput()).toBe('simA');
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simA');
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simA');
+	});
+
 	it('isCompute is true', () => {
 		const pass = new PingPongComputePass({
 			compute: validCompute,

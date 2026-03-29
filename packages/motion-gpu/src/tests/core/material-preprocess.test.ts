@@ -78,6 +78,26 @@ describe('material preprocess', () => {
 		);
 	});
 
+	it('deduplicates repeated include directives in the same fragment', () => {
+		const preprocessed = preprocessMaterialFragment({
+			fragment: [
+				'#include <noise>',
+				'#include <noise>',
+				'fn frag(uv: vec2f) -> vec4f {',
+				'\treturn noiseColor(uv);',
+				'}'
+			].join('\n'),
+			includes: {
+				noise: ['fn noiseColor(uv: vec2f) -> vec4f {', '\treturn vec4f(uv, 0.0, 1.0);', '}'].join(
+					'\n'
+				)
+			}
+		});
+
+		const occurrences = preprocessed.fragment.split('fn noiseColor').length - 1;
+		expect(occurrences).toBe(1);
+	});
+
 	it('enforces typed define value compatibility at compile time', () => {
 		const typed: TypedMaterialDefineValue = {
 			type: 'bool',

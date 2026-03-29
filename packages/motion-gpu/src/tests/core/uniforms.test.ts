@@ -140,4 +140,60 @@ describe('uniform helpers', () => {
 		// @ts-expect-error vec2f uniforms require a 2-number tuple
 		({ type: 'vec2f', value: 1 }) satisfies TypedUniform<'vec2f'>;
 	});
+
+	it('rejects vec4f with wrong-length tuple', () => {
+		expect(() => assertUniformValueForType('vec4f', [1, 2, 3])).toThrow(/vec4f/);
+		expect(() => assertUniformValueForType('vec4f', [1, 2, 3, 4, 5])).toThrow(/vec4f/);
+	});
+
+	it('rejects NaN and Infinity inside vec tuples', () => {
+		expect(() => assertUniformValueForType('vec2f', [1, Number.NaN])).toThrow(/vec2f/);
+		expect(() => assertUniformValueForType('vec3f', [1, 2, Number.POSITIVE_INFINITY])).toThrow(/vec3f/);
+		expect(() => assertUniformValueForType('vec4f', [1, Number.NaN, 3, 4])).toThrow(/vec4f/);
+	});
+
+	it('rejects Float32Array of wrong length for mat4x4f', () => {
+		expect(() =>
+			assertUniformValueForType('mat4x4f', { type: 'mat4x4f', value: new Float32Array(15) })
+		).toThrow(/16 numbers/);
+		expect(() =>
+			assertUniformValueForType('mat4x4f', { type: 'mat4x4f', value: new Float32Array(17) })
+		).toThrow(/16 numbers/);
+	});
+
+	it('resolves empty uniform map to minimum 16-byte layout', () => {
+		const layout = resolveUniformLayout({});
+		expect(layout.entries).toEqual([]);
+		expect(layout.byteLength).toBe(16);
+	});
+
+	it('packs mat4x4f from plain number array', () => {
+		const matrix = Array.from({ length: 16 }, (_, i) => (i === 0 || i === 5 || i === 10 || i === 15) ? 1 : 0);
+		const layout = resolveUniformLayout({
+			uMatrix: { type: 'mat4x4f', value: new Float32Array(16) }
+		});
+
+		const packed = packUniforms(
+			{ uMatrix: { type: 'mat4x4f', value: matrix } },
+			layout
+		);
+
+		expect(packed[0]).toBeCloseTo(1);
+		expect(packed[5]).toBeCloseTo(1);
+		expect(packed[10]).toBeCloseTo(1);
+		expect(packed[15]).toBeCloseTo(1);
+		expect(packed[1]).toBeCloseTo(0);
+	});
+
+	it('rejects non-number non-array non-typed values in inferUniformType', () => {
+		expect(() => inferUniformType('hello' as unknown as UniformValue)).toThrow(
+			/Uniform value must resolve/
+		);
+		expect(() => inferUniformType({} as unknown as UniformValue)).toThrow(
+			/Uniform value must resolve/
+		);
+		expect(() => inferUniformType(null as unknown as UniformValue)).toThrow(
+			/Uniform value must resolve/
+		);
+	});
 });

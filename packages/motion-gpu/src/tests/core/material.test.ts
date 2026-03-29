@@ -492,6 +492,24 @@ fn colorize(uv: vec2f) -> vec4f {
 		expect(a.signature).not.toEqual(b.signature);
 	});
 
+	it('changes signature when storage buffer access mode changes', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const readOnly = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>', access: 'read' } }
+			})
+		);
+		const readWrite = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 64, type: 'array<f32>', access: 'read-write' } }
+			})
+		);
+
+		expect(readOnly.signature).not.toEqual(readWrite.signature);
+	});
+
 	it('accepts texture with storage:true and valid format', () => {
 		expect(() =>
 			defineMaterial({

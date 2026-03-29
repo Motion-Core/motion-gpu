@@ -197,4 +197,44 @@ describe('textures', () => {
 		expect(resolveTextureUpdateMode({ source: canvas, override: 'perFrame' })).toBe('perFrame');
 		expect(resolveTextureUpdateMode({ source: video })).toBe('perFrame');
 	});
+
+	it('clamps anisotropy at lower bound to 1', () => {
+		expect(normalizeTextureDefinition({ anisotropy: 0 }).anisotropy).toBe(1);
+		expect(normalizeTextureDefinition({ anisotropy: -5 }).anisotropy).toBe(1);
+		expect(normalizeTextureDefinition({ anisotropy: -100 }).anisotropy).toBe(1);
+	});
+
+	it('floors fractional anisotropy values', () => {
+		expect(normalizeTextureDefinition({ anisotropy: 3.7 }).anisotropy).toBe(3);
+		expect(normalizeTextureDefinition({ anisotropy: 15.9 }).anisotropy).toBe(15);
+		expect(normalizeTextureDefinition({ anisotropy: 1.1 }).anisotropy).toBe(1);
+	});
+
+	it('resolves texture size from naturalWidth/naturalHeight (image-like source)', () => {
+		const img = { naturalWidth: 200, naturalHeight: 100 };
+		expect(resolveTextureSize({ source: img as unknown as TexImageSource })).toEqual({
+			width: 200,
+			height: 100
+		});
+	});
+
+	it('resolves texture size from videoWidth/videoHeight', () => {
+		const video = { videoWidth: 1920, videoHeight: 1080 };
+		expect(resolveTextureSize({ source: video as unknown as TexImageSource })).toEqual({
+			width: 1920,
+			height: 1080
+		});
+	});
+
+	it('computes mip levels for non-power-of-two dimensions', () => {
+		expect(getTextureMipLevelCount(300, 200)).toBe(9);
+		expect(getTextureMipLevelCount(100, 1)).toBe(7);
+		expect(getTextureMipLevelCount(1, 100)).toBe(7);
+	});
+
+	it('throws on source with no dimension properties', () => {
+		expect(() =>
+			resolveTextureSize({ source: {} as unknown as TexImageSource })
+		).toThrow(/positive width and height/);
+	});
 });

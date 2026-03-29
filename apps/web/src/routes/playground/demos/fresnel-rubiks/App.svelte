@@ -64,13 +64,7 @@ fn sd_round_box(p: vec3f, half_size: f32, radius: f32) -> f32 {
 }
 
 fn background(rd: vec3f) -> vec3f {
-  let h = saturate(rd.y * 0.5 + 0.5);
-  let low = vec3f(0.02, 0.026, 0.036);
-  let high = vec3f(0.05, 0.062, 0.086);
-  let sky = mix(low, high, pow(h, 1.15));
-  let sun_dir = normalize(vec3f(-0.45, 0.73, 0.5));
-  let sun = pow(max(dot(rd, sun_dir), 0.0), 78.0) * 0.22;
-  return sky + vec3f(sun, sun * 0.55, sun * 0.18);
+  return vec3f(0.02, 0.026, 0.036);
 }
 
 fn ray_hits_scene_sphere(ro: vec3f, rd: vec3f, radius: f32) -> bool {

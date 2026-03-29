@@ -27,7 +27,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Storage buffers** | Definition validation (size/type/access), key resolution, normalization with defaults, storage texture format validation. |
 | **Storage runtime** | `FrameState` storage operations (`writeStorageBuffer`/`readStorageBuffer`), `StorageBufferDefinitionMap` type contracts, `initialData` support, frame callback context integration. |
 | **Renderer (compute)** | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, storage buffer cleanup on destroy, ping-pong texture pair cleanup on destroy. |
-| **Error report** | Classification pattern matching (including texture request/decode/abort, compute compilation), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, hint generation. |
+| **Error report** | Classification pattern matching (WebGPU init/runtime, material preprocess, runtime binding/storage/render-graph/ping-pong/compute-contract, texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, overlay metadata visibility, hint generation. |
 | **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
 | **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, and regression threshold checks. |
 

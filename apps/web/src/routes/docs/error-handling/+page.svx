@@ -83,10 +83,18 @@ The normalizer matches error messages against known patterns and assigns code, s
 | `Unable to acquire WebGPU adapter` | `WEBGPU_ADAPTER_UNAVAILABLE` | `fatal` | `false` | WebGPU adapter unavailable | GPU adapter request failed. Check browser permissions, flags and device support. |
 | `Canvas does not support webgpu context` | `WEBGPU_CONTEXT_UNAVAILABLE` | `error` | `true` | Canvas cannot create WebGPU context | Make sure this canvas is attached to DOM and not using an unsupported context option. |
 | `WGSL compilation failed` | `WGSL_COMPILATION_FAILED` | `error` | `true` | WGSL compilation failed | Check WGSL line numbers below and verify struct/binding/function signatures. |
-| `Compute shader compilation failed` | `COMPUTE_COMPILATION_FAILED` | `error` | `true` | Compute compilation failed | Check compute shader WGSL source and verify @workgroup_size/binding declarations. |
+| `Invalid include directive ...`, `Unknown include ...`, `Circular include ...`, `Invalid define value ...` | `MATERIAL_PREPROCESS_FAILED` | `error` | `true` | Material preprocess failed | Validate `#include` keys, define values and include expansion order before retrying. |
+| `Compute shader compilation failed` | `COMPUTE_COMPILATION_FAILED` | `error` | `true` | Compute shader compilation failed | Check compute shader WGSL source and verify storage bindings. |
+| `Compute shader must declare ...`, missing `global_invocation_id`, invalid `@workgroup_size`, unsupported storage access mode | `COMPUTE_CONTRACT_INVALID` | `error` | `true` | Compute contract is invalid | Ensure compute shader contract (`@compute`, `@workgroup_size`, `global_invocation_id`, storage access) is valid. |
 | `WebGPU device lost` / `Device Lost` | `WEBGPU_DEVICE_LOST` | `fatal` | `false` | WebGPU device lost | GPU device/context was lost. Recreate the renderer and check OS/GPU stability. |
 | `WebGPU uncaptured error` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | WebGPU uncaptured error | A GPU command failed asynchronously. Review details and validate resource/state usage. |
 | `CreateBindGroup` / `bind group layout` | `BIND_GROUP_MISMATCH` | `error` | `true` | Bind group mismatch | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout. |
+| `Unknown uniform ...`, `Unknown texture ...`, `Unknown storage buffer ...`, missing storage/texture definitions | `RUNTIME_RESOURCE_MISSING` | `error` | `true` | Runtime resource binding failed | Check material declarations and runtime keys for uniforms, textures and storage resources. |
+| `Uniform ... value must ...` | `UNIFORM_VALUE_INVALID` | `error` | `true` | Uniform value is invalid | Provide finite values with tuple/matrix sizes matching the uniform type. |
+| `Storage buffer ... write out of bounds` | `STORAGE_BUFFER_OUT_OF_BOUNDS` | `error` | `true` | Storage buffer write out of bounds | Ensure offset + write byte length does not exceed declared storage buffer size. |
+| `Cannot read storage buffer ...`, `not allocated on GPU`, missing device | `STORAGE_BUFFER_READ_FAILED` | `error` | `true` | Storage buffer read failed | Readbacks require initialized renderer, allocated GPU buffer and active device. |
+| `Render pass #...` validation errors, unknown runtime target references | `RENDER_GRAPH_INVALID` | `error` | `true` | Render graph configuration is invalid | Verify pass inputs/outputs, declared render targets and execution order. |
+| `PingPongComputePass must provide a target texture key` | `PINGPONG_CONFIGURATION_INVALID` | `error` | `true` | Ping-pong compute pass is misconfigured | Configure a valid target texture key for `PingPongComputePass`. |
 | `Destination texture needs to have CopyDst` | `TEXTURE_USAGE_INVALID` | `error` | `true` | Invalid texture usage flags | Texture used as upload destination must include CopyDst (and often RenderAttachment). |
 | `Texture request failed` | `TEXTURE_REQUEST_FAILED` | `error` | `true` | Texture request failed | Verify texture URL, CORS policy and response status before retrying. |
 | `createImageBitmap is not available in this runtime` | `TEXTURE_DECODE_UNAVAILABLE` | `fatal` | `false` | Texture decode unavailable | Runtime lacks createImageBitmap support. Use a browser/runtime with image bitmap decoding. |
@@ -109,6 +117,8 @@ By default, `FragCanvas` displays runtime errors through the adapter overlay com
 
 - Even when `showErrorOverlay` is `false`, `onError` is still called.
 - With `errorRenderer` set and `showErrorOverlay=true`, custom UI is rendered instead of the default overlay.
+- Default overlay always surfaces report metadata (`phase`, `code`, `severity`, `recoverable`) to make classification visible without opening details.
+- When shader diagnostics include runtime context, overlay includes a **Runtime context** section (`materialSignature`, pass graph summary, active render targets).
 - When `errorHistoryLimit <= 0`, history collection is disabled and `onErrorHistory` receives `[]` after resets.
 - When `errorHistoryLimit > 0`, history behaves as a ring buffer containing only the latest `N` unique reports.
 - Consecutive identical reports (`phase/title/message/rawMessage`) are deduplicated and do not append history.

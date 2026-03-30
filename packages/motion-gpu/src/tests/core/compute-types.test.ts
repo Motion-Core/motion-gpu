@@ -8,7 +8,8 @@ import type {
 	TextureDefinition
 } from '../../lib/core/types';
 
-function assertType<T>(_value: T): void {
+function assertType<T>(value: T): void {
+	void value;
 	// compile-time only
 }
 

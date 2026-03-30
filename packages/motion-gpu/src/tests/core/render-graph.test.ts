@@ -240,7 +240,11 @@ describe('render graph planner', () => {
 		expect(() =>
 			planRenderGraph(
 				[
-					createPass({ input: 'canvas' as RenderPass['input'], needsSwap: false, output: 'target' })
+					createPass({
+						input: 'canvas' as Exclude<RenderPass['input'], undefined>,
+						needsSwap: false,
+						output: 'target'
+					})
 				],
 				[0, 0, 0, 1]
 			)

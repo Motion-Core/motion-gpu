@@ -260,8 +260,6 @@ test.describe('motion-gpu compute pass e2e', () => {
 			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
 			.toBeGreaterThan(0);
 
-		const hashBefore = await getCanvasHash(page);
-
 		// Hot-swap to a different compute shader source (changes workgroup size 64→32)
 		await page.getByTestId('hot-swap-compute').click();
 		await expect(page.getByTestId('compute-mode')).toHaveText('hot-swap');
@@ -289,8 +287,6 @@ test.describe('motion-gpu compute pass e2e', () => {
 		await expect
 			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
 			.toBeGreaterThan(0);
-
-		const hashWithCompute = await getCanvasHash(page);
 
 		// Disable the compute pass
 		await page.getByTestId('toggle-compute-enabled').click();
@@ -346,8 +342,6 @@ test.describe('motion-gpu compute pass e2e', () => {
 		await expect
 			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
 			.toBeGreaterThan(0);
-
-		const hashWithCompute = await getCanvasHash(page);
 
 		// Remove compute pass
 		await page.getByTestId('set-compute-none').click();

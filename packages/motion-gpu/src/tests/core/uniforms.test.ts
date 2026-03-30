@@ -143,7 +143,14 @@ describe('uniform helpers', () => {
 
 	it('rejects vec4f with wrong-length tuple', () => {
 		expect(() => assertUniformValueForType('vec4f', [1, 2, 3])).toThrow(/vec4f/);
-		expect(() => assertUniformValueForType('vec4f', [1, 2, 3, 4, 5])).toThrow(/vec4f/);
+		expect(() =>
+			assertUniformValueForType('vec4f', [1, 2, 3, 4, 5] as unknown as [
+				number,
+				number,
+				number,
+				number
+			])
+		).toThrow(/vec4f/);
 	});
 
 	it('rejects NaN and Infinity inside vec tuples', () => {

@@ -9,6 +9,7 @@ import {
 	resolveTextureSize,
 	toTextureData
 } from '../../lib/core/textures';
+import type { TextureSource } from '../../lib/core/types';
 
 describe('textures', () => {
 	it('resolves sorted texture keys and validates names', () => {
@@ -212,7 +213,7 @@ describe('textures', () => {
 
 	it('resolves texture size from naturalWidth/naturalHeight (image-like source)', () => {
 		const img = { naturalWidth: 200, naturalHeight: 100 };
-		expect(resolveTextureSize({ source: img as unknown as TexImageSource })).toEqual({
+		expect(resolveTextureSize({ source: img as unknown as TextureSource })).toEqual({
 			width: 200,
 			height: 100
 		});
@@ -220,7 +221,7 @@ describe('textures', () => {
 
 	it('resolves texture size from videoWidth/videoHeight', () => {
 		const video = { videoWidth: 1920, videoHeight: 1080 };
-		expect(resolveTextureSize({ source: video as unknown as TexImageSource })).toEqual({
+		expect(resolveTextureSize({ source: video as unknown as TextureSource })).toEqual({
 			width: 1920,
 			height: 1080
 		});
@@ -233,7 +234,7 @@ describe('textures', () => {
 	});
 
 	it('throws on source with no dimension properties', () => {
-		expect(() => resolveTextureSize({ source: {} as unknown as TexImageSource })).toThrow(
+		expect(() => resolveTextureSize({ source: {} as unknown as TextureSource })).toThrow(
 			/positive width and height/
 		);
 	});

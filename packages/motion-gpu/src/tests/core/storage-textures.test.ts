@@ -433,10 +433,14 @@ describe('storage textures', () => {
 			});
 
 			expect(fragmentBindGroupCall).toBeDefined();
+			if (!fragmentBindGroupCall) {
+				throw new Error('Expected fragment bind group call with texture entries');
+			}
 
 			// Verify the texture view comes from the 64x64 storage texture
+			const [fragmentBindGroupArg] = fragmentBindGroupCall as unknown[];
 			const textureEntry = (
-				fragmentBindGroupCall![0] as { entries: Array<{ resource: unknown }> }
+				fragmentBindGroupArg as { entries: Array<{ resource: unknown }> }
 			).entries.find(
 				(e: { resource: unknown }) =>
 					e.resource &&
@@ -444,8 +448,11 @@ describe('storage textures', () => {
 					'textureDescriptor' in (e.resource as Record<string, unknown>)
 			);
 			expect(textureEntry).toBeDefined();
+			if (!textureEntry) {
+				throw new Error('Expected texture entry in fragment bind group');
+			}
 
-			const viewDescriptor = (textureEntry!.resource as { textureDescriptor: GPUTextureDescriptor })
+			const viewDescriptor = (textureEntry.resource as { textureDescriptor: GPUTextureDescriptor })
 				.textureDescriptor;
 			const size = viewDescriptor.size as { width: number };
 			// Must be the 64x64 storage texture, NOT the 1x1 fallback

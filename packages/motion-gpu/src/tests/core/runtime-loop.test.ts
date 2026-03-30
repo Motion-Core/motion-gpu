@@ -149,10 +149,10 @@ describe('runtime-loop', () => {
 
 	it('rejects readStorageBuffer when storage buffer is not allocated on GPU', async () => {
 		const registry = createFrameRegistry();
-		let readError: Error | null = null;
+		let readError: unknown = null;
 		registry.register('reader', (state) => {
 			void state.readStorageBuffer('particles').catch((error) => {
-				readError = error as Error;
+				readError = error;
 			});
 		});
 		const renderer: MockRenderer = {
@@ -190,16 +190,17 @@ describe('runtime-loop', () => {
 		await flushFrame(32);
 		await Promise.resolve();
 
-		expect(readError?.message).toContain('not allocated on GPU');
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('not allocated on GPU');
 		loop.destroy();
 	});
 
 	it('rejects readStorageBuffer when renderer has no device accessor', async () => {
 		const registry = createFrameRegistry();
-		let readError: Error | null = null;
+		let readError: unknown = null;
 		registry.register('reader', (state) => {
 			void state.readStorageBuffer('particles').catch((error) => {
-				readError = error as Error;
+				readError = error;
 			});
 		});
 		const renderer: MockRenderer = {
@@ -237,7 +238,8 @@ describe('runtime-loop', () => {
 		await flushFrame(32);
 		await Promise.resolve();
 
-		expect(readError?.message).toContain('GPU device unavailable');
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('GPU device unavailable');
 		loop.destroy();
 	});
 
@@ -280,7 +282,9 @@ describe('runtime-loop', () => {
 			destroy: vi.fn()
 		};
 		loop.destroy();
-		resolveRenderer?.(lateRenderer);
+		const resolveRendererNow = resolveRenderer as ((renderer: MockRenderer) => void) | null;
+		expect(resolveRendererNow).toBeTypeOf('function');
+		resolveRendererNow?.(lateRenderer);
 		await Promise.resolve();
 		await Promise.resolve();
 

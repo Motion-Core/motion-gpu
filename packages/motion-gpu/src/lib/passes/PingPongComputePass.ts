@@ -44,12 +44,12 @@ export class PingPongComputePass {
 	/**
 	 * Discriminant flag for render graph to identify compute passes.
 	 */
-	readonly isCompute: true = true;
+	readonly isCompute = true as const;
 
 	/**
 	 * Discriminant flag to identify ping-pong compute passes.
 	 */
-	readonly isPingPong: true = true;
+	readonly isPingPong = true as const;
 
 	private compute: string;
 	private target: string;

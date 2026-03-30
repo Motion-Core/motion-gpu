@@ -6,6 +6,7 @@ import {
 	defineMaterial
 } from '../../../src/lib/react';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
+import type { FragMaterial } from '../../../src/lib/core/material';
 import type { AnyPass } from '../../../src/lib/core/types';
 import { detectGpuStatus, type GpuStatus } from '../gpu-status';
 import { RuntimeProbe, type RuntimeControls } from '../RuntimeProbe';
@@ -228,7 +229,7 @@ export function ComputeScenario() {
 	const [computeMode, setComputeMode] = useState<ComputeMode>('none');
 	const [renderMode, setRenderMode] = useState<'always' | 'on-demand' | 'manual'>('manual');
 	const [activePasses, setActivePasses] = useState<AnyPass[]>([]);
-	const [activeMaterial, setActiveMaterial] = useState(materialWithStorageBuffer);
+	const [activeMaterial, setActiveMaterial] = useState<FragMaterial>(materialWithStorageBuffer);
 
 	const errorCountRef = useRef(0);
 

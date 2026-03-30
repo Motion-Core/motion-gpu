@@ -82,10 +82,7 @@ function createMockTexture(descriptor: GPUTextureDescriptor): MockTexture {
 }
 
 function createWebGpuRuntime() {
-	let resolveDeviceLost: ((info: { reason?: string; message?: string }) => void) | null = null;
-	const lost = new Promise<{ reason?: string; message?: string }>((resolve) => {
-		resolveDeviceLost = resolve;
-	});
+	const lost = new Promise<{ reason?: string; message?: string }>(() => undefined);
 	const textures: MockTexture[] = [];
 	const buffers: Array<{ destroy: ReturnType<typeof vi.fn>; descriptor: GPUBufferDescriptor }> = [];
 	const device = {
@@ -396,7 +393,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {}
 	});
 
 	it('dynamic dispatch receives correct context values', () => {
-		const dispatchFn = vi.fn((_ctx) => [1, 1, 1] as [number, number, number]);
+		const dispatchFn = vi.fn(() => [1, 1, 1] as [number, number, number]);
 		const pass = new ComputePass({ compute: VALID_1D, dispatch: dispatchFn });
 		const ctx = makeCtx({ width: 800, height: 600, time: 2.5, delta: 0.033 });
 		pass.resolveDispatch(ctx);
@@ -535,7 +532,7 @@ describe('storage buffer validation: edge cases', () => {
 			assertStorageBufferDefinition('buf', {
 				size: 16,
 				type: 'array<f32>',
-				access: 'write' as StorageBufferDefinition['access']
+				access: 'write' as unknown as NonNullable<StorageBufferDefinition['access']>
 			})
 		).toThrow(/invalid access mode/);
 	});
@@ -843,7 +840,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			}
 		);
 		expect(computeShaderCall).toBeDefined();
-		const shaderInput = computeShaderCall?.[0] as { code: string };
+		if (!computeShaderCall) {
+			throw new Error('Expected compute shader module call');
+		}
+		const [shaderModuleInput] = computeShaderCall as unknown[];
+		const shaderInput = shaderModuleInput as { code: string };
 		expect(shaderInput.code).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
 		expect(shaderInput.code).toContain(
 			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
@@ -917,12 +918,18 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		);
 
 		expect(pingPongBindGroupCalls).toHaveLength(4);
-		const first = (pingPongBindGroupCalls[0]![0] as { entries: Array<{ resource: unknown }> })
-			.entries;
-		const second = (pingPongBindGroupCalls[1]![0] as { entries: Array<{ resource: unknown }> })
-			.entries;
-		const third = (pingPongBindGroupCalls[2]![0] as { entries: Array<{ resource: unknown }> })
-			.entries;
+		const firstCall = pingPongBindGroupCalls[0];
+		const secondCall = pingPongBindGroupCalls[1];
+		const thirdCall = pingPongBindGroupCalls[2];
+		if (!firstCall || !secondCall || !thirdCall) {
+			throw new Error('Expected ping-pong bind group call triplet');
+		}
+		const [firstArg] = firstCall as unknown[];
+		const [secondArg] = secondCall as unknown[];
+		const [thirdArg] = thirdCall as unknown[];
+		const first = (firstArg as { entries: Array<{ resource: unknown }> }).entries;
+		const second = (secondArg as { entries: Array<{ resource: unknown }> }).entries;
+		const third = (thirdArg as { entries: Array<{ resource: unknown }> }).entries;
 
 		expect(second[0]?.resource).toBe(first[1]?.resource);
 		expect(second[1]?.resource).toBe(first[0]?.resource);
@@ -1099,7 +1106,9 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		const origCreateCommandEncoder = runtime.device.createCommandEncoder;
 		runtime.device.createCommandEncoder = vi.fn(() => {
 			const result = origCreateCommandEncoder() as unknown as Record<string, unknown>;
-			const origBeginComputePass = result.beginComputePass as ReturnType<typeof vi.fn>;
+			const origBeginComputePass = result.beginComputePass as (
+				...args: unknown[]
+			) => GPUComputePassEncoder;
 			result.beginComputePass = vi.fn((...args: unknown[]) => {
 				callOrder.push('compute');
 				return origBeginComputePass(...args);

@@ -52,7 +52,7 @@ export class ComputePass {
 	/**
 	 * Discriminant flag for render graph to identify compute passes.
 	 */
-	readonly isCompute: true = true;
+	readonly isCompute = true as const;
 
 	private compute: string;
 	private workgroupSize: [number, number, number];

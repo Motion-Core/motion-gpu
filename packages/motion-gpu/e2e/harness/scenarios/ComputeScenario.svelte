@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import FragCanvas from '../../../src/lib/svelte/FragCanvas.svelte';
-	import { defineMaterial } from '../../../src/lib/core/material';
+	import { defineMaterial, type FragMaterial } from '../../../src/lib/core/material';
 	import { ComputePass, PingPongComputePass } from '../../../src/lib/passes';
 	import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 	import type { AnyPass } from '../../../src/lib/core/types';
@@ -229,7 +229,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	let renderMode = $state<'always' | 'on-demand' | 'manual'>('manual');
 
 	let activePasses = $state<AnyPass[]>([]);
-	let activeMaterial = $state(materialWithStorageBuffer);
+	let activeMaterial = $state<FragMaterial>(materialWithStorageBuffer);
 
 	const handleError = (report: MotionGPUErrorReport): void => {
 		errorCount += 1;

@@ -111,7 +111,7 @@ describe('storage buffer validation', () => {
 			assertStorageBufferDefinition('buf', {
 				size: 16,
 				type: 'array<f32>',
-				access: 'write' as StorageBufferDefinition['access']
+				access: 'write' as unknown as NonNullable<StorageBufferDefinition['access']>
 			})
 		).toThrow(/invalid access mode/);
 
@@ -119,7 +119,7 @@ describe('storage buffer validation', () => {
 			assertStorageBufferDefinition('buf', {
 				size: 16,
 				type: 'array<f32>',
-				access: 'write-only' as StorageBufferDefinition['access']
+				access: 'write-only' as unknown as NonNullable<StorageBufferDefinition['access']>
 			})
 		).toThrow(/invalid access mode/);
 	});

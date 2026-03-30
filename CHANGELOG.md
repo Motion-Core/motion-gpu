@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.0] - 2026-03-30
 ### Added
 - Added first-class compute support with new `ComputePass` and `PingPongComputePass` exports in root, core, Svelte, and React entrypoints.
 - Added `storageBuffers` material definitions with runtime validation (`size`, `type`, `access`, `initialData`) and immutable material snapshots.

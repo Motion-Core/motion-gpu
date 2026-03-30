@@ -249,7 +249,8 @@ export function createMotionGPURuntimeLoop(
 		textureKeySet = new Set(textureKeys);
 		storageBufferKeys = materialState.storageBufferKeys;
 		storageBufferKeySet = new Set(storageBufferKeys);
-		storageBufferDefinitions = (options.getMaterial().storageBuffers ?? {}) as StorageBufferDefinitionMap;
+		storageBufferDefinitions = (options.getMaterial().storageBuffers ??
+			{}) as StorageBufferDefinitionMap;
 		resetRuntimeMaps();
 		resetRenderPayloadMaps();
 		activeMaterialSignature = materialState.signature;
@@ -278,9 +279,15 @@ export function createMotionGPURuntimeLoop(
 		runtimeTextures[name] = value;
 	};
 
-	const writeStorageBuffer = (name: string, data: ArrayBufferView, writeOptions?: { offset?: number }): void => {
+	const writeStorageBuffer = (
+		name: string,
+		data: ArrayBufferView,
+		writeOptions?: { offset?: number }
+	): void => {
 		if (!storageBufferKeySet.has(name)) {
-			throw new Error(`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`);
+			throw new Error(
+				`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`
+			);
 		}
 		const definition = storageBufferDefinitions[name];
 		if (!definition) {
@@ -297,10 +304,14 @@ export function createMotionGPURuntimeLoop(
 
 	const readStorageBuffer = (name: string): Promise<ArrayBuffer> => {
 		if (!storageBufferKeySet.has(name)) {
-			throw new Error(`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`);
+			throw new Error(
+				`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`
+			);
 		}
 		if (!renderer) {
-			return Promise.reject(new Error(`Cannot read storage buffer "${name}": renderer not initialized.`));
+			return Promise.reject(
+				new Error(`Cannot read storage buffer "${name}": renderer not initialized.`)
+			);
 		}
 		const gpuBuffer = renderer.getStorageBuffer?.(name);
 		if (!gpuBuffer) {
@@ -479,7 +490,9 @@ export function createMotionGPURuntimeLoop(
 					uniforms: renderUniforms,
 					textures: renderTextures,
 					canvasSize,
-					...(pendingStorageWrites.length > 0 ? { pendingStorageWrites: pendingStorageWrites.splice(0) } : {})
+					...(pendingStorageWrites.length > 0
+						? { pendingStorageWrites: pendingStorageWrites.splice(0) }
+						: {})
 				});
 			}
 

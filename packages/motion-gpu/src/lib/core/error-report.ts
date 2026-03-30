@@ -310,7 +310,9 @@ function classifyErrorMessage(
 	}
 
 	if (
-		message.includes('Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`.') ||
+		message.includes(
+			'Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`.'
+		) ||
 		message.includes('Compute shader must include a `@builtin(global_invocation_id)` parameter.') ||
 		message.includes('Could not extract @workgroup_size from compute shader source.') ||
 		message.includes('@workgroup_size dimensions must be integers in range') ||
@@ -355,10 +357,7 @@ function classifyErrorMessage(
 		};
 	}
 
-	if (
-		message.includes('Storage buffer "') &&
-		message.includes('write out of bounds:')
-	) {
+	if (message.includes('Storage buffer "') && message.includes('write out of bounds:')) {
 		return {
 			code: 'STORAGE_BUFFER_OUT_OF_BOUNDS',
 			severity: 'error',

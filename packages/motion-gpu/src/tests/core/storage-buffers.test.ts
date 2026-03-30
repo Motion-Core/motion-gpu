@@ -20,19 +20,19 @@ describe('storage buffer validation', () => {
 	});
 
 	it('rejects size <= 0', () => {
-		expect(() =>
-			assertStorageBufferDefinition('buf', { size: 0, type: 'array<f32>' })
-		).toThrow(/greater than 0/);
+		expect(() => assertStorageBufferDefinition('buf', { size: 0, type: 'array<f32>' })).toThrow(
+			/greater than 0/
+		);
 
-		expect(() =>
-			assertStorageBufferDefinition('buf', { size: -4, type: 'array<f32>' })
-		).toThrow(/greater than 0/);
+		expect(() => assertStorageBufferDefinition('buf', { size: -4, type: 'array<f32>' })).toThrow(
+			/greater than 0/
+		);
 	});
 
 	it('rejects size not multiple of 4', () => {
-		expect(() =>
-			assertStorageBufferDefinition('buf', { size: 7, type: 'array<f32>' })
-		).toThrow(/multiple of 4/);
+		expect(() => assertStorageBufferDefinition('buf', { size: 7, type: 'array<f32>' })).toThrow(
+			/multiple of 4/
+		);
 	});
 
 	it('rejects non-finite size (NaN, Infinity)', () => {
@@ -55,9 +55,9 @@ describe('storage buffer validation', () => {
 	});
 
 	it('rejects invalid WGSL identifier name', () => {
-		expect(() =>
-			assertStorageBufferDefinition('123bad', { size: 16, type: 'array<f32>' })
-		).toThrow(/Invalid uniform name/);
+		expect(() => assertStorageBufferDefinition('123bad', { size: 16, type: 'array<f32>' })).toThrow(
+			/Invalid uniform name/
+		);
 	});
 
 	it('normalizes access to read-write when omitted', () => {

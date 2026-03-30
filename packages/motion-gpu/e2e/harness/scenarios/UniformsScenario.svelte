@@ -117,10 +117,18 @@ fn frag(uv: vec2f) -> vec4f {
 		<div data-testid="material-mode">{materialMode}</div>
 		<div data-testid="brightness-level">{brightnessLevel}</div>
 
-		<button data-testid="set-material-a" onclick={() => setMaterialMode('uniform-a')}>material A</button>
-		<button data-testid="set-material-b" onclick={() => setMaterialMode('uniform-b')}>material B</button>
-		<button data-testid="set-material-defines-on" onclick={() => setMaterialMode('defines-on')}>defines ON</button>
-		<button data-testid="set-material-defines-off" onclick={() => setMaterialMode('defines-off')}>defines OFF</button>
+		<button data-testid="set-material-a" onclick={() => setMaterialMode('uniform-a')}
+			>material A</button
+		>
+		<button data-testid="set-material-b" onclick={() => setMaterialMode('uniform-b')}
+			>material B</button
+		>
+		<button data-testid="set-material-defines-on" onclick={() => setMaterialMode('defines-on')}
+			>defines ON</button
+		>
+		<button data-testid="set-material-defines-off" onclick={() => setMaterialMode('defines-off')}
+			>defines OFF</button
+		>
 
 		<button
 			data-testid="set-brightness-high"
@@ -147,13 +155,15 @@ fn frag(uv: vec2f) -> vec4f {
 	<div class="canvas-shell">
 		<FragCanvas material={activeMaterial} showErrorOverlay={false} onError={handleError}>
 			<UniformProbe
-				onFrame={(count) => { frameCount = count; }}
+				onFrame={(count) => {
+					frameCount = count;
+				}}
 				onReady={(nextControls) => {
 					controls = nextControls;
 					nextControls.setRenderMode('manual');
 				}}
 				{uniformName}
-				uniformValue={uniformValue}
+				{uniformValue}
 			/>
 		</FragCanvas>
 	</div>

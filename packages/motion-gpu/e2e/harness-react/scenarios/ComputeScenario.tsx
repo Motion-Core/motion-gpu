@@ -316,16 +316,76 @@ export function ComputeScenario() {
 				<div data-testid="compute-mode">{computeMode}</div>
 				<div data-testid="pass-count">{activePasses.length}</div>
 
-				<button className="harness-button" data-testid="set-compute-none" onClick={() => applyMode('none')}>none</button>
-				<button className="harness-button" data-testid="set-compute-basic" onClick={() => applyMode('basic')}>basic</button>
-				<button className="harness-button" data-testid="set-compute-auto-dispatch" onClick={() => applyMode('auto-dispatch')}>auto dispatch</button>
-				<button className="harness-button" data-testid="set-compute-dynamic-dispatch" onClick={() => applyMode('dynamic-dispatch')}>dynamic dispatch</button>
-				<button className="harness-button" data-testid="set-compute-disabled" onClick={() => applyMode('disabled')}>disabled</button>
-				<button className="harness-button" data-testid="set-compute-storage-texture" onClick={() => applyMode('storage-texture')}>storage texture</button>
-				<button className="harness-button" data-testid="set-compute-ping-pong" onClick={() => applyMode('ping-pong')}>ping-pong</button>
-				<button className="harness-button" data-testid="set-compute-ping-pong-multi" onClick={() => applyMode('ping-pong-multi')}>ping-pong multi</button>
-				<button className="harness-button" data-testid="set-compute-particle" onClick={() => applyMode('particle')}>particle</button>
-				<button className="harness-button" data-testid="set-compute-bad-shader" onClick={() => applyMode('bad-shader')}>bad shader</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-none"
+					onClick={() => applyMode('none')}
+				>
+					none
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-basic"
+					onClick={() => applyMode('basic')}
+				>
+					basic
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-auto-dispatch"
+					onClick={() => applyMode('auto-dispatch')}
+				>
+					auto dispatch
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-dynamic-dispatch"
+					onClick={() => applyMode('dynamic-dispatch')}
+				>
+					dynamic dispatch
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-disabled"
+					onClick={() => applyMode('disabled')}
+				>
+					disabled
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-storage-texture"
+					onClick={() => applyMode('storage-texture')}
+				>
+					storage texture
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-ping-pong"
+					onClick={() => applyMode('ping-pong')}
+				>
+					ping-pong
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-ping-pong-multi"
+					onClick={() => applyMode('ping-pong-multi')}
+				>
+					ping-pong multi
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-particle"
+					onClick={() => applyMode('particle')}
+				>
+					particle
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-bad-shader"
+					onClick={() => applyMode('bad-shader')}
+				>
+					bad shader
+				</button>
 
 				<button
 					className="harness-button"
@@ -370,9 +430,33 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 					dispatch override
 				</button>
 
-				<button className="harness-button" data-testid="set-mode-always" onClick={() => { controls?.setRenderMode('always'); setRenderMode('always'); }}>always</button>
-				<button className="harness-button" data-testid="set-mode-manual" onClick={() => { controls?.setRenderMode('manual'); setRenderMode('manual'); }}>manual</button>
-				<button className="harness-button" data-testid="advance-once" onClick={() => controls?.advance()}>advance</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-always"
+					onClick={() => {
+						controls?.setRenderMode('always');
+						setRenderMode('always');
+					}}
+				>
+					always
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-manual"
+					onClick={() => {
+						controls?.setRenderMode('manual');
+						setRenderMode('manual');
+					}}
+				>
+					manual
+				</button>
+				<button
+					className="harness-button"
+					data-testid="advance-once"
+					onClick={() => controls?.advance()}
+				>
+					advance
+				</button>
 			</section>
 
 			<div className="canvas-shell">

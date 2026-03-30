@@ -485,7 +485,9 @@ describe('React FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
 		expect(overlay.querySelector('.motiongpu-error-code')).toBeNull();
 		expect(overlay.textContent).not.toContain('WGSL_COMPILATION_FAILED');
-		expect(overlay.querySelector('.motiongpu-error-badge-severity')?.textContent).toContain('error');
+		expect(overlay.querySelector('.motiongpu-error-badge-severity')?.textContent).toContain(
+			'error'
+		);
 		expect(overlay.querySelector('.motiongpu-error-recoverable')?.textContent).toContain('yes');
 		expect(overlay.querySelectorAll('.motiongpu-error-badge')).toHaveLength(2);
 		expect(overlay.querySelectorAll('.motiongpu-error-badge-wrap')).toHaveLength(2);
@@ -502,9 +504,9 @@ describe('React FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('- fxA');
 		expect(overlay.textContent).toContain('- canvas');
 		expect(overlay.textContent).toContain('activeRenderTargets:');
-		const runtimeContextDetails = Array.from(overlay.querySelectorAll('.motiongpu-error-details')).find(
-			(section) => section.querySelector('summary')?.textContent?.includes('Runtime context')
-		);
+		const runtimeContextDetails = Array.from(
+			overlay.querySelectorAll('.motiongpu-error-details')
+		).find((section) => section.querySelector('summary')?.textContent?.includes('Runtime context'));
 		expect(runtimeContextDetails).toBeTruthy();
 		expect(runtimeContextDetails?.hasAttribute('open')).toBe(false);
 	});

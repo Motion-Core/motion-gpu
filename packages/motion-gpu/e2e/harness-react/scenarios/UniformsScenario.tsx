@@ -165,10 +165,34 @@ export function UniformsScenario() {
 				<div data-testid="material-mode">{materialMode}</div>
 				<div data-testid="brightness-level">{brightnessLevel}</div>
 
-				<button className="harness-button" data-testid="set-material-a" onClick={() => applyMaterial('uniform-a')}>material A</button>
-				<button className="harness-button" data-testid="set-material-b" onClick={() => applyMaterial('uniform-b')}>material B</button>
-				<button className="harness-button" data-testid="set-material-defines-on" onClick={() => applyMaterial('defines-on')}>defines ON</button>
-				<button className="harness-button" data-testid="set-material-defines-off" onClick={() => applyMaterial('defines-off')}>defines OFF</button>
+				<button
+					className="harness-button"
+					data-testid="set-material-a"
+					onClick={() => applyMaterial('uniform-a')}
+				>
+					material A
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-material-b"
+					onClick={() => applyMaterial('uniform-b')}
+				>
+					material B
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-material-defines-on"
+					onClick={() => applyMaterial('defines-on')}
+				>
+					defines ON
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-material-defines-off"
+					onClick={() => applyMaterial('defines-off')}
+				>
+					defines OFF
+				</button>
 
 				<button
 					className="harness-button"
@@ -191,7 +215,13 @@ export function UniformsScenario() {
 					brightness low
 				</button>
 
-				<button className="harness-button" data-testid="advance-once" onClick={() => controlsRef.current?.advance()}>advance</button>
+				<button
+					className="harness-button"
+					data-testid="advance-once"
+					onClick={() => controlsRef.current?.advance()}
+				>
+					advance
+				</button>
 			</section>
 
 			<div className="canvas-shell">

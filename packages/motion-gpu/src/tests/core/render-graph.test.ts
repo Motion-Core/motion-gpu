@@ -201,10 +201,7 @@ describe('render graph planner', () => {
 			render: () => {}
 		};
 		const renderPass = createPass({ needsSwap: false, output: 'canvas' });
-		const plan = planRenderGraph(
-			[computePass as unknown as RenderPass, renderPass],
-			[0, 0, 0, 1]
-		);
+		const plan = planRenderGraph([computePass as unknown as RenderPass, renderPass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(2);
 		expect(plan.steps[0]?.kind).toBe('compute');
 		expect(plan.steps[1]?.kind).toBe('render');
@@ -227,12 +224,7 @@ describe('render graph planner', () => {
 		const render2 = createPass({ needsSwap: false, input: 'target', output: 'canvas' });
 
 		const plan = planRenderGraph(
-			[
-				compute1 as unknown as RenderPass,
-				render1,
-				compute2 as unknown as RenderPass,
-				render2
-			],
+			[compute1 as unknown as RenderPass, render1, compute2 as unknown as RenderPass, render2],
 			[0, 0, 0, 1]
 		);
 
@@ -247,7 +239,9 @@ describe('render graph planner', () => {
 	it('rejects reading from canvas as input', () => {
 		expect(() =>
 			planRenderGraph(
-				[createPass({ input: 'canvas' as RenderPass['input'], needsSwap: false, output: 'target' })],
+				[
+					createPass({ input: 'canvas' as RenderPass['input'], needsSwap: false, output: 'target' })
+				],
 				[0, 0, 0, 1]
 			)
 		).toThrow(/cannot read from "canvas"/);
@@ -263,10 +257,7 @@ describe('render graph planner', () => {
 	});
 
 	it('chains multiple swap passes correctly', () => {
-		const plan = planRenderGraph(
-			[createPass(), createPass(), createPass()],
-			[0, 0, 0, 1]
-		);
+		const plan = planRenderGraph([createPass(), createPass(), createPass()], [0, 0, 0, 1]);
 
 		expect(plan.steps).toHaveLength(3);
 		for (const step of plan.steps) {
@@ -299,10 +290,7 @@ describe('render graph planner', () => {
 	});
 
 	it('uses default clear color when pass does not specify one', () => {
-		const plan = planRenderGraph(
-			[createPass({ clear: true })],
-			[0.5, 0.6, 0.7, 1]
-		);
+		const plan = planRenderGraph([createPass({ clear: true })], [0.5, 0.6, 0.7, 1]);
 
 		expect(plan.steps[0]?.clearColor).toEqual([0.5, 0.6, 0.7, 1]);
 	});

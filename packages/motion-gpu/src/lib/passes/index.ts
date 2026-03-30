@@ -6,7 +6,4 @@ export {
 	type ComputePassOptions,
 	type ComputeDispatchContext
 } from './ComputePass.js';
-export {
-	PingPongComputePass,
-	type PingPongComputePassOptions
-} from './PingPongComputePass.js';
+export { PingPongComputePass, type PingPongComputePassOptions } from './PingPongComputePass.js';

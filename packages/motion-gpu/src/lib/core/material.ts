@@ -14,10 +14,7 @@ import {
 	type MaterialLineMap,
 	type PreprocessedMaterialFragment
 } from './material-preprocess.js';
-import {
-	assertStorageBufferDefinition,
-	assertStorageTextureFormat
-} from './storage-buffers.js';
+import { assertStorageBufferDefinition, assertStorageTextureFormat } from './storage-buffers.js';
 import type {
 	StorageBufferDefinition,
 	StorageBufferDefinitionMap,
@@ -615,8 +612,11 @@ export function defineMaterial<
 	const source = Object.freeze(resolveSourceMetadata(undefined));
 
 	// Validate and freeze storage buffers
-	const rawStorageBuffers = input.storageBuffers ?? ({} as StorageBufferDefinitionMap<TStorageBufferKey>);
-	for (const [name, definition] of Object.entries(rawStorageBuffers) as Array<[string, StorageBufferDefinition]>) {
+	const rawStorageBuffers =
+		input.storageBuffers ?? ({} as StorageBufferDefinitionMap<TStorageBufferKey>);
+	for (const [name, definition] of Object.entries(rawStorageBuffers) as Array<
+		[string, StorageBufferDefinition]
+	>) {
 		assertStorageBufferDefinition(name, definition);
 	}
 	const storageBuffers = Object.freeze(
@@ -640,9 +640,7 @@ export function defineMaterial<
 	for (const [name, definition] of Object.entries(textures) as Array<[string, TextureDefinition]>) {
 		if (definition?.storage) {
 			if (!definition.format) {
-				throw new Error(
-					`Texture "${name}" with storage:true requires a \`format\` field.`
-				);
+				throw new Error(`Texture "${name}" with storage:true requires a \`format\` field.`);
 			}
 			assertStorageTextureFormat(name, definition.format);
 		}
@@ -654,7 +652,13 @@ export function defineMaterial<
 		includes
 	});
 
-	const material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey> = Object.freeze({
+	const material: FragMaterial<
+		TUniformKey,
+		TTextureKey,
+		TDefineKey,
+		TIncludeKey,
+		TStorageBufferKey
+	> = Object.freeze({
 		fragment,
 		uniforms,
 		textures,
@@ -704,7 +708,9 @@ export function resolveMaterial<
 	const fragmentWgsl = preprocessed.fragment;
 	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
 
-	const storageBufferKeys = Object.keys(material.storageBuffers ?? {}).sort() as TStorageBufferKey[];
+	const storageBufferKeys = Object.keys(
+		material.storageBuffers ?? {}
+	).sort() as TStorageBufferKey[];
 	const storageTextureKeys = textureKeys.filter(
 		(key) => (textures[key] as TextureDefinition)?.storage === true
 	);

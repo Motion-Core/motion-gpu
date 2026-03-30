@@ -165,24 +165,54 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		<div data-testid="pass-count">{passCount}</div>
 
 		<button data-testid="set-config-none" onclick={() => applyConfig('none')}>none</button>
-		<button data-testid="set-config-single-shader" onclick={() => applyConfig('single-shader')}>single shader</button>
+		<button data-testid="set-config-single-shader" onclick={() => applyConfig('single-shader')}
+			>single shader</button
+		>
 		<button data-testid="set-config-chain-3" onclick={() => applyConfig('chain-3')}>chain 3</button>
-		<button data-testid="set-config-compute-only" onclick={() => applyConfig('compute-only')}>compute only</button>
-		<button data-testid="set-config-compute-plus-shader" onclick={() => applyConfig('compute-plus-shader')}>compute+shader</button>
-		<button data-testid="set-config-toggle-middle" onclick={() => applyConfig('toggle-middle')}>toggle middle</button>
-		<button data-testid="set-config-bad-shader-pass" onclick={() => applyConfig('bad-shader-pass')}>bad shader pass</button>
-		<button data-testid="set-config-multi-error" onclick={() => applyConfig('multi-error')}>multi error</button>
+		<button data-testid="set-config-compute-only" onclick={() => applyConfig('compute-only')}
+			>compute only</button
+		>
+		<button
+			data-testid="set-config-compute-plus-shader"
+			onclick={() => applyConfig('compute-plus-shader')}>compute+shader</button
+		>
+		<button data-testid="set-config-toggle-middle" onclick={() => applyConfig('toggle-middle')}
+			>toggle middle</button
+		>
+		<button data-testid="set-config-bad-shader-pass" onclick={() => applyConfig('bad-shader-pass')}
+			>bad shader pass</button
+		>
+		<button data-testid="set-config-multi-error" onclick={() => applyConfig('multi-error')}
+			>multi error</button
+		>
 
 		<button data-testid="toggle-middle-pass" onclick={toggleMiddlePass}>toggle green pass</button>
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
-		<button data-testid="set-mode-always" onclick={() => { controls?.setRenderMode('always'); }}>always</button>
-		<button data-testid="set-mode-manual" onclick={() => { controls?.setRenderMode('manual'); }}>manual</button>
+		<button
+			data-testid="set-mode-always"
+			onclick={() => {
+				controls?.setRenderMode('always');
+			}}>always</button
+		>
+		<button
+			data-testid="set-mode-manual"
+			onclick={() => {
+				controls?.setRenderMode('manual');
+			}}>manual</button
+		>
 	</section>
 
 	<div class="canvas-shell">
-		<FragCanvas material={materialWithStorage} passes={activePasses} showErrorOverlay={false} onError={handleError}>
+		<FragCanvas
+			material={materialWithStorage}
+			passes={activePasses}
+			showErrorOverlay={false}
+			onError={handleError}
+		>
 			<RuntimeProbe
-				onFrame={(count) => { frameCount = count; }}
+				onFrame={(count) => {
+					frameCount = count;
+				}}
 				onReady={(nextControls) => {
 					controls = nextControls;
 					nextControls.setRenderMode('manual');

@@ -6,8 +6,8 @@
 	import { useTexture } from '../../../src/lib/svelte/use-texture';
 	import LifecycleProbe, { type LifecycleProbeControls } from './LifecycleProbe.svelte';
 
-const simpleMaterial = defineMaterial({
-	fragment: `
+	const simpleMaterial = defineMaterial({
+		fragment: `
 fn frag(uv: vec2f) -> vec4f {
 	let center = vec2f(0.5, 0.5);
 	if (distance(uv, center) > 0.35) {
@@ -16,7 +16,7 @@ fn frag(uv: vec2f) -> vec4f {
 	return vec4f(uv, 0.5, 1.0);
 }
 `
-});
+	});
 
 	const texturedMaterial = defineMaterial({
 		fragment: `
@@ -134,11 +134,17 @@ fn frag(uv: vec2f) -> vec4f {
 		<div data-testid="texture-count">{textureCount}</div>
 
 		<button data-testid="set-clear-red" onclick={() => setClearColorMode('red')}>clear red</button>
-		<button data-testid="set-clear-blue" onclick={() => setClearColorMode('blue')}>clear blue</button>
-		<button data-testid="set-clear-default" onclick={() => setClearColorMode('default')}>clear default</button>
+		<button data-testid="set-clear-blue" onclick={() => setClearColorMode('blue')}
+			>clear blue</button
+		>
+		<button data-testid="set-clear-default" onclick={() => setClearColorMode('default')}
+			>clear default</button
+		>
 
 		<button data-testid="set-scene-simple" onclick={() => setSceneMode('simple')}>simple</button>
-		<button data-testid="set-scene-textured" onclick={() => setSceneMode('textured')}>textured</button>
+		<button data-testid="set-scene-textured" onclick={() => setSceneMode('textured')}
+			>textured</button
+		>
 
 		<button
 			data-testid="start-frame-callback"
@@ -160,14 +166,25 @@ fn frag(uv: vec2f) -> vec4f {
 		</button>
 
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
-		<button data-testid="set-mode-always" onclick={() => controls?.setRenderMode('always')}>always</button>
-		<button data-testid="set-mode-manual" onclick={() => controls?.setRenderMode('manual')}>manual</button>
+		<button data-testid="set-mode-always" onclick={() => controls?.setRenderMode('always')}
+			>always</button
+		>
+		<button data-testid="set-mode-manual" onclick={() => controls?.setRenderMode('manual')}
+			>manual</button
+		>
 	</section>
 
 	<div class="canvas-shell">
-		<FragCanvas material={activeMaterial} {clearColor} showErrorOverlay={false} onError={handleError}>
+		<FragCanvas
+			material={activeMaterial}
+			{clearColor}
+			showErrorOverlay={false}
+			onError={handleError}
+		>
 			<LifecycleProbe
-				onFrame={(count) => { frameCount = count; }}
+				onFrame={(count) => {
+					frameCount = count;
+				}}
 				onReady={(nextControls) => {
 					controls = nextControls;
 					nextControls.setRenderMode('manual');

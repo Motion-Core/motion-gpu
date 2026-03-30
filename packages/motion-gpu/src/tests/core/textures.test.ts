@@ -233,8 +233,8 @@ describe('textures', () => {
 	});
 
 	it('throws on source with no dimension properties', () => {
-		expect(() =>
-			resolveTextureSize({ source: {} as unknown as TexImageSource })
-		).toThrow(/positive width and height/);
+		expect(() => resolveTextureSize({ source: {} as unknown as TexImageSource })).toThrow(
+			/positive width and height/
+		);
 	});
 });

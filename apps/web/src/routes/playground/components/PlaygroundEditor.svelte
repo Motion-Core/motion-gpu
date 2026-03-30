@@ -90,9 +90,8 @@
 					Runtime log ({controller.status})
 				</summary>
 				<ScrollArea class="h-32" viewportClass="px-3 py-2">
-					<pre class="font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted"
-						>{controller.runtimeLogTail}</pre
-					>
+					<pre
+						class="font-mono text-[11px] leading-5 font-normal whitespace-pre-wrap text-foreground-muted">{controller.runtimeLogTail}</pre>
 				</ScrollArea>
 			</details>
 		{:else}

@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-	FragCanvas,
-	ComputePass,
-	ShaderPass,
-	defineMaterial
-} from '../../../src/lib/react';
+import { FragCanvas, ComputePass, ShaderPass, defineMaterial } from '../../../src/lib/react';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 import type { AnyPass } from '../../../src/lib/core/types';
 import { detectGpuStatus, type GpuStatus } from '../gpu-status';
@@ -172,23 +167,104 @@ export function MixedPassesScenario() {
 				<div data-testid="pass-config">{passConfig}</div>
 				<div data-testid="pass-count">{passCount}</div>
 
-				<button className="harness-button" data-testid="set-config-none" onClick={() => applyConfig('none')}>none</button>
-				<button className="harness-button" data-testid="set-config-single-shader" onClick={() => applyConfig('single-shader')}>single shader</button>
-				<button className="harness-button" data-testid="set-config-chain-3" onClick={() => applyConfig('chain-3')}>chain 3</button>
-				<button className="harness-button" data-testid="set-config-compute-only" onClick={() => applyConfig('compute-only')}>compute only</button>
-				<button className="harness-button" data-testid="set-config-compute-plus-shader" onClick={() => applyConfig('compute-plus-shader')}>compute+shader</button>
-				<button className="harness-button" data-testid="set-config-toggle-middle" onClick={() => applyConfig('toggle-middle')}>toggle middle</button>
-				<button className="harness-button" data-testid="set-config-bad-shader-pass" onClick={() => applyConfig('bad-shader-pass')}>bad shader pass</button>
-				<button className="harness-button" data-testid="set-config-multi-error" onClick={() => applyConfig('multi-error')}>multi error</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-none"
+					onClick={() => applyConfig('none')}
+				>
+					none
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-single-shader"
+					onClick={() => applyConfig('single-shader')}
+				>
+					single shader
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-chain-3"
+					onClick={() => applyConfig('chain-3')}
+				>
+					chain 3
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-compute-only"
+					onClick={() => applyConfig('compute-only')}
+				>
+					compute only
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-compute-plus-shader"
+					onClick={() => applyConfig('compute-plus-shader')}
+				>
+					compute+shader
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-toggle-middle"
+					onClick={() => applyConfig('toggle-middle')}
+				>
+					toggle middle
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-bad-shader-pass"
+					onClick={() => applyConfig('bad-shader-pass')}
+				>
+					bad shader pass
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-config-multi-error"
+					onClick={() => applyConfig('multi-error')}
+				>
+					multi error
+				</button>
 
-				<button className="harness-button" data-testid="toggle-middle-pass" onClick={toggleMiddlePass}>toggle green pass</button>
-				<button className="harness-button" data-testid="advance-once" onClick={() => controls?.advance()}>advance</button>
-				<button className="harness-button" data-testid="set-mode-always" onClick={() => { controls?.setRenderMode('always'); }}>always</button>
-				<button className="harness-button" data-testid="set-mode-manual" onClick={() => { controls?.setRenderMode('manual'); }}>manual</button>
+				<button
+					className="harness-button"
+					data-testid="toggle-middle-pass"
+					onClick={toggleMiddlePass}
+				>
+					toggle green pass
+				</button>
+				<button
+					className="harness-button"
+					data-testid="advance-once"
+					onClick={() => controls?.advance()}
+				>
+					advance
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-always"
+					onClick={() => {
+						controls?.setRenderMode('always');
+					}}
+				>
+					always
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-manual"
+					onClick={() => {
+						controls?.setRenderMode('manual');
+					}}
+				>
+					manual
+				</button>
 			</section>
 
 			<div className="canvas-shell">
-				<FragCanvas material={materialWithStorage} passes={activePasses} showErrorOverlay={false} onError={handleError}>
+				<FragCanvas
+					material={materialWithStorage}
+					passes={activePasses}
+					showErrorOverlay={false}
+					onError={handleError}
+				>
 					<RuntimeProbe onFrame={setFrameCount} onReady={handleReady} />
 				</FragCanvas>
 			</div>

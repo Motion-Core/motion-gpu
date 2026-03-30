@@ -1,7 +1,4 @@
-import {
-	assertComputeContract,
-	extractWorkgroupSize
-} from '../core/compute-shader.js';
+import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
 import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.js';
 
 /**
@@ -168,11 +165,7 @@ export class PingPongComputePass {
 		}
 
 		if (Array.isArray(this.dispatch)) {
-			return [
-				this.dispatch[0],
-				this.dispatch[1] ?? 1,
-				this.dispatch[2] ?? 1
-			];
+			return [this.dispatch[0], this.dispatch[1] ?? 1, this.dispatch[2] ?? 1];
 		}
 
 		return [1, 1, 1];

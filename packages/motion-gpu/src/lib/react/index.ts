@@ -3,7 +3,13 @@
  */
 export { FragCanvas } from './FragCanvas.js';
 export { defineMaterial } from '../core/material.js';
-export { BlitPass, CopyPass, ShaderPass, ComputePass, PingPongComputePass } from '../passes/index.js';
+export {
+	BlitPass,
+	CopyPass,
+	ShaderPass,
+	ComputePass,
+	PingPongComputePass
+} from '../passes/index.js';
 export { useMotionGPU } from './motiongpu-context.js';
 export { useFrame } from './frame-context.js';
 export { useTexture } from './use-texture.js';
@@ -58,8 +64,5 @@ export type {
 	StorageBufferType,
 	ComputePassContext
 } from '../core/types.js';
-export type {
-	ComputePassOptions,
-	ComputeDispatchContext
-} from '../passes/ComputePass.js';
+export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
 export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';

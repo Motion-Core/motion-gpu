@@ -56,9 +56,9 @@ describe('texture-loader', () => {
 		expect(fetch).toHaveBeenCalledTimes(1);
 		expect(createImageBitmap).toHaveBeenCalledTimes(1);
 
-			texture.dispose();
-			const close = (texture.source as unknown as { close: () => void }).close;
-			expect(close).toHaveBeenCalledTimes(1);
+		texture.dispose();
+		const close = (texture.source as unknown as { close: () => void }).close;
+		expect(close).toHaveBeenCalledTimes(1);
 	});
 
 	it('treats LoadedTexture.dispose as idempotent', async () => {

@@ -198,7 +198,8 @@
 		const crossLen = Math.hypot(cross[0], cross[1], cross[2]);
 
 		if (crossLen < 1e-6 && d < -0.9999) {
-			const fallback = Math.abs(from[0]) < 0.9 ? crossVec3(from, [1, 0, 0]) : crossVec3(from, [0, 1, 0]);
+			const fallback =
+				Math.abs(from[0]) < 0.9 ? crossVec3(from, [1, 0, 0]) : crossVec3(from, [0, 1, 0]);
 			const axis = normalizeVec3(fallback);
 			return quatFromAxisAngle(axis, Math.PI);
 		}
@@ -206,7 +207,11 @@
 		return quatNormalize([cross[0], cross[1], cross[2], 1 + d]);
 	};
 
-	const projectPointerToArcball = (clientX: number, clientY: number, canvas: HTMLCanvasElement): Vec3 => {
+	const projectPointerToArcball = (
+		clientX: number,
+		clientY: number,
+		canvas: HTMLCanvasElement
+	): Vec3 => {
 		const rect = canvas.getBoundingClientRect();
 		const width = Math.max(rect.width, 1);
 		const height = Math.max(rect.height, 1);
@@ -325,10 +330,13 @@
 			const fullAngle = halfAngle * 2;
 			const sinHalf = Math.sin(halfAngle);
 			if (sinHalf > 1e-4 && fullAngle > 1e-5) {
-				dragAngularAxis = normalizeVec3([dragQuat[0] / sinHalf, dragQuat[1] / sinHalf, dragQuat[2] / sinHalf]);
+				dragAngularAxis = normalizeVec3([
+					dragQuat[0] / sinHalf,
+					dragQuat[1] / sinHalf,
+					dragQuat[2] / sinHalf
+				]);
 				const instantAngularSpeed = fullAngle / dt;
-				dragAngularSpeed +=
-					(instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
+				dragAngularSpeed += (instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
 			}
 		};
 
@@ -381,7 +389,10 @@
 
 		applyOrbitDelta(yawDelta, 0);
 		if (!isDragging && momentumAngularSpeed > 0) {
-			const momentumQuat = quatFromAxisAngle(momentumAngularAxis, momentumAngularSpeed * state.delta);
+			const momentumQuat = quatFromAxisAngle(
+				momentumAngularAxis,
+				momentumAngularSpeed * state.delta
+			);
 			sceneQuat = quatMultiply(momentumQuat, sceneQuat);
 		}
 

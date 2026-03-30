@@ -134,7 +134,13 @@ describe('runtime-loop', () => {
 		const result = await readPromise;
 		expect(result).toBeInstanceOf(ArrayBuffer);
 		expect(Array.from(new Uint8Array(result))).toEqual([1, 2, 3, 4]);
-		expect(commandEncoder.copyBufferToBuffer).toHaveBeenCalledWith(gpuBuffer, 0, stagingBuffer, 0, 4);
+		expect(commandEncoder.copyBufferToBuffer).toHaveBeenCalledWith(
+			gpuBuffer,
+			0,
+			stagingBuffer,
+			0,
+			4
+		);
 		expect(stagingBuffer.mapAsync).toHaveBeenCalledWith(0x1);
 		expect(stagingBuffer.unmap).toHaveBeenCalledTimes(1);
 		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);

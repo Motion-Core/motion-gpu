@@ -321,14 +321,33 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		<!-- mode buttons -->
 		<button data-testid="set-compute-none" onclick={() => setComputeMode('none')}>none</button>
 		<button data-testid="set-compute-basic" onclick={() => setComputeMode('basic')}>basic</button>
-		<button data-testid="set-compute-auto-dispatch" onclick={() => setComputeMode('auto-dispatch')}>auto dispatch</button>
-		<button data-testid="set-compute-dynamic-dispatch" onclick={() => setComputeMode('dynamic-dispatch')}>dynamic dispatch</button>
-		<button data-testid="set-compute-disabled" onclick={() => setComputeMode('disabled')}>disabled</button>
-		<button data-testid="set-compute-storage-texture" onclick={() => setComputeMode('storage-texture')}>storage texture</button>
-		<button data-testid="set-compute-ping-pong" onclick={() => setComputeMode('ping-pong')}>ping-pong</button>
-		<button data-testid="set-compute-ping-pong-multi" onclick={() => setComputeMode('ping-pong-multi')}>ping-pong multi</button>
-		<button data-testid="set-compute-particle" onclick={() => setComputeMode('particle')}>particle</button>
-		<button data-testid="set-compute-bad-shader" onclick={() => setComputeMode('bad-shader')}>bad shader</button>
+		<button data-testid="set-compute-auto-dispatch" onclick={() => setComputeMode('auto-dispatch')}
+			>auto dispatch</button
+		>
+		<button
+			data-testid="set-compute-dynamic-dispatch"
+			onclick={() => setComputeMode('dynamic-dispatch')}>dynamic dispatch</button
+		>
+		<button data-testid="set-compute-disabled" onclick={() => setComputeMode('disabled')}
+			>disabled</button
+		>
+		<button
+			data-testid="set-compute-storage-texture"
+			onclick={() => setComputeMode('storage-texture')}>storage texture</button
+		>
+		<button data-testid="set-compute-ping-pong" onclick={() => setComputeMode('ping-pong')}
+			>ping-pong</button
+		>
+		<button
+			data-testid="set-compute-ping-pong-multi"
+			onclick={() => setComputeMode('ping-pong-multi')}>ping-pong multi</button
+		>
+		<button data-testid="set-compute-particle" onclick={() => setComputeMode('particle')}
+			>particle</button
+		>
+		<button data-testid="set-compute-bad-shader" onclick={() => setComputeMode('bad-shader')}
+			>bad shader</button
+		>
 
 		<!-- hot-swap: switch compute source at runtime -->
 		<button
@@ -375,15 +394,34 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		</button>
 
 		<!-- set-mode and advance controls -->
-		<button data-testid="set-mode-always" onclick={() => { controls?.setRenderMode('always'); renderMode = 'always'; }}>always</button>
-		<button data-testid="set-mode-manual" onclick={() => { controls?.setRenderMode('manual'); renderMode = 'manual'; }}>manual</button>
+		<button
+			data-testid="set-mode-always"
+			onclick={() => {
+				controls?.setRenderMode('always');
+				renderMode = 'always';
+			}}>always</button
+		>
+		<button
+			data-testid="set-mode-manual"
+			onclick={() => {
+				controls?.setRenderMode('manual');
+				renderMode = 'manual';
+			}}>manual</button
+		>
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
 	</section>
 
 	<div class="canvas-shell">
-		<FragCanvas material={activeMaterial} passes={activePasses} showErrorOverlay={false} onError={handleError}>
+		<FragCanvas
+			material={activeMaterial}
+			passes={activePasses}
+			showErrorOverlay={false}
+			onError={handleError}
+		>
 			<RuntimeProbe
-				onFrame={(count) => { frameCount = count; }}
+				onFrame={(count) => {
+					frameCount = count;
+				}}
 				onReady={(nextControls) => {
 					controls = nextControls;
 					nextControls.setRenderMode('manual');

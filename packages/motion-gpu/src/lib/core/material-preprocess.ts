@@ -210,24 +210,28 @@ function expandChunk(
 			throw new Error(`Unknown include "${includeKey}" referenced in fragment shader.`);
 		}
 
-			if (stack.includes(includeKey)) {
-				throw new Error(
-					`Circular include detected for "${includeKey}". Include stack: ${[...stack, includeKey].join(' -> ')}.`
-				);
-			}
-
-			if (expandedIncludes.has(includeKey)) {
-				continue;
-			}
-			expandedIncludes.add(includeKey);
-
-			const nested = expandChunk(includeSource, 'include', includeKey, includes, [
-				...stack,
-				includeKey
-			], expandedIncludes);
-			lines.push(...nested.lines);
-			mapEntries.push(...nested.mapEntries);
+		if (stack.includes(includeKey)) {
+			throw new Error(
+				`Circular include detected for "${includeKey}". Include stack: ${[...stack, includeKey].join(' -> ')}.`
+			);
 		}
+
+		if (expandedIncludes.has(includeKey)) {
+			continue;
+		}
+		expandedIncludes.add(includeKey);
+
+		const nested = expandChunk(
+			includeSource,
+			'include',
+			includeKey,
+			includes,
+			[...stack, includeKey],
+			expandedIncludes
+		);
+		lines.push(...nested.lines);
+		mapEntries.push(...nested.mapEntries);
+	}
 
 	return { lines, mapEntries };
 }

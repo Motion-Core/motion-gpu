@@ -9,7 +9,16 @@
 	import LifecycleScenario from './scenarios/LifecycleScenario.svelte';
 	import MixedPassesScenario from './scenarios/MixedPassesScenario.svelte';
 
-	type Scenario = 'runtime' | 'shader-recovery' | 'textures' | 'passes' | 'perf' | 'compute' | 'uniforms' | 'lifecycle' | 'mixed-passes';
+	type Scenario =
+		| 'runtime'
+		| 'shader-recovery'
+		| 'textures'
+		| 'passes'
+		| 'perf'
+		| 'compute'
+		| 'uniforms'
+		| 'lifecycle'
+		| 'mixed-passes';
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
 	const scenario: Scenario =
 		queryScenario === 'shader-recovery' ||

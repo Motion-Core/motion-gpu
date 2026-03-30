@@ -1,7 +1,4 @@
-import {
-	assertComputeContract,
-	extractWorkgroupSize
-} from '../core/compute-shader.js';
+import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
 
 /**
  * Dispatch context provided to dynamic dispatch callbacks.
@@ -29,7 +26,10 @@ export interface ComputePassOptions {
 	 * - `'auto'`: derived from canvas size / workgroup size
 	 * - Function: dynamic dispatch based on frame context
 	 */
-	dispatch?: [number, number?, number?] | 'auto' | ((ctx: ComputeDispatchContext) => [number, number, number]);
+	dispatch?:
+		| [number, number?, number?]
+		| 'auto'
+		| ((ctx: ComputeDispatchContext) => [number, number, number]);
 	/**
 	 * Enables/disables this compute pass.
 	 */
@@ -121,11 +121,7 @@ export class ComputePass {
 		}
 
 		if (Array.isArray(this.dispatch)) {
-			return [
-				this.dispatch[0],
-				this.dispatch[1] ?? 1,
-				this.dispatch[2] ?? 1
-			];
+			return [this.dispatch[0], this.dispatch[1] ?? 1, this.dispatch[2] ?? 1];
 		}
 
 		return [1, 1, 1];

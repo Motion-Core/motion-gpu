@@ -78,7 +78,7 @@ export function assertComputeContract(compute: string): void {
 	if (!COMPUTE_ENTRY_CONTRACT.test(compute)) {
 		throw new Error(
 			'Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`. ' +
-					'Ensure the function is named `compute` and includes @compute and @workgroup_size annotations.'
+				'Ensure the function is named `compute` and includes @compute and @workgroup_size annotations.'
 		);
 	}
 

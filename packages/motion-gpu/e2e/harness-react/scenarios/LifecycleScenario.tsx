@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FragCanvas, defineMaterial, useFrame, useMotionGPU, useTexture } from '../../../src/lib/react';
+import {
+	FragCanvas,
+	defineMaterial,
+	useFrame,
+	useMotionGPU,
+	useTexture
+} from '../../../src/lib/react';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 import type { FragMaterial } from '../../../src/lib/core/material';
 import type { RenderMode } from '../../../src/lib/core/types';
@@ -158,12 +164,42 @@ export function LifecycleScenario() {
 				<div data-testid="texture-loading">{textureLoading ? 'yes' : 'no'}</div>
 				<div data-testid="texture-count">{textures?.length ?? 0}</div>
 
-				<button className="harness-button" data-testid="set-clear-red" onClick={() => applyClearColor('red')}>clear red</button>
-				<button className="harness-button" data-testid="set-clear-blue" onClick={() => applyClearColor('blue')}>clear blue</button>
-				<button className="harness-button" data-testid="set-clear-default" onClick={() => applyClearColor('default')}>clear default</button>
+				<button
+					className="harness-button"
+					data-testid="set-clear-red"
+					onClick={() => applyClearColor('red')}
+				>
+					clear red
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-clear-blue"
+					onClick={() => applyClearColor('blue')}
+				>
+					clear blue
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-clear-default"
+					onClick={() => applyClearColor('default')}
+				>
+					clear default
+				</button>
 
-				<button className="harness-button" data-testid="set-scene-simple" onClick={() => applySceneMode('simple')}>simple</button>
-				<button className="harness-button" data-testid="set-scene-textured" onClick={() => applySceneMode('textured')}>textured</button>
+				<button
+					className="harness-button"
+					data-testid="set-scene-simple"
+					onClick={() => applySceneMode('simple')}
+				>
+					simple
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-scene-textured"
+					onClick={() => applySceneMode('textured')}
+				>
+					textured
+				</button>
 
 				<button
 					className="harness-button"
@@ -186,13 +222,36 @@ export function LifecycleScenario() {
 					stop callback
 				</button>
 
-				<button className="harness-button" data-testid="advance-once" onClick={() => controlsRef.current?.advance()}>advance</button>
-				<button className="harness-button" data-testid="set-mode-always" onClick={() => controlsRef.current?.setRenderMode('always')}>always</button>
-				<button className="harness-button" data-testid="set-mode-manual" onClick={() => controlsRef.current?.setRenderMode('manual')}>manual</button>
+				<button
+					className="harness-button"
+					data-testid="advance-once"
+					onClick={() => controlsRef.current?.advance()}
+				>
+					advance
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-always"
+					onClick={() => controlsRef.current?.setRenderMode('always')}
+				>
+					always
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-mode-manual"
+					onClick={() => controlsRef.current?.setRenderMode('manual')}
+				>
+					manual
+				</button>
 			</section>
 
 			<div className="canvas-shell">
-				<FragCanvas material={activeMaterial} clearColor={clearColor} showErrorOverlay={false} onError={handleError}>
+				<FragCanvas
+					material={activeMaterial}
+					clearColor={clearColor}
+					showErrorOverlay={false}
+					onError={handleError}
+				>
 					<LifecycleProbe onFrame={setFrameCount} onReady={handleReady} />
 				</FragCanvas>
 			</div>

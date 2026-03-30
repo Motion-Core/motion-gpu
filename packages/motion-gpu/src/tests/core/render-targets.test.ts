@@ -86,22 +86,12 @@ describe('render targets', () => {
 	});
 
 	it('clamps small scaled dimensions to minimum 1', () => {
-		const resolved = resolveRenderTargetDefinitions(
-			{ uTiny: { scale: 0.5 } },
-			1,
-			1,
-			'rgba8unorm'
-		);
+		const resolved = resolveRenderTargetDefinitions({ uTiny: { scale: 0.5 } }, 1, 1, 'rgba8unorm');
 		expect(resolved[0]).toMatchObject({ key: 'uTiny', width: 1, height: 1 });
 	});
 
 	it('supports scale > 1 (upscaling)', () => {
-		const resolved = resolveRenderTargetDefinitions(
-			{ uUp: { scale: 2 } },
-			400,
-			300,
-			'rgba8unorm'
-		);
+		const resolved = resolveRenderTargetDefinitions({ uUp: { scale: 2 } }, 400, 300, 'rgba8unorm');
 		expect(resolved[0]).toMatchObject({ key: 'uUp', width: 800, height: 600 });
 	});
 

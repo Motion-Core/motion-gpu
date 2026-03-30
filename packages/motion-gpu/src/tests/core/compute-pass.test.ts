@@ -25,9 +25,7 @@ describe('ComputePass', () => {
 	});
 
 	it('rejects invalid compute shader contract', () => {
-		expect(
-			() => new ComputePass({ compute: 'fn broken() {}' })
-		).toThrow(/@compute/);
+		expect(() => new ComputePass({ compute: 'fn broken() {}' })).toThrow(/@compute/);
 	});
 
 	it('extracts workgroup size from WGSL', () => {

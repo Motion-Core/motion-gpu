@@ -139,9 +139,7 @@ describe('buildShaderSource', () => {
 		);
 
 		expect(shader).toContain('@group(1) @binding(0) var<storage, read> particles: array<vec4f>;');
-		expect(shader).toContain(
-			'@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;'
-		);
+		expect(shader).toContain('@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;');
 	});
 
 	it('places storage buffer bindings in group(1)', () => {

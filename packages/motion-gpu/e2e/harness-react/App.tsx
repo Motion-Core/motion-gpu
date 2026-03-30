@@ -8,7 +8,16 @@ import { UniformsScenario } from './scenarios/UniformsScenario';
 import { LifecycleScenario } from './scenarios/LifecycleScenario';
 import { MixedPassesScenario } from './scenarios/MixedPassesScenario';
 
-type Scenario = 'runtime' | 'shader-recovery' | 'textures' | 'passes' | 'perf' | 'compute' | 'uniforms' | 'lifecycle' | 'mixed-passes';
+type Scenario =
+	| 'runtime'
+	| 'shader-recovery'
+	| 'textures'
+	| 'passes'
+	| 'perf'
+	| 'compute'
+	| 'uniforms'
+	| 'lifecycle'
+	| 'mixed-passes';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');

@@ -148,7 +148,9 @@ describe('uniform helpers', () => {
 
 	it('rejects NaN and Infinity inside vec tuples', () => {
 		expect(() => assertUniformValueForType('vec2f', [1, Number.NaN])).toThrow(/vec2f/);
-		expect(() => assertUniformValueForType('vec3f', [1, 2, Number.POSITIVE_INFINITY])).toThrow(/vec3f/);
+		expect(() => assertUniformValueForType('vec3f', [1, 2, Number.POSITIVE_INFINITY])).toThrow(
+			/vec3f/
+		);
 		expect(() => assertUniformValueForType('vec4f', [1, Number.NaN, 3, 4])).toThrow(/vec4f/);
 	});
 
@@ -168,15 +170,14 @@ describe('uniform helpers', () => {
 	});
 
 	it('packs mat4x4f from plain number array', () => {
-		const matrix = Array.from({ length: 16 }, (_, i) => (i === 0 || i === 5 || i === 10 || i === 15) ? 1 : 0);
+		const matrix = Array.from({ length: 16 }, (_, i) =>
+			i === 0 || i === 5 || i === 10 || i === 15 ? 1 : 0
+		);
 		const layout = resolveUniformLayout({
 			uMatrix: { type: 'mat4x4f', value: new Float32Array(16) }
 		});
 
-		const packed = packUniforms(
-			{ uMatrix: { type: 'mat4x4f', value: matrix } },
-			layout
-		);
+		const packed = packUniforms({ uMatrix: { type: 'mat4x4f', value: matrix } }, layout);
 
 		expect(packed[0]).toBeCloseTo(1);
 		expect(packed[5]).toBeCloseTo(1);

@@ -111,7 +111,12 @@ function isExternal(id: string): boolean {
 	if (id.endsWith('.svelte')) {
 		return true;
 	}
-	if (id === 'react' || id === 'react-dom' || id === 'react/jsx-runtime' || id === 'react/jsx-dev-runtime') {
+	if (
+		id === 'react' ||
+		id === 'react-dom' ||
+		id === 'react/jsx-runtime' ||
+		id === 'react/jsx-dev-runtime'
+	) {
 		return true;
 	}
 	if (id === 'svelte' || id.startsWith('svelte/')) {

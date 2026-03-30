@@ -106,30 +106,30 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		}),
 		createBindGroup: vi.fn(() => ({}) as unknown as GPUBindGroup),
 		createComputePipeline: vi.fn(() => ({}) as unknown as GPUComputePipeline),
-			createCommandEncoder: vi.fn(() => {
-				const pass = {
-					setPipeline: vi.fn(),
-					setBindGroup: vi.fn(),
-					draw: vi.fn(),
-					end: vi.fn()
-				};
-				const computePass = {
-					setPipeline: vi.fn(),
-					setBindGroup: vi.fn(),
-					dispatchWorkgroups: vi.fn(),
-					end: vi.fn()
-				};
-				computePasses.push(computePass);
-				const encoder = {
-					copyTextureToTexture: vi.fn(),
-					copyBufferToBuffer: vi.fn(),
-					beginRenderPass: vi.fn(() => pass as unknown as GPURenderPassEncoder),
-					beginComputePass: vi.fn(() => computePass as unknown as GPUComputePassEncoder),
-					finish: vi.fn(() => ({}) as unknown as GPUCommandBuffer)
-				};
-				commandEncoders.push(encoder);
-				return encoder as unknown as GPUCommandEncoder;
-			}),
+		createCommandEncoder: vi.fn(() => {
+			const pass = {
+				setPipeline: vi.fn(),
+				setBindGroup: vi.fn(),
+				draw: vi.fn(),
+				end: vi.fn()
+			};
+			const computePass = {
+				setPipeline: vi.fn(),
+				setBindGroup: vi.fn(),
+				dispatchWorkgroups: vi.fn(),
+				end: vi.fn()
+			};
+			computePasses.push(computePass);
+			const encoder = {
+				copyTextureToTexture: vi.fn(),
+				copyBufferToBuffer: vi.fn(),
+				beginRenderPass: vi.fn(() => pass as unknown as GPURenderPassEncoder),
+				beginComputePass: vi.fn(() => computePass as unknown as GPUComputePassEncoder),
+				finish: vi.fn(() => ({}) as unknown as GPUCommandBuffer)
+			};
+			commandEncoders.push(encoder);
+			return encoder as unknown as GPUCommandEncoder;
+		}),
 		addEventListener: vi.fn((type: string, handler: (event: { error: Error }) => void) => {
 			if (type === 'uncapturederror') {
 				uncapturedErrorHandler = handler;
@@ -1036,9 +1036,7 @@ describe('createRenderer', () => {
 			}
 		});
 
-		const storageBuffer = runtime.buffers.find(
-			(b) => (b.descriptor.usage & 128) !== 0
-		);
+		const storageBuffer = runtime.buffers.find((b) => (b.descriptor.usage & 128) !== 0);
 		expect(storageBuffer).toBeDefined();
 		expect(storageBuffer!.descriptor.size).toBe(1024);
 		expect(storageBuffer!.descriptor.usage & 128).toBe(128); // STORAGE
@@ -1060,9 +1058,7 @@ describe('createRenderer', () => {
 		});
 
 		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
-		const storageBuffer = runtime.buffers.find(
-			(b) => (b.descriptor.usage & 128) !== 0
-		);
+		const storageBuffer = runtime.buffers.find((b) => (b.descriptor.usage & 128) !== 0);
 		const storageWriteCall = writeBufferCalls.find(
 			(call) => call[0] === (storageBuffer as unknown as GPUBuffer)
 		);
@@ -1082,9 +1078,7 @@ describe('createRenderer', () => {
 			}
 		});
 
-		const storageBuffers = runtime.buffers.filter(
-			(b) => (b.descriptor.usage & 128) !== 0
-		);
+		const storageBuffers = runtime.buffers.filter((b) => (b.descriptor.usage & 128) !== 0);
 		expect(storageBuffers).toHaveLength(2);
 
 		renderer.destroy();
@@ -1098,9 +1092,7 @@ describe('createRenderer', () => {
 		const runtime = createWebGpuRuntime();
 		const renderer = await createRenderer(baseOptions(runtime));
 
-		const storageBuffers = runtime.buffers.filter(
-			(b) => (b.descriptor.usage & 128) !== 0
-		);
+		const storageBuffers = runtime.buffers.filter((b) => (b.descriptor.usage & 128) !== 0);
 		expect(storageBuffers).toHaveLength(0);
 
 		renderer.destroy();
@@ -1123,19 +1115,13 @@ describe('createRenderer', () => {
 			renderMode: 'always',
 			uniforms: {},
 			textures: {},
-			pendingStorageWrites: [
-				{ name: 'particles', data: writeData, offset: 16 }
-			]
+			pendingStorageWrites: [{ name: 'particles', data: writeData, offset: 16 }]
 		});
 
-		const storageBuffer = runtime.buffers.find(
-			(b) => (b.descriptor.usage & 128) !== 0
-		);
+		const storageBuffer = runtime.buffers.find((b) => (b.descriptor.usage & 128) !== 0);
 		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
 		const pendingWriteCall = writeBufferCalls.find(
-			(call) =>
-				call[0] === (storageBuffer as unknown as GPUBuffer) &&
-				call[1] === 16
+			(call) => call[0] === (storageBuffer as unknown as GPUBuffer) && call[1] === 16
 		);
 		expect(pendingWriteCall).toBeDefined();
 

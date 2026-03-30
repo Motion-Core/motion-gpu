@@ -401,27 +401,27 @@ export async function loadTextureFromUrl(
 			? await createImageBitmap(blob)
 			: await createImageBitmap(blob, bitmapOptions);
 
-			if (normalized.signal?.aborted) {
-				bitmap.close();
-				throw createAbortError();
-			}
+		if (normalized.signal?.aborted) {
+			bitmap.close();
+			throw createAbortError();
+		}
 
-			let disposed = false;
-			const loaded: LoadedTexture = {
-				url,
-				source: bitmap,
-				width: bitmap.width,
-				height: bitmap.height,
-				colorSpace: normalized.colorSpace,
-				dispose: () => {
-					if (disposed) {
-						return;
-					}
-					disposed = true;
-					bitmap?.close();
-					bitmap = null;
+		let disposed = false;
+		const loaded: LoadedTexture = {
+			url,
+			source: bitmap,
+			width: bitmap.width,
+			height: bitmap.height,
+			colorSpace: normalized.colorSpace,
+			dispose: () => {
+				if (disposed) {
+					return;
 				}
-			};
+				disposed = true;
+				bitmap?.close();
+				bitmap = null;
+			}
+		};
 
 		if (normalized.update !== undefined) {
 			loaded.update = normalized.update;

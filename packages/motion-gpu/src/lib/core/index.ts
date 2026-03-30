@@ -9,7 +9,13 @@ export { createCurrentWritable } from './current-value.js';
 export { createFrameRegistry } from './frame-registry.js';
 export { createMotionGPURuntimeLoop } from './runtime-loop.js';
 export { loadTexturesFromUrls } from './texture-loader.js';
-export { BlitPass, CopyPass, ShaderPass, ComputePass, PingPongComputePass } from '../passes/index.js';
+export {
+	BlitPass,
+	CopyPass,
+	ShaderPass,
+	ComputePass,
+	PingPongComputePass
+} from '../passes/index.js';
 export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
 export type {
 	MotionGPUErrorCode,
@@ -84,8 +90,5 @@ export type {
 	StorageBufferType,
 	ComputePassContext
 } from './types.js';
-export type {
-	ComputePassOptions,
-	ComputeDispatchContext
-} from '../passes/ComputePass.js';
+export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
 export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';

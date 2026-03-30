@@ -3,7 +3,10 @@ import { createRenderer } from '../../lib/core/renderer';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
 import type { TextureDefinitionMap } from '../../lib/core/types';
 import { normalizeTextureDefinition } from '../../lib/core/textures';
-import { buildComputeStorageTextureBindings, buildComputeShaderSource } from '../../lib/core/compute-shader';
+import {
+	buildComputeStorageTextureBindings,
+	buildComputeShaderSource
+} from '../../lib/core/compute-shader';
 
 // ── Mock WebGPU runtime ───────────────────────────────────────────────────────
 
@@ -241,7 +244,8 @@ describe('storage textures', () => {
 	describe('buildComputeShaderSource', () => {
 		it('includes storage texture bindings in full compute shader', () => {
 			const source = buildComputeShaderSource({
-				compute: '@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
+				compute:
+					'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 				uniformLayout: resolveUniformLayout({}),
 				storageBufferKeys: [],
 				storageBufferDefinitions: {},
@@ -254,7 +258,8 @@ describe('storage textures', () => {
 
 		it('generates valid WGSL with both storage buffers and storage textures', () => {
 			const source = buildComputeShaderSource({
-				compute: '@compute @workgroup_size(256)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
+				compute:
+					'@compute @workgroup_size(256)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 				uniformLayout: resolveUniformLayout({ uTime: { type: 'f32', value: 0 } }),
 				storageBufferKeys: ['particles'],
 				storageBufferDefinitions: {
@@ -542,9 +547,7 @@ describe('storage textures', () => {
 			expect(computePassInstance).toBeDefined();
 
 			const setBindGroupCalls = computePassInstance.setBindGroup.mock.calls;
-			const group2Call = setBindGroupCalls.find(
-				(call: unknown[]) => call[0] === 2
-			);
+			const group2Call = setBindGroupCalls.find((call: unknown[]) => call[0] === 2);
 			expect(group2Call).toBeDefined();
 		});
 
@@ -582,9 +585,7 @@ describe('storage textures', () => {
 			const computePassInstance = encoder.beginComputePass.mock.results[0]?.value;
 
 			const setBindGroupCalls = computePassInstance.setBindGroup.mock.calls;
-			const group2Call = setBindGroupCalls.find(
-				(call: unknown[]) => call[0] === 2
-			);
+			const group2Call = setBindGroupCalls.find((call: unknown[]) => call[0] === 2);
 			// Group 2 should NOT be bound when there are no storage textures
 			expect(group2Call).toBeUndefined();
 		});
@@ -697,9 +698,7 @@ describe('storage textures', () => {
 			// Both should have group 2 bound
 			for (let i = 0; i < 2; i++) {
 				const cp = encoder.beginComputePass.mock.results[i]?.value;
-				const group2 = cp.setBindGroup.mock.calls.find(
-					(c: unknown[]) => c[0] === 2
-				);
+				const group2 = cp.setBindGroup.mock.calls.find((c: unknown[]) => c[0] === 2);
 				expect(group2).toBeDefined();
 			}
 		});

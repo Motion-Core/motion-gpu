@@ -237,16 +237,36 @@ export async function resolve_local(specifier: string) {
 const LOCAL_MOTIONGPU_PKG_URL = `${location.origin}/motion-gpu/package.json`;
 let local_motiongpu_pkg: Promise<any>;
 
+function pick_resolved_entry(
+	resolved: string | readonly string[] | undefined | void,
+	specifier: string,
+	subpath: string
+): string {
+	const value = Array.isArray(resolved) ? resolved[0] : resolved;
+	if (typeof value !== 'string' || value.length === 0) {
+		throw new Error(
+			`No matched export path was found for "${subpath}" while resolving "${specifier}" in "@motion-core/motion-gpu"`
+		);
+	}
+	return value;
+}
+
 export async function resolve_local_motiongpu(specifier: string) {
 	const pkg = await (local_motiongpu_pkg ??= fetch(LOCAL_MOTIONGPU_PKG_URL).then((r) => r.json()));
 
 	// specifier is like '@motion-core/motion-gpu/svelte' -> subpath './svelte'
-	const subpath = specifier.replace('@motion-core/motion-gpu', '.') || '.';
+	let subpath = specifier.replace('@motion-core/motion-gpu', '.') || '.';
+	// Normalize accidental trailing slash: "./" should resolve like "."
+	if (subpath === './') subpath = '.';
 
-	const resolved = resolve.exports(pkg, subpath, {
-		browser: true,
-		conditions: ['svelte', 'module', 'browser', 'development']
-	})![0] as string;
+	const resolved = pick_resolved_entry(
+		resolve.exports(pkg, subpath, {
+			browser: true,
+			conditions: ['svelte', 'module', 'browser', 'development', 'import', 'default']
+		}),
+		specifier,
+		subpath
+	);
 
 	// resolved is like './dist/svelte/index.js' -> serve from /motion-gpu/dist/svelte/index.js
 	// Strip leading './' and prefix with origin

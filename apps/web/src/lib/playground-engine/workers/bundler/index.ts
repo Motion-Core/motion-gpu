@@ -191,9 +191,18 @@ async function get_bundle(
 				return await resolve_local(importee);
 			}
 
-			// Always resolve @motion-core/motion-gpu from local workspace
-			if (pkg_name === '@motion-core/motion-gpu') {
-				return await resolve_local_motiongpu(importee);
+			// Resolve local workspace package only in development.
+			// In deployed runtimes (e.g. Cloudflare Workers), local filesystem-backed
+			// package serving may be unavailable, so we fall back to npm resolution.
+			if (pkg_name === '@motion-core/motion-gpu' && DEV) {
+				try {
+					return await resolve_local_motiongpu(importee);
+				} catch (error) {
+					console.warn(
+						`[bundler] Failed to resolve local @motion-core/motion-gpu for "${importee}", falling back to npm resolution`,
+						error
+					);
+				}
 			}
 
 			let default_version = 'latest';

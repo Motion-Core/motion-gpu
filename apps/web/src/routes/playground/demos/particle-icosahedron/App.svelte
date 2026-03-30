@@ -8,7 +8,7 @@
 	import Runtime from './runtime.svelte';
 
 	const FACE_COUNT = 20;
-	const PARTICLES_PER_FACE = 30400;
+	const PARTICLES_PER_FACE = 24000;
 	const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
 	const FLOATS_PER_PARTICLE = 6;
 	const BUFFER_SIZE = PARTICLE_COUNT * FLOATS_PER_PARTICLE * 4;

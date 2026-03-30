@@ -80,6 +80,10 @@ Motion GPU follows a simple three-step flow:
   - `BlitPass`
   - `CopyPass`
 
+- GPU compute passes:
+  - `ComputePass` — single-dispatch GPU compute workloads
+  - `PingPongComputePass` — iterative multi-step simulations with texture A/B alternation
+
 - Named render targets for multi-pass pipelines
 - Structured error normalization with built-in overlay UI and custom renderer support
 - Advanced runtime API for namespaced shared user context and scheduler presets
@@ -100,6 +104,8 @@ Motion GPU follows a simple three-step flow:
 - `ShaderPass`
 - `BlitPass`
 - `CopyPass`
+- `ComputePass`
+- `PingPongComputePass`
 
 Also exports runtime/core types:
 
@@ -132,6 +138,8 @@ Also exports runtime/core types:
 - `ShaderPass`
 - `BlitPass`
 - `CopyPass`
+- `ComputePass`
+- `PingPongComputePass`
 
 Also exports runtime/core types:
 
@@ -167,6 +175,8 @@ Also exports runtime/core types:
 - `ShaderPass`
 - `BlitPass`
 - `CopyPass`
+- `ComputePass`
+- `PingPongComputePass`
 
 `@motion-core/motion-gpu/advanced` (and explicit alias `@motion-core/motion-gpu/core/advanced`) re-exports core plus:
 
@@ -298,6 +308,84 @@ export function Runtime() {
 
 ---
 
+## 3. Add a GPU compute pass
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+	import { FragCanvas, defineMaterial, ComputePass } from '@motion-core/motion-gpu/svelte';
+	import Runtime from './Runtime.svelte';
+
+	const material = defineMaterial({
+		fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  let idx = u32(uv.x * 255.0);
+  let particle = particles[idx];
+  return vec4f(particle.rgb, 1.0);
+}
+`,
+		storageBuffers: {
+			particles: { size: 4096, type: 'array<vec4f>', access: 'read-write' }
+		}
+	});
+
+	const simulate = new ComputePass({
+		compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  let t = motiongpuFrame.time;
+  particles[i] = vec4f(sin(t + f32(i)), cos(t + f32(i)), 0.0, 1.0);
+}
+`,
+		dispatch: [16]
+	});
+</script>
+
+<FragCanvas {material} passes={[simulate]}>
+	<Runtime />
+</FragCanvas>
+```
+
+```tsx
+import { FragCanvas, defineMaterial, ComputePass } from '@motion-core/motion-gpu/react';
+
+const material = defineMaterial({
+	fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  let idx = u32(uv.x * 255.0);
+  let particle = particles[idx];
+  return vec4f(particle.rgb, 1.0);
+}
+`,
+	storageBuffers: {
+		particles: { size: 4096, type: 'array<vec4f>', access: 'read-write' }
+	}
+});
+
+const simulate = new ComputePass({
+	compute: `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+  let i = id.x;
+  let t = motiongpuFrame.time;
+  particles[i] = vec4f(sin(t + f32(i)), cos(t + f32(i)), 0.0, 1.0);
+}
+`,
+	dispatch: [16]
+});
+
+export function App() {
+	return (
+		<div style={{ width: '100vw', height: '100vh' }}>
+			<FragCanvas material={material} passes={[simulate]} />
+		</div>
+	);
+}
+```
+
+---
+
 # Core Runtime Model
 
 ## Material Phase (compile-time contract)
@@ -309,6 +397,7 @@ export function Runtime() {
 - Texture declarations
 - Compile-time `defines`
 - Shader `includes`
+- Storage buffer declarations
 
 A deterministic material signature is generated from resolved shader/layout metadata.
 
@@ -320,6 +409,8 @@ Inside `useFrame(...)` callbacks you update per-frame values:
 
 - `state.setUniform(name, value)`
 - `state.setTexture(name, value)`
+- `state.writeStorageBuffer(name, data, { offset? })`
+- `state.readStorageBuffer(name)` — returns `Promise<ArrayBuffer>`
 - `state.invalidate(token?)`
 - `state.advance()`
 
@@ -366,6 +457,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 7. Render passes cannot read from `input: 'canvas'`.
 
 8. `maxDelta` and profiling window must be finite and greater than `0`.
+
+9. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
+
+10. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
+
+11. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+
+12. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
 
 ---
 

@@ -112,6 +112,21 @@ fn frag(uv: vec2f) -> vec4f {
 
 	let time = 0;
 	const textures = useTexture(() => [image]);
+	let previousImage: string | null = null;
+
+	$effect(() => {
+		if (previousImage === null) {
+			previousImage = image;
+			return;
+		}
+
+		if (image === previousImage) {
+			return;
+		}
+
+		previousImage = image;
+		void textures.reload();
+	});
 
 	useFrame((state) => {
 		time += state.delta * speed;

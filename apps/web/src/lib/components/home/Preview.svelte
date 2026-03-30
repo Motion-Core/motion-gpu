@@ -14,18 +14,16 @@
 	>
 		<div class="card h-full rounded-lg bg-background">
 			<div class="h-full w-full overflow-hidden rounded-lg bg-black dark:bg-background">
-				{#key themeStore.isDark}
-					<GlassPane
-						image={themeStore.isDark ? '/night.png' : '/day.png'}
-						class="mix-blend-lighten"
-						distortion={0.2}
-						chromaticAberration={0.0035}
-						waviness={0.0}
-						speed={0}
-						rods={5}
-						aria-hidden="true"
-					/>
-				{/key}
+				<GlassPane
+					image={themeStore.isDark ? '/night.png' : '/day.png'}
+					class="mix-blend-lighten"
+					distortion={0.2}
+					chromaticAberration={0.0035}
+					waviness={0.0}
+					speed={0}
+					rods={5}
+					aria-hidden="true"
+				/>
 			</div>
 		</div>
 	</div>

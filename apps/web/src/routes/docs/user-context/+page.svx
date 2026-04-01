@@ -3,25 +3,18 @@ title: User Context
 description: Advanced read/write API for namespaced, reactive shared state within the MotionGPU runtime.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 `useMotionGPUUserContext` + `setMotionGPUUserContext` provide a split read/write API for **namespaced, reactive shared state** within the MotionGPU runtime. In React, `useSetMotionGPUUserContext` provides a context-bound setter for effect and event-handler writes.
 
 This hook is exported from the **advanced entrypoint**:
 
-```ts
-// Svelte
-import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
-
-// React
-import {
-  setMotionGPUUserContext,
-  useMotionGPUUserContext,
-  useSetMotionGPUUserContext
-} from '@motion-core/motion-gpu/react/advanced';
-```
+<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} svelteLang="ts" reactLang="ts" />
 
 The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
-
-Examples below use Svelte syntax. React uses the same read API, and should use `useSetMotionGPUUserContext()` for writes in effects and handlers.
 
 ## Why use user context?
 
@@ -118,55 +111,15 @@ setMotionGPUUserContext('config', () => ({
 
 ### Consuming shared state
 
-```svelte
-<script lang="ts">
-  import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
+<FrameworkBlock svelteCode={ex.consumeSharedStateSvelte} reactCode={ex.consumeSharedStateReact} />
 
-  type Config = { quality: string; debugGrid: boolean };
-  const config = useMotionGPUUserContext<Config>('config');
+### Effect/event writes
 
-  useFrame((state) => {
-    if (config.current?.debugGrid) {
-      // Apply debug grid logic
-    }
-  });
-
-  function setMedium() {
-    setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
-  }
-</script>
-```
-
-### React effect/event writes
-
-```tsx
-import { useSetMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
-
-function ConfigButton() {
-  const setUserContext = useSetMotionGPUUserContext();
-
-  return (
-    <button
-      onClick={() => {
-        setUserContext('config', { quality: 'medium' }, { existing: 'merge' });
-      }}
-    >
-      Medium
-    </button>
-  );
-}
-```
+<FrameworkBlock svelteCode={ex.reactEffectWritesSvelte} reactCode={ex.reactEffectWritesReact} />
 
 ### Full context read
 
-```svelte
-<script lang="ts">
-  import { useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
-
-  const ctx = useMotionGPUUserContext();
-</script>
-```
+<FrameworkBlock svelteCode={ex.fullContextReadSvelte} reactCode={ex.fullContextReadReact} />
 
 ## Under the hood
 

@@ -3,9 +3,14 @@ title: Compute Shaders
 description: Running GPU compute workloads with ComputePass, PingPongComputePass, and storage buffers.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 MotionGPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes run in the render graph alongside render passes, giving you GPU-accelerated parallel computation for particle systems, physics simulations, image processing, and more.
 
-Examples below use Svelte syntax. The same pass constructors are framework-agnostic and available from all entrypoints.
+The pass constructors are framework-agnostic and available from all entrypoints.
 
 ## Overview
 
@@ -200,9 +205,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 });
 ```
 
-```svelte
-<FragCanvas {material} passes={[simulate]} />
-```
+<FrameworkBlock svelteCode={ex.fragCanvasWithComputeSvelte} reactCode={ex.fragCanvasWithComputeReact} svelteLang="svelte" reactLang="tsx" />
 
 The compute pass runs first, updating the `particles` buffer. The fragment shader then reads the updated data for visualization.
 

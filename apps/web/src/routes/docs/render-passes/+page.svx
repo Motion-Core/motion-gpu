@@ -3,11 +3,16 @@ title: Render Passes
 description: Building post-processing pipelines with the render graph and built-in pass types.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, the three built-in render pass types, and two compute pass types.
 
 For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders).
 
-Examples below use Svelte syntax for `<FragCanvas>`, but pass constructors are framework-agnostic and can be imported from root/core entrypoints.
+Pass constructors are framework-agnostic and can be imported from root/core entrypoints.
 
 ## Render graph model
 
@@ -17,9 +22,7 @@ When you add passes to `FragCanvas`, the renderer builds an execution plan:
 2. Each **pass** reads from an input slot, processes the image, and writes to an output slot.
 3. After all passes execute, the **final output** is presented to the canvas (direct if output is `canvas`, otherwise via blit from `source`, `target`, or named target).
 
-```svelte
-<FragCanvas {material} passes={[passA, passB, passC]} />
-```
+<FrameworkBlock svelteCode={`<FragCanvas {material} passes={[passA, passB, passC]} />`} reactCode={`<FragCanvas material={material} passes={[passA, passB, passC]} />`} svelteLang="svelte" reactLang="tsx" />
 
 Without any passes, the base shader renders directly to the canvas.
 
@@ -236,9 +239,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 });
 ```
 
-```svelte
-<FragCanvas {material} passes={[bloomPrefilter, gamma]} />
-```
+<FrameworkBlock svelteCode={ex.multiPassSvelte} reactCode={ex.multiPassReact} svelteLang="svelte" reactLang="tsx" />
 
 ## RenderPassContext
 
@@ -297,9 +298,7 @@ const diffuse = new PingPongComputePass({
 
 Compute and render passes coexist in the `passes` array:
 
-```svelte
-<FragCanvas {material} passes={[simulate, bloomPrefilter, gamma]} />
-```
+<FrameworkBlock svelteCode={ex.computePassSvelte} reactCode={ex.computePassReact} svelteLang="svelte" reactLang="tsx" />
 
 Compute passes dispatch their workgroups **before** the scene render, so storage textures and buffers are up-to-date when the fragment shader samples them. Render passes execute **after** the scene as post-processing steps. All passes share the same command encoder.
 

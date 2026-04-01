@@ -3,6 +3,11 @@ title: Textures
 description: Declaring textures, configuring samplers, and managing runtime texture updates.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 This page covers texture declarations in `defineMaterial`, the runtime texture value forms, update modes, upload behavior, mipmap generation, and sampler configuration.
 
 For loading textures from URLs, see [Loading Textures](/docs/texture-loading).
@@ -67,21 +72,7 @@ You can set texture sources at definition time or at runtime via `state.setTextu
 
 ### Example: setting a texture from a video
 
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  let video: HTMLVideoElement;
-
-  useFrame((state) => {
-    if (video && video.readyState >= 2) {
-      state.setTexture('uVideo', video);
-    }
-  });
-</script>
-
-<video bind:this={video} src="/assets/loop.mp4" autoplay loop muted playsinline />
-```
+<FrameworkBlock svelteCode={ex.videoTextureSvelte} reactCode={ex.videoTextureReact} />
 
 Because the source is an `HTMLVideoElement`, the update mode is automatically set to `perFrame`.
 

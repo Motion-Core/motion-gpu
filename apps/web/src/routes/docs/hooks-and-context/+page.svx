@@ -3,23 +3,20 @@ title: Hooks & Context
 description: Accessing runtime state and controlling rendering with useMotionGPU and context hooks.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 This page covers the `useMotionGPU()` hook for accessing the runtime context, the `CurrentWritable` pattern for synchronous value access, and recommended integration patterns.
 
 For advanced user-defined context, see [User Context (Advanced)](/docs/user-context).
-
-Examples below use Svelte syntax. React exposes the same runtime hook from `@motion-core/motion-gpu/react`.
 
 ## useMotionGPU()
 
 `useMotionGPU()` returns the `MotionGPUContext` — the primary API for reading runtime state and controlling rendering from within `FragCanvas` children.
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-</script>
-```
+<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} />
 
 Must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
 
@@ -105,55 +102,12 @@ const value = gpu.maxDelta.current; // Instant, no subscription
 
 ### Reading canvas size
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-  const gpu = useMotionGPU();
-</script>
-
-<p>Canvas: {$gpu.size.width}×{$gpu.size.height} @ {$gpu.dpr}x</p>
-```
+<FrameworkBlock svelteCode={ex.readSizeSvelte} reactCode={ex.readSizeReact} />
 
 ### Conditional rendering control
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-  const gpu = useMotionGPU();
-
-  function togglePause() {
-    gpu.autoRender.set(!gpu.autoRender.current);
-  }
-</script>
-
-<button onclick={togglePause}>
-  {$gpu.autoRender ? 'Pause' : 'Resume'}
-</button>
-```
+<FrameworkBlock svelteCode={ex.togglePauseSvelte} reactCode={ex.togglePauseReact} />
 
 ### On-demand with external triggers
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-
-  $effect(() => {
-    gpu.renderMode.set('on-demand');
-  });
-
-  $effect(() => {
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-
-    const handler = () => gpu.invalidate();
-    canvas.addEventListener('pointermove', handler);
-    return () => canvas.removeEventListener('pointermove', handler);
-  });
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-  }, { autoInvalidate: false });
-</script>
-```
+<FrameworkBlock svelteCode={ex.onDemandExternalSvelte} reactCode={ex.onDemandExternalReact} />

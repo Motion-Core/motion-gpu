@@ -3,11 +3,14 @@ title: Render Modes
 description: Controlling when the canvas re-renders always, on-demand, or manual.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 This page covers the three render modes (`always`, `on-demand`, `manual`), the stage API for organizing task execution, dependency ordering, and the profiling/diagnostics system.
 
 For the `useFrame` API, see [Frame Scheduler](/docs/frame-scheduler).
-
-Examples below use Svelte syntax. React exposes the same runtime controls via `@motion-core/motion-gpu/react`.
 
 ## Render modes
 
@@ -17,9 +20,7 @@ Examples below use Svelte syntax. React exposes the same runtime controls via `@
 
 Renders every frame via `requestAnimationFrame`, as long as `autoRender` is `true`.
 
-```svelte
-<FragCanvas {material} renderMode="always" />
-```
+<FrameworkBlock svelteCode={ex.alwaysSvelte} reactCode={ex.alwaysReact} svelteLang="svelte" reactLang="tsx" />
 
 Best for: continuous animations, simulations, video textures.
 
@@ -27,21 +28,9 @@ Best for: continuous animations, simulations, video textures.
 
 Renders only when something triggers an invalidation or `advance()` is called.
 
-```svelte
-<FragCanvas {material} renderMode="on-demand" />
-```
+<FrameworkBlock svelteCode={ex.onDemandSvelte} reactCode={ex.onDemandReact} svelteLang="svelte" reactLang="tsx" />
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-
-  function handlePointerMove() {
-    gpu.invalidate();
-  }
-</script>
-```
+<FrameworkBlock svelteCode={ex.onDemandInvalidateSvelte} reactCode={ex.onDemandInvalidateReact} />
 
 Invalidation sources:
 - `gpu.invalidate()` / `state.invalidate()` from user code
@@ -55,19 +44,7 @@ Best for: interactive UIs, data visualization, infrequent updates.
 
 Renders only after an explicit `advance()` call.
 
-```svelte
-<script lang="ts">
-  import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-
-  function captureFrame() {
-    gpu.advance();
-  }
-</script>
-
-<button onclick={captureFrame}>Render one frame</button>
-```
+<FrameworkBlock svelteCode={ex.manualSvelte} reactCode={ex.manualReact} />
 
 Best for: frame-by-frame capture, testing, server-side rendering scenarios.
 
@@ -185,9 +162,7 @@ This is useful for debugging task ordering and verifying dependency resolution.
 - **Must be**: finite and `> 0`
 - **Configurable via**: `FragCanvas` prop or `gpu.maxDelta.set(value)`
 
-```svelte
-<FragCanvas {material} maxDelta={0.05} />
-```
+<FrameworkBlock svelteCode={ex.maxDeltaSvelte} reactCode={ex.maxDeltaReact} svelteLang="svelte" reactLang="tsx" />
 
 ## Diagnostics and profiling
 
@@ -199,53 +174,49 @@ const scheduler = gpu.scheduler;
 // Enable timing collection
 scheduler.setDiagnosticsEnabled(true);
 
-// After a frame, read the last run timings
+// Read last frame's timings
 const timings = scheduler.getLastRunTimings();
-// { total: 0.42, stages: [...] } or null if disabled
+// { stages: { ... }, tasks: { ... } }
 ```
 
-### Profiling (rolling history)
+### Profiling (rolling window)
 
 ```ts
-// Enable rolling profiling
+// Enable rolling profiling (default window: 60 frames)
 scheduler.setProfilingEnabled(true);
-scheduler.setProfilingWindow(120); // Track last 120 frames
+scheduler.setProfilingWindow(120); // 2-second window at 60fps
 
 // Read aggregate stats
 const snapshot = scheduler.getProfilingSnapshot();
-// {
-//   window: 120,
-//   frameCount: 120,
-//   total: { last, avg, min, max, count },
-//   stages: { ... }
-// }
+// { stages: { ... }, tasks: { ... } }
 
 // Reset history
 scheduler.resetProfiling();
 ```
 
-### Advanced scheduler helpers
+### Advanced preset
 
-For common tuning profiles and one-call debug capture, use the advanced entrypoint:
+For convenience, `applySchedulerPreset` applies a named configuration:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+import { applySchedulerPreset } from '@motion-core/motion-gpu/advanced';
 
-const scheduler = gpu.scheduler;
+applySchedulerPreset(gpu.scheduler, 'diagnostics');
+applySchedulerPreset(gpu.scheduler, 'profiling');
+applySchedulerPreset(gpu.scheduler, 'off');
+```
 
-// Presets: 'performance' | 'balanced' | 'debug'
-applySchedulerPreset(scheduler, 'balanced');
-applySchedulerPreset(scheduler, 'debug', { profilingWindow: 300 });
+### Debug snapshot
+
+`captureSchedulerDebugSnapshot` returns a full serializable snapshot of the scheduler state:
+
+```ts
+import { captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
 
 const debugSnapshot = captureSchedulerDebugSnapshot(scheduler);
 // {
-//   diagnosticsEnabled,
-//   profilingEnabled,
-//   profilingWindow,
-//   schedule,
-//   lastRunTimings,
-//   profilingSnapshot
+//   schedule: { stages: ... },
+//   timings: { ... },
+//   profiling: { ... }
 // }
 ```
-
-Both diagnostics and profiling share the same underlying timing measurement in the current runtime implementation. `setDiagnosticsEnabled(false)` clears timing state, and `applySchedulerPreset(...)` keeps diagnostics/profiling toggles aligned.

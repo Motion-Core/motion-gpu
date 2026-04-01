@@ -3,23 +3,18 @@ title: Frame Scheduler
 description: Managing per-frame logic, task ordering, and invalidation with the useFrame API.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 The frame scheduler manages all per-frame logic in MotionGPU. Every `useFrame` callback is registered as a **task** with ordering constraints and an invalidation policy. This page covers the `useFrame` API in depth.
 
 For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs/render-modes).
 
-Examples below use Svelte syntax. React exposes the same hook API from `@motion-core/motion-gpu/react`.
-
 ## Basic usage
 
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} />
 
 `useFrame` must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
 
@@ -87,34 +82,7 @@ The `state` parameter passed to your callback provides everything you need for p
 
 ### Example: complete runtime component
 
-```svelte
-<script lang="ts">
-  import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
-
-  const gpu = useMotionGPU();
-  let mouseX = 0.5;
-  let mouseY = 0.5;
-
-  $effect(() => {
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-
-    const onMove = (e: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouseX = (e.clientX - rect.left) / rect.width;
-      mouseY = 1.0 - (e.clientY - rect.top) / rect.height;
-    };
-
-    canvas.addEventListener('pointermove', onMove);
-    return () => canvas.removeEventListener('pointermove', onMove);
-  });
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-    state.setUniform('uMouse', [mouseX, mouseY]);
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.completeRuntimeSvelte} reactCode={ex.completeRuntimeReact} />
 
 ## UseFrameOptions
 

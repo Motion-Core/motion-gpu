@@ -5,11 +5,11 @@ description: Step-by-step guide to installing MotionGPU and building your first 
 
 <script lang="ts">
 	import InstallationTabs from '$lib/components/docs/InstallationTabs.svelte';
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
 </script>
 
 This guide walks you through installing MotionGPU and building your first fullscreen shader, step by step. By the end, you will understand the core `defineMaterial` → `FragCanvas` → `useFrame` workflow.
-
-Examples below use Svelte syntax. The same runtime APIs are available in React via `@motion-core/motion-gpu/react`.
 
 ## Prerequisites
 
@@ -28,24 +28,7 @@ Adapter peer dependencies are optional and only required for the adapter you use
 
 The simplest possible setup — a fullscreen UV gradient with no animation:
 
-```svelte
-<!-- App.svelte -->
-<script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
-
-  const material = defineMaterial({
-    fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  return vec4f(uv.x, uv.y, 0.2, 1.0);
-}
-`
-  });
-</script>
-
-<div style="width: 100vw; height: 100vh;">
-  <FragCanvas {material} />
-</div>
-```
+<FrameworkBlock svelteCode={ex.step1Svelte} reactCode={ex.step1React} />
 
 **What is happening here:**
 
@@ -58,40 +41,9 @@ fn frag(uv: vec2f) -> vec4f {
 
 To animate your shader, you need a `uniform` and a `useFrame` callback. Because `useFrame` must run inside the `FragCanvas` context, you put it in a **child component**:
 
-```svelte
-<!-- App.svelte -->
-<script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
-  import Runtime from './Runtime.svelte';
+<FrameworkBlock svelteCode={ex.step2AppSvelte} reactCode={ex.step2AppReact} />
 
-  const material = defineMaterial({
-    fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let wave = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
-  return vec4f(vec3f(wave), 1.0);
-}
-`,
-    uniforms: {
-      uTime: { type: 'f32', value: 0 }
-    }
-  });
-</script>
-
-<FragCanvas {material}>
-  <Runtime />
-</FragCanvas>
-```
-
-```svelte
-<!-- Runtime.svelte -->
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.step2RuntimeSvelte} reactCode={ex.step2RuntimeReact} />
 
 **What is happening here:**
 

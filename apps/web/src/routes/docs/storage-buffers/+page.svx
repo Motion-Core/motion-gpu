@@ -3,6 +3,11 @@ title: Storage Buffers
 description: Declaring, writing, and reading GPU storage buffers for compute and fragment shaders.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 Storage buffers are GPU-side data arrays that compute shaders can read and write, and fragment shaders can read. They are the primary mechanism for passing structured data between the CPU, compute pipeline, and rendering pipeline.
 
 ## Declaring storage buffers
@@ -67,28 +72,7 @@ Fragment shaders always access storage buffers as `var<storage, read>` regardles
 
 Use `state.writeStorageBuffer()` inside `useFrame` to upload data from the CPU to a GPU storage buffer:
 
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  const positions = new Float32Array(1024);
-
-  useFrame((state) => {
-    // Update positions on CPU
-    for (let i = 0; i < positions.length; i += 4) {
-      positions[i] = Math.random();
-      positions[i + 1] = Math.random();
-    }
-
-    // Upload to GPU
-    state.writeStorageBuffer('particles', positions);
-
-    // Partial write with offset (in bytes)
-    const subset = new Float32Array([1.0, 2.0, 3.0, 4.0]);
-    state.writeStorageBuffer('particles', subset, { offset: 64 });
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.writeBufferSvelte} reactCode={ex.writeBufferReact} />
 
 ### Validation
 
@@ -102,17 +86,7 @@ Writes are batched as **pending storage writes** and flushed to the GPU at the s
 
 Use `state.readStorageBuffer()` to asynchronously read GPU buffer data back to the CPU:
 
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  useFrame(async (state) => {
-    const buffer = await state.readStorageBuffer('particles');
-    const data = new Float32Array(buffer);
-    console.log('First particle:', data[0], data[1], data[2], data[3]);
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.readBufferSvelte} reactCode={ex.readBufferReact} />
 
 ### How readback works
 

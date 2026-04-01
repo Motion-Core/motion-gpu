@@ -3,6 +3,11 @@ title: Error Handling
 description: Understanding the error normalization pipeline, structured reports, and diagnostics.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
 
 Examples below use Svelte syntax. React uses the same runtime error contracts via `@motion-core/motion-gpu/react`.
@@ -127,51 +132,15 @@ By default, `FragCanvas` displays runtime errors through the adapter overlay com
 
 ### Minimal error handling
 
-```svelte
-<FragCanvas
-  {material}
-  onError={(report) => {
-    console.error(
-      `[${report.code}] (${report.severity}) [${report.phase}] ${report.title}: ${report.message}`
-    );
-    if (report.hint) console.info(`Hint: ${report.hint}`);
-  }}
-  showErrorOverlay={false}
-/>
-```
+<FrameworkBlock svelteCode={ex.minimalErrorSvelte} reactCode={ex.minimalErrorReact} svelteLang="svelte" reactLang="tsx" />
 
 ### Error history callbacks
 
-```svelte
-<FragCanvas
-  {material}
-  errorHistoryLimit={10}
-  onErrorHistory={(history) => {
-    const latest = history[history.length - 1];
-    if (!latest) return;
-    console.info(`Recent errors: ${history.length}, latest code: ${latest.code}`);
-  }}
-/>
-```
+<FrameworkBlock svelteCode={ex.errorHistorySvelte} reactCode={ex.errorHistoryReact} svelteLang="svelte" reactLang="tsx" />
 
 ### Custom error renderer
 
-```svelte
-{#snippet myErrorRenderer(report)}
-  <aside class="error-banner">
-    <strong>{report.title}</strong>
-    <p>{report.message}</p>
-  </aside>
-{/snippet}
-
-<FragCanvas
-  {material}
-  errorRenderer={myErrorRenderer}
-  onError={(report) => {
-    console.error(report);
-  }}
-/>
-```
+<FrameworkBlock svelteCode={ex.customRendererSvelte} reactCode={ex.customRendererReact} svelteLang="svelte" reactLang="tsx" />
 
 ## Shader compile diagnostics
 

@@ -3,34 +3,27 @@ title: FragCanvas Reference
 description: Complete prop reference and usage guide for the main FragCanvas component.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using MotionGPU in both Svelte and React.
 
 ## Import
 
-```ts
-// Svelte
-import { FragCanvas } from '@motion-core/motion-gpu/svelte';
-
-// React
-import { FragCanvas } from '@motion-core/motion-gpu/react';
-```
+<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} svelteLang="ts" reactLang="ts" />
 
 ## Usage
 
-```svelte
-<FragCanvas
-  material={myMaterial}
-  clearColor={[0, 0, 0, 1]}
-  outputColorSpace="srgb"
-  renderMode="always"
-  passes={[vignettePass]}
-  onError={handleError}
->
-  <Runtime />
-</FragCanvas>
-```
+<FrameworkBlock
+  svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+  reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+  svelteLang="svelte"
+  reactLang="tsx"
+/>
 
-React uses the same runtime prop names (`material`, `passes`, `renderMode`, `onError`, etc.). Adapter-specific naming differences (`class` vs `className`, `style` type, `children` type) are listed below.
+Adapter-specific naming differences (`class` vs `className`, `style` type, `children` type) are listed below.
 
 ## Props
 
@@ -107,35 +100,6 @@ The physical size (GPU resolution) is `containerSize × dpr`.
 
 ## Example: full configuration
 
-```svelte
-<FragCanvas
-  material={material}
-  clearColor={[0.05, 0.05, 0.1, 1]}
-  outputColorSpace="srgb"
-  renderMode="on-demand"
-  autoRender={true}
-  maxDelta={0.05}
-  dpr={2}
-  passes={[tonePass, vignettePass]}
-  renderTargets={{ halfRes: { scale: 0.5 } }}
-  adapterOptions={{ powerPreference: 'high-performance' }}
-  showErrorOverlay={true}
-  errorRenderer={myErrorRenderer}
-  onError={(report) => sendToTelemetry(report)}
-  errorHistoryLimit={20}
-  onErrorHistory={(history) => sendErrorHistory(history)}
-  class="my-canvas-container"
-  style="border-radius: 12px; overflow: hidden;"
->
-  <Runtime />
-</FragCanvas>
-```
+<FrameworkBlock svelteCode={ex.fullConfigSvelte} reactCode={ex.fullConfigReact} svelteLang="svelte" reactLang="tsx" />
 
-```svelte
-{#snippet myErrorRenderer(report)}
-  <aside class="my-error-banner">
-    <strong>{report.title}</strong>
-    <p>{report.message}</p>
-  </aside>
-{/snippet}
-```
+<FrameworkBlock svelteCode={ex.errorSnippetSvelte} reactCode={ex.errorSnippetReact} svelteLang="svelte" reactLang="tsx" />

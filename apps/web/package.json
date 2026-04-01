@@ -37,7 +37,7 @@
 		"predev": "bun run docs:changelog",
 		"dev": "vite dev",
 		"prebuild": "bun run docs:changelog",
-		"build": "vite build && node ./scripts/patch-cloudflare-worker-wasm.mjs",
+		"build": "vite build",
 		"preview": "vite preview",
 		"preview:cf": "bun run build && wrangler dev",
 		"preview:cf:remote": "bun run build && wrangler dev --remote",
@@ -66,7 +66,6 @@
 		"@rollup/browser": "^4.59.0",
 		"@sveltejs/acorn-typescript": "^1.0.9",
 		"@motion-core/motion-gpu": "workspace:*",
-		"@resvg/resvg-wasm": "^2.6.2",
 		"acorn": "^8.16.0",
 		"carbon-icons-svelte": "^13.9.0",
 		"class-variance-authority": "^0.7.1",
@@ -76,10 +75,9 @@
 		"gsap": "^3.14.2",
 		"magic-string": "^0.30.21",
 		"resolve.exports": "^2.0.3",
-		"satori": "^0.25.0",
-		"satori-html": "^0.3.2",
 		"tarparser": "^0.0.5",
 		"zimmerframe": "^1.1.4",
-		"tailwind-merge": "^3.5.0"
+		"tailwind-merge": "^3.5.0",
+		"@takumi-rs/image-response": "1.0.0-rc.12"
 	}
 }

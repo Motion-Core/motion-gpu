@@ -7,11 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added structured compute-stage shader diagnostics metadata (`shaderStage`, `computeSource`, compute-line source mapping) in the error diagnostics payload.
 - Added compute-source snippet support in normalized error reports for compute shader compilation failures.
 - Added dedicated compute diagnostics tests (`compute-diagnostics.test.ts`) including measurable classification/completeness assertions.
+- Added compute storage bind-group cache unit tests (`compute-bindgroup-cache.test.ts`) and renderer integration assertions for stable-frame allocation behavior.
+- Added runtime benchmark metric `compute_storage_bindgroup_creations_per_1000_frames` to track compute storage bind-group allocation pressure.
 
 ### Changed
 - Updated compute shader codegen with mapped variants (`buildComputeShaderSourceWithMap`, `buildPingPongComputeShaderSourceWithMap`) to preserve generated→source line metadata.
 - Updated renderer compute pipeline error handling to wrap compute pipeline creation failures as structured diagnostics with runtime context.
 - Expanded compute-focused test coverage across compute shader generation and renderer integration paths.
+- Updated renderer compute dispatch path to cache storage buffer/storage texture bind-group layouts and bind groups, invalidating only when topology or bound resources change.
+- Updated ping-pong compute binding flow to reuse prebuilt A→B / B→A bind groups instead of creating a new bind group every iteration.
 
 ### Fixed
 - Improved compute-stage error normalization so diagnostics-backed compute failures consistently map to `COMPUTE_COMPILATION_FAILED`.

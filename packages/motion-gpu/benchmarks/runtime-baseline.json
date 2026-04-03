@@ -9,6 +9,7 @@
 		"manual_idle_scheduler_hz": 0,
 		"manual_idle_render_hz": 0,
 		"manual_advance_scheduler_hz": 58.20489120896612,
-		"manual_advance_render_hz": 58.20489120896612
+		"manual_advance_render_hz": 58.20489120896612,
+		"compute_storage_bindgroup_creations_per_1000_frames": 4
 	}
 }

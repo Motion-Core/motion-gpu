@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { chromium, type Page } from '@playwright/test';
+import { createComputeStorageBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache.js';
 
 const HARNESS_URL = 'http://127.0.0.1:4175/?scenario=perf';
 const SERVER_URL = 'http://127.0.0.1:4175';
@@ -23,6 +24,7 @@ const MODE_SAMPLE_MS = 4_000;
 const IDLE_SETTLE_MS = 700;
 const MANUAL_ADVANCE_DURATION_MS = 4_000;
 const MANUAL_ADVANCE_INTERVAL_MS = 16;
+const COMPUTE_STORAGE_SAMPLE_FRAMES = 1_000;
 
 const METRIC_RULES = {
 	always_scheduler_hz: { direction: 'higher', maxRegressionPct: 18 },
@@ -32,7 +34,11 @@ const METRIC_RULES = {
 	manual_idle_scheduler_hz: { direction: 'lower', maxRegressionPct: 30 },
 	manual_idle_render_hz: { direction: 'lower', maxRegressionPct: 30 },
 	manual_advance_scheduler_hz: { direction: 'higher', maxRegressionPct: 20 },
-	manual_advance_render_hz: { direction: 'higher', maxRegressionPct: 20 }
+	manual_advance_render_hz: { direction: 'higher', maxRegressionPct: 20 },
+	compute_storage_bindgroup_creations_per_1000_frames: {
+		direction: 'lower',
+		maxRegressionPct: 25
+	}
 } as const;
 
 type MetricKey = keyof typeof METRIC_RULES;
@@ -60,6 +66,7 @@ interface RuntimeBenchmarkDocument {
 		idleSettleMs: number;
 		manualAdvanceDurationMs: number;
 		manualAdvanceIntervalMs: number;
+		computeStorageSampleFrames: number;
 	};
 	metrics: MetricMap;
 	samples: {
@@ -67,6 +74,12 @@ interface RuntimeBenchmarkDocument {
 		onDemandIdle: ModeSample;
 		manualIdle: ModeSample;
 		manualAdvance: ModeSample & { pulses: number };
+		computeStorage: {
+			frames: number;
+			bindGroupLayoutCreations: number;
+			bindGroupCreations: number;
+			creationsPer1000Frames: number;
+		};
 	};
 }
 
@@ -341,6 +354,78 @@ function formatNumber(value: number): string {
 	return value.toFixed(2);
 }
 
+function sampleComputeStorageBindGroupCreations(frames: number): {
+	frames: number;
+	bindGroupLayoutCreations: number;
+	bindGroupCreations: number;
+	creationsPer1000Frames: number;
+} {
+	let bindGroupLayoutCreations = 0;
+	let bindGroupCreations = 0;
+
+	const device = {
+		createBindGroupLayout: (descriptor: GPUBindGroupLayoutDescriptor) => {
+			void descriptor;
+			bindGroupLayoutCreations += 1;
+			return {} as GPUBindGroupLayout;
+		},
+		createBindGroup: (descriptor: GPUBindGroupDescriptor) => {
+			void descriptor;
+			bindGroupCreations += 1;
+			return {} as GPUBindGroup;
+		}
+	} as GPUDevice;
+
+	const storageBufferCache = createComputeStorageBindGroupCache(device);
+	const storageTextureCache = createComputeStorageBindGroupCache(device);
+
+	const storageBuffer = {} as GPUBuffer;
+	const storageTextureView = {} as GPUTextureView;
+	const bufferLayoutEntries: GPUBindGroupLayoutEntry[] = [
+		{
+			binding: 0,
+			visibility: 0x20,
+			buffer: { type: 'storage' }
+		}
+	];
+	const textureLayoutEntries: GPUBindGroupLayoutEntry[] = [
+		{
+			binding: 0,
+			visibility: 0x20,
+			storageTexture: {
+				access: 'write-only',
+				format: 'rgba8unorm',
+				viewDimension: '2d'
+			}
+		}
+	];
+
+	for (let frame = 0; frame < frames; frame += 1) {
+		storageBufferCache.getOrCreate({
+			topologyKey: 'data:read-write',
+			layoutEntries: bufferLayoutEntries,
+			bindGroupEntries: [{ binding: 0, resource: { buffer: storageBuffer } }],
+			resourceRefs: [storageBuffer]
+		});
+		storageTextureCache.getOrCreate({
+			topologyKey: 'computeOutput:rgba8unorm',
+			layoutEntries: textureLayoutEntries,
+			bindGroupEntries: [{ binding: 0, resource: storageTextureView }],
+			resourceRefs: [storageTextureView]
+		});
+	}
+
+	const creationsPer1000Frames =
+		((bindGroupLayoutCreations + bindGroupCreations) / Math.max(1, frames)) * 1_000;
+
+	return {
+		frames,
+		bindGroupLayoutCreations,
+		bindGroupCreations,
+		creationsPer1000Frames
+	};
+}
+
 async function maybeReadBaseline(): Promise<RuntimeBaselineDocument | null> {
 	try {
 		const raw = await readFile(BASELINE_PATH, 'utf8');
@@ -402,6 +487,9 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 		await page.waitForTimeout(IDLE_SETTLE_MS);
 		const manualIdleSample = await sampleMode(page, MODE_SAMPLE_MS);
 		const manualAdvanceSample = await sampleManualAdvance(page);
+		const computeStorageSample = sampleComputeStorageBindGroupCreations(
+			COMPUTE_STORAGE_SAMPLE_FRAMES
+		);
 
 		const metrics: MetricMap = {
 			always_scheduler_hz: alwaysSample.schedulerHz,
@@ -411,7 +499,9 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 			manual_idle_scheduler_hz: manualIdleSample.schedulerHz,
 			manual_idle_render_hz: manualIdleSample.renderHz,
 			manual_advance_scheduler_hz: manualAdvanceSample.schedulerHz,
-			manual_advance_render_hz: manualAdvanceSample.renderHz
+			manual_advance_render_hz: manualAdvanceSample.renderHz,
+			compute_storage_bindgroup_creations_per_1000_frames:
+				computeStorageSample.creationsPer1000Frames
 		};
 
 		return {
@@ -426,14 +516,16 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 				modeSampleMs: MODE_SAMPLE_MS,
 				idleSettleMs: IDLE_SETTLE_MS,
 				manualAdvanceDurationMs: MANUAL_ADVANCE_DURATION_MS,
-				manualAdvanceIntervalMs: MANUAL_ADVANCE_INTERVAL_MS
+				manualAdvanceIntervalMs: MANUAL_ADVANCE_INTERVAL_MS,
+				computeStorageSampleFrames: COMPUTE_STORAGE_SAMPLE_FRAMES
 			},
 			metrics,
 			samples: {
 				always: alwaysSample,
 				onDemandIdle: onDemandIdleSample,
 				manualIdle: manualIdleSample,
-				manualAdvance: manualAdvanceSample
+				manualAdvance: manualAdvanceSample,
+				computeStorage: computeStorageSample
 			}
 		};
 	} finally {

@@ -1227,6 +1227,180 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
+	it('reuses compute storage buffer bind group layout and bind group across stable frames', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: `@compute @workgroup_size(64) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			dispatch: [4, 1, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 256, type: 'array<f32>' }
+			},
+			passes: [computePass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const storageLayoutsAfterFirst = runtime.device.createBindGroupLayout.mock.calls
+			.map((call) => call[0] as { entries?: Array<{ buffer?: { type?: string } }> })
+			.filter((descriptor) =>
+				descriptor.entries?.every(
+					(entry) => typeof entry.buffer?.type === 'string' && entry.buffer.type === 'storage'
+				)
+			);
+
+		const storageBindGroupsAfterFirst = runtime.device.createBindGroup.mock.calls
+			.map(
+				(call) =>
+					call[0] as {
+						entries?: Array<{ resource?: { buffer?: GPUBuffer } }>;
+					}
+			)
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					typeof descriptor.entries[0]?.resource === 'object' &&
+					descriptor.entries[0]?.resource !== null &&
+					'buffer' in descriptor.entries[0]!.resource!
+			);
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const storageLayoutsAfterSecond = runtime.device.createBindGroupLayout.mock.calls
+			.map((call) => call[0] as { entries?: Array<{ buffer?: { type?: string } }> })
+			.filter((descriptor) =>
+				descriptor.entries?.every(
+					(entry) => typeof entry.buffer?.type === 'string' && entry.buffer.type === 'storage'
+				)
+			);
+
+		const storageBindGroupsAfterSecond = runtime.device.createBindGroup.mock.calls
+			.map(
+				(call) =>
+					call[0] as {
+						entries?: Array<{ resource?: { buffer?: GPUBuffer } }>;
+					}
+			)
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					typeof descriptor.entries[0]?.resource === 'object' &&
+					descriptor.entries[0]?.resource !== null &&
+					'buffer' in descriptor.entries[0]!.resource!
+			);
+
+		expect(storageLayoutsAfterSecond).toHaveLength(storageLayoutsAfterFirst.length);
+		expect(storageBindGroupsAfterSecond).toHaveLength(storageBindGroupsAfterFirst.length);
+
+		renderer.destroy();
+	});
+
+	it('reuses compute storage texture bind group layout and bind group across stable frames', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8, 1) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			dispatch: [2, 2, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageTextureKeys: ['computeOutput'],
+			textureKeys: ['computeOutput'],
+			textureDefinitions: {
+				computeOutput: {
+					storage: true,
+					format: 'rgba8unorm',
+					width: 8,
+					height: 8
+				}
+			},
+			passes: [computePass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const storageTextureLayoutsAfterFirst = runtime.device.createBindGroupLayout.mock.calls
+			.map(
+				(call) =>
+					call[0] as { entries?: Array<{ storageTexture?: { access?: string; format?: string } }> }
+			)
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					descriptor.entries[0]?.storageTexture?.access === 'write-only' &&
+					descriptor.entries[0]?.storageTexture?.format === 'rgba8unorm'
+			);
+
+		const storageTextureBindGroupsAfterFirst = runtime.device.createBindGroup.mock.calls
+			.map((call) => call[0] as { entries?: Array<{ resource?: unknown }> })
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					typeof descriptor.entries[0]?.resource === 'object' &&
+					descriptor.entries[0]?.resource !== null &&
+					'textureDescriptor' in (descriptor.entries[0]!.resource as Record<string, unknown>)
+			);
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const storageTextureLayoutsAfterSecond = runtime.device.createBindGroupLayout.mock.calls
+			.map(
+				(call) =>
+					call[0] as { entries?: Array<{ storageTexture?: { access?: string; format?: string } }> }
+			)
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					descriptor.entries[0]?.storageTexture?.access === 'write-only' &&
+					descriptor.entries[0]?.storageTexture?.format === 'rgba8unorm'
+			);
+
+		const storageTextureBindGroupsAfterSecond = runtime.device.createBindGroup.mock.calls
+			.map((call) => call[0] as { entries?: Array<{ resource?: unknown }> })
+			.filter(
+				(descriptor) =>
+					descriptor.entries?.length === 1 &&
+					typeof descriptor.entries[0]?.resource === 'object' &&
+					descriptor.entries[0]?.resource !== null &&
+					'textureDescriptor' in (descriptor.entries[0]!.resource as Record<string, unknown>)
+			);
+
+		expect(storageTextureLayoutsAfterSecond).toHaveLength(storageTextureLayoutsAfterFirst.length);
+		expect(storageTextureBindGroupsAfterSecond).toHaveLength(
+			storageTextureBindGroupsAfterFirst.length
+		);
+
+		renderer.destroy();
+	});
+
 	it('attaches structured diagnostics when compute shader compilation fails', async () => {
 		const runtime = createWebGpuRuntime();
 		runtime.device.createComputePipeline.mockImplementation(() => {

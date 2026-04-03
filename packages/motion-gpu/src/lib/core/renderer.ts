@@ -23,6 +23,7 @@ import {
 	extractWorkgroupSize,
 	storageTextureSampleScalarType
 } from './compute-shader.js';
+import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import type {
 	AnyPass,
@@ -109,6 +110,8 @@ interface PingPongTexturePair {
 	textureB: GPUTexture;
 	viewB: GPUTextureView;
 	bindGroupLayout: GPUBindGroupLayout;
+	readAWriteBBindGroup: GPUBindGroup | null;
+	readBWriteABindGroup: GPUBindGroup | null;
 }
 
 /**
@@ -280,7 +283,7 @@ function toComputeCompilationError(input: {
 	const baseError =
 		input.error instanceof Error ? input.error : new Error(String(input.error ?? 'Unknown error'));
 	const generatedLine = extractGeneratedLineFromComputeError(baseError.message) ?? 0;
-	const sourceLocation = generatedLine > 0 ? input.lineMap[generatedLine] ?? null : null;
+	const sourceLocation = generatedLine > 0 ? (input.lineMap[generatedLine] ?? null) : null;
 	const diagnostics = [
 		{
 			generatedLine,
@@ -843,6 +846,45 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			return runtimeBinding;
 		});
+		const textureBindingByKey = new Map(textureBindings.map((binding) => [binding.key, binding]));
+
+		const computeStorageBufferLayoutEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map(
+			(key, index) => {
+				const def = storageBufferDefinitions[key];
+				const access = def?.access ?? 'read-write';
+				const bufferType: GPUBufferBindingType =
+					access === 'read' ? 'read-only-storage' : 'storage';
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					buffer: { type: bufferType }
+				};
+			}
+		);
+		const computeStorageBufferTopologyKey = storageBufferKeys
+			.map((key) => `${key}:${storageBufferDefinitions[key]?.access ?? 'read-write'}`)
+			.join('|');
+
+		const computeStorageTextureLayoutEntries: GPUBindGroupLayoutEntry[] = storageTextureKeys.map(
+			(key, index) => {
+				const config = normalizedTextureDefinitions[key];
+				return {
+					binding: index,
+					visibility: GPUShaderStage.COMPUTE,
+					storageTexture: {
+						access: 'write-only' as GPUStorageTextureAccess,
+						format: (config?.format ?? 'rgba8unorm') as GPUTextureFormat,
+						viewDimension: '2d'
+					}
+				};
+			}
+		);
+		const computeStorageTextureTopologyKey = storageTextureKeys
+			.map((key) => `${key}:${normalizedTextureDefinitions[key]?.format ?? 'rgba8unorm'}`)
+			.join('|');
+
+		const computeStorageBufferBindGroupCache = createComputeStorageBindGroupCache(device);
+		const computeStorageTextureBindGroupCache = createComputeStorageBindGroupCache(device);
 
 		const bindGroupLayout = device.createBindGroupLayout({
 			entries: createBindGroupLayoutEntries(textureBindings)
@@ -1041,7 +1083,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				viewA: textureA.createView(),
 				textureB,
 				viewB: textureB.createView(),
-				bindGroupLayout
+				bindGroupLayout,
+				readAWriteBBindGroup: null,
+				readBWriteABindGroup: null
 			};
 			pingPongTexturePairs.set(target, pair);
 			return pair;
@@ -1129,20 +1173,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				]
 			});
 
-			const storageBGLEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map((key, index) => {
-				const def = storageBufferDefinitions[key];
-				const access = def?.access ?? 'read-write';
-				const bufferType: GPUBufferBindingType =
-					access === 'read' ? 'read-only-storage' : 'storage';
-				return {
-					binding: index,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: { type: bufferType }
-				};
-			});
 			const storageBGL =
-				storageBGLEntries.length > 0
-					? device.createBindGroupLayout({ entries: storageBGLEntries })
+				computeStorageBufferLayoutEntries.length > 0
+					? device.createBindGroupLayout({ entries: computeStorageBufferLayoutEntries })
 					: null;
 
 			const storageTextureBGLEntries: GPUBindGroupLayoutEntry[] = isPingPongPipeline
@@ -1168,18 +1201,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 							}
 						}
 					]
-				: storageTextureKeys.map((key, index) => {
-						const texDef = options.textureDefinitions[key];
-						return {
-							binding: index,
-							visibility: GPUShaderStage.COMPUTE,
-							storageTexture: {
-								access: 'write-only' as GPUStorageTextureAccess,
-								format: (texDef?.format ?? 'rgba8unorm') as GPUTextureFormat,
-								viewDimension: '2d'
-							}
-						};
-					});
+				: computeStorageTextureLayoutEntries;
 			const storageTextureBGL =
 				storageTextureBGLEntries.length > 0
 					? device.createBindGroupLayout({ entries: storageTextureBGLEntries })
@@ -1236,63 +1258,49 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		// Helper to get the storage bind group for dispatch
 		const getComputeStorageBindGroup = (): GPUBindGroup | null => {
-			if (storageBufferKeys.length === 0) {
+			if (computeStorageBufferLayoutEntries.length === 0) {
 				return null;
 			}
-			// Rebuild bind group with current storage buffers
-			const storageBGLEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map((key, index) => {
-				const def = storageBufferDefinitions[key];
-				const access = def?.access ?? 'read-write';
-				const bufferType: GPUBufferBindingType =
-					access === 'read' ? 'read-only-storage' : 'storage';
-				return {
-					binding: index,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: { type: bufferType }
-				};
-			});
-			const storageBGL = device.createBindGroupLayout({ entries: storageBGLEntries });
-			const storageEntries: GPUBindGroupEntry[] = storageBufferKeys.map((key, index) => {
+			const resources: GPUBuffer[] = storageBufferKeys.map((key) => {
 				const buffer = storageBufferMap.get(key);
 				if (!buffer) {
 					throw new Error(`Storage buffer "${key}" not allocated.`);
 				}
+				return buffer;
+			});
+			const storageEntries: GPUBindGroupEntry[] = resources.map((buffer, index) => {
 				return { binding: index, resource: { buffer } };
 			});
-			return device.createBindGroup({
-				layout: storageBGL,
-				entries: storageEntries
+			return computeStorageBufferBindGroupCache.getOrCreate({
+				topologyKey: computeStorageBufferTopologyKey,
+				layoutEntries: computeStorageBufferLayoutEntries,
+				bindGroupEntries: storageEntries,
+				resourceRefs: resources
 			});
 		};
 
 		// Helper to get the storage texture bind group for compute dispatch (group 2)
 		const getComputeStorageTextureBindGroup = (): GPUBindGroup | null => {
-			if (storageTextureKeys.length === 0) {
+			if (computeStorageTextureLayoutEntries.length === 0) {
 				return null;
 			}
-			const entries: GPUBindGroupLayoutEntry[] = storageTextureKeys.map((key, index) => {
-				const texDef = options.textureDefinitions[key];
-				return {
-					binding: index,
-					visibility: GPUShaderStage.COMPUTE,
-					storageTexture: {
-						access: 'write-only' as GPUStorageTextureAccess,
-						format: (texDef?.format ?? 'rgba8unorm') as GPUTextureFormat,
-						viewDimension: '2d' as GPUTextureViewDimension
-					}
-				};
-			});
-			const bgl = device.createBindGroupLayout({ entries });
-
-			const bgEntries: GPUBindGroupEntry[] = storageTextureKeys.map((key, index) => {
-				const binding = textureBindings.find((b) => b.key === key);
+			const resources: GPUTextureView[] = storageTextureKeys.map((key) => {
+				const binding = textureBindingByKey.get(key);
 				if (!binding || !binding.texture) {
 					throw new Error(`Storage texture "${key}" not allocated.`);
 				}
-				return { binding: index, resource: binding.view };
+				return binding.view;
+			});
+			const bgEntries: GPUBindGroupEntry[] = resources.map((view, index) => {
+				return { binding: index, resource: view };
 			});
 
-			return device.createBindGroup({ layout: bgl, entries: bgEntries });
+			return computeStorageTextureBindGroupCache.getOrCreate({
+				topologyKey: computeStorageTextureTopologyKey,
+				layoutEntries: computeStorageTextureLayoutEntries,
+				bindGroupEntries: bgEntries,
+				resourceRefs: resources
+			});
 		};
 
 		// Helper to get ping-pong storage texture bind group for compute dispatch (group 2)
@@ -1301,15 +1309,28 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			readFromA: boolean
 		): GPUBindGroup => {
 			const pair = ensurePingPongTexturePair(target);
-			const readView = readFromA ? pair.viewA : pair.viewB;
-			const writeView = readFromA ? pair.viewB : pair.viewA;
-			return device.createBindGroup({
-				layout: pair.bindGroupLayout,
-				entries: [
-					{ binding: 0, resource: readView },
-					{ binding: 1, resource: writeView }
-				]
-			});
+			if (readFromA) {
+				if (!pair.readAWriteBBindGroup) {
+					pair.readAWriteBBindGroup = device.createBindGroup({
+						layout: pair.bindGroupLayout,
+						entries: [
+							{ binding: 0, resource: pair.viewA },
+							{ binding: 1, resource: pair.viewB }
+						]
+					});
+				}
+				return pair.readAWriteBBindGroup;
+			}
+			if (!pair.readBWriteABindGroup) {
+				pair.readBWriteABindGroup = device.createBindGroup({
+					layout: pair.bindGroupLayout,
+					entries: [
+						{ binding: 0, resource: pair.viewB },
+						{ binding: 1, resource: pair.viewA }
+					]
+				});
+			}
+			return pair.readBWriteABindGroup;
 		};
 
 		const frameBuffer = device.createBuffer({

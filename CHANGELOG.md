@@ -3,6 +3,18 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added structured compute-stage shader diagnostics metadata (`shaderStage`, `computeSource`, compute-line source mapping) in the error diagnostics payload.
+- Added compute-source snippet support in normalized error reports for compute shader compilation failures.
+- Added dedicated compute diagnostics tests (`compute-diagnostics.test.ts`) including measurable classification/completeness assertions.
+
+### Changed
+- Updated compute shader codegen with mapped variants (`buildComputeShaderSourceWithMap`, `buildPingPongComputeShaderSourceWithMap`) to preserve generated→source line metadata.
+- Updated renderer compute pipeline error handling to wrap compute pipeline creation failures as structured diagnostics with runtime context.
+- Expanded compute-focused test coverage across compute shader generation and renderer integration paths.
+
+### Fixed
+- Improved compute-stage error normalization so diagnostics-backed compute failures consistently map to `COMPUTE_COMPILATION_FAILED`.
 
 ## [0.5.0] - 2026-03-30
 ### Added

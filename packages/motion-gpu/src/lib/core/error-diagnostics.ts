@@ -11,6 +11,13 @@ export interface MaterialSourceMetadata {
 	functionName?: string;
 }
 
+export interface ComputeSourceLocation {
+	kind: 'compute';
+	line: number;
+}
+
+export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocation;
+
 /**
  * One WGSL compiler diagnostic enriched with source-location metadata.
  */
@@ -19,7 +26,7 @@ export interface ShaderCompilationDiagnostic {
 	message: string;
 	linePos?: number;
 	lineLength?: number;
-	sourceLocation: MaterialSourceLocation | null;
+	sourceLocation: ShaderSourceLocation | null;
 }
 
 /**
@@ -41,8 +48,10 @@ export interface ShaderCompilationRuntimeContext {
  */
 export interface ShaderCompilationDiagnosticsPayload {
 	kind: 'shader-compilation';
+	shaderStage?: 'fragment' | 'compute';
 	diagnostics: ShaderCompilationDiagnostic[];
 	fragmentSource: string;
+	computeSource?: string;
 	includeSources: Record<string, string>;
 	defineBlockSource?: string;
 	materialSource: MaterialSourceMetadata | null;
@@ -78,7 +87,7 @@ function isMaterialSourceMetadata(value: unknown): value is MaterialSourceMetada
 	return true;
 }
 
-function isMaterialSourceLocation(value: unknown): value is MaterialSourceLocation | null {
+function isShaderSourceLocation(value: unknown): value is ShaderSourceLocation | null {
 	if (value === null) {
 		return true;
 	}
@@ -89,7 +98,7 @@ function isMaterialSourceLocation(value: unknown): value is MaterialSourceLocati
 
 	const record = value as Record<string, unknown>;
 	const kind = record.kind;
-	if (kind !== 'fragment' && kind !== 'include' && kind !== 'define') {
+	if (kind !== 'fragment' && kind !== 'include' && kind !== 'define' && kind !== 'compute') {
 		return false;
 	}
 
@@ -114,7 +123,7 @@ function isShaderCompilationDiagnostic(value: unknown): value is ShaderCompilati
 	if (record.lineLength !== undefined && typeof record.lineLength !== 'number') {
 		return false;
 	}
-	if (!isMaterialSourceLocation(record.sourceLocation)) {
+	if (!isShaderSourceLocation(record.sourceLocation)) {
 		return false;
 	}
 
@@ -192,12 +201,22 @@ export function getShaderCompilationDiagnostics(
 		return null;
 	}
 	if (
+		record.shaderStage !== undefined &&
+		record.shaderStage !== 'fragment' &&
+		record.shaderStage !== 'compute'
+	) {
+		return null;
+	}
+	if (
 		!Array.isArray(record.diagnostics) ||
 		!record.diagnostics.every(isShaderCompilationDiagnostic)
 	) {
 		return null;
 	}
 	if (typeof record.fragmentSource !== 'string') {
+		return null;
+	}
+	if (record.computeSource !== undefined && typeof record.computeSource !== 'string') {
 		return null;
 	}
 	if (record.defineBlockSource !== undefined && typeof record.defineBlockSource !== 'string') {
@@ -222,8 +241,14 @@ export function getShaderCompilationDiagnostics(
 
 	return {
 		kind: 'shader-compilation',
+		...(record.shaderStage !== undefined
+			? { shaderStage: record.shaderStage as 'fragment' | 'compute' }
+			: {}),
 		diagnostics: record.diagnostics as ShaderCompilationDiagnostic[],
 		fragmentSource: record.fragmentSource,
+		...(record.computeSource !== undefined
+			? { computeSource: record.computeSource as string }
+			: {}),
 		includeSources: includeSources as Record<string, string>,
 		...(record.defineBlockSource !== undefined
 			? { defineBlockSource: record.defineBlockSource as string }

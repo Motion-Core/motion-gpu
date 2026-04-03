@@ -1227,6 +1227,73 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
+	it('attaches structured diagnostics when compute shader compilation fails', async () => {
+		const runtime = createWebGpuRuntime();
+		runtime.device.createComputePipeline.mockImplementation(() => {
+			throw new Error('WGSL validation error: line 17: unknown symbol BAD_VALUE');
+		});
+
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: [
+				'@compute @workgroup_size(64, 1, 1)',
+				'fn compute(@builtin(global_invocation_id) id: vec3u) {',
+				'\tlet idx = id.x;',
+				'\tif (idx < arrayLength(&data)) {',
+				'\t\tdata[idx] = BAD_VALUE;',
+				'\t}',
+				'}'
+			].join('\n'),
+			dispatch: [4, 1, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 256, type: 'array<f32>' }
+			},
+			passes: [computePass as unknown as RenderPass]
+		});
+
+		let thrown: unknown = null;
+		try {
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(thrown).toBeInstanceOf(Error);
+		expect((thrown as Error).message).toContain('Compute shader compilation failed');
+
+		const diagnostics = getShaderCompilationDiagnostics(thrown);
+		expect(diagnostics).not.toBeNull();
+		expect(diagnostics?.shaderStage).toBe('compute');
+		expect(diagnostics?.computeSource).toContain('BAD_VALUE');
+		expect(diagnostics?.diagnostics[0]?.sourceLocation).toMatchObject({ kind: 'compute' });
+		expect(
+			(diagnostics?.diagnostics[0]?.sourceLocation as { line?: number } | null)?.line ?? 0
+		).toBeGreaterThan(0);
+		expect(diagnostics?.diagnostics[0]?.generatedLine).toBe(17);
+		expect(diagnostics?.runtimeContext).toEqual({
+			passGraph: {
+				passCount: 1,
+				enabledPassCount: 1,
+				inputs: [],
+				outputs: []
+			},
+			activeRenderTargets: []
+		});
+
+		renderer.destroy();
+	});
+
 	it('dispatches ping-pong compute iterations with alternating read/write bind groups', async () => {
 		const runtime = createWebGpuRuntime();
 		const resolveDispatch = vi.fn(() => [1, 1, 1] as [number, number, number]);

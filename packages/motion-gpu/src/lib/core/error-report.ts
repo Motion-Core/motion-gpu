@@ -211,6 +211,19 @@ function buildSourceFromDiagnostics(error: unknown): MotionGPUErrorSource | null
 		};
 	}
 
+	if (location.kind === 'compute') {
+		const computeSource = diagnostics.computeSource ?? diagnostics.fragmentSource;
+		const component = 'Compute shader';
+		const locationLabel = formatShaderSourceLocation(location) ?? `compute line ${location.line}`;
+		return {
+			component,
+			location: `${component} (${locationLabel})`,
+			line: location.line,
+			...(column !== undefined ? { column } : {}),
+			snippet: toSnippet(computeSource, location.line)
+		};
+	}
+
 	const defineName = location.define ?? 'unknown';
 	const defineLine = Math.max(1, location.line);
 	const component = `#define ${defineName}`;
@@ -516,7 +529,19 @@ export function toMotionGPUErrorReport(
 		error instanceof Error && error.stack
 			? splitLines(error.stack).filter((line) => line !== message)
 			: [];
-	const classification = classifyErrorMessage(rawMessage);
+	let classification = classifyErrorMessage(rawMessage);
+	if (
+		shaderDiagnostics?.shaderStage === 'compute' &&
+		classification.code === 'WGSL_COMPILATION_FAILED'
+	) {
+		classification = {
+			code: 'COMPUTE_COMPILATION_FAILED',
+			severity: 'error',
+			recoverable: true,
+			title: 'Compute shader compilation failed',
+			hint: 'Check WGSL compute shader sources below and verify storage bindings.'
+		};
+	}
 
 	return {
 		code: classification.code,

@@ -18,8 +18,8 @@ import {
 } from './textures.js';
 import { packUniformsInto } from './uniforms.js';
 import {
-	buildComputeShaderSource,
-	buildPingPongComputeShaderSource,
+	buildComputeShaderSourceWithMap,
+	buildPingPongComputeShaderSourceWithMap,
 	extractWorkgroupSize,
 	storageTextureSampleScalarType
 } from './compute-shader.js';
@@ -187,6 +187,7 @@ async function assertCompilation(
 	options?: {
 		lineMap?: ShaderLineMap;
 		fragmentSource?: string;
+		computeSource?: string;
 		includeSources?: Record<string, string>;
 		defineBlockSource?: string;
 		materialSource?: {
@@ -197,6 +198,8 @@ async function assertCompilation(
 			functionName?: string;
 		} | null;
 		runtimeContext?: ShaderCompilationRuntimeContext;
+		errorPrefix?: string;
+		shaderStage?: 'fragment' | 'compute';
 	}
 ): Promise<void> {
 	const info = await module.getCompilationInfo();
@@ -227,11 +230,14 @@ async function assertCompilation(
 			return `[${contextLabel.join(' | ')}] ${diagnostic.message}`;
 		})
 		.join('\n');
-	const error = new Error(`WGSL compilation failed:\n${summary}`);
+	const prefix = options?.errorPrefix ?? 'WGSL compilation failed';
+	const error = new Error(`${prefix}:\n${summary}`);
 	throw attachShaderCompilationDiagnostics(error, {
 		kind: 'shader-compilation',
+		...(options?.shaderStage !== undefined ? { shaderStage: options.shaderStage } : {}),
 		diagnostics,
 		fragmentSource: options?.fragmentSource ?? '',
+		...(options?.computeSource !== undefined ? { computeSource: options.computeSource } : {}),
 		includeSources: options?.includeSources ?? {},
 		...(options?.defineBlockSource !== undefined
 			? { defineBlockSource: options.defineBlockSource }
@@ -243,6 +249,64 @@ async function assertCompilation(
 
 function toSortedUniqueStrings(values: string[]): string[] {
 	return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
+function extractGeneratedLineFromComputeError(message: string): number | null {
+	const lineMatch = message.match(/\bline\s+(\d+)\b/i);
+	if (lineMatch) {
+		const parsed = Number.parseInt(lineMatch[1] ?? '', 10);
+		if (Number.isFinite(parsed) && parsed > 0) {
+			return parsed;
+		}
+	}
+
+	const colonMatch = message.match(/:(\d+):\d+/);
+	if (colonMatch) {
+		const parsed = Number.parseInt(colonMatch[1] ?? '', 10);
+		if (Number.isFinite(parsed) && parsed > 0) {
+			return parsed;
+		}
+	}
+
+	return null;
+}
+
+function toComputeCompilationError(input: {
+	error: unknown;
+	lineMap: ShaderLineMap;
+	computeSource: string;
+	runtimeContext: ShaderCompilationRuntimeContext;
+}): Error {
+	const baseError =
+		input.error instanceof Error ? input.error : new Error(String(input.error ?? 'Unknown error'));
+	const generatedLine = extractGeneratedLineFromComputeError(baseError.message) ?? 0;
+	const sourceLocation = generatedLine > 0 ? input.lineMap[generatedLine] ?? null : null;
+	const diagnostics = [
+		{
+			generatedLine,
+			message: baseError.message,
+			sourceLocation
+		}
+	];
+	const sourceLabel = formatShaderSourceLocation(sourceLocation);
+	const generatedLineLabel = generatedLine > 0 ? `generated WGSL line ${generatedLine}` : null;
+	const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
+	const summary =
+		contextLabel.length > 0
+			? `[${contextLabel.join(' | ')}] ${baseError.message}`
+			: baseError.message;
+	const wrapped = new Error(`Compute shader compilation failed:\n${summary}`);
+
+	return attachShaderCompilationDiagnostics(wrapped, {
+		kind: 'shader-compilation',
+		shaderStage: 'compute',
+		diagnostics,
+		fragmentSource: '',
+		computeSource: input.computeSource,
+		includeSources: {},
+		materialSource: null,
+		runtimeContext: input.runtimeContext
+	});
 }
 
 function buildPassGraphSnapshot(
@@ -1028,8 +1092,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const isPingPongPipeline = Boolean(
 				buildOptions.pingPongTarget && buildOptions.pingPongFormat
 			);
-			const shaderCode = isPingPongPipeline
-				? buildPingPongComputeShaderSource({
+			const builtComputeShader = isPingPongPipeline
+				? buildPingPongComputeShaderSourceWithMap({
 						compute: buildOptions.computeSource,
 						uniformLayout: options.uniformLayout,
 						storageBufferKeys,
@@ -1037,7 +1101,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						target: buildOptions.pingPongTarget!,
 						targetFormat: buildOptions.pingPongFormat!
 					})
-				: buildComputeShaderSource({
+				: buildComputeShaderSourceWithMap({
 						compute: buildOptions.computeSource,
 						uniformLayout: options.uniformLayout,
 						storageBufferKeys,
@@ -1046,7 +1110,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						storageTextureDefinitions: storageTextureDefs
 					});
 
-			const computeShaderModule = device.createShaderModule({ code: shaderCode });
+			const computeShaderModule = device.createShaderModule({ code: builtComputeShader.code });
 			const workgroupSize = extractWorkgroupSize(buildOptions.computeSource);
 
 			// Compute bind group layout: group(0)=uniforms, group(1)=storage buffers, group(2)=storage textures
@@ -1133,13 +1197,23 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			const computePipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
-			const pipeline = device.createComputePipeline({
-				layout: computePipelineLayout,
-				compute: {
-					module: computeShaderModule,
-					entryPoint: 'compute'
-				}
-			});
+			let pipeline: GPUComputePipeline;
+			try {
+				pipeline = device.createComputePipeline({
+					layout: computePipelineLayout,
+					compute: {
+						module: computeShaderModule,
+						entryPoint: 'compute'
+					}
+				});
+			} catch (error) {
+				throw toComputeCompilationError({
+					error,
+					lineMap: builtComputeShader.lineMap,
+					computeSource: buildOptions.computeSource,
+					runtimeContext
+				});
+			}
 
 			// Build uniform bind group for compute (group 0)
 			const computeUniformBindGroup = device.createBindGroup({

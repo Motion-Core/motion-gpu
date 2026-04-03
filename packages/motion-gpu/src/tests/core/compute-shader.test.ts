@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
 	assertComputeContract,
 	buildComputeShaderSource,
+	buildComputeShaderSourceWithMap,
 	buildComputeStorageBufferBindings,
 	buildComputeStorageTextureBindings,
 	buildPingPongComputeShaderSource,
+	buildPingPongComputeShaderSourceWithMap,
 	storageTextureSampleScalarType,
 	extractWorkgroupSize
 } from '../../lib/core/compute-shader';
@@ -231,6 +233,29 @@ describe('compute shader source generation', () => {
 		expect(source).toMatchSnapshot();
 	});
 
+	it('buildComputeShaderSourceWithMap maps generated lines back to user compute source', () => {
+		const built = buildComputeShaderSourceWithMap({
+			compute: validComputeShader2D,
+			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { type: 'array<vec4f>', access: 'read-write' }
+			},
+			storageTextureKeys: ['outputTex'],
+			storageTextureDefinitions: {
+				outputTex: { format: 'rgba8unorm' }
+			}
+		});
+
+		const mappedEntries = built.lineMap.filter((entry) => entry?.kind === 'compute');
+		expect(mappedEntries.length).toBe(validComputeShader2D.split('\n').length);
+		expect(mappedEntries[0]).toEqual({ kind: 'compute', line: 1 });
+		expect(mappedEntries[mappedEntries.length - 1]).toEqual({
+			kind: 'compute',
+			line: validComputeShader2D.split('\n').length
+		});
+	});
+
 	it('builds ping-pong shader bindings for targetA/targetB', () => {
 		const source = buildPingPongComputeShaderSource({
 			compute: validComputeShader2D,
@@ -250,6 +275,27 @@ describe('compute shader source generation', () => {
 		expect(source).toContain(
 			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
 		);
+	});
+
+	it('buildPingPongComputeShaderSourceWithMap maps generated lines back to user compute source', () => {
+		const built = buildPingPongComputeShaderSourceWithMap({
+			compute: validComputeShader3D,
+			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
+			storageBufferKeys: ['particles'],
+			storageBufferDefinitions: {
+				particles: { type: 'array<vec4f>', access: 'read-write' }
+			},
+			target: 'sim',
+			targetFormat: 'rgba16float'
+		});
+
+		const mappedEntries = built.lineMap.filter((entry) => entry?.kind === 'compute');
+		expect(mappedEntries.length).toBe(validComputeShader3D.split('\n').length);
+		expect(mappedEntries[0]).toEqual({ kind: 'compute', line: 1 });
+		expect(mappedEntries[mappedEntries.length - 1]).toEqual({
+			kind: 'compute',
+			line: validComputeShader3D.split('\n').length
+		});
 	});
 
 	it('maps storage format to sampled scalar type for ping-pong read binding', () => {

@@ -278,6 +278,27 @@ ${options.compute}
 }
 
 /**
+ * Source location for generated compute shader lines.
+ */
+export interface ComputeShaderSourceLocation {
+	kind: 'compute';
+	line: number;
+}
+
+/**
+ * 1-based line map from generated compute WGSL to user compute source.
+ */
+export type ComputeShaderLineMap = Array<ComputeShaderSourceLocation | null>;
+
+/**
+ * Result of compute shader source generation with line mapping metadata.
+ */
+export interface BuiltComputeShaderSource {
+	code: string;
+	lineMap: ComputeShaderLineMap;
+}
+
+/**
  * Assembles full compute shader WGSL with preamble.
  *
  * @param options - Compute shader build options.
@@ -323,4 +344,66 @@ ${storageTextureBindings ? '\n' + storageTextureBindings : ''}
 
 ${options.compute}
 `;
+}
+
+function buildComputeLineMap(generatedCode: string, userComputeSource: string): ComputeShaderLineMap {
+	const lineCount = generatedCode.split('\n').length;
+	const lineMap: ComputeShaderLineMap = new Array(lineCount + 1).fill(null);
+	const computeStartIndex = generatedCode.indexOf(userComputeSource);
+	if (computeStartIndex === -1) {
+		return lineMap;
+	}
+
+	const computeStartLine = generatedCode.slice(0, computeStartIndex).split('\n').length;
+	const computeLineCount = userComputeSource.split('\n').length;
+	for (let line = 0; line < computeLineCount; line += 1) {
+		lineMap[computeStartLine + line] = {
+			kind: 'compute',
+			line: line + 1
+		};
+	}
+
+	return lineMap;
+}
+
+/**
+ * Assembles full compute shader WGSL with source line mapping metadata.
+ */
+export function buildComputeShaderSourceWithMap(options: {
+	compute: string;
+	uniformLayout: UniformLayout;
+	storageBufferKeys: string[];
+	storageBufferDefinitions: Record<
+		string,
+		{ type: StorageBufferType; access: StorageBufferAccess }
+	>;
+	storageTextureKeys: string[];
+	storageTextureDefinitions: Record<string, { format: GPUTextureFormat }>;
+}): BuiltComputeShaderSource {
+	const code = buildComputeShaderSource(options);
+	return {
+		code,
+		lineMap: buildComputeLineMap(code, options.compute)
+	};
+}
+
+/**
+ * Assembles ping-pong compute shader WGSL with source line mapping metadata.
+ */
+export function buildPingPongComputeShaderSourceWithMap(options: {
+	compute: string;
+	uniformLayout: UniformLayout;
+	storageBufferKeys: string[];
+	storageBufferDefinitions: Record<
+		string,
+		{ type: StorageBufferType; access: StorageBufferAccess }
+	>;
+	target: string;
+	targetFormat: GPUTextureFormat;
+}): BuiltComputeShaderSource {
+	const code = buildPingPongComputeShaderSource(options);
+	return {
+		code,
+		lineMap: buildComputeLineMap(code, options.compute)
+	};
 }

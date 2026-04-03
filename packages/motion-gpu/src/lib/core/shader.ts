@@ -2,6 +2,11 @@ import { assertUniformName } from './uniforms.js';
 import type { MaterialLineMap, MaterialSourceLocation } from './material-preprocess.js';
 import type { StorageBufferType, UniformLayout } from './types.js';
 
+type ComputeShaderSourceLocation = {
+	kind: 'compute';
+	line: number;
+};
+
 /**
  * Fallback uniform field used when no custom uniforms are provided.
  */
@@ -146,7 +151,7 @@ function buildFragmentOutput(keepAliveExpression: string, enableSrgbTransform: b
 /**
  * 1-based map from generated WGSL lines to original material source lines.
  */
-export type ShaderLineMap = Array<MaterialSourceLocation | null>;
+export type ShaderLineMap = Array<(MaterialSourceLocation | ComputeShaderSourceLocation) | null>;
 
 /**
  * Result of shader source generation with line mapping metadata.
@@ -284,7 +289,9 @@ export function buildShaderSourceWithMap(
 /**
  * Converts source location metadata to user-facing diagnostics label.
  */
-export function formatShaderSourceLocation(location: MaterialSourceLocation | null): string | null {
+export function formatShaderSourceLocation(
+	location: (MaterialSourceLocation | ComputeShaderSourceLocation) | null
+): string | null {
 	if (!location) {
 		return null;
 	}
@@ -295,6 +302,10 @@ export function formatShaderSourceLocation(location: MaterialSourceLocation | nu
 
 	if (location.kind === 'include') {
 		return `include <${location.include}> line ${location.line}`;
+	}
+
+	if (location.kind === 'compute') {
+		return `compute line ${location.line}`;
 	}
 
 	return `define "${location.define}" line ${location.line}`;

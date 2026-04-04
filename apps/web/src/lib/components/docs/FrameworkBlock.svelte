@@ -13,12 +13,7 @@
 		reactLang?: string;
 	};
 
-	let {
-		svelteCode,
-		reactCode,
-		svelteLang = 'svelte',
-		reactLang = 'tsx'
-	}: Props = $props();
+	let { svelteCode, reactCode, svelteLang = 'svelte', reactLang = 'tsx' }: Props = $props();
 
 	let isReady = $state(false);
 

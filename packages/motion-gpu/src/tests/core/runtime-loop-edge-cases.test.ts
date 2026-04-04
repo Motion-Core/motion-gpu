@@ -30,6 +30,7 @@ vi.mock('../../lib/core/renderer', () => ({
 	createRenderer: createRendererMock
 }));
 
+import type { FragMaterial } from '../../lib/core/material';
 import { createMotionGPURuntimeLoop } from '../../lib/core/runtime-loop';
 
 // ---------------------------------------------------------------------------
@@ -565,6 +566,218 @@ describe('runtime-loop edge cases', () => {
 		// min(0.05, 0.1) = 0.05, so the task sees 0.05.
 		expect(observedDeltas).toHaveLength(1);
 		expect(observedDeltas[0]).toBeCloseTo(0.05, 6);
+
+		loop.destroy();
+	});
+
+	// -------------------------------------------------------------------------
+	// Error history: correct trim direction and no spread allocation (Fix B scope)
+	// -------------------------------------------------------------------------
+
+	it('retains the LAST N errors when history exceeds the limit (trim from front)', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const reportErrorHistory = vi.fn();
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }'
+		});
+
+		// Each frame throws a distinct error by using a different unknown buffer name.
+		// This bypasses deduplication so every frame adds a new entry to history.
+		let errorIndex = 0;
+		registry.register('rotating-errors-trim', (state) => {
+			state.writeStorageBuffer(`slot${errorIndex++}`, new Uint8Array(4));
+		});
+
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, material, {
+				reportError,
+				reportErrorHistory,
+				getErrorHistoryLimit: () => 3
+			})
+		);
+
+		await flushFrame(16); // renderer init
+		// Errors 0, 1, 2, 3, 4 — history limit=3, so after 5 errors only [2,3,4] remain.
+		await flushFrame(32); // error slot0 → history=[slot0]
+		loop.invalidate();
+		await flushFrame(48); // error slot1 → history=[slot0, slot1]
+		loop.invalidate();
+		await flushFrame(64); // error slot2 → history=[slot0, slot1, slot2]
+		loop.invalidate();
+		await flushFrame(80); // error slot3 → trimmed → history=[slot1, slot2, slot3]
+		loop.invalidate();
+		await flushFrame(96); // error slot4 → trimmed → history=[slot2, slot3, slot4]
+
+		const lastHistory: unknown[] =
+			reportErrorHistory.mock.calls[reportErrorHistory.mock.calls.length - 1]?.[0];
+		expect(Array.isArray(lastHistory)).toBe(true);
+		expect(lastHistory).toHaveLength(3);
+
+		// The LAST 3 errors must be slot2, slot3, slot4 — NOT slot0, slot1.
+		const messages = lastHistory.map((r) => (r as { message: string }).message);
+		expect(messages.some((m) => m.includes('slot2'))).toBe(true);
+		expect(messages.some((m) => m.includes('slot3'))).toBe(true);
+		expect(messages.some((m) => m.includes('slot4'))).toBe(true);
+		expect(messages.some((m) => m.includes('slot0'))).toBe(false);
+		expect(messages.some((m) => m.includes('slot1'))).toBe(false);
+
+		loop.destroy();
+	});
+
+	it('reduces history to the new limit when getErrorHistoryLimit shrinks mid-run', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const reportErrorHistory = vi.fn();
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }'
+		});
+
+		let errorIndex = 0;
+		let historyLimit = 5;
+
+		registry.register('rotating-errors-shrink', (state) => {
+			state.writeStorageBuffer(`entry${errorIndex++}`, new Uint8Array(4));
+		});
+
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, material, {
+				reportError,
+				reportErrorHistory,
+				getErrorHistoryLimit: () => historyLimit
+			})
+		);
+
+		await flushFrame(16);
+		// Build up 4 distinct history entries.
+		for (let i = 0; i < 4; i++) {
+			loop.invalidate();
+			await flushFrame(32 + i * 16);
+		}
+
+		// Shrink limit to 2 — syncErrorHistory should trim on next frame.
+		historyLimit = 2;
+		loop.invalidate();
+		await flushFrame(200); // success frame — triggers syncErrorHistory with new limit
+
+		const lastHistory: unknown[] =
+			reportErrorHistory.mock.calls[reportErrorHistory.mock.calls.length - 1]?.[0];
+		expect(Array.isArray(lastHistory)).toBe(true);
+		expect(lastHistory.length).toBeLessThanOrEqual(2);
+
+		loop.destroy();
+	});
+
+	// -------------------------------------------------------------------------
+	// Material hot-swap: stale key cleanup (Fix C scope)
+	// -------------------------------------------------------------------------
+
+	it('removes stale uniform keys from runtime maps after material signature change', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+
+		// First material declares uniform "speed".
+		const materialA = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			uniforms: { speed: { type: 'f32', value: 0 } }
+		});
+
+		// Second material drops "speed" and declares "brightness" instead.
+		const materialB = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			uniforms: { brightness: { type: 'f32', value: 1 } }
+		});
+
+		let currentMaterial: FragMaterial = materialA;
+
+		// Track what uniforms the renderer received per frame.
+		const renderedUniformSnapshots: string[][] = [];
+		const mockRenderer = createRenderer();
+		mockRenderer.render.mockImplementation((input: { uniforms: Record<string, unknown> }) => {
+			renderedUniformSnapshots.push(Object.keys(input.uniforms));
+		});
+		createRendererMock.mockResolvedValue(mockRenderer);
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, materialA, {
+				getMaterial: () => currentMaterial,
+				reportError
+			})
+		);
+
+		// Frame 1: renderer initialises with materialA.
+		await flushFrame(16);
+		// Frame 2: first render with materialA — "speed" should be present.
+		await flushFrame(32);
+
+		// Swap to materialB — different signature forces renderer rebuild.
+		currentMaterial = materialB;
+
+		// Frame 3: new renderer spins up for materialB.
+		await flushFrame(48);
+		// Frame 4: first render with materialB — "speed" must be absent, "brightness" present.
+		await flushFrame(64);
+
+		// Renderer rebuilt → two separate createRenderer calls.
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+
+		// After swap: renderer receives "brightness", NOT "speed".
+		const lastSnapshot = renderedUniformSnapshots[renderedUniformSnapshots.length - 1];
+		expect(lastSnapshot).toBeDefined();
+		expect(lastSnapshot).toContain('brightness');
+		expect(lastSnapshot).not.toContain('speed');
+
+		loop.destroy();
+	});
+
+	it('removes stale texture keys from runtime maps after material signature change', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+
+		const materialA = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			textures: { background: {} }
+		});
+
+		const materialB = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			textures: { overlay: {} }
+		});
+
+		let currentMaterial: FragMaterial = materialA;
+
+		const renderedTextureSnapshots: string[][] = [];
+		const mockRenderer = createRenderer();
+		mockRenderer.render.mockImplementation((input: { textures: Record<string, unknown> }) => {
+			renderedTextureSnapshots.push(Object.keys(input.textures));
+		});
+		createRendererMock.mockResolvedValue(mockRenderer);
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, materialA, {
+				getMaterial: () => currentMaterial,
+				reportError
+			})
+		);
+
+		await flushFrame(16);
+		await flushFrame(32); // materialA render — "background" present
+
+		currentMaterial = materialB;
+
+		await flushFrame(48);
+		await flushFrame(64); // materialB render — "overlay" present, "background" absent
+
+		const lastSnapshot = renderedTextureSnapshots[renderedTextureSnapshots.length - 1];
+		expect(lastSnapshot).toBeDefined();
+		expect(lastSnapshot).toContain('overlay');
+		expect(lastSnapshot).not.toContain('background');
 
 		loop.destroy();
 	});

@@ -3,6 +3,11 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Performance
+- Replaced `Reflect.deleteProperty` with the `delete` operator in `resetRuntimeMaps` and `resetRenderPayloadMaps` to reduce reflective API overhead when cleaning up stale uniform and texture keys after a material signature change.
+- Eliminated heap allocations in `setError` and `syncErrorHistory` by replacing spread-copy (`[...errorHistory, report]` / `.slice()`) with in-place `push` and `splice`, reducing GC pressure when error history is active.
+- Eliminated the conditional spread object and `splice(0)` copy in the per-frame storage-write flush path; the pending-writes array is now passed by reference and cleared in-place with `length = 0` after the synchronous `render()` call.
 ### Added
 - Added structured compute-stage shader diagnostics metadata (`shaderStage`, `computeSource`, compute-line source mapping) in the error diagnostics payload.
 - Added compute-source snippet support in normalized error reports for compute shader compilation failures.

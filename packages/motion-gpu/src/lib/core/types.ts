@@ -726,7 +726,7 @@ export interface Renderer {
 			width: number;
 			height: number;
 		};
-		pendingStorageWrites?: PendingStorageWrite[];
+		pendingStorageWrites?: PendingStorageWrite[] | undefined;
 	}) => void;
 	/**
 	 * Returns the GPU buffer for a named storage buffer, if allocated.

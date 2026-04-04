@@ -141,7 +141,7 @@ export function createMotionGPURuntimeLoop(
 			return;
 		}
 
-		errorHistory = errorHistory.slice(errorHistory.length - limit);
+		errorHistory.splice(0, errorHistory.length - limit);
 		publishErrorHistory();
 	};
 
@@ -160,9 +160,9 @@ export function createMotionGPURuntimeLoop(
 		activeErrorKey = reportKey;
 		const historyLimit = getHistoryLimit();
 		if (historyLimit > 0) {
-			errorHistory = [...errorHistory, report];
+			errorHistory.push(report);
 			if (errorHistory.length > historyLimit) {
-				errorHistory = errorHistory.slice(errorHistory.length - historyLimit);
+				errorHistory.splice(0, errorHistory.length - historyLimit);
 			}
 			publishErrorHistory();
 		}
@@ -217,13 +217,15 @@ export function createMotionGPURuntimeLoop(
 	const resetRuntimeMaps = (): void => {
 		for (const key of Object.keys(runtimeUniforms)) {
 			if (!uniformKeySet.has(key)) {
-				Reflect.deleteProperty(runtimeUniforms, key);
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+				delete runtimeUniforms[key];
 			}
 		}
 
 		for (const key of Object.keys(runtimeTextures)) {
 			if (!textureKeySet.has(key)) {
-				Reflect.deleteProperty(runtimeTextures, key);
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+				delete runtimeTextures[key];
 			}
 		}
 	};
@@ -231,13 +233,15 @@ export function createMotionGPURuntimeLoop(
 	const resetRenderPayloadMaps = (): void => {
 		for (const key of Object.keys(renderUniforms)) {
 			if (!uniformKeySet.has(key)) {
-				Reflect.deleteProperty(renderUniforms, key);
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+				delete renderUniforms[key];
 			}
 		}
 
 		for (const key of Object.keys(renderTextures)) {
 			if (!textureKeySet.has(key)) {
-				Reflect.deleteProperty(renderTextures, key);
+				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+				delete renderTextures[key];
 			}
 		}
 	};
@@ -508,10 +512,13 @@ export function createMotionGPURuntimeLoop(
 					uniforms: renderUniforms,
 					textures: renderTextures,
 					canvasSize,
-					...(pendingStorageWrites.length > 0
-						? { pendingStorageWrites: pendingStorageWrites.splice(0) }
-						: {})
+					pendingStorageWrites: pendingStorageWrites.length > 0 ? pendingStorageWrites : undefined
 				});
+				// Clear in-place after synchronous render() completes — avoids
+				// the splice(0) copy and eliminates the conditional spread object.
+				if (pendingStorageWrites.length > 0) {
+					pendingStorageWrites.length = 0;
+				}
 			}
 
 			maybeClearError(timestamp);

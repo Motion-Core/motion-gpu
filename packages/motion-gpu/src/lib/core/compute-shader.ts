@@ -346,7 +346,10 @@ ${options.compute}
 `;
 }
 
-function buildComputeLineMap(generatedCode: string, userComputeSource: string): ComputeShaderLineMap {
+function buildComputeLineMap(
+	generatedCode: string,
+	userComputeSource: string
+): ComputeShaderLineMap {
 	const lineCount = generatedCode.split('\n').length;
 	const lineMap: ComputeShaderLineMap = new Array(lineCount + 1).fill(null);
 	const computeStartIndex = generatedCode.indexOf(userComputeSource);

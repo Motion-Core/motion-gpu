@@ -108,8 +108,12 @@ describe('compute diagnostics', () => {
 			'Compute shader compilation failed:\nwrite-only violation'
 		];
 
-		const reports = scenarios.map((message) => toMotionGPUErrorReport(new Error(message), 'render'));
-		const classified = reports.filter((report) => report.code === 'COMPUTE_COMPILATION_FAILED').length;
+		const reports = scenarios.map((message) =>
+			toMotionGPUErrorReport(new Error(message), 'render')
+		);
+		const classified = reports.filter(
+			(report) => report.code === 'COMPUTE_COMPILATION_FAILED'
+		).length;
 		const coverage = classified / scenarios.length;
 
 		expect(coverage).toBe(1);
@@ -130,9 +134,12 @@ describe('compute diagnostics', () => {
 						}
 					],
 					fragmentSource: '',
-					computeSource: ['@compute @workgroup_size(8)', 'fn compute(id: vec3u) {', '\tBROKEN;', '}'].join(
-						'\n'
-					),
+					computeSource: [
+						'@compute @workgroup_size(8)',
+						'fn compute(id: vec3u) {',
+						'\tBROKEN;',
+						'}'
+					].join('\n'),
 					includeSources: {},
 					materialSource: null,
 					runtimeContext: {

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
+	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
 	import { cn } from '$lib/utils/cn';
 	import CopyCodeButton from './markdown/CopyCodeButton.svelte';
 	import ShikiCodeBlock from './ShikiCodeBlock.svelte';
@@ -62,7 +64,15 @@
 								: 'text-foreground-muted hover:text-foreground'
 						)}
 					>
-						{fw === 'svelte' ? 'Svelte' : 'React'}
+						<span class="inline-flex items-center gap-1.5">
+							{#if fw === 'svelte'}
+								<LogoSvelte size={16} />
+								<span>Svelte</span>
+							{:else}
+								<LogoReact size={16} />
+								<span>React</span>
+							{/if}
+						</span>
 						{#if frameworkStore.active === fw}
 							<div class="absolute bottom-0 left-0 h-0.5 w-full bg-accent"></div>
 						{/if}

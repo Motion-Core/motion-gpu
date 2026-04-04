@@ -6,7 +6,7 @@
  *  - writeStorageBuffer validation (unknown name, negative offset, out-of-bounds)
  *  - setUniform / setTexture unknown-name validation
  *  - Error deduplication (same error suppressed until frame clears)
- *  - Error recovery: clearError is called after a successful frame
+ *  - Error recovery: clear is delayed until a short stability window passes
  *  - User onError handler that throws does not crash the loop
  *  - User onErrorHistory handler that throws does not crash the loop
  *  - Error history accumulates and respects the configured limit
@@ -317,7 +317,7 @@ describe('runtime-loop edge cases', () => {
 		loop.destroy();
 	});
 
-	it('re-reports an error after a successful frame clears it', async () => {
+	it('clears errors only after a stability window and then re-reports on regression', async () => {
 		const registry = createFrameRegistry();
 		const reportError = vi.fn();
 
@@ -338,18 +338,61 @@ describe('runtime-loop edge cases', () => {
 
 		await flushFrame(16); // renderer init
 		await flushFrame(32); // error frame → reportError(report) [1]
-		// Error frame stops the loop – kick manually for the success frame.
+		// Error frame stops the loop – kick manually for the first success frame.
 		loop.invalidate();
 		shouldFail = false;
-		await flushFrame(48); // success frame → clearError → reportError(null) [2]
+		await flushFrame(48); // success frame, still inside grace window => no clear yet
 		// Success frame auto-schedules next (always mode), no manual kick needed.
+		await flushFrame(900); // clear should happen once the grace window elapsed
 		shouldFail = true;
-		await flushFrame(64); // error again → reportError(report) [3]
+		await flushFrame(916); // error again → reportError(report) [3]
 
 		const calls = reportError.mock.calls;
 		expect(calls[0]?.[0]).toMatchObject({ phase: 'render' }); // first error
-		expect(calls[1]?.[0]).toBeNull();                         // cleared
+		expect(calls[1]?.[0]).toBeNull(); // cleared after stability window
 		expect(calls[2]?.[0]).toMatchObject({ phase: 'render' }); // re-reported
+
+		loop.destroy();
+	});
+
+	it('keeps error latched across short healthy gaps when the same error reappears', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }'
+		});
+
+		let shouldFail = true;
+		registry.register('intermittent-same-error', (state) => {
+			if (shouldFail) {
+				state.setUniform('ghost', 1.0);
+			}
+		});
+
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
+
+		await flushFrame(16); // renderer init
+		await flushFrame(32); // error reported [1]
+		loop.invalidate();
+		shouldFail = false;
+		await flushFrame(48); // success, no clear yet
+		loop.invalidate();
+		shouldFail = true;
+		await flushFrame(64); // same error deduped, no re-report, grace window refreshed
+		loop.invalidate();
+		shouldFail = false;
+		await flushFrame(80); // success, still no clear due to refreshed window
+		await flushFrame(1000); // stable success past grace window => clear [2]
+
+		const calls = reportError.mock.calls;
+		const nonNullCalls = calls.filter((args) => args[0] !== null);
+		const nullCalls = calls.filter((args) => args[0] === null);
+
+		expect(nonNullCalls).toHaveLength(1);
+		expect(nullCalls).toHaveLength(1);
 
 		loop.destroy();
 	});

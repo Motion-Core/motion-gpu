@@ -54,6 +54,8 @@ function getRendererRetryDelayMs(attempt: number): number {
 	return Math.min(8000, 250 * 2 ** Math.max(0, attempt - 1));
 }
 
+const ERROR_CLEAR_GRACE_MS = 750;
+
 export function createMotionGPURuntimeLoop(
 	options: MotionGPURuntimeLoopOptions
 ): MotionGPURuntimeLoop {
@@ -90,6 +92,16 @@ export function createMotionGPURuntimeLoop(
 	let shouldContinueAfterFrame = false;
 	let activeErrorKey: string | null = null;
 	let errorHistory: MotionGPUErrorReport[] = [];
+	let errorClearReadyAtMs = 0;
+	let lastFrameTimestampMs = performance.now();
+
+	const resolveNowMs = (nowMs?: number): number => {
+		if (typeof nowMs === 'number' && Number.isFinite(nowMs)) {
+			return nowMs;
+		}
+
+		return lastFrameTimestampMs;
+	};
 
 	const getHistoryLimit = (): number => {
 		const value = options.getErrorHistoryLimit?.() ?? 0;
@@ -133,8 +145,9 @@ export function createMotionGPURuntimeLoop(
 		publishErrorHistory();
 	};
 
-	const setError = (error: unknown, phase: MotionGPUErrorPhase): void => {
+	const setError = (error: unknown, phase: MotionGPUErrorPhase, nowMs?: number): void => {
 		const report = toMotionGPUErrorReport(error, phase);
+		errorClearReadyAtMs = resolveNowMs(nowMs) + ERROR_CLEAR_GRACE_MS;
 		const reportKey = JSON.stringify({
 			phase: report.phase,
 			title: report.title,
@@ -166,12 +179,16 @@ export function createMotionGPURuntimeLoop(
 		}
 	};
 
-	const clearError = (): void => {
+	const maybeClearError = (nowMs?: number): void => {
 		if (activeErrorKey === null) {
+			return;
+		}
+		if (resolveNowMs(nowMs) < errorClearReadyAtMs) {
 			return;
 		}
 
 		activeErrorKey = null;
+		errorClearReadyAtMs = 0;
 		options.reportError(null);
 	};
 
@@ -345,13 +362,14 @@ export function createMotionGPURuntimeLoop(
 		if (isDisposed) {
 			return;
 		}
+		lastFrameTimestampMs = timestamp;
 		syncErrorHistory();
 
 		let materialState: ResolvedMaterial;
 		try {
 			materialState = resolveActiveMaterial();
 		} catch (error) {
-			setError(error, 'initialization');
+			setError(error, 'initialization', timestamp);
 			scheduleFrame();
 			return;
 		}
@@ -418,7 +436,7 @@ export function createMotionGPURuntimeLoop(
 						failedRendererSignature = null;
 						failedRendererAttempts = 0;
 						nextRendererRetryAt = 0;
-						clearError();
+						maybeClearError(performance.now());
 					} catch (error) {
 						failedRendererSignature = rendererSignature;
 						failedRendererAttempts += 1;
@@ -496,9 +514,9 @@ export function createMotionGPURuntimeLoop(
 				});
 			}
 
-			clearError();
+			maybeClearError(timestamp);
 		} catch (error) {
-			setError(error, 'render');
+			setError(error, 'render', timestamp);
 		} finally {
 			registry.endFrame();
 		}

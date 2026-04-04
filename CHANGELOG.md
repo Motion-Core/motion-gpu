@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Improved compute-stage error normalization so diagnostics-backed compute failures consistently map to `COMPUTE_COMPILATION_FAILED`.
+- Stabilized runtime error-overlay behavior by delaying error clear until a short success window passes, preventing show/hide flicker during intermittent failures (including `WEBGPU_UNCAPTURED_ERROR` from compute workflows).
 
 ## [0.5.0] - 2026-03-30
 ### Added

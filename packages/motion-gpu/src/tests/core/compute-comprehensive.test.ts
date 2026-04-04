@@ -899,43 +899,68 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			textures: {}
 		});
 
-		const pingPongBindGroupCalls = runtime.device.createBindGroup.mock.calls.filter(
-			(call: unknown[]) => {
-				const input = call[0] as { entries?: Array<{ resource?: unknown }> };
-				return (
-					Array.isArray(input.entries) &&
-					input.entries.length === 2 &&
-					input.entries.every((entry) => {
-						const resource = entry.resource as
-							| { textureDescriptor?: GPUTextureDescriptor }
-							| undefined;
-						return Boolean(
-							resource && typeof resource === 'object' && 'textureDescriptor' in resource
-						);
-					})
-				);
-			}
-		);
+		const allBindGroupCalls = runtime.device.createBindGroup.mock.calls as unknown[][];
+		const allBindGroupResults = runtime.device.createBindGroup.mock.results as {
+			value: unknown;
+		}[];
 
-		expect(pingPongBindGroupCalls).toHaveLength(4);
+		// Filter to the ping-pong bind groups: exactly 2 texture-view entries each.
+		const pingPongBindGroupCalls = allBindGroupCalls.filter((call) => {
+			const input = call[0] as { entries?: Array<{ resource?: unknown }> };
+			return (
+				Array.isArray(input.entries) &&
+				input.entries.length === 2 &&
+				input.entries.every((entry) => {
+					const resource = entry.resource as
+						| { textureDescriptor?: GPUTextureDescriptor }
+						| undefined;
+					return Boolean(
+						resource && typeof resource === 'object' && 'textureDescriptor' in resource
+					);
+				})
+			);
+		});
+
+		// Bind groups are cached on the PingPongTexturePair for the renderer's lifetime:
+		// one for readA-writeB and one for readB-writeA. Frame 2 reuses the same objects.
+		expect(pingPongBindGroupCalls).toHaveLength(2);
 		const firstCall = pingPongBindGroupCalls[0];
 		const secondCall = pingPongBindGroupCalls[1];
-		const thirdCall = pingPongBindGroupCalls[2];
-		if (!firstCall || !secondCall || !thirdCall) {
-			throw new Error('Expected ping-pong bind group call triplet');
+		if (!firstCall || !secondCall) {
+			throw new Error('Expected two ping-pong bind group calls');
 		}
 		const [firstArg] = firstCall as unknown[];
 		const [secondArg] = secondCall as unknown[];
-		const [thirdArg] = thirdCall as unknown[];
 		const first = (firstArg as { entries: Array<{ resource: unknown }> }).entries;
 		const second = (secondArg as { entries: Array<{ resource: unknown }> }).entries;
-		const third = (thirdArg as { entries: Array<{ resource: unknown }> }).entries;
 
+		// Iteration 2 resources are swapped relative to iteration 1.
 		expect(second[0]?.resource).toBe(first[1]?.resource);
 		expect(second[1]?.resource).toBe(first[0]?.resource);
-		// Next frame with even iterations starts from the same orientation.
-		expect(third[0]?.resource).toBe(first[0]?.resource);
-		expect(third[1]?.resource).toBe(first[1]?.resource);
+
+		// Resolve the cached bind group objects via mock return values.
+		const readAWriteBBindGroup = allBindGroupResults[allBindGroupCalls.indexOf(firstCall)]?.value;
+		const readBWriteABindGroup = allBindGroupResults[allBindGroupCalls.indexOf(secondCall)]?.value;
+
+		// Verify frame 2 reuses the same cached objects in the same order via setBindGroup
+		// calls on each frame's compute pass encoder.
+		const getGroup2Bindings = (encoder: {
+			beginComputePass: { mock: { results: Array<{ value: { setBindGroup: { mock: { calls: unknown[][] } } } }> } };
+		}): unknown[] =>
+			(encoder.beginComputePass.mock.results[0]?.value.setBindGroup.mock.calls ?? [])
+				.filter((c: unknown[]) => c[0] === 2)
+				.map((c: unknown[]) => c[1]);
+
+		const frame1Encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
+		const frame2Encoder = runtime.device.createCommandEncoder.mock.results[1]?.value;
+		const frame1Group2 = getGroup2Bindings(frame1Encoder);
+		const frame2Group2 = getGroup2Bindings(frame2Encoder);
+
+		expect(frame1Group2[0]).toBe(readAWriteBBindGroup); // frame 1, iter 0: A→B
+		expect(frame1Group2[1]).toBe(readBWriteABindGroup); // frame 1, iter 1: B→A
+		// With 2 iterations (even count) frame 2 restarts from the same A→B orientation.
+		expect(frame2Group2[0]).toBe(readAWriteBBindGroup); // frame 2, iter 0: A→B (reused)
+		expect(frame2Group2[1]).toBe(readBWriteABindGroup); // frame 2, iter 1: B→A (reused)
 	});
 
 	it('compute pass caches pipeline by shader source', async () => {

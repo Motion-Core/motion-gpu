@@ -34,9 +34,11 @@ fn frag(uv: vec2f) -> vec4f {
 });
 ```
 
-Each texture named `uFoo` creates two WGSL bindings:
+Each texture with `fragmentVisible: true` (default) creates two WGSL bindings:
 - `uFoo: texture_2d<f32>` — the texture
 - `uFooSampler: sampler` — the associated sampler
+
+When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL declarations and `group(0)` fragment bind-group bindings.
 
 ## TextureDefinition fields
 
@@ -56,6 +58,7 @@ Each texture named `uFoo` creates two WGSL bindings:
 | `format` | `GPUTextureFormat` | Color-space derived default | **Required when `storage: true`** (must be storage-compatible) |
 | `width` | `number` | `undefined` | Optional explicit width (used for storage texture allocation) |
 | `height` | `number` | `undefined` | Optional explicit height (used for storage texture allocation) |
+| `fragmentVisible` | `boolean` | `true` | Controls whether this slot is bound as a fragment sampled texture in `group(0)` |
 
 ## Runtime texture value forms
 
@@ -99,6 +102,26 @@ When `storage: true` is enabled, the texture participates in compute bindings (`
 - `format` must be a storage-compatible format.
 - For `PingPongComputePass`, the target texture must have explicit `width` and `height`.
 - Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
+- Use `fragmentVisible: false` for compute-only storage textures that should not consume fragment sampler/texture bindings.
+
+```ts
+const material = defineMaterial({
+  fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  return vec4f(uv, 0.0, 1.0);
+}
+`,
+  textures: {
+    simState: {
+      storage: true,
+      format: 'rgba16float',
+      width: 256,
+      height: 256,
+      fragmentVisible: false // compute-only slot
+    }
+  }
+});
+```
 
 ## Upload behavior
 
@@ -151,6 +174,7 @@ Texture identifiers follow the same rules as uniforms: `[A-Za-z_][A-Za-z0-9_]*`.
 | Static image (photo, sprite) | `update: 'once'`, `generateMipmaps: true` when minification is visible |
 | Event-driven updates | `update: 'onInvalidate'` + explicit `invalidate(token)` |
 | Video / camera / canvas stream | `update: 'perFrame'` |
+| Compute-only storage target | `storage: true` + explicit `format/width/height` + `fragmentVisible: false` |
 | Alpha-correct compositing | Set `premultipliedAlpha` intentionally and keep source pipeline consistent |
 | Pixel art | `filter: 'nearest'` to avoid bilinear smoothing |
 | Tiling patterns | `addressModeU: 'repeat'`, `addressModeV: 'repeat'` |

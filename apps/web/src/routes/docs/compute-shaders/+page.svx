@@ -23,6 +23,8 @@ The typical workflow:
 3. **Pass it to `FragCanvas`** via the `passes` prop.
 4. **Read/write storage buffers** in `useFrame` callbacks via `state.writeStorageBuffer()` and `state.readStorageBuffer()`.
 
+For compute-only storage textures, set `fragmentVisible: false` on the texture definition to avoid reserving fragment-stage sampler/texture bindings.
+
 ## ComputePass
 
 A single-dispatch compute pass that runs a WGSL compute shader.
@@ -153,6 +155,8 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 | `group(1)` | Storage buffers (one binding per declared buffer) |
 | `group(2)` | Storage textures (one binding per declared storage texture) |
 
+`fragmentVisible: false` affects only fragment-stage bindings (`group(0)` in the render pipeline). Compute storage bindings in `group(2)` are still generated and bound normally.
+
 `PingPongComputePass` uses generated A/B texture bindings at `group(2)`:
 
 | Binding | Contents |
@@ -223,6 +227,11 @@ Disabled compute passes (`enabled: false`) are fully skipped.
 ## Error handling
 
 Compute shader compilation errors are classified as `COMPUTE_COMPILATION_FAILED` with `severity: 'error'` and `recoverable: true`. They go through the same error normalization pipeline as fragment shader errors.
+
+Structured diagnostics for compute compilation failures include:
+- `shaderStage: 'compute'`
+- `computeSource` (original user source)
+- source mapping entries with `sourceLocation.kind = 'compute'`
 
 ## Related docs
 

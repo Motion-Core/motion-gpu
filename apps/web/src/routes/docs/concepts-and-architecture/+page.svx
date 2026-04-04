@@ -11,7 +11,7 @@ MotionGPU is intentionally strict in input contracts and explicit in scheduling.
 
 | Goal | What it means in practice |
 | --- | --- |
-| **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, and texture bindings — not from live values. This makes rebuild triggers predictable. |
+| **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, texture bindings/config (including `fragmentVisible`), and storage resources — not from live values. This makes rebuild triggers predictable. |
 | **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behavior except what you explicitly opt into via `useFrame` invalidation policies. |
 | **Minimal hidden magic** | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop. |
 | **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with stable code/severity/recoverability metadata, user hint, and optional source/context snippets. The default overlay is opt-out and can be replaced with a custom renderer. |
@@ -113,6 +113,7 @@ Not every change triggers a full renderer rebuild. This table clarifies what doe
 | Output color-space change (`'srgb'` ↔ `'linear'`) | **Yes** | Full renderer recreation |
 | Runtime uniform value change | No | Dirty-range buffer write only |
 | Runtime texture source change | No | Texture re-upload only |
+| Runtime texture `fragmentVisible` change | **Yes** | Full renderer recreation |
 | Storage buffer `writeStorageBuffer` | No | Pending write flushed next frame |
 | Storage buffer `readStorageBuffer` | No | Async staging buffer copy |
 | Canvas resize | No | Render target resize, re-render |
@@ -173,6 +174,8 @@ Compute passes (`ComputePass`, `PingPongComputePass`) coexist in the same pass a
 - Execute compute pipelines with configurable workgroup dispatch.
 - Share the same command encoder and submit queue as render passes.
 - `PingPongComputePass` runs multiple iterations per frame, alternating read/write bindings.
+- Reuse cached compute storage bind-group layouts/bind groups for stable resource topology.
+- Reuse ping-pong A→B / B→A bind groups across iterations.
 
 Storage buffers are allocated with `STORAGE | COPY_DST | COPY_SRC` usage flags and cleaned up on renderer destroy.
 

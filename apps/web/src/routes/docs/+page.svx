@@ -44,7 +44,7 @@ The export contract is verified in `src/tests/public-api.test.ts`.
 Understanding the frame-by-frame flow is the single most useful thing you can learn about MotionGPU:
 
 1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, storageBuffers, ... })`.
-2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture bindings, and storage buffer definitions).
+2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture config/bindings including `fragmentVisible`, and storage buffer definitions).
 3. If the signature changes, the WebGPU **renderer is rebuilt** from scratch. If it stays the same, only uniform buffers and texture bindings are updated — no recompilation.
 4. Every animation frame:
    - **Scheduler tasks** run in topological order (your `useFrame` callbacks).

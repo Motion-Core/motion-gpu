@@ -45,8 +45,9 @@ Immutable, validated object with frozen top-level maps:
 Framework-agnostic core helper that turns a validated `FragMaterial` into runtime-ready payload:
 - preprocessed WGSL source
 - uniform layout metadata
-- texture binding metadata
+- texture metadata (including storage + `fragmentVisible` config)
 - storage buffer keys and definitions
+- storage texture keys
 - deterministic material signature
 
 Use this in adapter implementations or low-level tooling.

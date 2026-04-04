@@ -18,7 +18,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes, duplicate-key replacement safety, `clear()` behavior. |
 | **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching. |
 | **Uniforms** | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection. |
-| **Textures** | Defaults (`flipY: true`, `filter: 'linear'`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
+| **Textures** | Defaults (`flipY: true`, `filter: 'linear'`, `fragmentVisible: true`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal (including idempotent `dispose()`). |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support, and state-stable rejection for invalid `setFragment(...)` updates. |
@@ -26,10 +26,10 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Compute shader** | Compute shader WGSL generation, storage buffer/texture binding generation, strict contract assertion (`global_invocation_id` in `compute` signature), workgroup size parsing with bounds validation, access-mode validation. |
 | **Storage buffers** | Definition validation (size/type/access), key resolution, normalization with defaults, storage texture format validation. |
 | **Storage runtime** | `FrameState` storage operations (`writeStorageBuffer`/`readStorageBuffer`), `StorageBufferDefinitionMap` type contracts, `initialData` support, frame callback context integration. |
-| **Renderer (compute)** | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, storage buffer cleanup on destroy, ping-pong texture pair cleanup on destroy. |
+| **Renderer (compute)** | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, compute storage bind-group/cache reuse, storage buffer cleanup on destroy, ping-pong texture pair cleanup on destroy. |
 | **Error report** | Classification pattern matching (WebGPU init/runtime, material preprocess, runtime binding/storage/render-graph/ping-pong/compute-contract, texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, overlay metadata visibility, hint generation. |
 | **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
-| **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, and regression threshold checks. |
+| **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, regression threshold checks, and runtime metric assertions (including compute storage bind-group creation pressure). |
 
 ## Key runtime guarantees verified by tests
 
@@ -91,8 +91,10 @@ These notes are for maintainers working on the library internals:
 ### Compute pipeline lifecycle
 
 - Compute pipelines are built lazily on first dispatch and cached by compute shader source.
-- Each compute pass builds its own bind group layout: group(0) for uniforms, group(1) for storage buffers, group(2) for storage textures.
+- Compute storage bind-group layouts are cached by resource topology and reused across frames.
+- Compute storage bind groups are reused while bound resource references stay stable.
 - `PingPongComputePass` alternates A/B texture bindings across iterations.
+- Ping-pong A→B and B→A bind groups are cached and reused instead of being recreated each iteration.
 - Compute passes share the same `GPUCommandEncoder` as render passes within a frame.
 - Ping-pong A/B textures are explicitly destroyed during renderer teardown.
 

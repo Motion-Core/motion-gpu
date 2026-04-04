@@ -155,6 +155,7 @@ The line map tracks which generated WGSL line corresponds to which original sour
 | User fragment | `fragment line X` |
 | Include chunk | `include <name> line X` |
 | Define constant | `define "NAME" line X` |
+| User compute source | `compute line X` |
 
 ### Structured diagnostics payload
 
@@ -168,7 +169,7 @@ interface ShaderCompilationDiagnostic {
   lineLength?: number;
   sourceLocation:
     | {
-        kind: 'fragment' | 'include' | 'define';
+        kind: 'fragment' | 'include' | 'define' | 'compute';
         line: number;
         include?: string;
         define?: string;
@@ -180,8 +181,10 @@ interface ShaderCompilationDiagnostic {
 ```ts
 interface ShaderCompilationDiagnosticsPayload {
   kind: 'shader-compilation';
+  shaderStage?: 'fragment' | 'compute';
   diagnostics: ShaderCompilationDiagnostic[];
   fragmentSource: string;
+  computeSource?: string;
   includeSources: Record<string, string>;
   defineBlockSource?: string;
   materialSource: {
@@ -211,11 +214,13 @@ interface ShaderCompilationDiagnosticsPayload {
 - **`source`** — component location, line number, and highlighted code snippet.
 - **`context`** — runtime snapshot (`materialSignature`, pass graph, active render targets) when provided by diagnostics payload.
 
+For compute-stage failures, diagnostics payload carries `shaderStage: 'compute'` and `computeSource`; source mapping points to `compute` lines instead of fragment/include/define locations.
+
 ### Overlay Source panel
 
 When `report.source` is available, the overlay shows:
 
-- Active source tab: source label + location metadata (fragment/include/define), with optional column.
+- Active source tab: source label + location metadata (fragment/include/define/compute), with optional column.
 - Source snippet centred around the failing line
 - Highlighted failing line
 - Additional diagnostics in a collapsible section

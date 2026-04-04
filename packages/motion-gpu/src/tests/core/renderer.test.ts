@@ -1227,6 +1227,68 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
+	it('omits fragment-stage texture bindings for texture slots marked fragmentVisible:false', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['albedo', 'computeOnly'],
+			textureDefinitions: {
+				albedo: { source: null },
+				computeOnly: {
+					storage: true,
+					format: 'rgba8unorm',
+					width: 8,
+					height: 8,
+					fragmentVisible: false
+				}
+			}
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const fragmentShaderCode = (
+			runtime.device.createShaderModule.mock.calls[0]?.[0] as { code: string }
+		)?.code;
+		expect(fragmentShaderCode).toContain('albedoSampler');
+		expect(fragmentShaderCode).toContain('var albedo: texture_2d<f32>;');
+		expect(fragmentShaderCode).not.toContain('computeOnlySampler');
+		expect(fragmentShaderCode).not.toContain('var computeOnly: texture_2d<f32>;');
+
+		const sceneBindGroupLayout = runtime.device.createBindGroupLayout.mock.calls
+			.map(
+				(call) =>
+					call[0] as {
+						entries?: Array<{
+							binding: number;
+							sampler?: unknown;
+							texture?: unknown;
+							buffer?: { type?: string };
+						}>;
+					}
+			)
+			.find((descriptor) => {
+				const entries = descriptor.entries ?? [];
+				return (
+					entries.some((entry) => entry.binding === 0 && entry.buffer?.type === 'uniform') &&
+					entries.some((entry) => entry.binding === 1 && entry.buffer?.type === 'uniform') &&
+					entries.some((entry) => entry.sampler !== undefined)
+				);
+			});
+
+		expect(sceneBindGroupLayout).toBeDefined();
+		const entries = sceneBindGroupLayout?.entries ?? [];
+		const samplerEntries = entries.filter((entry) => entry.sampler !== undefined);
+		const textureEntries = entries.filter((entry) => entry.texture !== undefined);
+		expect(samplerEntries).toHaveLength(1);
+		expect(textureEntries).toHaveLength(1);
+	});
+
 	it('reuses compute storage buffer bind group layout and bind group across stable frames', async () => {
 		const runtime = createWebGpuRuntime();
 		const { ComputePass } = await import('../../lib/passes/ComputePass');

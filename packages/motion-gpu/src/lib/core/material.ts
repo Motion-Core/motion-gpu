@@ -542,7 +542,8 @@ function buildTextureConfigSignature<TTextureKey extends string>(
 			normalized.anisotropy,
 			normalized.filter,
 			normalized.addressModeU,
-			normalized.addressModeV
+			normalized.addressModeV,
+			normalized.fragmentVisible ? '1' : '0'
 		].join(':');
 	}
 

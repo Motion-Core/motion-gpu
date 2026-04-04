@@ -60,6 +60,10 @@ export interface NormalizedTextureDefinition {
 	 */
 	storage: boolean;
 	/**
+	 * Whether this texture should be exposed as a fragment-stage sampled binding.
+	 */
+	fragmentVisible: boolean;
+	/**
 	 * Explicit width for storage textures. Undefined when derived from source.
 	 */
 	width?: number;
@@ -115,7 +119,8 @@ export function normalizeTextureDefinition(
 		filter: definition?.filter ?? DEFAULT_TEXTURE_FILTER,
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE,
-		storage: isStorage
+		storage: isStorage,
+		fragmentVisible: definition?.fragmentVisible ?? true
 	};
 
 	if (definition?.width !== undefined) {

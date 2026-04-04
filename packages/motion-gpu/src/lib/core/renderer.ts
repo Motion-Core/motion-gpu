@@ -63,6 +63,7 @@ interface RuntimeTextureBinding {
 	key: string;
 	samplerBinding: number;
 	textureBinding: number;
+	fragmentVisible: boolean;
 	sampler: GPUSampler;
 	fallbackTexture: GPUTexture;
 	fallbackView: GPUTextureView;
@@ -734,10 +735,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	try {
 		const runtimeContext = buildShaderCompilationRuntimeContext(options);
 		const convertLinearToSrgb = shouldConvertLinearToSrgb(options.outputColorSpace, format);
+		const fragmentTextureKeys = options.textureKeys.filter(
+			(key) => options.textureDefinitions[key]?.fragmentVisible !== false
+		);
 		const builtShader = buildShaderSourceWithMap(
 			options.fragmentWgsl,
 			options.uniformLayout,
-			options.textureKeys,
+			fragmentTextureKeys,
 			{
 				convertLinearToSrgb,
 				fragmentLineMap: options.fragmentLineMap,
@@ -769,13 +773,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
 		const storageTextureKeys = options.storageTextureKeys ?? [];
 		const storageTextureKeySet = new Set(storageTextureKeys);
-		const textureBindings = options.textureKeys.map((key, index): RuntimeTextureBinding => {
+		const fragmentTextureIndexByKey = new Map(
+			fragmentTextureKeys.map((key, index) => [key, index] as const)
+		);
+		const textureBindings = options.textureKeys.map((key): RuntimeTextureBinding => {
 			const config = normalizedTextureDefinitions[key];
 			if (!config) {
 				throw new Error(`Missing texture definition for "${key}"`);
 			}
 
-			const { samplerBinding, textureBinding } = getTextureBindings(index);
+			const fragmentTextureIndex = fragmentTextureIndexByKey.get(key);
+			const fragmentVisible = fragmentTextureIndex !== undefined;
+			const { samplerBinding, textureBinding } = getTextureBindings(fragmentTextureIndex ?? 0);
 			const sampler = device.createSampler({
 				magFilter: config.filter,
 				minFilter: config.filter,
@@ -798,6 +807,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				key,
 				samplerBinding,
 				textureBinding,
+				fragmentVisible,
 				sampler,
 				fallbackTexture,
 				fallbackView,
@@ -847,6 +857,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			return runtimeBinding;
 		});
 		const textureBindingByKey = new Map(textureBindings.map((binding) => [binding.key, binding]));
+		const fragmentTextureBindings = textureBindings.filter((binding) => binding.fragmentVisible);
 
 		const computeStorageBufferLayoutEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map(
 			(key, index) => {
@@ -887,7 +898,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const computeStorageTextureBindGroupCache = createComputeStorageBindGroupCache(device);
 
 		const bindGroupLayout = device.createBindGroupLayout({
-			entries: createBindGroupLayoutEntries(textureBindings)
+			entries: createBindGroupLayoutEntries(fragmentTextureBindings)
 		});
 		const fragmentStorageBindGroupLayout =
 			storageBufferKeys.length > 0
@@ -1362,7 +1373,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				{ binding: UNIFORM_BINDING, resource: { buffer: uniformBuffer } }
 			];
 
-			for (const binding of textureBindings) {
+			for (const binding of fragmentTextureBindings) {
 				entries.push({
 					binding: binding.samplerBinding,
 					resource: binding.sampler
@@ -1934,7 +1945,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				if (storageTextureKeySet.has(binding.key)) continue;
 				const nextTexture =
 					textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
-				if (updateTextureBinding(binding, nextTexture, renderMode)) {
+				if (updateTextureBinding(binding, nextTexture, renderMode) && binding.fragmentVisible) {
 					bindGroupDirty = true;
 				}
 			}

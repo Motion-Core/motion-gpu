@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added dedicated compute diagnostics tests (`compute-diagnostics.test.ts`) including measurable classification/completeness assertions.
 - Added compute storage bind-group cache unit tests (`compute-bindgroup-cache.test.ts`) and renderer integration assertions for stable-frame allocation behavior.
 - Added runtime benchmark metric `compute_storage_bindgroup_creations_per_1000_frames` to track compute storage bind-group allocation pressure.
+- Added `texture-fragment-visibility.test.ts` coverage for `fragmentVisible` defaults and signature invalidation behavior.
 
 ### Changed
 - Updated compute shader codegen with mapped variants (`buildComputeShaderSourceWithMap`, `buildPingPongComputeShaderSourceWithMap`) to preserve generated→source line metadata.
@@ -16,6 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Expanded compute-focused test coverage across compute shader generation and renderer integration paths.
 - Updated renderer compute dispatch path to cache storage buffer/storage texture bind-group layouts and bind groups, invalidating only when topology or bound resources change.
 - Updated ping-pong compute binding flow to reuse prebuilt A→B / B→A bind groups instead of creating a new bind group every iteration.
+- Updated fragment-stage texture binding pipeline to respect `fragmentVisible:false`, excluding compute-only texture slots from fragment WGSL declarations and group(0) bind-group layouts.
+- Updated texture normalization defaults to include `fragmentVisible: true` and made material signatures include `fragmentVisible` so renderer rebuild invalidation remains deterministic.
 
 ### Fixed
 - Improved compute-stage error normalization so diagnostics-backed compute failures consistently map to `COMPUTE_COMPILATION_FAILED`.

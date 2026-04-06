@@ -163,9 +163,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16); // renderer initialises
 		await flushFrame(32); // task runs → throws → reportError
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -190,9 +188,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -218,9 +214,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -249,9 +243,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -266,7 +258,10 @@ describe('runtime-loop edge cases', () => {
 		});
 
 		registry.register('bad-texture', (state) => {
-			state.setTexture('noSuchTexture', null as unknown as import('../../lib/core/types').TextureValue);
+			state.setTexture(
+				'noSuchTexture',
+				null as unknown as import('../../lib/core/types').TextureValue
+			);
 		});
 
 		createRendererMock.mockResolvedValue(createRenderer());
@@ -276,9 +271,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -432,9 +425,7 @@ describe('runtime-loop edge cases', () => {
 		await expect(flushFrame(32)).resolves.toBeUndefined();
 
 		// Verify the error was detected (handler was invoked) and its throw swallowed.
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -471,9 +462,7 @@ describe('runtime-loop edge cases', () => {
 		await expect(flushFrame(32)).resolves.toBeUndefined();
 
 		// Verify error was detected (history callback was invoked) and its throw swallowed.
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'render' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
 		loop.destroy();
 	});
@@ -801,9 +790,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(16); // kicks off renderer creation (fails)
 		await flushFrame(32); // next scheduled frame after failure
 
-		expect(reportError).toHaveBeenCalledWith(
-			expect.objectContaining({ phase: 'initialization' })
-		);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'initialization' }));
 
 		loop.destroy();
 	});

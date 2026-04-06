@@ -217,14 +217,12 @@ export function createMotionGPURuntimeLoop(
 	const resetRuntimeMaps = (): void => {
 		for (const key of Object.keys(runtimeUniforms)) {
 			if (!uniformKeySet.has(key)) {
-				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
 				delete runtimeUniforms[key];
 			}
 		}
 
 		for (const key of Object.keys(runtimeTextures)) {
 			if (!textureKeySet.has(key)) {
-				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
 				delete runtimeTextures[key];
 			}
 		}
@@ -233,14 +231,12 @@ export function createMotionGPURuntimeLoop(
 	const resetRenderPayloadMaps = (): void => {
 		for (const key of Object.keys(renderUniforms)) {
 			if (!uniformKeySet.has(key)) {
-				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
 				delete renderUniforms[key];
 			}
 		}
 
 		for (const key of Object.keys(renderTextures)) {
 			if (!textureKeySet.has(key)) {
-				// eslint-disable-next-line @typescript-eslint/no-dynamic-delete
 				delete renderTextures[key];
 			}
 		}

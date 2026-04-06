@@ -945,7 +945,9 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		// Verify frame 2 reuses the same cached objects in the same order via setBindGroup
 		// calls on each frame's compute pass encoder.
 		const getGroup2Bindings = (encoder: {
-			beginComputePass: { mock: { results: Array<{ value: { setBindGroup: { mock: { calls: unknown[][] } } } }> } };
+			beginComputePass: {
+				mock: { results: Array<{ value: { setBindGroup: { mock: { calls: unknown[][] } } } }> };
+			};
 		}): unknown[] =>
 			(encoder.beginComputePass.mock.results[0]?.value.setBindGroup.mock.calls ?? [])
 				.filter((c: unknown[]) => c[0] === 2)

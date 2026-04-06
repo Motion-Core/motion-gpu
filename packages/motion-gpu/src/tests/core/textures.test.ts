@@ -28,13 +28,13 @@ describe('textures', () => {
 			flipY: true,
 			generateMipmaps: false,
 			premultipliedAlpha: false,
-				anisotropy: 1,
-				filter: 'linear',
-				addressModeU: 'clamp-to-edge',
-				addressModeV: 'clamp-to-edge',
-				storage: false,
-				fragmentVisible: true
-			});
+			anisotropy: 1,
+			filter: 'linear',
+			addressModeU: 'clamp-to-edge',
+			addressModeV: 'clamp-to-edge',
+			storage: false,
+			fragmentVisible: true
+		});
 
 		expect(normalizeTextureDefinition({ update: 'onInvalidate' }).update).toBe('onInvalidate');
 	});

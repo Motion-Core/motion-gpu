@@ -318,11 +318,11 @@ describe('runtime-loop', () => {
 		const writesPerRenderCall: Array<Array<{ name: string }>> = [];
 
 		const renderer: MockRenderer = {
-			render: vi.fn().mockImplementation(
-				(input: { pendingStorageWrites?: Array<{ name: string }> }) => {
+			render: vi
+				.fn()
+				.mockImplementation((input: { pendingStorageWrites?: Array<{ name: string }> }) => {
 					writesPerRenderCall.push([...(input.pendingStorageWrites ?? [])]);
-				}
-			),
+				}),
 			destroy: vi.fn(),
 			getStorageBuffer: vi.fn(() => undefined),
 			getDevice: vi.fn(() => undefined)

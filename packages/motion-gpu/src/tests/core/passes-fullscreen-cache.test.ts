@@ -16,7 +16,7 @@ import type { RenderPassContext, RenderTarget } from '../../lib/core/types';
 function createTarget(key: string, format: GPUTextureFormat = 'rgba8unorm'): RenderTarget {
 	return {
 		texture: { key } as unknown as GPUTexture,
-		view: ({ key: `${key}-view` }) as unknown as GPUTextureView,
+		view: { key: `${key}-view` } as unknown as GPUTextureView,
 		width: 32,
 		height: 32,
 		format
@@ -110,9 +110,9 @@ describe('FullscreenPass resource caching', () => {
 		const sharedDevice = createFakeDevice() as unknown as GPUDevice;
 		const deviceMock = sharedDevice as unknown as FakeDevice;
 
-		const viewA = ({ key: 'view-a' }) as unknown as GPUTextureView;
-		const viewB = ({ key: 'view-b' }) as unknown as GPUTextureView;
-		const viewC = ({ key: 'view-c' }) as unknown as GPUTextureView;
+		const viewA = { key: 'view-a' } as unknown as GPUTextureView;
+		const viewB = { key: 'view-b' } as unknown as GPUTextureView;
+		const viewC = { key: 'view-c' } as unknown as GPUTextureView;
 
 		const makeCtx = (view: GPUTextureView) =>
 			createPassContext({

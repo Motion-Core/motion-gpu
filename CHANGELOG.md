@@ -4,6 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-04-06
 ### Performance
 - Replaced `Reflect.deleteProperty` with the `delete` operator in `resetRuntimeMaps` and `resetRenderPayloadMaps` to reduce reflective API overhead when cleaning up stale uniform and texture keys after a material signature change.
 - Eliminated heap allocations in `setError` and `syncErrorHistory` by replacing spread-copy (`[...errorHistory, report]` / `.slice()`) with in-place `push` and `splice`, reducing GC pressure when error history is active.
@@ -144,6 +145,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
 [Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
 [0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915
 [0.4.1]: https://github.com/Motion-Core/motion-gpu/compare/889adfc...148c1e4

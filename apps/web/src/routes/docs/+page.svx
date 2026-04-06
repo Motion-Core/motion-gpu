@@ -1,5 +1,5 @@
 ---
-title: MotionGPU Documentation
+title: Motion GPU Documentation
 description: Framework-agnostic WebGPU core with Svelte 5 and React 19 adapters for fullscreen WGSL rendering.
 ---
 
@@ -9,7 +9,7 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 
 ## AI documentation access
 
-MotionGPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
+Motion GPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
 
 ## What this package ships
 
@@ -41,7 +41,7 @@ The export contract is verified in `src/tests/public-api.test.ts`.
 
 ## Runtime mental model
 
-Understanding the frame-by-frame flow is the single most useful thing you can learn about MotionGPU:
+Understanding the frame-by-frame flow is the single most useful thing you can learn about Motion GPU:
 
 1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, storageBuffers, ... })`.
 2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture config/bindings including `fragmentVisible`, and storage buffer definitions).

@@ -32,7 +32,7 @@ Each uniform becomes a field on the `motiongpuUniforms` struct. The library gene
 
 ## Input forms
 
-MotionGPU accepts two styles of uniform declaration:
+Motion GPU accepts two styles of uniform declaration:
 
 ### Shorthand (value only)
 

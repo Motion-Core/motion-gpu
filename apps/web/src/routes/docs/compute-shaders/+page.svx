@@ -8,7 +8,7 @@ description: Running GPU compute workloads with ComputePass, PingPongComputePass
 	import * as ex from './examples';
 </script>
 
-MotionGPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes run in the render graph alongside render passes, giving you GPU-accelerated parallel computation for particle systems, physics simulations, image processing, and more.
+Motion GPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes run in the render graph alongside render passes, giving you GPU-accelerated parallel computation for particle systems, physics simulations, image processing, and more.
 
 The pass constructors are framework-agnostic and available from all entrypoints.
 

@@ -8,7 +8,7 @@ description: Building post-processing pipelines with the render graph and built-
 	import * as ex from './examples';
 </script>
 
-MotionGPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, the three built-in render pass types, and two compute pass types.
+Motion GPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, the three built-in render pass types, and two compute pass types.
 
 For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders).
 

@@ -3,7 +3,7 @@ title: Shader Includes & Defines
 description: "Using #include directives and compile-time defines for reusable and configurable shader code."
 ---
 
-MotionGPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics.
+Motion GPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics.
 
 ## Include system
 
@@ -187,7 +187,7 @@ This is deterministic and part of the material signature, meaning changing a def
 
 ## Source-map diagnostics
 
-When a WGSL compilation error occurs, MotionGPU uses the line map to report the original source location:
+When a WGSL compilation error occurs, Motion GPU uses the line map to report the original source location:
 
 - **Fragment line errors** → reported as `fragment line X`
 - **Include errors** → reported as `include <name> line X`

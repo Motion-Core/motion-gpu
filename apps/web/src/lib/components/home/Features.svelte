@@ -58,7 +58,7 @@
 	<p
 		class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-1/2"
 	>
-		From a single fullscreen fragment shader to multi-pass effects, MotionGPU gives you strict
+		From a single fullscreen fragment shader to multi-pass effects, Motion GPU gives you strict
 		contracts and deterministic runtime behavior.
 	</p>
 	<InsetShadowContainer class="mt-8 grid grid-cols-1 gap-2 sm:grid-cols-2">

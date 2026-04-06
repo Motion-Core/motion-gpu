@@ -136,7 +136,7 @@ description: All notable changes to Motion Core will be documented in this file.
 
 ## [0.1.0] - 2026-02-27
 ### Added
-- Initial MotionGPU release with `FragCanvas` as the primary Svelte runtime entrypoint.
+- Initial Motion GPU release with `FragCanvas` as the primary Svelte runtime entrypoint.
 - Material pipeline with immutable `defineMaterial` contracts and runtime material hot-swap support.
 - Typed uniform system with runtime layout validation and dirty-range uploads.
 - Texture pipeline with WGSL bindings, sampler configuration, mipmap/anisotropy/video support, and `useTexture`.

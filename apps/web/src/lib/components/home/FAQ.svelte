@@ -73,7 +73,7 @@
 	<p
 		class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-1/2"
 	>
-		A quick introduction to what MotionGPU is, who it is for, and how to begin.
+		A quick introduction to what Motion GPU is, who it is for, and how to begin.
 	</p>
 
 	<InsetShadowContainer class="mt-8">

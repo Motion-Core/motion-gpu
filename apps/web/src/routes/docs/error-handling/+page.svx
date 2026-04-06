@@ -8,7 +8,7 @@ description: Understanding the error normalization pipeline, structured reports,
 	import * as ex from './examples';
 </script>
 
-MotionGPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
+Motion GPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
 
 Examples below use Svelte syntax. React uses the same runtime error contracts via `@motion-core/motion-gpu/react`.
 

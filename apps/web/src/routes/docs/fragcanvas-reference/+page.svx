@@ -8,7 +8,7 @@ description: Complete prop reference and usage guide for the main FragCanvas com
 	import * as ex from './examples';
 </script>
 
-This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using MotionGPU in both Svelte and React.
+This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using Motion GPU in both Svelte and React.
 
 ## Import
 

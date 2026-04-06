@@ -1,13 +1,13 @@
 ---
 title: Concepts & Architecture
-description: Architectural decisions, runtime lifecycle, and the mental model behind MotionGPU.
+description: Architectural decisions, runtime lifecycle, and the mental model behind Motion GPU.
 ---
 
-This page explains the architectural decisions behind MotionGPU, how the runtime pieces fit together, and what happens on every frame. Understanding this foundation makes the rest of the documentation much easier to navigate.
+This page explains the architectural decisions behind Motion GPU, how the runtime pieces fit together, and what happens on every frame. Understanding this foundation makes the rest of the documentation much easier to navigate.
 
 ## Design goals
 
-MotionGPU is intentionally strict in input contracts and explicit in scheduling. These four goals drive every design decision:
+Motion GPU is intentionally strict in input contracts and explicit in scheduling. These four goals drive every design decision:
 
 | Goal | What it means in practice |
 | --- | --- |

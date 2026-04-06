@@ -8,7 +8,7 @@ description: Managing per-frame logic, task ordering, and invalidation with the 
 	import * as ex from './examples';
 </script>
 
-The frame scheduler manages all per-frame logic in MotionGPU. Every `useFrame` callback is registered as a **task** with ordering constraints and an invalidation policy. This page covers the `useFrame` API in depth.
+The frame scheduler manages all per-frame logic in Motion GPU. Every `useFrame` callback is registered as a **task** with ordering constraints and an invalidation policy. This page covers the `useFrame` API in depth.
 
 For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs/render-modes).
 

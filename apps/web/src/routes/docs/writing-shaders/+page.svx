@@ -1,6 +1,6 @@
 ---
 title: Writing Shaders
-description: WGSL concepts, conventions, and patterns for effective shader authoring in MotionGPU.
+description: WGSL concepts, conventions, and patterns for effective shader authoring in Motion GPU.
 ---
 
 MotionGPU renders fullscreen fragment shaders written in **WGSL** (WebGPU Shading Language). This page covers the WGSL concepts you need for effective shader authoring, the conventions MotionGPU imposes, and common visual patterns.
@@ -32,7 +32,7 @@ This is the standard GPU convention (Y-up), **not** the DOM convention (Y-down).
 
 ## Built-in bindings
 
-MotionGPU injects the frame uniforms plus any user uniforms/textures you declare. You do **not** declare these bindings yourself.
+Motion GPU injects the frame uniforms plus any user uniforms/textures you declare. You do **not** declare these bindings yourself.
 
 ### Frame uniforms (always available)
 

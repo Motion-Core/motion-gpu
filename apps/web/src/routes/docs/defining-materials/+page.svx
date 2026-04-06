@@ -3,7 +3,7 @@ title: Defining Materials
 description: Creating immutable, validated materials with the defineMaterial API.
 ---
 
-`defineMaterial` is the entrypoint for creating materials in MotionGPU. It validates your inputs, freezes the result, and produces an immutable `FragMaterial` that `FragCanvas` uses to build the WebGPU rendering pipeline.
+`defineMaterial` is the entrypoint for creating materials in Motion GPU. It validates your inputs, freezes the result, and produces an immutable `FragMaterial` that `FragCanvas` uses to build the WebGPU rendering pipeline.
 
 ## Basic usage
 
@@ -62,7 +62,7 @@ The returned `FragMaterial` is frozen with `Object.freeze`. This means:
 - The `uniforms`, `textures`, `defines`, `includes`, and `storageBuffers` sub-objects are also frozen.
 - To change a material, create a new one with `defineMaterial(...)`.
 
-This immutability is critical for MotionGPU's caching: the material signature is computed once and used to detect when the renderer needs rebuilding.
+This immutability is critical for Motion GPU's caching: the material signature is computed once and used to detect when the renderer needs rebuilding.
 
 ## Material signatures
 

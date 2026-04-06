@@ -639,16 +639,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		errorMessage = '';
 		syncError = '';
 
-		const nextFileContents: Record<string, string> = {
-			...fileContents,
-			[demoAppPath]: demo.appSource
-		};
-
-		if (typeof demo.runtimeSource === 'string') {
-			nextFileContents[demoRuntimePath] = demo.runtimeSource;
-		} else {
-			delete nextFileContents[demoRuntimePath];
-		}
+		// Rebuild the sandbox file map from the selected demo so optional demo files
+		// (for example `shader.ts`) are always present after demo switches.
+		const nextFileContents = toFilesForDemo(resolvedDemoId);
 
 		fileContents = nextFileContents;
 		filePaths = Object.keys(nextFileContents);

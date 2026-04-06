@@ -10,6 +10,7 @@ import image from './plugins/image';
 import svg from './plugins/svg';
 import replace from './plugins/replace';
 import alias_plugin, { resolve } from './plugins/alias';
+import typegpuTransformPlugin from './plugins/typegpu';
 import type { Plugin, RollupCache, TransformResult } from '@rollup/browser';
 import type { BundleMessageData, BundleOptions } from '../workers';
 import type { CompileError, CompileResult } from 'svelte/compiler';
@@ -356,6 +357,7 @@ async function get_bundle(
 		cache: previous?.key === key ? previous.cache : true,
 		plugins: [
 			alias_plugin(undefined, virtual),
+			typegpuTransformPlugin(),
 			typescript_strip_types,
 			repl_plugin,
 			commonjs,

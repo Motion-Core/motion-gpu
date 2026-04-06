@@ -8,6 +8,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.1.17",
 		"@testing-library/svelte": "^5.3.1",
+		"@types/babel__standalone": "^7.1.9",
 		"@types/estree": "^1.0.8",
 		"@types/node": "^25.3.3",
 		"@typescript-eslint/eslint-plugin": "^8.56.1",
@@ -53,6 +54,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@babel/standalone": "^7.28.5",
 		"@codemirror/commands": "^6.10.2",
 		"@codemirror/lang-css": "^6.3.1",
 		"@codemirror/lang-html": "^6.4.11",
@@ -62,10 +64,11 @@
 		"@codemirror/state": "^6.5.4",
 		"@codemirror/view": "^6.39.15",
 		"@lezer/highlight": "^1.2.3",
+		"@motion-core/motion-gpu": "workspace:*",
 		"@replit/codemirror-lang-svelte": "^6.0.0",
 		"@rollup/browser": "^4.59.0",
 		"@sveltejs/acorn-typescript": "^1.0.9",
-		"@motion-core/motion-gpu": "workspace:*",
+		"@takumi-rs/image-response": "1.0.0-rc.12",
 		"acorn": "^8.16.0",
 		"carbon-icons-svelte": "^13.9.0",
 		"class-variance-authority": "^0.7.1",
@@ -75,9 +78,10 @@
 		"gsap": "^3.14.2",
 		"magic-string": "^0.30.21",
 		"resolve.exports": "^2.0.3",
-		"tarparser": "^0.0.5",
-		"zimmerframe": "^1.1.4",
 		"tailwind-merge": "^3.5.0",
-		"@takumi-rs/image-response": "1.0.0-rc.12"
+		"tarparser": "^0.0.5",
+		"typegpu": "^0.10.2",
+		"unplugin-typegpu": "^0.10.2",
+		"zimmerframe": "^1.1.4"
 	}
 }

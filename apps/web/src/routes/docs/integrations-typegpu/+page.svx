@@ -1,0 +1,121 @@
+---
+title: TypeGPU Integration
+description: Integrating TypeGPU TypeScript shader authoring with Motion GPU runtime rendering and scheduling.
+---
+
+This integration is focused on one workflow:
+
+- write shaders in **TypeScript** with TypeGPU (`'use gpu'`)
+- transform them with **`unplugin-typegpu`**
+- pass generated WGSL to Motion GPU `defineMaterial`
+
+You keep Motion GPU runtime ergonomics (`FragCanvas`, `useFrame`, render modes, passes) and move shader authoring to typed TypeScript.
+
+## Integration model
+
+Boundary is simple:
+
+1. Author shader logic in TypeScript with TypeGPU.
+2. `unplugin-typegpu` transforms shader functions.
+3. `tgpu.resolve(...)` returns WGSL (`string`).
+4. Motion GPU consumes that WGSL in `defineMaterial({ fragment })`.
+5. Motion GPU still enforces fragment contract:
+   `fn frag(uv: vec2f) -> vec4f`
+
+### 1. Enable transformer in build pipeline
+
+Vite example:
+
+```ts
+import { defineConfig } from 'vite';
+import typegpu from 'unplugin-typegpu/vite';
+
+export default defineConfig({
+  plugins: [typegpu()]
+});
+```
+
+If you bundle inside a worker pipeline, use the matching integration (for example Rolldown/Rollup plugin variant) and include it in that worker bundler as well.
+
+### 2. Author shader in TypeScript (`shader.ts`)
+
+```ts
+// shader.ts
+import tgpu, { d } from 'typegpu';
+
+const resolution = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.resolution', d.vec2u, 'uniform');
+const time = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.time', d.f32, 'uniform');
+
+const frag = tgpu
+  .fn([d.vec2f], d.vec4f)((uv) => {
+    'use gpu';
+
+    const r = d.vec2f(resolution.$);
+    const fitX = r.x / Math.max(r.y, 1);
+    const px = (uv.x - 0.5) * fitX;
+    const py = uv.y - 0.5;
+    const wave = 0.5 + 0.5 * Math.sin((px + py) * 12 + time.$ * 1.4);
+
+    return d.vec4f(wave, 0.4 + 0.6 * wave, 1 - wave, 1);
+  })
+  .$name('frag');
+
+export const fragment = tgpu.resolve([frag], { names: 'strict' });
+```
+
+### 3. Use generated WGSL in Motion GPU (`App.svelte` / runtime file)
+
+```ts
+import { defineMaterial } from '@motion-core/motion-gpu';
+import { fragment } from './shader';
+
+const material = defineMaterial({ fragment });
+```
+
+## Access Motion GPU runtime bindings in TypeGPU
+
+Motion GPU provides built-ins in shader scope:
+
+- `motiongpuFrame.resolution`
+- `motiongpuFrame.time`
+- `motiongpuFrame.delta`
+
+In TypeGPU, expose them via `rawCodeSnippet(...)` as shown above.
+
+For user uniforms declared in `defineMaterial({ uniforms })`, reference:
+
+- `motiongpuUniforms.<name>`
+
+Example:
+
+```ts
+const uStrength = tgpu['~unstable'].rawCodeSnippet('motiongpuUniforms.uStrength', d.f32, 'uniform');
+```
+
+You must still declare `uStrength` in `defineMaterial({ uniforms: { uStrength: ... } })`.
+
+## Recommended file split
+
+For this integration, keep a strict 2-file split:
+
+1. `shader.ts`: TypeGPU authoring (`'use gpu'`) + `tgpu.resolve`
+2. runtime component (`.svelte` / `.tsx`): Motion GPU `FragCanvas`, `defineMaterial`, `useFrame`
+
+This keeps shader logic isolated from runtime orchestration and makes testing/refactoring easier.
+
+## Common pitfalls
+
+| Problem | Cause | Fix |
+| --- | --- | --- |
+| `Missing metadata ... unplugin-typegpu` | `'use gpu'` shader path without transformer | Enable `unplugin-typegpu` in your build pipeline |
+| `createRequire is not a function` in browser bundle | Node-targeted plugin entry used in browser worker | Use browser-safe plugin entry/integration for your bundler pipeline |
+| WGSL compile error: missing `frag(uv)` | Generated function not named/signed as MotionGPU contract | Ensure final WGSL exports `fn frag(uv: vec2f) -> vec4f` |
+| Unknown `motiongpuUniforms.<x>` | Uniform referenced in shader but not declared in material | Add uniform to `defineMaterial({ uniforms })` |
+| Visual jitter from frame-time coupling | Scaling animation speed directly by `delta` | Prefer stable base on `time`; use `delta` only when intentionally integrating velocities |
+
+## Related docs
+
+- [Writing Shaders](/docs/writing-shaders)
+- [Defining Materials](/docs/defining-materials)
+- [Uniforms](/docs/uniforms)
+- [Hooks & Context](/docs/hooks-and-context)

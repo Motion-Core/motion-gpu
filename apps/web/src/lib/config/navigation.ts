@@ -56,6 +56,11 @@ export const docsNavigation: DocItem[] = [
 		]
 	},
 	{
+		slug: 'integrations',
+		name: 'Integrations',
+		items: [{ slug: 'integrations-typegpu', name: 'TypeGPU' }]
+	},
+	{
 		slug: 'api-reference',
 		name: 'API Reference',
 		items: [

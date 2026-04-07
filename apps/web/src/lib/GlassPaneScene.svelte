@@ -26,7 +26,7 @@ fn frag(uv: vec2f) -> vec4f {
 	var p = uv * 2.0 - vec2f(1.0, 1.0);
 	p.x = p.x * aspect;
 
-	let angle = -0.78539816339;
+	let angle = 0.0;
 	let pRot = rotate2D(p, angle);
 
 	let wave = uniforms.uWaviness * sin(pRot.y * uniforms.uFrequency);

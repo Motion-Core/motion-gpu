@@ -1,6 +1,6 @@
 ---
 title: Hooks & Context
-description: Accessing runtime state and controlling rendering with useMotionGPU and context hooks.
+description: Accessing runtime state, pointer input, and rendering controls with Motion GPU hooks.
 ---
 
 <script lang="ts">
@@ -8,7 +8,7 @@ description: Accessing runtime state and controlling rendering with useMotionGPU
 	import * as ex from './examples';
 </script>
 
-This page covers the `useMotionGPU()` hook for accessing the runtime context, the `CurrentWritable` pattern for synchronous value access, and recommended integration patterns.
+This page covers `useMotionGPU()` for runtime context access, `usePointer()` for normalized pointer input, the `CurrentWritable` pattern for synchronous reads, and recommended integration patterns.
 
 For advanced user-defined context, see [User Context (Advanced)](/docs/user-context).
 
@@ -19,6 +19,16 @@ For advanced user-defined context, see [User Context (Advanced)](/docs/user-cont
 <FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} />
 
 Must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
+
+## usePointer()
+
+`usePointer()` provides adapter-managed pointer tracking (`mouse`, `touch`, `pen`) with shader-friendly coordinates:
+- `state.current.uv` in `0..1` with Y-up orientation
+- `state.current.ndc` in `-1..1`
+- optional synthesized click snapshots via `lastClick.current`
+- optional automatic frame wakeups (`requestFrame: 'auto'`)
+
+Use it to remove canvas event-listener boilerplate in runtime components.
 
 ## MotionGPUContext shape
 

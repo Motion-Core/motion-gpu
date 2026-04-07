@@ -18,7 +18,7 @@ export const writeBufferSvelte = `\
     const subset = new Float32Array([1.0, 2.0, 3.0, 4.0]);
     state.writeStorageBuffer('particles', subset, { offset: 64 });
   });
-<\/script>`;
+</script>`;
 
 export const writeBufferReact = `\
 import { useFrame } from '@motion-core/motion-gpu/react';
@@ -54,7 +54,7 @@ export const readBufferSvelte = `\
     const data = new Float32Array(buffer);
     console.log('First particle:', data[0], data[1], data[2], data[3]);
   });
-<\/script>`;
+</script>`;
 
 export const readBufferReact = `\
 import { useFrame } from '@motion-core/motion-gpu/react';

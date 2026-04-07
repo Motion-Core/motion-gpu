@@ -12,6 +12,7 @@ export {
 } from '../passes/index.js';
 export { useMotionGPU } from './motiongpu-context.js';
 export { useFrame } from './frame-context.js';
+export { usePointer } from './use-pointer.js';
 export { useTexture } from './use-texture.js';
 export type {
 	FrameInvalidationToken,
@@ -56,6 +57,15 @@ export type {
 } from '../core/material.js';
 export type { MotionGPUContext } from './motiongpu-context.js';
 export type { UseFrameOptions, UseFrameResult } from './frame-context.js';
+export type {
+	PointerClick,
+	PointerFrameRequestMode,
+	PointerKind,
+	PointerPoint,
+	PointerState,
+	UsePointerOptions,
+	UsePointerResult
+} from './use-pointer.js';
 export type { TextureUrlInput, UseTextureResult } from './use-texture.js';
 export type {
 	StorageBufferAccess,

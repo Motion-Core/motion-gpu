@@ -22,9 +22,9 @@ Treat public package entrypoints as authoritative:
 | `@motion-core/motion-gpu/advanced` | Core | Core + scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
 | `@motion-core/motion-gpu/core` | Core | Same core API surface as root, explicit core path |
 | `@motion-core/motion-gpu/core/advanced` | Core | Same advanced core helper surface |
-| `@motion-core/motion-gpu/svelte` | Adapter | Svelte `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `useTexture`), passes, material helpers |
+| `@motion-core/motion-gpu/svelte` | Adapter | Svelte `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
 | `@motion-core/motion-gpu/svelte/advanced` | Adapter | Svelte adapter + user context APIs + scheduler helpers |
-| `@motion-core/motion-gpu/react` | Adapter | React `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `useTexture`), passes, material helpers |
+| `@motion-core/motion-gpu/react` | Adapter | React `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
 | `@motion-core/motion-gpu/react/advanced` | Adapter | React adapter + user context APIs + scheduler helpers |
 
 Advanced adapter exports:
@@ -81,6 +81,19 @@ Adapter-specific differences:
   - Svelte: `TextureLoadOptions | () => TextureLoadOptions`
   - React: `TextureLoadOptions`
 
+### `usePointer` signature
+
+- Shared return shape: `{ state, lastClick, resetClick }`
+- Shared option highlights:
+  - `requestFrame?: 'auto' | 'invalidate' | 'advance' | 'none'`
+  - `capturePointer?: boolean`
+  - `trackWhilePressedOutsideCanvas?: boolean`
+  - click synthesis options (`clickEnabled`, `clickMaxDurationMs`, `clickMaxMovePx`, `clickButtons`)
+  - callbacks: `onMove`, `onDown`, `onUp`, `onClick`
+- Coordinate conventions:
+  - `state.current.uv` uses shader-friendly Y-up (`0..1`)
+  - `state.current.ndc` uses Y-up (`-1..1`)
+
 ## Hard Contracts
 
 Enforce these constraints without exceptions:
@@ -90,7 +103,7 @@ Enforce these constraints without exceptions:
 2. `ShaderPass` shader entrypoint must be exactly:
 `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`
 3. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
-4. Call `useFrame()` and `useMotionGPU()` only inside the `<FragCanvas>` subtree.
+4. Call `useFrame()`, `useMotionGPU()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
 5. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
 6. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:
 `[A-Za-z_][A-Za-z0-9_]*`
@@ -119,6 +132,7 @@ Default to host + runtime split in both adapters.
 2. Runtime child component:
 - Call `useFrame(...)` for per-frame updates.
 - Call `useMotionGPU()` for canvas/scheduler/render controls.
+- Call `usePointer(...)` for normalized mouse/touch/pen input and click snapshots.
 - Use `useTexture(...)` for URL texture IO.
 
 Prefer this split even for simple effects. It keeps context usage valid and readable.
@@ -210,7 +224,7 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Use `motiongpuFrame.time`, `motiongpuFrame.delta`, `motiongpuFrame.resolution` for frame data.
 - Read user uniforms through `motiongpuUniforms.<name>`.
 - Sample textures with generated pairs: `uTex` and `uTexSampler`.
-- Flip Y when mapping DOM pointer to UV: `uvY = 1.0 - domNormalizedY`.
+- `usePointer().state.current.uv` already provides Y-up UV; flip Y manually only for custom DOM event wiring.
 
 ### Uniforms
 

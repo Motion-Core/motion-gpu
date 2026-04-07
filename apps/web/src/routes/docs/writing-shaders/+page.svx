@@ -28,7 +28,7 @@ If this signature is missing, `defineMaterial` throws immediately.
 (0, 0) ───────── (1, 0)
 ```
 
-This is the standard GPU convention (Y-up), **not** the DOM convention (Y-down). When converting mouse coordinates from DOM events, flip Y: `1.0 - (clientY - top) / height`.
+This is the standard GPU convention (Y-up), **not** the DOM convention (Y-down). When converting pointer coordinates manually, flip Y: `1.0 - (clientY - top) / height`. If you use `usePointer()`, `state.current.uv` already uses this Y-up orientation.
 
 ## Built-in bindings
 

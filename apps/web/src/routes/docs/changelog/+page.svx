@@ -7,6 +7,18 @@ description: All notable changes to Motion Core will be documented in this file.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-07
+### Added
+- Added new framework-agnostic pointer helpers in `core/pointer`, including pointer kind normalization, coordinate conversion (`px`, `uv`, `ndc`), and frame-request mode resolution.
+- Added `usePointer` in both Svelte and React adapters with unified mouse/touch/pen support, click synthesis, `lastClick` state, and explicit `resetClick()` handling.
+- Added dedicated pointer-focused tests for core helpers and both adapter hooks (`pointer.test.ts`, `use-pointer.test.ts`, `react-use-pointer.test.tsx`) plus Svelte fixture coverage for outside-canvas press tracking.
+- Added extended `usePointer` option/callback coverage (`clickButtons`, `clickEnabled`, `trackWhilePressedOutsideCanvas`, callbacks, `pointercancel`, multi-pointer filtering) in both Svelte and React hook tests.
+
+### Changed
+- Updated playground demos (`diamond`, `fresnel-rubiks`, `particle-icosahedron`) to use `usePointer` instead of manual pointer event listener boilerplate.
+- Expanded docs and package guidance to cover pointer-hook workflows in API reference, hooks/context guides, scheduler examples, and package README/SKILL docs.
+- Normalized docs code examples by removing unnecessary escaped closing `script` tags in snippet templates to satisfy eslint `no-useless-escape`.
+
 ## [0.6.0] - 2026-04-06
 ### Performance
 - Replaced `Reflect.deleteProperty` with the `delete` operator in `resetRuntimeMaps` and `resetRenderPayloadMaps` to reduce reflective API overhead when cleaning up stale uniform and texture keys after a material signature change.
@@ -136,7 +148,7 @@ description: All notable changes to Motion Core will be documented in this file.
 
 ## [0.1.0] - 2026-02-27
 ### Added
-- Initial Motion GPU release with `FragCanvas` as the primary Svelte runtime entrypoint.
+- Initial MotionGPU release with `FragCanvas` as the primary Svelte runtime entrypoint.
 - Material pipeline with immutable `defineMaterial` contracts and runtime material hot-swap support.
 - Typed uniform system with runtime layout validation and dirty-range uploads.
 - Texture pipeline with WGSL bindings, sampler configuration, mipmap/anisotropy/video support, and `useTexture`.
@@ -148,7 +160,8 @@ description: All notable changes to Motion Core will be documented in this file.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
 [Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
-[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915
 [0.4.1]: https://github.com/Motion-Core/motion-gpu/compare/889adfc...148c1e4

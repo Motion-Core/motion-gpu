@@ -65,7 +65,7 @@ Motion GPU follows a simple three-step flow:
 
 1. Define an immutable material with `defineMaterial(...)`.
 2. Render it with `<FragCanvas />`.
-3. Drive runtime updates with `useFrame(...)`, `useMotionGPU()`, and `useTexture(...)`.
+3. Drive runtime updates with `useFrame(...)`, `useMotionGPU()`, `usePointer()`, and `useTexture(...)`.
 
 ---
 
@@ -100,6 +100,7 @@ Motion GPU follows a simple three-step flow:
 - `defineMaterial`
 - `useMotionGPU`
 - `useFrame`
+- `usePointer`
 - `useTexture`
 - `ShaderPass`
 - `BlitPass`
@@ -134,6 +135,7 @@ Also exports runtime/core types:
 - `defineMaterial`
 - `useMotionGPU`
 - `useFrame`
+- `usePointer`
 - `useTexture`
 - `ShaderPass`
 - `BlitPass`
@@ -308,6 +310,37 @@ export function Runtime() {
 
 ---
 
+## 2b. Add pointer-driven uniforms via `usePointer`
+
+```svelte
+<!-- Runtime.svelte -->
+<script lang="ts">
+	import { useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
+
+	const pointer = usePointer();
+
+	useFrame((state) => {
+		state.setUniform('uMouse', pointer.state.current.uv);
+	});
+</script>
+```
+
+```tsx
+import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
+
+export function Runtime() {
+	const pointer = usePointer();
+
+	useFrame((state) => {
+		state.setUniform('uMouse', pointer.state.current.uv);
+	});
+
+	return null;
+}
+```
+
+---
+
 ## 3. Add a GPU compute pass
 
 ```svelte
@@ -442,7 +475,7 @@ fn frag(uv: vec2f) -> vec4f
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ```
 
-3. `useFrame()` and `useMotionGPU()` must be called inside `<FragCanvas>` subtree.
+3. `useFrame()`, `useMotionGPU()`, and `usePointer()` must be called inside `<FragCanvas>` subtree.
 
 4. You can only set uniforms/textures that were declared in `defineMaterial(...)`.
 

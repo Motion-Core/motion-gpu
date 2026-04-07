@@ -240,7 +240,11 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		for (const [relativePath, source] of Object.entries(demo.additionalFiles ?? {})) {
 			const normalizedPath = relativePath.replace(/^\.?\//, '');
-			if (!normalizedPath || normalizedPath === 'App.svelte' || normalizedPath === 'runtime.svelte') {
+			if (
+				!normalizedPath ||
+				normalizedPath === 'App.svelte' ||
+				normalizedPath === 'runtime.svelte'
+			) {
 				continue;
 			}
 			files[`src/${normalizedPath}`] = source;

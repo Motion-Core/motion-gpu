@@ -3,7 +3,7 @@ export const basicUsageSvelte = `\
   import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
-<\/script>`;
+</script>`;
 
 export const basicUsageReact = `\
 import { useMotionGPU } from '@motion-core/motion-gpu/react';
@@ -16,7 +16,7 @@ export const readSizeSvelte = `\
 <script lang="ts">
   import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
   const gpu = useMotionGPU();
-<\/script>
+</script>
 
 <p>Canvas: {$gpu.size.width}×{$gpu.size.height} @ {$gpu.dpr}x</p>`;
 
@@ -40,7 +40,7 @@ export const togglePauseSvelte = `\
   function togglePause() {
     gpu.autoRender.set(!gpu.autoRender.current);
   }
-<\/script>
+</script>
 
 <button onclick={togglePause}>
   {$gpu.autoRender ? 'Pause' : 'Resume'}
@@ -70,50 +70,36 @@ function Component() {
 
 export const onDemandExternalSvelte = `\
 <script lang="ts">
-  import { useMotionGPU, useFrame } from '@motion-core/motion-gpu/svelte';
+  import { useMotionGPU, useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
 
   const gpu = useMotionGPU();
+  const pointer = usePointer({ requestFrame: 'auto' });
 
   $effect(() => {
     gpu.renderMode.set('on-demand');
   });
 
-  $effect(() => {
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-
-    const handler = () => gpu.invalidate();
-    canvas.addEventListener('pointermove', handler);
-    return () => canvas.removeEventListener('pointermove', handler);
-  });
-
   useFrame((state) => {
     state.setUniform('uTime', state.time);
+    state.setUniform('uMouse', pointer.state.current.uv);
   }, { autoInvalidate: false });
-<\/script>`;
+</script>`;
 
 export const onDemandExternalReact = `\
-import { useMotionGPU, useFrame } from '@motion-core/motion-gpu/react';
+import { useMotionGPU, useFrame, usePointer } from '@motion-core/motion-gpu/react';
 import { useEffect } from 'react';
 
 function Component() {
   const gpu = useMotionGPU();
+  const pointer = usePointer({ requestFrame: 'auto' });
 
   useEffect(() => {
     gpu.renderMode.set('on-demand');
   }, [gpu]);
 
-  useEffect(() => {
-    const canvas = gpu.canvas;
-    if (!canvas) return;
-
-    const handler = () => gpu.invalidate();
-    canvas.addEventListener('pointermove', handler);
-    return () => canvas.removeEventListener('pointermove', handler);
-  }, [gpu]);
-
   useFrame((state) => {
     state.setUniform('uTime', state.time);
+    state.setUniform('uMouse', pointer.state.current.uv);
   }, { autoInvalidate: false });
 
   return null;

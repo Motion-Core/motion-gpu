@@ -28,6 +28,7 @@ packages/motion-gpu/src/lib/
 │   ├── FragCanvas.svelte           # Svelte host component
 │   ├── frame-context.ts            # Svelte useFrame adapter wrapper
 │   ├── motiongpu-context.ts        # Svelte useMotionGPU adapter wrapper
+│   ├── use-pointer.ts              # Svelte normalized pointer hook
 │   ├── use-texture.ts              # Svelte lifecycle-aware texture hook
 │   ├── use-motiongpu-user-context.ts # Svelte advanced user-context hook
 │   ├── Portal.svelte               # DOM portal utility for overlay rendering
@@ -38,6 +39,7 @@ packages/motion-gpu/src/lib/
 │   ├── FragCanvas.tsx              # React host component
 │   ├── frame-context.ts            # React useFrame adapter wrapper
 │   ├── motiongpu-context.ts        # React useMotionGPU adapter wrapper
+│   ├── use-pointer.ts              # React normalized pointer hook
 │   ├── use-texture.ts              # React lifecycle-aware texture hook
 │   ├── use-motiongpu-user-context.ts # React advanced user-context hook
 │   ├── Portal.tsx                  # DOM portal utility for overlay rendering
@@ -73,7 +75,7 @@ packages/motion-gpu/src/lib/
 ### Initialization (mount)
 
 1. **Create frame registry** — instantiates the scheduler with default stage, timing, and profiling state.
-2. **Set up adapter context** — provides `MotionGPUContext` and frame registry context so `useMotionGPU()`, `useFrame()`, etc. work inside child components.
+2. **Set up adapter context** — provides `MotionGPUContext` and frame registry context so `useMotionGPU()`, `useFrame()`, `usePointer()`, etc. work inside child components.
 3. **Start core runtime loop** — `createMotionGPURuntimeLoop(...)` receives adapter getters and owns material resolution, renderer rebuild policy, retries, and render scheduling.
 4. **Resolve material (core)** — calls `resolveMaterial(material)` to produce preprocessed WGSL, uniform layout, texture keys, storage buffer keys, and deterministic `signature`.
 5. **Create renderer (core)** — when needed, `createRenderer(...)` requests adapter/device, compiles WGSL, allocates storage buffers, and builds bind groups + pipelines (render and compute).

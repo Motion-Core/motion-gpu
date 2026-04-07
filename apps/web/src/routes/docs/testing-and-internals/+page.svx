@@ -14,7 +14,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Public API** | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape. |
 | **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
 | **FragCanvas** | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, error-history ring buffer behavior, prop validation. |
-| **Context hooks** | `useMotionGPU` and `useFrame` throw when called outside `FragCanvas`. Context shape and exposed controls. |
+| **Context hooks** | `useMotionGPU`, `useFrame`, and `usePointer` throw when called outside `FragCanvas`. Context shape and exposed controls plus normalized pointer/click state behavior. |
 | **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes, duplicate-key replacement safety, `clear()` behavior. |
 | **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching. |
 | **Uniforms** | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection. |
@@ -35,7 +35,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 
 | Guarantee | Why it matters |
 | --- | --- |
-| `useMotionGPU` and `useFrame` require `FragCanvas` ancestor | Prevents undefined runtime context usage outside the component tree. |
+| `useMotionGPU`, `useFrame`, and `usePointer` require `FragCanvas` ancestor | Prevents undefined runtime context usage outside the component tree. |
 | `defineMaterial` freezes output | Material snapshots are cache-safe and deterministic — no accidental mutation. |
 | Pipeline signature ignores pure uniform value changes | Avoids expensive recompiles when only animation values change. |
 | `useTexture` abort/reload semantics are race-safe | Prevents stale async results from overwriting fresh texture data. |

@@ -10,7 +10,7 @@ fn frag(uv: vec2f) -> vec4f {
 }
 \`
   });
-<\/script>
+</script>
 
 <div style="width: 100vw; height: 100vh;">
   <FragCanvas {material} />
@@ -53,7 +53,7 @@ fn frag(uv: vec2f) -> vec4f {
       uTime: { type: 'f32', value: 0 }
     }
   });
-<\/script>
+</script>
 
 <FragCanvas {material}>
   <Runtime />
@@ -92,7 +92,7 @@ export const step2RuntimeSvelte = `\
   useFrame((state) => {
     state.setUniform('uTime', state.time);
   });
-<\/script>`;
+</script>`;
 
 export const step2RuntimeReact = `\
 // Runtime.tsx

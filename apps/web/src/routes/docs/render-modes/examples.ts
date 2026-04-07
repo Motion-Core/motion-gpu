@@ -15,7 +15,7 @@ export const onDemandInvalidateSvelte = `\
   function handlePointerMove() {
     gpu.invalidate();
   }
-<\/script>`;
+</script>`;
 
 export const onDemandInvalidateReact = `\
 import { useMotionGPU } from '@motion-core/motion-gpu/react';
@@ -39,7 +39,7 @@ export const manualSvelte = `\
   function captureFrame() {
     gpu.advance();
   }
-<\/script>
+</script>
 
 <button onclick={captureFrame}>Render one frame</button>`;
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame, useMotionGPU } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/svelte';
 
 	type Axis = 'x' | 'y' | 'z';
 	type Layer = -1 | 0 | 1;
@@ -134,8 +134,6 @@
 	let timeSinceLastMove = 0;
 
 	let isDragging = false;
-	let lastPointerX = 0;
-	let lastPointerY = 0;
 	let lastPointerTime = 0;
 	let lastArcballVec: Vec3 | null = null;
 	let sceneQuat: Quat = [0, 0, 0, 1];
@@ -279,6 +277,90 @@
 		beginMove(next);
 	};
 
+	const beginDrag = (
+		state: { time: number },
+		event: PointerEvent,
+		canvas: HTMLCanvasElement
+	): void => {
+		isDragging = true;
+		lastPointerTime = state.time;
+		lastArcballVec = projectPointerToArcball(event.clientX, event.clientY, canvas);
+		dragVelocityY = 0;
+		dragVelocityX = 0;
+		dragAngularSpeed = 0;
+		dragAngularAxis = [0, 1, 0];
+		momentumVelocityY = 0;
+		momentumVelocityX = 0;
+		momentumAngularSpeed = 0;
+		momentumAngularAxis = [0, 1, 0];
+		canvas.style.cursor = 'grabbing';
+	};
+
+	const updateDrag = (
+		state: { deltaPx: [number, number]; time: number },
+		event: PointerEvent,
+		canvas: HTMLCanvasElement
+	): void => {
+		if (!isDragging) return;
+		const dt = Math.max(0.001, state.time - lastPointerTime);
+		lastPointerTime = state.time;
+		const rotateDeltaY = state.deltaPx[0] * DRAG_SENSITIVITY;
+		const rotateDeltaX = state.deltaPx[1] * DRAG_SENSITIVITY;
+		const arcballNow = projectPointerToArcball(event.clientX, event.clientY, canvas);
+		const arcballPrev = lastArcballVec ?? arcballNow;
+		const dragQuat = quatFromUnitVectors(arcballPrev, arcballNow);
+		sceneQuat = quatMultiply(dragQuat, sceneQuat);
+		lastArcballVec = arcballNow;
+
+		const instantVelocityY = rotateDeltaY / dt;
+		const instantVelocityX = rotateDeltaX / dt;
+		dragVelocityY += (instantVelocityY - dragVelocityY) * DRAG_VELOCITY_SMOOTHING;
+		dragVelocityX += (instantVelocityX - dragVelocityX) * DRAG_VELOCITY_SMOOTHING;
+
+		const halfAngle = Math.acos(clamp(dragQuat[3], -1, 1));
+		const fullAngle = halfAngle * 2;
+		const sinHalf = Math.sin(halfAngle);
+		if (sinHalf > 1e-4 && fullAngle > 1e-5) {
+			dragAngularAxis = normalizeVec3([
+				dragQuat[0] / sinHalf,
+				dragQuat[1] / sinHalf,
+				dragQuat[2] / sinHalf
+			]);
+			const instantAngularSpeed = fullAngle / dt;
+			dragAngularSpeed += (instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
+		}
+	};
+
+	const endDrag = (canvas: HTMLCanvasElement): void => {
+		if (!isDragging) return;
+		isDragging = false;
+		momentumVelocityY = dragVelocityY;
+		momentumVelocityX = dragVelocityX;
+		momentumAngularSpeed = dragAngularSpeed;
+		momentumAngularAxis = dragAngularAxis;
+		lastArcballVec = null;
+		canvas.style.cursor = 'grab';
+	};
+
+	usePointer({
+		onDown: (state, event) => {
+			const canvas = motion.canvas;
+			if (!canvas) return;
+			beginDrag(state, event, canvas);
+		},
+		onMove: (state, event) => {
+			if (!state.pressed) return;
+			const canvas = motion.canvas;
+			if (!canvas) return;
+			updateDrag(state, event, canvas);
+		},
+		onUp: () => {
+			const canvas = motion.canvas;
+			if (!canvas) return;
+			endDrag(canvas);
+		}
+	});
+
 	onMount(() => {
 		const canvas = motion.canvas;
 		if (!canvas) return;
@@ -286,81 +368,9 @@
 		canvas.style.cursor = 'grab';
 		canvas.style.touchAction = 'none';
 
-		const handlePointerDown = (event: PointerEvent) => {
-			isDragging = true;
-			lastPointerX = event.clientX;
-			lastPointerY = event.clientY;
-			lastPointerTime = performance.now();
-			lastArcballVec = projectPointerToArcball(event.clientX, event.clientY, canvas);
-			dragVelocityY = 0;
-			dragVelocityX = 0;
-			dragAngularSpeed = 0;
-			dragAngularAxis = [0, 1, 0];
-			momentumVelocityY = 0;
-			momentumVelocityX = 0;
-			momentumAngularSpeed = 0;
-			momentumAngularAxis = [0, 1, 0];
-			canvas.style.cursor = 'grabbing';
-		};
-
-		const handlePointerMove = (event: PointerEvent) => {
-			if (!isDragging) return;
-			const now = performance.now();
-			const dx = event.clientX - lastPointerX;
-			const dy = event.clientY - lastPointerY;
-			lastPointerX = event.clientX;
-			lastPointerY = event.clientY;
-			const dt = Math.max(0.001, (now - lastPointerTime) * 0.001);
-			lastPointerTime = now;
-
-			const rotateDeltaY = dx * DRAG_SENSITIVITY;
-			const rotateDeltaX = dy * DRAG_SENSITIVITY;
-			const arcballNow = projectPointerToArcball(event.clientX, event.clientY, canvas);
-			const arcballPrev = lastArcballVec ?? arcballNow;
-			const dragQuat = quatFromUnitVectors(arcballPrev, arcballNow);
-			sceneQuat = quatMultiply(dragQuat, sceneQuat);
-			lastArcballVec = arcballNow;
-
-			const instantVelocityY = rotateDeltaY / dt;
-			const instantVelocityX = rotateDeltaX / dt;
-			dragVelocityY += (instantVelocityY - dragVelocityY) * DRAG_VELOCITY_SMOOTHING;
-			dragVelocityX += (instantVelocityX - dragVelocityX) * DRAG_VELOCITY_SMOOTHING;
-
-			const halfAngle = Math.acos(clamp(dragQuat[3], -1, 1));
-			const fullAngle = halfAngle * 2;
-			const sinHalf = Math.sin(halfAngle);
-			if (sinHalf > 1e-4 && fullAngle > 1e-5) {
-				dragAngularAxis = normalizeVec3([
-					dragQuat[0] / sinHalf,
-					dragQuat[1] / sinHalf,
-					dragQuat[2] / sinHalf
-				]);
-				const instantAngularSpeed = fullAngle / dt;
-				dragAngularSpeed += (instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
-			}
-		};
-
-		const endDrag = () => {
-			if (!isDragging) return;
-			isDragging = false;
-			momentumVelocityY = dragVelocityY;
-			momentumVelocityX = dragVelocityX;
-			momentumAngularSpeed = dragAngularSpeed;
-			momentumAngularAxis = dragAngularAxis;
-			lastArcballVec = null;
-			canvas.style.cursor = 'grab';
-		};
-
-		canvas.addEventListener('pointerdown', handlePointerDown);
-		window.addEventListener('pointermove', handlePointerMove);
-		window.addEventListener('pointerup', endDrag);
-		canvas.addEventListener('pointercancel', endDrag);
-
 		return () => {
-			canvas.removeEventListener('pointerdown', handlePointerDown);
-			window.removeEventListener('pointermove', handlePointerMove);
-			window.removeEventListener('pointerup', endDrag);
-			canvas.removeEventListener('pointercancel', endDrag);
+			canvas.style.cursor = '';
+			canvas.style.touchAction = '';
 		};
 	});
 

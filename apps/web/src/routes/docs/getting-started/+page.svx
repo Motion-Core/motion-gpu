@@ -9,7 +9,7 @@ description: Step-by-step guide to installing Motion GPU and building your first
 	import * as ex from './examples';
 </script>
 
-This guide walks you through installing Motion GPU and building your first fullscreen shader, step by step. By the end, you will understand the core `defineMaterial` → `FragCanvas` → `useFrame` workflow.
+This guide walks you through installing Motion GPU and building your first fullscreen shader, step by step. By the end, you will understand the core `defineMaterial` → `FragCanvas` → runtime hooks (`useFrame`, `usePointer`) workflow.
 
 ## Prerequisites
 

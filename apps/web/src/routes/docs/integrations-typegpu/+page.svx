@@ -9,7 +9,7 @@ This integration is focused on one workflow:
 - transform them with **`unplugin-typegpu`**
 - pass generated WGSL to Motion GPU `defineMaterial`
 
-You keep Motion GPU runtime ergonomics (`FragCanvas`, `useFrame`, render modes, passes) and move shader authoring to typed TypeScript.
+You keep Motion GPU runtime ergonomics (`FragCanvas`, `useFrame`, `usePointer`, render modes, passes) and move shader authoring to typed TypeScript.
 
 ## Integration model
 
@@ -99,7 +99,7 @@ You must still declare `uStrength` in `defineMaterial({ uniforms: { uStrength: .
 For this integration, keep a strict 2-file split:
 
 1. `shader.ts`: TypeGPU authoring (`'use gpu'`) + `tgpu.resolve`
-2. runtime component (`.svelte` / `.tsx`): Motion GPU `FragCanvas`, `defineMaterial`, `useFrame`
+2. runtime component (`.svelte` / `.tsx`): Motion GPU `FragCanvas`, `defineMaterial`, `useFrame` / `usePointer`
 
 This keeps shader logic isolated from runtime orchestration and makes testing/refactoring easier.
 

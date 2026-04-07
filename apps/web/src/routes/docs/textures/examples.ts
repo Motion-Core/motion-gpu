@@ -9,7 +9,7 @@ export const videoTextureSvelte = `\
       state.setTexture('uVideo', video);
     }
   });
-<\/script>
+</script>
 
 <video bind:this={video} src="/assets/loop.mp4" autoplay loop muted playsinline />`;
 

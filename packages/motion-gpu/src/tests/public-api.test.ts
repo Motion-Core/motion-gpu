@@ -58,6 +58,7 @@ describe('public api contract', () => {
 			'defineMaterial',
 			'useFrame',
 			'useMotionGPU',
+			'usePointer',
 			'useTexture'
 		]);
 		expect(Object.keys(svelteAdvanced).sort()).toEqual([
@@ -74,6 +75,7 @@ describe('public api contract', () => {
 			'useFrame',
 			'useMotionGPU',
 			'useMotionGPUUserContext',
+			'usePointer',
 			'useTexture'
 		]);
 	});
@@ -89,6 +91,7 @@ describe('public api contract', () => {
 			'defineMaterial',
 			'useFrame',
 			'useMotionGPU',
+			'usePointer',
 			'useTexture'
 		]);
 		expect(Object.keys(reactAdvanced).sort()).toEqual([
@@ -105,6 +108,7 @@ describe('public api contract', () => {
 			'useFrame',
 			'useMotionGPU',
 			'useMotionGPUUserContext',
+			'usePointer',
 			'useSetMotionGPUUserContext',
 			'useTexture'
 		]);

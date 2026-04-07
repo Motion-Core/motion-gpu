@@ -8,7 +8,7 @@ export const basicUsageSvelte = `\
     const tex = loaded.textures.current?.[0];
     state.setTexture('uAlbedo', tex ? { source: tex.source } : null);
   });
-<\/script>`;
+</script>`;
 
 export const basicUsageReact = `\
 import { useFrame, useTexture } from '@motion-core/motion-gpu/react';
@@ -27,7 +27,7 @@ function Runtime() {
 export const reactiveUISvelte = `\
 <script lang="ts">
   const { textures, loading, error, errorReport } = useTexture(['/assets/albedo.png']);
-<\/script>
+</script>
 
 {#if $loading}
   <p>Loading textures...</p>

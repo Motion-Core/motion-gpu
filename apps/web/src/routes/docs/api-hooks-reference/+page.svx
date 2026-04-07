@@ -1,6 +1,6 @@
 ---
 title: Hooks API
-description: "Reference for runtime hooks: useFrame, useMotionGPU, useTexture, and user context APIs."
+description: "Reference for runtime hooks: useFrame, useMotionGPU, usePointer, useTexture, and user context APIs."
 ---
 
 Reference for hook-based runtime control in the Svelte and React adapters.
@@ -9,14 +9,14 @@ Reference for hook-based runtime control in the Svelte and React adapters.
 
 | Entrypoint | Exports |
 | --- | --- |
-| `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `useTexture` |
+| `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
 | `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
-| `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `useTexture` |
+| `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
 | `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `useSetMotionGPUUserContext`, `setMotionGPUUserContext` |
 
 ## Context rule
 
-`useFrame()`, `useMotionGPU()`, `useMotionGPUUserContext()`, and `useSetMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
+`useFrame()`, `useMotionGPU()`, `usePointer()`, `useMotionGPUUserContext()`, and `useSetMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
 
 ## `useFrame`
 
@@ -64,6 +64,50 @@ Returns runtime context controls:
 - access to shared `user` current-writable map
 
 See: [Hooks and Context](/docs/hooks-and-context).
+
+## `usePointer(options?)`
+
+```ts
+usePointer(options?: UsePointerOptions): UsePointerResult
+```
+
+### `UsePointerOptions`
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `enabled` | `boolean` | `true` |
+| `requestFrame` | `'auto' \| 'invalidate' \| 'advance' \| 'none'` | `'auto'` |
+| `capturePointer` | `boolean` | `true` |
+| `trackWhilePressedOutsideCanvas` | `boolean` | `true` |
+| `clickEnabled` | `boolean` | `true` |
+| `clickMaxDurationMs` | `number` | `350` |
+| `clickMaxMovePx` | `number` | `8` |
+| `clickButtons` | `number[]` | `[0]` |
+| `onMove` | `(state, event) => void` | `undefined` |
+| `onDown` | `(state, event) => void` | `undefined` |
+| `onUp` | `(state, event) => void` | `undefined` |
+| `onClick` | `(click, state, event) => void` | `undefined` |
+
+### Return: `UsePointerResult`
+
+| Field | Type |
+| --- | --- |
+| `state` | `CurrentReadable<PointerState>` |
+| `lastClick` | `CurrentReadable<PointerClick \| null>` |
+| `resetClick` | `() => void` |
+
+### `PointerState` highlights
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `px` | `[number, number]` | CSS pixels relative to canvas |
+| `uv` | `[number, number]` | `0..1` with Y-up orientation |
+| `ndc` | `[number, number]` | `-1..1` with Y-up orientation |
+| `inside` | `boolean` | Pointer currently inside canvas bounds |
+| `pressed` | `boolean` | Active pointer is down |
+| `dragging` | `boolean` | Active pointer moved while pressed |
+| `deltaPx` / `deltaUv` | tuple | Per-event movement delta |
+| `velocityPx` / `velocityUv` | tuple | Per-event velocity |
 
 ## `useTexture(urlInput, options?)`
 

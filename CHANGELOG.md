@@ -4,6 +4,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-04-07
+### Added
+- Added new framework-agnostic pointer helpers in `core/pointer`, including pointer kind normalization, coordinate conversion (`px`, `uv`, `ndc`), and frame-request mode resolution.
+- Added `usePointer` in both Svelte and React adapters with unified mouse/touch/pen support, click synthesis, `lastClick` state, and explicit `resetClick()` handling.
+- Added dedicated pointer-focused tests for core helpers and both adapter hooks (`pointer.test.ts`, `use-pointer.test.ts`, `react-use-pointer.test.tsx`) plus Svelte fixture coverage for outside-canvas press tracking.
+- Added extended `usePointer` option/callback coverage (`clickButtons`, `clickEnabled`, `trackWhilePressedOutsideCanvas`, callbacks, `pointercancel`, multi-pointer filtering) in both Svelte and React hook tests.
+
+### Changed
+- Updated playground demos (`diamond`, `fresnel-rubiks`, `particle-icosahedron`) to use `usePointer` instead of manual pointer event listener boilerplate.
+- Expanded docs and package guidance to cover pointer-hook workflows in API reference, hooks/context guides, scheduler examples, and package README/SKILL docs.
+- Normalized docs code examples by removing unnecessary escaped closing `script` tags in snippet templates to satisfy eslint `no-useless-escape`.
+
 ## [0.6.0] - 2026-04-06
 ### Performance
 - Replaced `Reflect.deleteProperty` with the `delete` operator in `resetRuntimeMaps` and `resetRenderPayloadMaps` to reduce reflective API overhead when cleaning up stale uniform and texture keys after a material signature change.
@@ -145,7 +157,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
 [Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
-[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915
 [0.4.1]: https://github.com/Motion-Core/motion-gpu/compare/889adfc...148c1e4

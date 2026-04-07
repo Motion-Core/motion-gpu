@@ -81,7 +81,7 @@ Adapter-specific naming differences (`class` vs `className`, `style` type, `chil
 | --- | --- | --- | --- |
 | `class` (Svelte) / `className` (React) | `string` | `''` | CSS class applied directly to the `<canvas>`. |
 | `style` | `string` (Svelte) / `React.CSSProperties` (React) | `''` (Svelte) / `undefined` (React) | Inline styles applied directly to the `<canvas>`. |
-| `children` | `Snippet` (Svelte) / `ReactNode` (React) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, etc. work. |
+| `children` | `Snippet` (Svelte) / `ReactNode` (React) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
 
 ## Lifecycle
 

@@ -32,9 +32,9 @@ Motion GPU documentation is also available for AI tools via [Context7](https://c
 | --- | --- |
 | `@motion-core/motion-gpu` | Framework-agnostic core runtime primitives (`defineMaterial`, `createFrameRegistry`, `createMotionGPURuntimeLoop`, `createCurrentWritable`, passes incl. `ComputePass`/`PingPongComputePass`, texture loader, error normalization) |
 | `@motion-core/motion-gpu/advanced` | Core runtime plus scheduler helper utilities (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
-| `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `useTexture`, passes, material helpers) |
+| `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
-| `@motion-core/motion-gpu/react` | React adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `useTexture`, passes, material helpers) |
+| `@motion-core/motion-gpu/react` | React adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
 | `@motion-core/motion-gpu/react/advanced` | React adapter runtime plus user context APIs and scheduler helpers |
 
 The export contract is verified in `src/tests/public-api.test.ts`.

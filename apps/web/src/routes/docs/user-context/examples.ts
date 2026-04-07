@@ -23,7 +23,7 @@ export const consumeSharedStateSvelte = `\
   function setMedium() {
     setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
   }
-<\/script>`;
+</script>`;
 
 export const consumeSharedStateReact = `\
 import { useMotionGPUUserContext, useSetMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
@@ -74,7 +74,7 @@ export const reactEffectWritesSvelte = `\
   function setMedium() {
     setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
   }
-<\/script>
+</script>
 
 <button onclick={setMedium}>Medium</button>`;
 
@@ -83,7 +83,7 @@ export const fullContextReadSvelte = `\
   import { useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
 
   const ctx = useMotionGPUUserContext();
-<\/script>`;
+</script>`;
 
 export const fullContextReadReact = `\
 import { useMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';

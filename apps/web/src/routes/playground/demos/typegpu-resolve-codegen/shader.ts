@@ -1,10 +1,17 @@
 import tgpu, { d } from 'typegpu';
 
-const resolution = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.resolution', d.vec2u, 'uniform');
+const resolution = tgpu['~unstable'].rawCodeSnippet(
+	'motiongpuFrame.resolution',
+	d.vec2u,
+	'uniform'
+);
 const time = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.time', d.f32, 'uniform');
 
 const frag = tgpu
-	.fn([d.vec2f], d.vec4f)((uv) => {
+	.fn(
+		[d.vec2f],
+		d.vec4f
+	)((uv) => {
 		'use gpu';
 
 		const r = d.vec2f(resolution.$);

@@ -16,10 +16,9 @@
 				<GlassPane
 					image="/image.jpg"
 					class="mix-blend-lighten"
-					distortion={0.2}
-					chromaticAberration={0.0035}
+					distortion={0.4}
+					chromaticAberration={0.005}
 					waviness={0.0}
-					speed={0}
 					rods={15}
 					aria-hidden="true"
 				/>

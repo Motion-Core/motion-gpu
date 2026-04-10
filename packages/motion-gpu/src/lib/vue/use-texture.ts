@@ -1,0 +1,232 @@
+import { onBeforeUnmount } from 'vue';
+import {
+	createCurrentWritable as currentWritable,
+	type CurrentReadable
+} from '../core/current-value.js';
+import {
+	isAbortError,
+	loadTexturesFromUrls,
+	type LoadedTexture,
+	type TextureLoadOptions
+} from '../core/texture-loader.js';
+import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report.js';
+
+/**
+ * Reactive state returned by {@link useTexture}.
+ */
+export interface UseTextureResult {
+	/**
+	 * Loaded textures or `null` when unavailable/failed.
+	 */
+	textures: CurrentReadable<LoadedTexture[] | null>;
+	/**
+	 * `true` while an active load request is running.
+	 */
+	loading: CurrentReadable<boolean>;
+	/**
+	 * Last loading error.
+	 */
+	error: CurrentReadable<Error | null>;
+	/**
+	 * Last loading error normalized to MotionGPU diagnostics report shape.
+	 */
+	errorReport: CurrentReadable<MotionGPUErrorReport | null>;
+	/**
+	 * Reloads all textures using current URL input.
+	 */
+	reload: () => Promise<void>;
+}
+
+/**
+ * Supported URL input variants for `useTexture`.
+ */
+export type TextureUrlInput = string[] | (() => string[]);
+
+/**
+ * Supported options input variants for `useTexture`.
+ */
+export type TextureOptionsInput = TextureLoadOptions | (() => TextureLoadOptions);
+
+/**
+ * Normalizes unknown thrown values to an `Error` instance.
+ */
+function toError(error: unknown): Error {
+	if (error instanceof Error) {
+		return error;
+	}
+
+	return new Error('Unknown texture loading error');
+}
+
+/**
+ * Releases GPU-side resources for a list of loaded textures.
+ */
+function disposeTextures(list: LoadedTexture[] | null): void {
+	for (const texture of list ?? []) {
+		texture.dispose();
+	}
+}
+
+interface MergedAbortSignal {
+	signal: AbortSignal;
+	dispose: () => void;
+}
+
+function mergeAbortSignals(
+	primary: AbortSignal,
+	secondary: AbortSignal | undefined
+): MergedAbortSignal {
+	if (!secondary) {
+		return {
+			signal: primary,
+			dispose: () => {}
+		};
+	}
+
+	if (typeof AbortSignal.any === 'function') {
+		return {
+			signal: AbortSignal.any([primary, secondary]),
+			dispose: () => {}
+		};
+	}
+
+	const fallback = new AbortController();
+	let disposed = false;
+	const cleanup = (): void => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		primary.removeEventListener('abort', abort);
+		secondary.removeEventListener('abort', abort);
+	};
+	const abort = (): void => fallback.abort();
+
+	primary.addEventListener('abort', abort, { once: true });
+	secondary.addEventListener('abort', abort, { once: true });
+
+	return {
+		signal: fallback.signal,
+		dispose: cleanup
+	};
+}
+
+/**
+ * Loads textures from URLs and exposes reactive loading/error state.
+ *
+ * @param urlInput - URLs array or lazy URL provider.
+ * @param optionsInput - Loader options object or lazy options provider.
+ * @returns Reactive texture loading state with reload support.
+ */
+export function useTexture(
+	urlInput: TextureUrlInput,
+	optionsInput: TextureOptionsInput = {}
+): UseTextureResult {
+	const textures = currentWritable<LoadedTexture[] | null>(null);
+	const loading = currentWritable(true);
+	const error = currentWritable<Error | null>(null);
+	const errorReport = currentWritable<MotionGPUErrorReport | null>(null);
+	let disposed = false;
+	let requestVersion = 0;
+	let activeController: AbortController | null = null;
+	let runningLoad: Promise<void> | null = null;
+	let reloadQueued = false;
+	const getUrls = typeof urlInput === 'function' ? urlInput : () => urlInput;
+	const getOptions =
+		typeof optionsInput === 'function'
+			? (optionsInput as () => TextureLoadOptions)
+			: () => optionsInput;
+
+	const executeLoad = async (): Promise<void> => {
+		if (disposed) {
+			return;
+		}
+
+		const version = ++requestVersion;
+		const controller = new AbortController();
+		activeController = controller;
+		loading.set(true);
+		error.set(null);
+		errorReport.set(null);
+
+		const previous = textures.current;
+		const options = getOptions() ?? {};
+		const mergedSignal = mergeAbortSignals(controller.signal, options.signal);
+		try {
+			const loaded = await loadTexturesFromUrls(getUrls(), {
+				...options,
+				signal: mergedSignal.signal
+			});
+			if (disposed || version !== requestVersion) {
+				disposeTextures(loaded);
+				return;
+			}
+
+			textures.set(loaded);
+			disposeTextures(previous);
+		} catch (nextError) {
+			if (disposed || version !== requestVersion) {
+				return;
+			}
+
+			if (isAbortError(nextError)) {
+				return;
+			}
+
+			disposeTextures(previous);
+			textures.set(null);
+			const normalizedError = toError(nextError);
+			error.set(normalizedError);
+			errorReport.set(toMotionGPUErrorReport(normalizedError, 'initialization'));
+		} finally {
+			if (!disposed && version === requestVersion) {
+				loading.set(false);
+			}
+			if (activeController === controller) {
+				activeController = null;
+			}
+			mergedSignal.dispose();
+		}
+	};
+
+	const runLoadLoop = async (): Promise<void> => {
+		do {
+			reloadQueued = false;
+			await executeLoad();
+		} while (reloadQueued && !disposed);
+	};
+
+	const load = (): Promise<void> => {
+		activeController?.abort();
+		if (runningLoad) {
+			reloadQueued = true;
+			return runningLoad;
+		}
+
+		const pending = runLoadLoop();
+		const trackedPending = pending.finally(() => {
+			if (runningLoad === trackedPending) {
+				runningLoad = null;
+			}
+		});
+		runningLoad = trackedPending;
+		return trackedPending;
+	};
+
+	void load();
+
+	onBeforeUnmount(() => {
+		disposed = true;
+		requestVersion += 1;
+		activeController?.abort();
+		disposeTextures(textures.current);
+	});
+
+	return {
+		textures,
+		loading,
+		error,
+		errorReport,
+		reload: load
+	};
+}

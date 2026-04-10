@@ -416,7 +416,8 @@ export const createPlaygroundController = (
 		const script = buildEvalScript(bundle);
 		if (!script) return;
 
-		await previewProxy.eval(script, bundle.css ?? previewDefaultStyles);
+		const previewStyle = `${previewDefaultStyles}\n${bundle.css ?? ''}`;
+		await previewProxy.eval(script, previewStyle);
 	};
 
 	const runBundle = async () => {

@@ -28,15 +28,6 @@ import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.c
 
 type EditorThemeMode = 'light' | 'dark';
 const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
-type FileTreeNode =
-	| { kind: 'directory'; name: string; path: string; children: FileTreeNode[] }
-	| { kind: 'file'; name: string; path: string };
-type FileTreeRow = {
-	kind: 'directory' | 'file';
-	name: string;
-	path: string;
-	depth: number;
-};
 
 const editorFontStack =
 	'"Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -256,9 +247,17 @@ export const createPlaygroundController = (
 	let activeFramework = $state(initialResolvedFramework);
 	let activeDemoId = $state(initialResolvedDemoId);
 	let activeFilePath = $state(frameworkEntryPaths[initialResolvedFramework].appPath);
-	let openFilePaths = $state<string[]>([frameworkEntryPaths[initialResolvedFramework].appPath]);
-	let collapsedDirs = $state<Record<string, boolean>>({});
-	const maxOpenTabs = 3;
+	const sortFilePaths = (paths: string[], framework: PlaygroundFramework): string[] => {
+		const entryPaths = frameworkEntryPaths[framework];
+		return [...paths].sort((left, right) => {
+			if (left === right) return 0;
+			if (left === entryPaths.appPath) return -1;
+			if (right === entryPaths.appPath) return 1;
+			if (left === entryPaths.runtimePath) return -1;
+			if (right === entryPaths.runtimePath) return 1;
+			return left.localeCompare(right);
+		});
+	};
 
 	const toFilesForDemo = (
 		demoId: string,
@@ -293,99 +292,12 @@ export const createPlaygroundController = (
 	};
 
 	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId, initialResolvedFramework);
+	const initialFilePaths = sortFilePaths(
+		Object.keys(initialDemoFiles),
+		initialResolvedFramework
+	);
 	let fileContents = $state<Record<string, string>>(initialDemoFiles);
-	let filePaths = $state<string[]>(Object.keys(initialDemoFiles));
-
-	const collectTreeRows = (
-		nodes: FileTreeNode[],
-		collapsed: Record<string, boolean>,
-		depth = 0
-	): FileTreeRow[] => {
-		const rows: FileTreeRow[] = [];
-
-		for (const node of nodes) {
-			rows.push({ kind: node.kind, name: node.name, path: node.path, depth });
-			if (node.kind === 'directory' && !collapsed[node.path]) {
-				rows.push(...collectTreeRows(node.children, collapsed, depth + 1));
-			}
-		}
-
-		return rows;
-	};
-
-	const buildFileTree = (paths: string[]): FileTreeNode[] => {
-		type MutableNode = {
-			kind: 'directory' | 'file';
-			name: string;
-			path: string;
-			children?: Record<string, MutableNode>;
-		};
-
-		const rootChildren: Record<string, MutableNode> = {};
-		const getDirectoryNode = (children: Record<string, MutableNode>, key: string, path: string) => {
-			const existing = children[key];
-			if (existing && existing.kind === 'directory') {
-				return existing;
-			}
-
-			const created: MutableNode = {
-				kind: 'directory',
-				name: key,
-				path,
-				children: {}
-			};
-			children[key] = created;
-			return created;
-		};
-
-		for (const filePath of paths) {
-			const segments = filePath.split('/').filter(Boolean);
-			if (segments.length === 0) continue;
-
-			let cursor: Record<string, MutableNode> = rootChildren;
-			let currentPath = '';
-
-			for (let index = 0; index < segments.length; index += 1) {
-				const segment = segments[index]!;
-				currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-				const isLast = index === segments.length - 1;
-
-				if (isLast) {
-					cursor[segment] = { kind: 'file', name: segment, path: currentPath };
-					continue;
-				}
-
-				const directoryNode = getDirectoryNode(cursor, segment, currentPath);
-				cursor = directoryNode.children as Record<string, MutableNode>;
-			}
-		}
-
-		const toReadonlyNodes = (children: Record<string, MutableNode>): FileTreeNode[] =>
-			Object.values(children)
-				.sort((left, right) => {
-					if (left.kind !== right.kind) {
-						return left.kind === 'directory' ? -1 : 1;
-					}
-					return left.name.localeCompare(right.name);
-				})
-				.map((node) => {
-					if (node.kind === 'file') {
-						return { kind: 'file', name: node.name, path: node.path };
-					}
-
-					return {
-						kind: 'directory',
-						name: node.name,
-						path: node.path,
-						children: toReadonlyNodes(node.children as Record<string, MutableNode>)
-					};
-				});
-
-		return toReadonlyNodes(rootChildren);
-	};
-
-	const fileTree = $derived(buildFileTree(filePaths));
-	const visibleFileTreeRows = $derived(collectTreeRows(fileTree, collapsedDirs));
+	let openFilePaths = $state<string[]>([...initialFilePaths]);
 	const runtimeLogTail = $derived(
 		compactLogForDisplay(runtimeLog).split('\n').slice(-120).join('\n')
 	);
@@ -491,36 +403,6 @@ export const createPlaygroundController = (
 		activeFilePath = filePath;
 		syncEditorWithActiveFile();
 		editorInstance?.focus();
-	};
-
-	const openFile = (filePath: string) => {
-		if (!(filePath in fileContents)) return;
-		if (!openFilePaths.includes(filePath)) {
-			if (openFilePaths.length >= maxOpenTabs) {
-				openFilePaths = [...openFilePaths.slice(0, maxOpenTabs - 1), filePath];
-			} else {
-				openFilePaths = [...openFilePaths, filePath];
-			}
-		}
-		switchToFile(filePath);
-	};
-
-	const closeFile = (filePath: string) => {
-		if (!openFilePaths.includes(filePath) || openFilePaths.length <= 1) return;
-
-		const nextOpenPaths = openFilePaths.filter((path) => path !== filePath);
-		openFilePaths = nextOpenPaths;
-
-		if (activeFilePath === filePath) {
-			const fallbackPath = nextOpenPaths[nextOpenPaths.length - 1] ?? nextOpenPaths[0];
-			if (fallbackPath) {
-				switchToFile(fallbackPath);
-			}
-		}
-	};
-
-	const toggleDirectory = (path: string) => {
-		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
 	};
 
 	const applyBundleToPreview = async (bundle: BundleResult) => {
@@ -691,10 +573,10 @@ export const createPlaygroundController = (
 		// (for example `shader.ts`) are always present after demo switches.
 		const nextFileContents = toFilesForDemo(resolvedDemoId, activeFramework);
 		const frameworkEntry = frameworkEntryPaths[activeFramework].appPath;
+		const sortedPaths = sortFilePaths(Object.keys(nextFileContents), activeFramework);
 
 		fileContents = nextFileContents;
-		filePaths = Object.keys(nextFileContents);
-		openFilePaths = [frameworkEntry];
+		openFilePaths = [...sortedPaths];
 		activeFilePath = frameworkEntry;
 
 		syncEditorWithActiveFile();
@@ -718,10 +600,10 @@ export const createPlaygroundController = (
 
 		const nextFileContents = toFilesForDemo(activeDemoId, resolvedFramework);
 		const frameworkEntry = frameworkEntryPaths[resolvedFramework].appPath;
+		const sortedPaths = sortFilePaths(Object.keys(nextFileContents), resolvedFramework);
 
 		fileContents = nextFileContents;
-		filePaths = Object.keys(nextFileContents);
-		openFilePaths = [frameworkEntry];
+		openFilePaths = [...sortedPaths];
 		activeFilePath = frameworkEntry;
 
 		syncEditorWithActiveFile();
@@ -796,9 +678,6 @@ export const createPlaygroundController = (
 		get activeFilePath() {
 			return activeFilePath;
 		},
-		get collapsedDirs() {
-			return collapsedDirs;
-		},
 		get errorMessage() {
 			return errorMessage;
 		},
@@ -835,20 +714,14 @@ export const createPlaygroundController = (
 		get syncingPath() {
 			return syncingPath;
 		},
-		get visibleFileTreeRows() {
-			return visibleFileTreeRows;
-		},
-		closeFile,
 		mount,
-		openFile,
 		retryRuntime,
 		setEditorHost,
 		setEditorTheme,
 		setPreviewFrame,
 		switchDemo,
 		switchFramework,
-		switchToFile,
-		toggleDirectory
+		switchToFile
 	};
 };
 

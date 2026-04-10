@@ -90,8 +90,8 @@
 					onclick={() => controller.openFile(row.path)}
 					class={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs font-normal ${
 						controller.activeFilePath === row.path
-							? 'bg-foreground-muted/10 text-foreground'
-							: 'text-foreground-muted hover:bg-foreground-muted/10 hover:text-foreground'
+							? 'bg-background-muted text-foreground'
+							: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
 					}`}
 					style={`padding-left: ${8 + row.depth * 12}px`}
 				>

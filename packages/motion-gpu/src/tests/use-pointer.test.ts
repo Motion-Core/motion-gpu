@@ -66,7 +66,7 @@ async function renderPointerProbe(
 		props: {
 			canvas,
 			onProbe,
-			pointerOptions: input.pointerOptions,
+			...(input.pointerOptions === undefined ? {} : { pointerOptions: input.pointerOptions }),
 			...(input.props ?? {})
 		}
 	});

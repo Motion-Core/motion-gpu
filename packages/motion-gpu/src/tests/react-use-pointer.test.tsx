@@ -137,12 +137,17 @@ async function renderPointerProbe(
 
 	render(
 		withProvider(
-			<PointerProbe onProbe={onProbe} options={input.options} />,
+			<PointerProbe
+				onProbe={onProbe}
+				{...(input.options === undefined ? {} : { options: input.options })}
+			/>,
 			createRuntimeHarness({
 				canvas,
-				renderMode: input.renderMode,
-				advanceSpy: input.spies?.advanceSpy,
-				invalidateSpy: input.spies?.invalidateSpy
+				...(input.renderMode === undefined ? {} : { renderMode: input.renderMode }),
+				...(input.spies?.advanceSpy === undefined ? {} : { advanceSpy: input.spies.advanceSpy }),
+				...(input.spies?.invalidateSpy === undefined
+					? {}
+					: { invalidateSpy: input.spies.invalidateSpy })
 			})
 		)
 	);

@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Svelte](https://img.shields.io/badge/Svelte-5-orange.svg)](https://svelte.dev)
 [![React](https://img.shields.io/badge/React-18%2B-149eca.svg)](https://react.dev)
+[![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org)
 [![WebGPU](https://img.shields.io/badge/Shaders-WGSL-blueviolet.svg)](https://gpuweb.github.io/gpuweb/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org)
 [![npm](https://img.shields.io/badge/npm-@motion--core%2Fmotion--gpu-red.svg)](https://www.npmjs.com/package/@motion-core/motion-gpu)
@@ -15,7 +16,7 @@
 
 **A tiny WebGPU runtime for writing Shadertoy-style fullscreen shaders in pure WGSL.**
 
-`@motion-core/motion-gpu` ships a framework-agnostic core plus Svelte 5 and React adapters for building fullscreen shader pipelines using WebGPU and WGSL.
+`@motion-core/motion-gpu` ships a framework-agnostic core plus Svelte 5, React, and Vue adapters for building fullscreen shader pipelines using WebGPU and WGSL.
 It provides a minimal runtime loop, scheduler, and render graph designed specifically for fragment-driven GPU programs.
 
 Unlike general-purpose 3D engines, Motion GPU focuses on a very narrow problem: **running fullscreen fragment shaders and multi-pass GPU pipelines**.
@@ -102,6 +103,7 @@ Motion GPU follows a simple three-step flow:
 - `defineMaterial`
 - `useMotionGPU`
 - `useFrame`
+- `usePointer`
 - `useTexture`
 - `ShaderPass`
 - `BlitPass`
@@ -136,6 +138,7 @@ Also exports runtime/core types:
 - `defineMaterial`
 - `useMotionGPU`
 - `useFrame`
+- `usePointer`
 - `useTexture`
 - `ShaderPass`
 - `BlitPass`
@@ -157,6 +160,41 @@ Also exports runtime/core types:
 
 - `useMotionGPUUserContext`
 - `useSetMotionGPUUserContext`
+- `setMotionGPUUserContext`
+- `applySchedulerPreset`
+- `captureSchedulerDebugSnapshot`
+
+---
+
+## Vue adapter
+
+`@motion-core/motion-gpu/vue` exposes the runtime API for Vue:
+
+- `FragCanvas`
+- `defineMaterial`
+- `useMotionGPU`
+- `useFrame`
+- `usePointer`
+- `useTexture`
+- `ShaderPass`
+- `BlitPass`
+- `CopyPass`
+- `ComputePass`
+- `PingPongComputePass`
+
+Also exports runtime/core types:
+
+- uniforms
+- textures
+- render passes
+- scheduler
+- loader types
+
+---
+
+`@motion-core/motion-gpu/vue/advanced` re-exports everything above, plus:
+
+- `useMotionGPUUserContext`
 - `setMotionGPUUserContext`
 - `applySchedulerPreset`
 - `captureSchedulerDebugSnapshot`
@@ -191,6 +229,7 @@ Also exports runtime/core types:
 
 - Svelte 5 is required only for the Svelte adapter entrypoints (`/svelte`, `/svelte/advanced`)
 - React 18+ is required only for the React adapter entrypoints (`/react`, `/react/advanced`)
+- Vue 3.5+ is required only for the Vue adapter entrypoints (`/vue`, `/vue/advanced`)
 - A browser/runtime with WebGPU support
 - Secure context (`https://` or `localhost`)
 

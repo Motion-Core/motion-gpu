@@ -1,6 +1,6 @@
 ---
 name: motion-gpu-adapters-wgsl
-description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
+description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React/Vue adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
 ---
 
 # MotionGPU Core + Adapters Skill
@@ -8,9 +8,10 @@ description: Build and edit MotionGPU code across framework-agnostic core and Sv
 Use this skill to produce production-grade MotionGPU code across:
 - framework-agnostic core (`@motion-core/motion-gpu`, `@motion-core/motion-gpu/core`),
 - Svelte adapter (`@motion-core/motion-gpu/svelte`),
-- React adapter (`@motion-core/motion-gpu/react`).
+- React adapter (`@motion-core/motion-gpu/react`),
+- Vue adapter (`@motion-core/motion-gpu/vue`).
 
-Treat Svelte and React as first-class adapters. Do not assume Svelte-only APIs.
+Treat Svelte, React, and Vue as first-class adapters. Do not assume Svelte-only APIs.
 
 ## Source of Truth
 
@@ -26,9 +27,11 @@ Treat public package entrypoints as authoritative:
 | `@motion-core/motion-gpu/svelte/advanced` | Adapter | Svelte adapter + user context APIs + scheduler helpers |
 | `@motion-core/motion-gpu/react` | Adapter | React `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
 | `@motion-core/motion-gpu/react/advanced` | Adapter | React adapter + user context APIs + scheduler helpers |
+| `@motion-core/motion-gpu/vue` | Adapter | Vue `FragCanvas`, composables (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
+| `@motion-core/motion-gpu/vue/advanced` | Adapter | Vue adapter + user context APIs + scheduler helpers |
 
 Advanced adapter exports:
-- Both Svelte and React advanced entrypoints export:
+- Svelte, React, and Vue advanced entrypoints export:
   - `useMotionGPUUserContext`
   - `setMotionGPUUserContext`
   - `applySchedulerPreset`
@@ -50,7 +53,7 @@ When writing or refactoring code, keep these differences explicit.
 
 ### `FragCanvas` props
 
-Shared runtime props (both adapters):
+Shared runtime props (all adapters):
 - `material`, `renderTargets`, `passes`, `clearColor`, `outputColorSpace`, `renderMode`, `autoRender`, `maxDelta`, `adapterOptions`, `deviceDescriptor`, `showErrorOverlay`, `onError`, `errorHistoryLimit`, `onErrorHistory`
 
 Adapter-specific differences:
@@ -64,10 +67,15 @@ Adapter-specific differences:
   - `style?: React.CSSProperties`
   - `children?: ReactNode`
   - `errorRenderer?: (report: MotionGPUErrorReport) => ReactNode`
+- Vue:
+  - `canvasClass?: string`
+  - `canvasStyle?: string | Record<string, string | number>`
+  - default slot for children
+  - `#errorRenderer="{ report }"` scoped slot for custom error UI
 
 ### User context writes
 
-- Both adapters support `setMotionGPUUserContext(namespace, valueOrFactory, options?)`.
+- All adapters support `setMotionGPUUserContext(namespace, valueOrFactory, options?)`.
 - React additionally supports `useSetMotionGPUUserContext()` and should prefer it for effect/event-handler writes.
 - `SetMotionGPUUserContextOptions` supports:
   - `existing?: 'skip' | 'replace' | 'merge'`
@@ -80,6 +88,7 @@ Adapter-specific differences:
 - Options input:
   - Svelte: `TextureLoadOptions | () => TextureLoadOptions`
   - React: `TextureLoadOptions`
+  - Vue: `TextureLoadOptions | () => TextureLoadOptions`
 
 ### `usePointer` signature
 
@@ -122,7 +131,7 @@ Enforce these constraints without exceptions:
 
 ## Architecture Pattern
 
-Default to host + runtime split in both adapters.
+Default to host + runtime split in all adapters.
 
 1. Host component:
 - Create stable `material` with `defineMaterial(...)`.
@@ -152,7 +161,7 @@ Pick one main mode:
 
 ### 2. Pick layer and adapter
 
-- If building framework runtime usage, pick adapter entrypoint (`/svelte` or `/react`).
+- If building framework runtime usage, pick adapter entrypoint (`/svelte`, `/react`, or `/vue`).
 - If building framework-independent tooling, adapter internals, or low-level integrations, use core entrypoints (`@motion-core/motion-gpu` or `/core`).
 - If adapter is not explicitly stated:
   - follow existing imports/files in the target codebase,

@@ -6,6 +6,8 @@ export const importsReact = `import {
   useSetMotionGPUUserContext
 } from '@motion-core/motion-gpu/react/advanced';`;
 
+export const importsVue = `import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/vue/advanced';`;
+
 export const consumeSharedStateSvelte = `\
 <script lang="ts">
   import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
@@ -48,6 +50,29 @@ function Component() {
   return <button onClick={setMedium}>Set Medium</button>;
 }`;
 
+export const consumeSharedStateVue = `\
+<script setup lang="ts">
+  import { setMotionGPUUserContext, useMotionGPUUserContext } from '@motion-core/motion-gpu/vue/advanced';
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  type Config = { quality: string; debugGrid: boolean };
+  const config = useMotionGPUUserContext<Config>('config');
+
+  useFrame((state) => {
+    if (config.current?.debugGrid) {
+      // Apply debug grid logic
+    }
+  });
+
+  function setMedium() {
+    setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
+  }
+</script>
+
+<template>
+  <button @click="setMedium">Set Medium</button>
+</template>`;
+
 // The React effect/event writes example is already in the docs as tsx
 // This is the existing tsx block from user-context page
 export const reactEffectWritesReact = `\
@@ -78,6 +103,19 @@ export const reactEffectWritesSvelte = `\
 
 <button onclick={setMedium}>Medium</button>`;
 
+export const reactEffectWritesVue = `\
+<script setup lang="ts">
+  import { setMotionGPUUserContext } from '@motion-core/motion-gpu/vue/advanced';
+
+  function setMedium() {
+    setMotionGPUUserContext('config', { quality: 'medium' }, { existing: 'merge' });
+  }
+</script>
+
+<template>
+  <button @click="setMedium">Medium</button>
+</template>`;
+
 export const fullContextReadSvelte = `\
 <script lang="ts">
   import { useMotionGPUUserContext } from '@motion-core/motion-gpu/svelte/advanced';
@@ -91,3 +129,10 @@ import { useMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced'
 function Component() {
   const ctx = useMotionGPUUserContext();
 }`;
+
+export const fullContextReadVue = `\
+<script setup lang="ts">
+  import { useMotionGPUUserContext } from '@motion-core/motion-gpu/vue/advanced';
+
+  const ctx = useMotionGPUUserContext();
+</script>`;

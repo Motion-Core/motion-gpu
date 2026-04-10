@@ -44,6 +44,17 @@ packages/motion-gpu/src/lib/
 │   ├── use-motiongpu-user-context.ts # React advanced user-context hook
 │   ├── Portal.tsx                  # DOM portal utility for overlay rendering
 │   └── MotionGPUErrorOverlay.tsx   # Default error-overlay UI component
+├── vue/
+│   ├── index.ts                    # Explicit Vue adapter exports
+│   ├── advanced.ts                 # Explicit Vue advanced exports
+│   ├── FragCanvas.vue              # Vue host component
+│   ├── frame-context.ts            # Vue useFrame adapter wrapper
+│   ├── motiongpu-context.ts        # Vue useMotionGPU adapter wrapper
+│   ├── use-pointer.ts              # Vue normalized pointer composable
+│   ├── use-texture.ts              # Vue lifecycle-aware texture composable
+│   ├── use-motiongpu-user-context.ts # Vue advanced user-context composable
+│   ├── Portal.vue                  # DOM portal utility for overlay rendering
+│   └── MotionGPUErrorOverlay.vue   # Default error-overlay UI component
 └── core/
     ├── index.ts                    # Framework-agnostic core entrypoint
     ├── advanced.ts                 # Framework-agnostic advanced core entrypoint

@@ -3,7 +3,7 @@ title: Hooks API
 description: "Reference for runtime hooks: useFrame, useMotionGPU, usePointer, useTexture, and user context APIs."
 ---
 
-Reference for hook-based runtime control in the Svelte and React adapters.
+Reference for hook-based runtime control in the Svelte, React, and Vue adapters.
 
 ## Entrypoints
 
@@ -13,10 +13,12 @@ Reference for hook-based runtime control in the Svelte and React adapters.
 | `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
 | `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
 | `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `useSetMotionGPUUserContext`, `setMotionGPUUserContext` |
+| `@motion-core/motion-gpu/vue` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
+| `@motion-core/motion-gpu/vue/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
 
 ## Context rule
 
-`useFrame()`, `useMotionGPU()`, `usePointer()`, `useMotionGPUUserContext()`, and `useSetMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree.
+`useFrame()`, `useMotionGPU()`, `usePointer()`, and `useMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree. In React, `useSetMotionGPUUserContext()` follows the same rule.
 
 ## `useFrame`
 

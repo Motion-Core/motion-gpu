@@ -12,6 +12,7 @@ Reference for advanced exports split between core and adapter layers.
 | `@motion-core/motion-gpu/advanced` | Core + scheduler helper utilities |
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte runtime API + scheduler helpers + user context APIs |
 | `@motion-core/motion-gpu/react/advanced` | React runtime API + scheduler helpers + user context APIs |
+| `@motion-core/motion-gpu/vue/advanced` | Vue runtime API + scheduler helpers + user context APIs |
 
 ## Scheduler helpers
 
@@ -64,7 +65,7 @@ captureSchedulerDebugSnapshot(
 
 ## Adapter advanced exports
 
-Available from both `@motion-core/motion-gpu/svelte/advanced` and `@motion-core/motion-gpu/react/advanced`:
+Available from `@motion-core/motion-gpu/svelte/advanced`, `@motion-core/motion-gpu/react/advanced`, and `@motion-core/motion-gpu/vue/advanced`:
 - `useMotionGPUUserContext`
 - `setMotionGPUUserContext`
 

@@ -36,6 +36,26 @@ export function App() {
   );
 }`;
 
+export const step1Vue = `\
+<!-- App.vue -->
+<script setup lang="ts">
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+
+  const material = defineMaterial({
+    fragment: \`
+fn frag(uv: vec2f) -> vec4f {
+  return vec4f(uv.x, uv.y, 0.2, 1.0);
+}
+\`
+  });
+</script>
+
+<template>
+  <div style="width: 100vw; height: 100vh">
+    <FragCanvas :material="material" />
+  </div>
+</template>`;
+
 export const step2AppSvelte = `\
 <!-- App.svelte -->
 <script lang="ts">
@@ -84,6 +104,31 @@ export function App() {
   );
 }`;
 
+export const step2AppVue = `\
+<!-- App.vue -->
+<script setup lang="ts">
+  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+  import Runtime from './Runtime.vue';
+
+  const material = defineMaterial({
+    fragment: \`
+fn frag(uv: vec2f) -> vec4f {
+  let wave = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
+  return vec4f(vec3f(wave), 1.0);
+}
+\`,
+    uniforms: {
+      uTime: { type: 'f32', value: 0 }
+    }
+  });
+</script>
+
+<template>
+  <FragCanvas :material="material">
+    <Runtime />
+  </FragCanvas>
+</template>`;
+
 export const step2RuntimeSvelte = `\
 <!-- Runtime.svelte -->
 <script lang="ts">
@@ -104,3 +149,13 @@ export function Runtime() {
   });
   return null;
 }`;
+
+export const step2RuntimeVue = `\
+<!-- Runtime.vue -->
+<script setup lang="ts">
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  useFrame((state) => {
+    state.setUniform('uTime', state.time);
+  });
+</script>`;

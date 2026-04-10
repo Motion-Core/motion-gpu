@@ -14,7 +14,7 @@ For texture declaration and configuration in materials, see [Texture Definitions
 
 ## Basic usage
 
-<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} />
+<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} vueCode={ex.basicUsageVue} />
 
 `useTexture` starts loading immediately when called. It returns reactive stores that update as the load progresses.
 
@@ -65,7 +65,7 @@ useFrame((state) => {
 
 ### Using reactive subscriptions for UI
 
-<FrameworkBlock svelteCode={ex.reactiveUISvelte} reactCode={ex.reactiveUIReact} />
+<FrameworkBlock svelteCode={ex.reactiveUISvelte} reactCode={ex.reactiveUIReact} vueCode={ex.reactiveUIVue} />
 
 ## TextureLoadOptions
 

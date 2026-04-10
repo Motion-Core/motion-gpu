@@ -22,7 +22,7 @@ When you add passes to `FragCanvas`, the renderer builds an execution plan:
 2. Each **pass** reads from an input slot, processes the image, and writes to an output slot.
 3. After all passes execute, the **final output** is presented to the canvas (direct if output is `canvas`, otherwise via blit from `source`, `target`, or named target).
 
-<FrameworkBlock svelteCode={`<FragCanvas {material} passes={[passA, passB, passC]} />`} reactCode={`<FragCanvas material={material} passes={[passA, passB, passC]} />`} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={`<FragCanvas {material} passes={[passA, passB, passC]} />`} reactCode={`<FragCanvas material={material} passes={[passA, passB, passC]} />`} vueCode={`<FragCanvas :material="material" :passes="[passA, passB, passC]" />`} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 Without any passes, the base shader renders directly to the canvas.
 
@@ -239,7 +239,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 });
 ```
 
-<FrameworkBlock svelteCode={ex.multiPassSvelte} reactCode={ex.multiPassReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.multiPassSvelte} reactCode={ex.multiPassReact} vueCode={ex.multiPassVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 ## RenderPassContext
 
@@ -298,7 +298,7 @@ const diffuse = new PingPongComputePass({
 
 Compute and render passes coexist in the `passes` array:
 
-<FrameworkBlock svelteCode={ex.computePassSvelte} reactCode={ex.computePassReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.computePassSvelte} reactCode={ex.computePassReact} vueCode={ex.computePassVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 Compute passes dispatch their workgroups **before** the scene render, so storage textures and buffers are up-to-date when the fragment shader samples them. Render passes execute **after** the scene as post-processing steps. All passes share the same command encoder.
 

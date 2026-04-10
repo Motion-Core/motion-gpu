@@ -22,6 +22,18 @@ export const minimalErrorReact = `\
   showErrorOverlay={false}
 />`;
 
+export const minimalErrorVue = `\
+<FragCanvas
+  :material="material"
+  :on-error="(report) => {
+    console.error(
+      \`[\${report.code}] (\${report.severity}) [\${report.phase}] \${report.title}: \${report.message}\`
+    );
+    if (report.hint) console.info(\`Hint: \${report.hint}\`);
+  }"
+  :show-error-overlay="false"
+/>`;
+
 export const errorHistorySvelte = `\
 <FragCanvas
   {material}
@@ -42,6 +54,17 @@ export const errorHistoryReact = `\
     if (!latest) return;
     console.info(\`Recent errors: \${history.length}, latest code: \${latest.code}\`);
   }}
+/>`;
+
+export const errorHistoryVue = `\
+<FragCanvas
+  :material="material"
+  :error-history-limit="10"
+  :on-error-history="(history) => {
+    const latest = history[history.length - 1];
+    if (!latest) return;
+    console.info(\`Recent errors: \${history.length}, latest code: \${latest.code}\`);
+  }"
 />`;
 
 export const customRendererSvelte = `\
@@ -73,3 +96,18 @@ export const customRendererReact = `\
     console.error(report);
   }}
 />`;
+
+export const customRendererVue = `\
+<FragCanvas
+  :material="material"
+  :on-error="(report) => {
+    console.error(report);
+  }"
+>
+  <template #errorRenderer="{ report }">
+    <aside class="error-banner">
+      <strong>{{ report.title }}</strong>
+      <p>{{ report.message }}</p>
+    </aside>
+  </template>
+</FragCanvas>`;

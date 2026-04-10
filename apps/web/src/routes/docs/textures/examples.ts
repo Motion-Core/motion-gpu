@@ -38,3 +38,22 @@ function Runtime() {
     />
   );
 }`;
+
+export const videoTextureVue = `\
+<script setup lang="ts">
+  import { useTemplateRef } from 'vue';
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  const videoRef = useTemplateRef<HTMLVideoElement>('videoEl');
+
+  useFrame((state) => {
+    const video = videoRef.value;
+    if (video && video.readyState >= 2) {
+      state.setTexture('uVideo', video);
+    }
+  });
+</script>
+
+<template>
+  <video ref="videoEl" src="/assets/loop.mp4" autoplay loop muted playsinline />
+</template>`;

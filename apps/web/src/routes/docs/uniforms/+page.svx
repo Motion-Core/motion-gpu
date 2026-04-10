@@ -5,7 +5,7 @@ description: Passing dynamic values from JavaScript to WGSL shaders declaration,
 
 Uniforms are the primary mechanism for passing dynamic values from your JavaScript/TypeScript runtime code into WGSL shaders. This page covers declaration, type inference, memory layout, and runtime updates.
 
-Examples below use Svelte hook syntax. React exposes the same runtime uniform APIs through `@motion-core/motion-gpu/react`.
+Examples below use Svelte hook syntax. React and Vue expose the same runtime uniform APIs through `@motion-core/motion-gpu/react` and `@motion-core/motion-gpu/vue`.
 
 ## Declaring uniforms
 

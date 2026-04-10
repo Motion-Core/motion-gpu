@@ -12,6 +12,13 @@ function Component() {
   const gpu = useMotionGPU();
 }`;
 
+export const basicUsageVue = `\
+<script setup lang="ts">
+  import { useMotionGPU } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+</script>`;
+
 export const readSizeSvelte = `\
 <script lang="ts">
   import { useMotionGPU } from '@motion-core/motion-gpu/svelte';
@@ -31,6 +38,27 @@ function Component() {
 
   return <p>Canvas: {size.width}×{size.height} @ {dpr}x</p>;
 }`;
+
+export const readSizeVue = `\
+<script setup lang="ts">
+  import { ref, onMounted, onBeforeUnmount } from 'vue';
+  import { useMotionGPU } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+  const size = ref(gpu.size.current);
+  const dpr = ref(gpu.dpr.current);
+
+  let unsubs: (() => void)[] = [];
+  onMounted(() => {
+    unsubs.push(gpu.size.subscribe((v) => (size.value = v)));
+    unsubs.push(gpu.dpr.subscribe((v) => (dpr.value = v)));
+  });
+  onBeforeUnmount(() => unsubs.forEach((u) => u()));
+</script>
+
+<template>
+  <p>Canvas: {{ size.width }}×{{ size.height }} @ {{ dpr }}x</p>
+</template>`;
 
 export const togglePauseSvelte = `\
 <script lang="ts">
@@ -68,6 +96,31 @@ function Component() {
   );
 }`;
 
+export const togglePauseVue = `\
+<script setup lang="ts">
+  import { ref, onMounted, onBeforeUnmount } from 'vue';
+  import { useMotionGPU } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+  const autoRender = ref(gpu.autoRender.current);
+
+  let unsub: (() => void) | undefined;
+  onMounted(() => {
+    unsub = gpu.autoRender.subscribe((v) => (autoRender.value = v));
+  });
+  onBeforeUnmount(() => unsub?.());
+
+  function togglePause() {
+    gpu.autoRender.set(!gpu.autoRender.current);
+  }
+</script>
+
+<template>
+  <button @click="togglePause">
+    {{ autoRender ? 'Pause' : 'Resume' }}
+  </button>
+</template>`;
+
 export const onDemandExternalSvelte = `\
 <script lang="ts">
   import { useMotionGPU, useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
@@ -104,3 +157,21 @@ function Component() {
 
   return null;
 }`;
+
+export const onDemandExternalVue = `\
+<script setup lang="ts">
+  import { onMounted } from 'vue';
+  import { useMotionGPU, useFrame, usePointer } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+  const pointer = usePointer({ requestFrame: 'auto' });
+
+  onMounted(() => {
+    gpu.renderMode.set('on-demand');
+  });
+
+  useFrame((state) => {
+    state.setUniform('uTime', state.time);
+    state.setUniform('uMouse', pointer.state.current.uv);
+  }, { autoInvalidate: false });
+</script>`;

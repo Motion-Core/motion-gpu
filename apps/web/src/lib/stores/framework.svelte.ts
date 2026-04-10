@@ -1,13 +1,13 @@
 import { browser } from '$app/environment';
 
-export type Framework = 'svelte' | 'react';
+export type Framework = 'svelte' | 'react' | 'vue';
 
-export const frameworks: Framework[] = ['svelte', 'react'];
+export const frameworks: Framework[] = ['svelte', 'react', 'vue'];
 
 const STORAGE_KEY = 'motiongpuFramework';
 
 function isFramework(value: string | null): value is Framework {
-	return value === 'svelte' || value === 'react';
+	return value === 'svelte' || value === 'react' || value === 'vue';
 }
 
 function createFrameworkStore() {

@@ -14,7 +14,7 @@ For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs
 
 ## Basic usage
 
-<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} />
+<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} vueCode={ex.basicUsageVue} />
 
 `useFrame` must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
 
@@ -82,7 +82,7 @@ The `state` parameter passed to your callback provides everything you need for p
 
 ### Example: complete runtime component
 
-<FrameworkBlock svelteCode={ex.completeRuntimeSvelte} reactCode={ex.completeRuntimeReact} />
+<FrameworkBlock svelteCode={ex.completeRuntimeSvelte} reactCode={ex.completeRuntimeReact} vueCode={ex.completeRuntimeVue} />
 
 ## UseFrameOptions
 

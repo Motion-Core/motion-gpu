@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import vue from '@vitejs/plugin-vue';
 
 const packageRoot = path.dirname(fileURLToPath(new URL('./package.json', import.meta.url)));
 const sourceRoot = path.resolve(packageRoot, 'src/lib');
@@ -21,7 +22,13 @@ function collectScriptEntryPoints(directory: string): Record<string, string> {
 		if (!entry.isFile()) {
 			continue;
 		}
-		if (!(fullPath.endsWith('.ts') || fullPath.endsWith('.tsx'))) {
+		if (
+			!(
+				fullPath.endsWith('.ts') ||
+				fullPath.endsWith('.tsx') ||
+				fullPath.endsWith('.vue')
+			)
+		) {
 			continue;
 		}
 
@@ -95,6 +102,7 @@ function runNodeScript(scriptPath: string): Promise<void> {
 
 function emitTypesPlugin(): Plugin {
 	const emitDtsScript = path.resolve(packageRoot, 'scripts/build/emit-dts.mjs');
+	const emitVueDtsScript = path.resolve(packageRoot, 'scripts/build/emit-vue-dts.mjs');
 	const patchDtsScript = path.resolve(packageRoot, 'scripts/build/patch-webgpu-types-dts.mjs');
 
 	return {
@@ -102,6 +110,7 @@ function emitTypesPlugin(): Plugin {
 		apply: 'build',
 		async writeBundle() {
 			await runNodeScript(emitDtsScript);
+			await runNodeScript(emitVueDtsScript);
 			await runNodeScript(patchDtsScript);
 		}
 	};
@@ -122,11 +131,14 @@ function isExternal(id: string): boolean {
 	if (id === 'svelte' || id.startsWith('svelte/')) {
 		return true;
 	}
+	if (id === 'vue' || id.startsWith('vue/')) {
+		return true;
+	}
 	return false;
 }
 
 export default defineConfig({
-	plugins: [copySvelteFilesPlugin(), emitTypesPlugin()],
+	plugins: [vue(), copySvelteFilesPlugin(), emitTypesPlugin()],
 	build: {
 		target: 'es2022',
 		outDir: 'dist',

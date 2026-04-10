@@ -3,7 +3,6 @@
 		"target": "ES2022",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"jsx": "react-jsx",
 		"strict": true,
 		"noUncheckedIndexedAccess": true,
 		"exactOptionalPropertyTypes": true,
@@ -13,23 +12,15 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"verbatimModuleSyntax": true,
-		"sourceMap": true,
 		"declaration": true,
 		"declarationMap": true,
+		"declarationDir": "./dist",
+		"emitDeclarationOnly": true,
+		"rootDir": "./src/lib",
 		"lib": ["ES2022", "DOM", "DOM.Iterable"],
-		"types": ["@webgpu/types", "vite/client", "vitest/globals"],
+		"types": ["@webgpu/types"],
 		"skipLibCheck": true
 	},
-	"include": [
-		"src/**/*.ts",
-		"src/**/*.tsx",
-		"src/**/*.svelte",
-		"src/**/*.vue",
-		"e2e/**/*.ts",
-		"e2e/**/*.tsx",
-		"e2e/**/*.svelte",
-		"scripts/**/*.ts",
-		"vite.config.ts",
-		"playwright.config.ts"
-	]
+	"include": ["src/lib/vue/**/*.ts", "src/lib/vue/**/*.vue", "src/lib/core/**/*.ts"],
+	"exclude": ["**/*.test.*", "**/*.spec.*"]
 }

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
 	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
+	import LogoVue from 'carbon-icons-svelte/lib/LogoVue.svelte';
 	import { cn } from '$lib/utils/cn';
 	import CopyCodeButton from './markdown/CopyCodeButton.svelte';
 	import ShikiCodeBlock from './ShikiCodeBlock.svelte';
@@ -11,23 +12,42 @@
 	type Props = {
 		svelteCode: string;
 		reactCode: string;
+		vueCode: string;
 		svelteLang?: string;
 		reactLang?: string;
+		vueLang?: string;
 	};
 
-	let { svelteCode, reactCode, svelteLang = 'svelte', reactLang = 'tsx' }: Props = $props();
+	let {
+		svelteCode,
+		reactCode,
+		vueCode,
+		svelteLang = 'svelte',
+		reactLang = 'tsx',
+		vueLang = 'vue'
+	}: Props = $props();
 
 	let isReady = $state(false);
 
 	type HighlightedCode = { light: string; dark: string } | null;
-	let highlighted = $state<Record<Framework, HighlightedCode>>({ svelte: null, react: null });
+	let highlighted = $state<Record<Framework, HighlightedCode>>({
+		svelte: null,
+		react: null,
+		vue: null
+	});
 
-	const activeCode = $derived(frameworkStore.active === 'svelte' ? svelteCode : reactCode);
+	const codeMap: Record<Framework, string> = $derived({
+		svelte: svelteCode,
+		react: reactCode,
+		vue: vueCode
+	});
+	const activeCode = $derived(codeMap[frameworkStore.active]);
 
 	$effect(() => {
 		const toHighlight: Record<Framework, { code: string; lang: string }> = {
 			svelte: { code: svelteCode, lang: svelteLang },
-			react: { code: reactCode, lang: reactLang }
+			react: { code: reactCode, lang: reactLang },
+			vue: { code: vueCode, lang: vueLang }
 		};
 
 		getHighlighter().then((highlighter) => {
@@ -68,9 +88,12 @@
 							{#if fw === 'svelte'}
 								<LogoSvelte size={16} />
 								<span>Svelte</span>
-							{:else}
+							{:else if fw === 'react'}
 								<LogoReact size={16} />
 								<span>React</span>
+							{:else}
+								<LogoVue size={16} />
+								<span>Vue</span>
 							{/if}
 						</span>
 						{#if frameworkStore.active === fw}

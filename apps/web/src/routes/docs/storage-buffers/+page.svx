@@ -72,7 +72,7 @@ Fragment shaders always access storage buffers as `var<storage, read>` regardles
 
 Use `state.writeStorageBuffer()` inside `useFrame` to upload data from the CPU to a GPU storage buffer:
 
-<FrameworkBlock svelteCode={ex.writeBufferSvelte} reactCode={ex.writeBufferReact} />
+<FrameworkBlock svelteCode={ex.writeBufferSvelte} reactCode={ex.writeBufferReact} vueCode={ex.writeBufferVue} />
 
 ### Validation
 
@@ -86,7 +86,7 @@ Writes are batched as **pending storage writes** and flushed to the GPU at the s
 
 Use `state.readStorageBuffer()` to asynchronously read GPU buffer data back to the CPU:
 
-<FrameworkBlock svelteCode={ex.readBufferSvelte} reactCode={ex.readBufferReact} />
+<FrameworkBlock svelteCode={ex.readBufferSvelte} reactCode={ex.readBufferReact} vueCode={ex.readBufferVue} />
 
 ### How readback works
 

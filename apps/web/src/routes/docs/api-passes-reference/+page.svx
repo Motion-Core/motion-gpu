@@ -3,7 +3,7 @@ title: Passes API
 description: Reference for ShaderPass, BlitPass, CopyPass, ComputePass, PingPongComputePass, and pass slot contracts.
 ---
 
-Reference for post-processing and compute APIs shared by Svelte/React adapters and core entrypoints.
+Reference for post-processing and compute APIs shared by Svelte/React/Vue adapters and core entrypoints.
 
 ## Entrypoints
 
@@ -11,6 +11,7 @@ Reference for post-processing and compute APIs shared by Svelte/React adapters a
 | --- | --- |
 | `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 | `@motion-core/motion-gpu/react` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
+| `@motion-core/motion-gpu/vue` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 | `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 
 ## Shared pass options

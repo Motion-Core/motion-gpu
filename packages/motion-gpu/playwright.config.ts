@@ -34,6 +34,12 @@ export default defineConfig({
 			url: 'http://127.0.0.1:4176',
 			reuseExistingServer: !process.env['CI'],
 			timeout: 120_000
+		},
+		{
+			command: 'bun run e2e:serve:vue',
+			url: 'http://127.0.0.1:4177',
+			reuseExistingServer: !process.env['CI'],
+			timeout: 120_000
 		}
 	],
 	projects: [
@@ -51,6 +57,16 @@ export default defineConfig({
 			name: 'chromium-webgpu-react',
 			use: {
 				baseURL: 'http://127.0.0.1:4176',
+				...devices['Desktop Chrome'],
+				launchOptions: {
+					args: webgpuLaunchArgs
+				}
+			}
+		},
+		{
+			name: 'chromium-webgpu-vue',
+			use: {
+				baseURL: 'http://127.0.0.1:4177',
 				...devices['Desktop Chrome'],
 				launchOptions: {
 					args: webgpuLaunchArgs

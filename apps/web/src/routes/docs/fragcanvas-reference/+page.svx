@@ -8,22 +8,24 @@ description: Complete prop reference and usage guide for the main FragCanvas com
 	import * as ex from './examples';
 </script>
 
-This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using Motion GPU in both Svelte and React.
+This is the complete prop reference for `FragCanvas` — the main adapter entrypoint for using Motion GPU in Svelte, React, and Vue.
 
 ## Import
 
-<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} svelteLang="ts" reactLang="ts" />
+<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} vueCode={ex.importsVue} svelteLang="ts" reactLang="ts" vueLang="ts" />
 
 ## Usage
 
 <FrameworkBlock
   svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
   reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+  vueCode={`<FragCanvas\n  :material="myMaterial"\n  :clear-color="[0, 0, 0, 1]"\n  output-color-space="srgb"\n  render-mode="always"\n  :passes="[vignettePass]"\n  :on-error="handleError"\n>\n  <Runtime />\n</FragCanvas>`}
   svelteLang="svelte"
   reactLang="tsx"
+  vueLang="vue"
 />
 
-Adapter-specific naming differences (`class` vs `className`, `style` type, `children` type) are listed below.
+Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `style` type, `children`/slots) are listed below.
 
 ## Props
 
@@ -63,7 +65,7 @@ Adapter-specific naming differences (`class` vs `className`, `style` type, `chil
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `showErrorOverlay` | `boolean` | `true` | Enables error UI rendering (`errorRenderer` or default overlay). |
-| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` (Svelte) / `(report: MotionGPUErrorReport) => ReactNode` (React) | `undefined` | Custom error renderer. When set, replaces the default `MotionGPUErrorOverlay`. |
+| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` (Svelte) / `(report: MotionGPUErrorReport) => ReactNode` (React) / scoped slot `#errorRenderer="{ report }"` (Vue) | `undefined` | Custom error renderer. When set, replaces the default `MotionGPUErrorOverlay`. |
 | `onError` | `(report: MotionGPUErrorReport) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
 | `errorHistoryLimit` | `number` | `0` | Enables bounded error history when `> 0`; values are normalized with `Math.floor`. |
 | `onErrorHistory` | `(history: MotionGPUErrorReport[]) => void` | `undefined` | Callback with deduplicated ring-buffer history snapshots. |
@@ -79,9 +81,9 @@ Adapter-specific naming differences (`class` vs `className`, `style` type, `chil
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `class` (Svelte) / `className` (React) | `string` | `''` | CSS class applied directly to the `<canvas>`. |
-| `style` | `string` (Svelte) / `React.CSSProperties` (React) | `''` (Svelte) / `undefined` (React) | Inline styles applied directly to the `<canvas>`. |
-| `children` | `Snippet` (Svelte) / `ReactNode` (React) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
+| `class` (Svelte) / `className` (React) / `canvasClass` (Vue) | `string` | `''` | CSS class applied directly to the `<canvas>`. |
+| `style` (Svelte/React) / `canvasStyle` (Vue) | `string` (Svelte) / `React.CSSProperties` (React) / `string \| Record<string, string \| number>` (Vue) | `''` (Svelte) / `undefined` (React/Vue) | Inline styles applied directly to the `<canvas>`. |
+| `children` (Svelte/React) / default slot (Vue) | `Snippet` (Svelte) / `ReactNode` (React) / slot (Vue) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
 
 ## Lifecycle
 
@@ -100,6 +102,6 @@ The physical size (GPU resolution) is `containerSize × dpr`.
 
 ## Example: full configuration
 
-<FrameworkBlock svelteCode={ex.fullConfigSvelte} reactCode={ex.fullConfigReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.fullConfigSvelte} reactCode={ex.fullConfigReact} vueCode={ex.fullConfigVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-<FrameworkBlock svelteCode={ex.errorSnippetSvelte} reactCode={ex.errorSnippetReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.errorSnippetSvelte} reactCode={ex.errorSnippetReact} vueCode={ex.errorSnippetVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />

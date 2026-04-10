@@ -17,6 +17,15 @@ function Runtime() {
   return null;
 }`;
 
+export const basicUsageVue = `\
+<script setup lang="ts">
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  useFrame((state) => {
+    state.setUniform('uTime', state.time);
+  });
+</script>`;
+
 export const completeRuntimeSvelte = `\
 <script lang="ts">
   import { useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
@@ -42,3 +51,15 @@ function Runtime() {
 
   return null;
 }`;
+
+export const completeRuntimeVue = `\
+<script setup lang="ts">
+  import { useFrame, usePointer } from '@motion-core/motion-gpu/vue';
+
+  const pointer = usePointer();
+
+  useFrame((state) => {
+    state.setUniform('uTime', state.time);
+    state.setUniform('uMouse', pointer.state.current.uv);
+  });
+</script>`;

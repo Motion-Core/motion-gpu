@@ -8,11 +8,11 @@ description: Advanced read/write API for namespaced, reactive shared state withi
 	import * as ex from './examples';
 </script>
 
-`useMotionGPUUserContext` + `setMotionGPUUserContext` provide a split read/write API for **namespaced, reactive shared state** within the MotionGPU runtime. In React, `useSetMotionGPUUserContext` provides a context-bound setter for effect and event-handler writes.
+`useMotionGPUUserContext` + `setMotionGPUUserContext` provide a split read/write API for **namespaced, reactive shared state** within the MotionGPU runtime. In React, `useSetMotionGPUUserContext` provides a context-bound setter for effect and event-handler writes. In Vue and Svelte, use `setMotionGPUUserContext` directly.
 
 This hook is exported from the **advanced entrypoint**:
 
-<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} svelteLang="ts" reactLang="ts" />
+<FrameworkBlock svelteCode={ex.importsSvelte} reactCode={ex.importsReact} vueCode={ex.importsVue} svelteLang="ts" reactLang="ts" vueLang="ts" />
 
 The same entrypoint also exports scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) for runtime diagnostics workflows.
 
@@ -111,15 +111,15 @@ setMotionGPUUserContext('config', () => ({
 
 ### Consuming shared state
 
-<FrameworkBlock svelteCode={ex.consumeSharedStateSvelte} reactCode={ex.consumeSharedStateReact} />
+<FrameworkBlock svelteCode={ex.consumeSharedStateSvelte} reactCode={ex.consumeSharedStateReact} vueCode={ex.consumeSharedStateVue} />
 
 ### Effect/event writes
 
-<FrameworkBlock svelteCode={ex.reactEffectWritesSvelte} reactCode={ex.reactEffectWritesReact} />
+<FrameworkBlock svelteCode={ex.reactEffectWritesSvelte} reactCode={ex.reactEffectWritesReact} vueCode={ex.reactEffectWritesVue} />
 
 ### Full context read
 
-<FrameworkBlock svelteCode={ex.fullContextReadSvelte} reactCode={ex.fullContextReadReact} />
+<FrameworkBlock svelteCode={ex.fullContextReadSvelte} reactCode={ex.fullContextReadReact} vueCode={ex.fullContextReadVue} />
 
 ## Under the hood
 

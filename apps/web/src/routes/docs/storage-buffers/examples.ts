@@ -45,6 +45,28 @@ function Runtime() {
   return null;
 }`;
 
+export const writeBufferVue = `\
+<script setup lang="ts">
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  const positions = new Float32Array(1024);
+
+  useFrame((state) => {
+    // Update positions on CPU
+    for (let i = 0; i < positions.length; i += 4) {
+      positions[i] = Math.random();
+      positions[i + 1] = Math.random();
+    }
+
+    // Upload to GPU
+    state.writeStorageBuffer('particles', positions);
+
+    // Partial write with offset (in bytes)
+    const subset = new Float32Array([1.0, 2.0, 3.0, 4.0]);
+    state.writeStorageBuffer('particles', subset, { offset: 64 });
+  });
+</script>`;
+
 export const readBufferSvelte = `\
 <script lang="ts">
   import { useFrame } from '@motion-core/motion-gpu/svelte';
@@ -68,3 +90,14 @@ function Runtime() {
 
   return null;
 }`;
+
+export const readBufferVue = `\
+<script setup lang="ts">
+  import { useFrame } from '@motion-core/motion-gpu/vue';
+
+  useFrame(async (state) => {
+    const buffer = await state.readStorageBuffer('particles');
+    const data = new Float32Array(buffer);
+    console.log('First particle:', data[0], data[1], data[2], data[3]);
+  });
+</script>`;

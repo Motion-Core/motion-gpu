@@ -10,7 +10,7 @@ description: Understanding the error normalization pipeline, structured reports,
 
 Motion GPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
 
-Examples below use Svelte syntax. React uses the same runtime error contracts via `@motion-core/motion-gpu/react`.
+All adapters (Svelte, React, Vue) use the same runtime error contracts and `MotionGPUErrorReport` structure.
 
 ## Error normalization pipeline
 
@@ -113,7 +113,7 @@ By default, `FragCanvas` displays runtime errors through the adapter overlay com
 | Prop | Default | Effect |
 | --- | --- | --- |
 | `showErrorOverlay` | `true` | Enables all error UI rendering |
-| `errorRenderer` | `undefined` | Optional custom renderer (`Snippet` in Svelte / callback in React) that replaces the default overlay UI |
+| `errorRenderer` | `undefined` | Optional custom renderer (`Snippet` in Svelte / callback in React / scoped slot in Vue) that replaces the default overlay UI |
 | `onError` | `undefined` | Callback invoked with the normalized report |
 | `errorHistoryLimit` | `0` | Enables bounded history collection when `> 0` |
 | `onErrorHistory` | `undefined` | Callback invoked with deduplicated bounded history snapshots |
@@ -132,15 +132,15 @@ By default, `FragCanvas` displays runtime errors through the adapter overlay com
 
 ### Minimal error handling
 
-<FrameworkBlock svelteCode={ex.minimalErrorSvelte} reactCode={ex.minimalErrorReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.minimalErrorSvelte} reactCode={ex.minimalErrorReact} vueCode={ex.minimalErrorVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 ### Error history callbacks
 
-<FrameworkBlock svelteCode={ex.errorHistorySvelte} reactCode={ex.errorHistoryReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.errorHistorySvelte} reactCode={ex.errorHistoryReact} vueCode={ex.errorHistoryVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 ### Custom error renderer
 
-<FrameworkBlock svelteCode={ex.customRendererSvelte} reactCode={ex.customRendererReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.customRendererSvelte} reactCode={ex.customRendererReact} vueCode={ex.customRendererVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 ## Shader compile diagnostics
 

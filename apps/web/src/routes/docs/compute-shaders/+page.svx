@@ -209,7 +209,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 });
 ```
 
-<FrameworkBlock svelteCode={ex.fragCanvasWithComputeSvelte} reactCode={ex.fragCanvasWithComputeReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.fragCanvasWithComputeSvelte} reactCode={ex.fragCanvasWithComputeReact} vueCode={ex.fragCanvasWithComputeVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 The compute pass runs first, updating the `particles` buffer. The fragment shader then reads the updated data for visualization.
 

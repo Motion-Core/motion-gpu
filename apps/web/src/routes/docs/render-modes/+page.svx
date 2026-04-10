@@ -20,7 +20,7 @@ For the `useFrame` API, see [Frame Scheduler](/docs/frame-scheduler).
 
 Renders every frame via `requestAnimationFrame`, as long as `autoRender` is `true`.
 
-<FrameworkBlock svelteCode={ex.alwaysSvelte} reactCode={ex.alwaysReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.alwaysSvelte} reactCode={ex.alwaysReact} vueCode={ex.alwaysVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 Best for: continuous animations, simulations, video textures.
 
@@ -28,9 +28,9 @@ Best for: continuous animations, simulations, video textures.
 
 Renders only when something triggers an invalidation or `advance()` is called.
 
-<FrameworkBlock svelteCode={ex.onDemandSvelte} reactCode={ex.onDemandReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.onDemandSvelte} reactCode={ex.onDemandReact} vueCode={ex.onDemandVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-<FrameworkBlock svelteCode={ex.onDemandInvalidateSvelte} reactCode={ex.onDemandInvalidateReact} />
+<FrameworkBlock svelteCode={ex.onDemandInvalidateSvelte} reactCode={ex.onDemandInvalidateReact} vueCode={ex.onDemandInvalidateVue} />
 
 Invalidation sources:
 - `gpu.invalidate()` / `state.invalidate()` from user code
@@ -44,7 +44,7 @@ Best for: interactive UIs, data visualization, infrequent updates.
 
 Renders only after an explicit `advance()` call.
 
-<FrameworkBlock svelteCode={ex.manualSvelte} reactCode={ex.manualReact} />
+<FrameworkBlock svelteCode={ex.manualSvelte} reactCode={ex.manualReact} vueCode={ex.manualVue} />
 
 Best for: frame-by-frame capture, testing, server-side rendering scenarios.
 
@@ -162,7 +162,7 @@ This is useful for debugging task ordering and verifying dependency resolution.
 - **Must be**: finite and `> 0`
 - **Configurable via**: `FragCanvas` prop or `gpu.maxDelta.set(value)`
 
-<FrameworkBlock svelteCode={ex.maxDeltaSvelte} reactCode={ex.maxDeltaReact} svelteLang="svelte" reactLang="tsx" />
+<FrameworkBlock svelteCode={ex.maxDeltaSvelte} reactCode={ex.maxDeltaReact} vueCode={ex.maxDeltaVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
 ## Diagnostics and profiling
 

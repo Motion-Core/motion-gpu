@@ -15,12 +15,12 @@
 		{
 			question: 'What is Motion GPU?',
 			answer:
-				'Motion GPU is a Svelte-first WebGPU library for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
+				'Motion GPU is a WebGPU library for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
 		},
 		{
 			question: 'Who is it for?',
 			answer:
-				'It is built for developers who want modern, high-performance visual effects in Svelte without building a rendering stack from scratch.'
+				'It is built for developers who want modern, high-performance visual effects without building a rendering stack from scratch.'
 		},
 		{
 			question: 'Do I need WebGPU knowledge to use it?',

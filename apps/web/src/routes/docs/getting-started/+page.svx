@@ -13,7 +13,7 @@ This guide walks you through installing Motion GPU and building your first fulls
 
 ## Prerequisites
 
-- **Svelte 5** project (SvelteKit or standalone) or **React 19** project
+- **Svelte 5** project (SvelteKit or standalone), **React 18/19** project, or **Vue 3** project
 - A browser with **WebGPU** support (Chrome 113+, Edge 113+, Safari 18+, Firefox Nightly behind flag)
 
 ## Install
@@ -22,13 +22,14 @@ This guide walks you through installing Motion GPU and building your first fulls
 
 Adapter peer dependencies are optional and only required for the adapter you use:
 - `svelte ^5` for `@motion-core/motion-gpu/svelte`
-- `react ^19` + `react-dom ^19` for `@motion-core/motion-gpu/react`
+- `react ^18 || ^19` + `react-dom ^18 || ^19` for `@motion-core/motion-gpu/react`
+- `vue ^3.5` for `@motion-core/motion-gpu/vue`
 
 ## Step 1: Draw a static gradient
 
 The simplest possible setup — a fullscreen UV gradient with no animation:
 
-<FrameworkBlock svelteCode={ex.step1Svelte} reactCode={ex.step1React} />
+<FrameworkBlock svelteCode={ex.step1Svelte} reactCode={ex.step1React} vueCode={ex.step1Vue} />
 
 **What is happening here:**
 
@@ -41,9 +42,9 @@ The simplest possible setup — a fullscreen UV gradient with no animation:
 
 To animate your shader, you need a `uniform` and a `useFrame` callback. Because `useFrame` must run inside the `FragCanvas` context, you put it in a **child component**:
 
-<FrameworkBlock svelteCode={ex.step2AppSvelte} reactCode={ex.step2AppReact} />
+<FrameworkBlock svelteCode={ex.step2AppSvelte} reactCode={ex.step2AppReact} vueCode={ex.step2AppVue} />
 
-<FrameworkBlock svelteCode={ex.step2RuntimeSvelte} reactCode={ex.step2RuntimeReact} />
+<FrameworkBlock svelteCode={ex.step2RuntimeSvelte} reactCode={ex.step2RuntimeReact} vueCode={ex.step2RuntimeVue} />
 
 **What is happening here:**
 

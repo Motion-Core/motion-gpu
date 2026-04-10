@@ -2,6 +2,8 @@ export const importsSvelte = `import { FragCanvas } from '@motion-core/motion-gp
 
 export const importsReact = `import { FragCanvas } from '@motion-core/motion-gpu/react';`;
 
+export const importsVue = `import { FragCanvas } from '@motion-core/motion-gpu/vue';`;
+
 export const fullConfigSvelte = `\
 <FragCanvas
   material={material}
@@ -53,6 +55,34 @@ export const fullConfigReact = `\
   <Runtime />
 </FragCanvas>`;
 
+export const fullConfigVue = `\
+<FragCanvas
+  :material="material"
+  :clear-color="[0.05, 0.05, 0.1, 1]"
+  output-color-space="srgb"
+  render-mode="on-demand"
+  :auto-render="true"
+  :max-delta="0.05"
+  :dpr="2"
+  :passes="[tonePass, vignettePass]"
+  :render-targets="{ halfRes: { scale: 0.5 } }"
+  :adapter-options="{ powerPreference: 'high-performance' }"
+  :show-error-overlay="true"
+  :on-error="(report) => sendToTelemetry(report)"
+  :error-history-limit="20"
+  :on-error-history="(history) => sendErrorHistory(history)"
+  canvas-class="my-canvas-container"
+  canvas-style="border-radius: 12px; overflow: hidden"
+>
+  <template #errorRenderer="{ report }">
+    <aside class="my-error-banner">
+      <strong>{{ report.title }}</strong>
+      <p>{{ report.message }}</p>
+    </aside>
+  </template>
+  <Runtime />
+</FragCanvas>`;
+
 export const errorSnippetSvelte = `\
 {#snippet myErrorRenderer(report)}
   <aside class="my-error-banner">
@@ -69,3 +99,12 @@ errorRenderer={(report) => (
     <p>{report.message}</p>
   </aside>
 )}`;
+
+export const errorSnippetVue = `\
+<!-- In Vue, use a scoped slot for custom error rendering: -->
+<template #errorRenderer="{ report }">
+  <aside class="my-error-banner">
+    <strong>{{ report.title }}</strong>
+    <p>{{ report.message }}</p>
+  </aside>
+</template>`;

@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"verbatimModuleSyntax": true,
+		"declaration": true,
+		"declarationMap": true,
+		"declarationDir": "./dist",
+		"emitDeclarationOnly": true,
+		"rootDir": "./src/lib",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"types": ["@webgpu/types"],
+		"skipLibCheck": true
+	},
+	"include": ["src/lib/vue/**/*.ts", "src/lib/vue/**/*.vue", "src/lib/core/**/*.ts"],
+	"exclude": ["**/*.test.*", "**/*.spec.*"]
+}

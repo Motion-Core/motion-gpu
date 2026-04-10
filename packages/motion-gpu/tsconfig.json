@@ -21,9 +21,11 @@
 		"skipLibCheck": true
 	},
 	"include": [
+		"src/**/*.d.ts",
 		"src/**/*.ts",
 		"src/**/*.tsx",
 		"src/**/*.svelte",
+		"src/**/*.vue",
 		"e2e/**/*.ts",
 		"e2e/**/*.tsx",
 		"e2e/**/*.svelte",

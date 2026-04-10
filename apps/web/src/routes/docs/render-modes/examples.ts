@@ -2,9 +2,13 @@ export const alwaysSvelte = `<FragCanvas {material} renderMode="always" />`;
 
 export const alwaysReact = `<FragCanvas material={material} renderMode="always" />`;
 
+export const alwaysVue = `<FragCanvas :material="material" render-mode="always" />`;
+
 export const onDemandSvelte = `<FragCanvas {material} renderMode="on-demand" />`;
 
 export const onDemandReact = `<FragCanvas material={material} renderMode="on-demand" />`;
+
+export const onDemandVue = `<FragCanvas :material="material" render-mode="on-demand" />`;
 
 export const onDemandInvalidateSvelte = `\
 <script lang="ts">
@@ -29,6 +33,17 @@ function Component() {
 
   return null;
 }`;
+
+export const onDemandInvalidateVue = `\
+<script setup lang="ts">
+  import { useMotionGPU } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+
+  function handlePointerMove() {
+    gpu.invalidate();
+  }
+</script>`;
 
 export const manualSvelte = `\
 <script lang="ts">
@@ -56,6 +71,23 @@ function Component() {
   return <button onClick={captureFrame}>Render one frame</button>;
 }`;
 
+export const manualVue = `\
+<script setup lang="ts">
+  import { useMotionGPU } from '@motion-core/motion-gpu/vue';
+
+  const gpu = useMotionGPU();
+
+  function captureFrame() {
+    gpu.advance();
+  }
+</script>
+
+<template>
+  <button @click="captureFrame">Render one frame</button>
+</template>`;
+
 export const maxDeltaSvelte = `<FragCanvas {material} maxDelta={0.05} />`;
 
 export const maxDeltaReact = `<FragCanvas material={material} maxDelta={0.05} />`;
+
+export const maxDeltaVue = `<FragCanvas :material="material" :max-delta="0.05" />`;

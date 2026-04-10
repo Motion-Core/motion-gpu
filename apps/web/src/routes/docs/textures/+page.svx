@@ -75,7 +75,7 @@ You can set texture sources at definition time or at runtime via `state.setTextu
 
 ### Example: setting a texture from a video
 
-<FrameworkBlock svelteCode={ex.videoTextureSvelte} reactCode={ex.videoTextureReact} />
+<FrameworkBlock svelteCode={ex.videoTextureSvelte} reactCode={ex.videoTextureReact} vueCode={ex.videoTextureVue} />
 
 Because the source is an `HTMLVideoElement`, the update mode is automatically set to `perFrame`.
 

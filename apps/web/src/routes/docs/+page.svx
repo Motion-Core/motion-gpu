@@ -1,9 +1,9 @@
 ---
 title: Motion GPU Documentation
-description: Framework-agnostic WebGPU core with Svelte 5 and React 19 adapters for fullscreen WGSL rendering.
+description: Framework-agnostic WebGPU core with Svelte 5, React 18/19, and Vue 3 adapters for fullscreen WGSL rendering.
 ---
 
-`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5** and **React 19** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in both adapters.
+`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 18/19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 
@@ -17,13 +17,14 @@ Motion GPU documentation is also available for AI tools via [Context7](https://c
 | --- | --- | --- |
 | **Svelte runtime component** | `svelte/FragCanvas.svelte` | Owns the `<canvas>`, provides Svelte context/hooks, and bridges props/runtime state into the core loop. |
 | **React runtime component** | `react/FragCanvas.tsx` | Owns the `<canvas>`, provides React context/hooks, and bridges props/runtime state into the core loop. |
+| **Vue runtime component** | `vue/FragCanvas.vue` | Owns the `<canvas>`, provides Vue provide/inject composables, and bridges props/runtime state into the core loop. |
 | **Runtime loop (core)** | `core/runtime-loop.ts` | Runs requestAnimationFrame, renderer rebuild policy, frame scheduling, render gating, and normalized error routing. |
 | **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
 | **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
-| **Frame scheduler** | `core/frame-registry.ts` + `svelte/frame-context.ts` + `react/frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling (core), with Svelte/React hook-context adapter wrappers. |
+| **Frame scheduler** | `core/frame-registry.ts` + `svelte/frame-context.ts` + `react/frame-context.ts` + `vue/frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling (core), with Svelte/React/Vue hook-context adapter wrappers. |
 | **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, three built-in render pass types, and two compute pass types (`ComputePass`, `PingPongComputePass`). |
 | **Compute pipeline** | `compute-shader.ts` + `storage-buffers.ts` | Builds compute shader WGSL, validates contracts, manages storage buffer allocation/readback, and dispatches compute workgroups within the render graph. |
-| **Texture loading** | `core/texture-loader.ts` + `svelte/use-texture.ts` + `react/use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive adapter state. |
+| **Texture loading** | `core/texture-loader.ts` + `svelte/use-texture.ts` + `react/use-texture.ts` + `vue/use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive adapter state. |
 | **Diagnostics** | `error-report.ts` + `error-diagnostics.ts` | Maps low-level WebGPU and WGSL errors to structured reports with hints and source snippets. |
 
 ## Public entrypoints
@@ -36,8 +37,10 @@ Motion GPU documentation is also available for AI tools via [Context7](https://c
 | `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
 | `@motion-core/motion-gpu/react` | React adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
 | `@motion-core/motion-gpu/react/advanced` | React adapter runtime plus user context APIs and scheduler helpers |
+| `@motion-core/motion-gpu/vue` | Vue adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
+| `@motion-core/motion-gpu/vue/advanced` | Vue adapter runtime plus user context APIs and scheduler helpers |
 
-The export contract is verified in `src/tests/public-api.test.ts`.
+Public exports are defined by package `exports` and covered by API tests in `src/tests/public-api.test.ts`.
 
 ## Runtime mental model
 
@@ -91,6 +94,6 @@ These are enforced at runtime and will throw immediately if violated:
 
 - This package targets **fullscreen fragment workflows and GPU compute** — it is not a general-purpose scene graph or 3D engine.
 - Root entrypoints (`@motion-core/motion-gpu`, `/advanced`) are framework-agnostic core APIs.
-- Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, `@motion-core/motion-gpu/react`).
-- Adapter runtimes work without advanced entrypoints; `@motion-core/motion-gpu/svelte/advanced` and `@motion-core/motion-gpu/react/advanced` add namespaced user state and extended scheduler ergonomics.
+- Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, `@motion-core/motion-gpu/react`, `@motion-core/motion-gpu/vue`).
+- Adapter runtimes work without advanced entrypoints; `@motion-core/motion-gpu/svelte/advanced`, `@motion-core/motion-gpu/react/advanced`, and `@motion-core/motion-gpu/vue/advanced` add namespaced user state and extended scheduler ergonomics.
 - All documentation references behaviors currently implemented in the repository, including edge cases verified by the test suite.

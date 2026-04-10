@@ -11,7 +11,9 @@ import { svelte as svelteLanguage } from '@replit/codemirror-lang-svelte';
 import { basicSetup } from 'codemirror';
 import {
 	getPlaygroundDemoById,
+	getPlaygroundDemoVariant,
 	playgroundDemos,
+	type PlaygroundFramework,
 	resolvePlaygroundDemoId
 } from './playground-demos';
 import {
@@ -25,15 +27,7 @@ import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.h
 import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
 type EditorThemeMode = 'light' | 'dark';
-type FileTreeNode =
-	| { kind: 'directory'; name: string; path: string; children: FileTreeNode[] }
-	| { kind: 'file'; name: string; path: string };
-type FileTreeRow = {
-	kind: 'directory' | 'file';
-	name: string;
-	path: string;
-	depth: number;
-};
+const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
 
 const editorFontStack =
 	'"Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -55,6 +49,10 @@ const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 	const details = [location, error.message, frame].filter(Boolean).join('\n');
 	return details || 'Bundle failed.';
 };
+
+const resolvePlaygroundFramework = (
+	value: PlaygroundFramework | string | null | undefined
+): PlaygroundFramework => (value === 'react' ? 'react' : value === 'vue' ? 'vue' : 'svelte');
 
 const editorSyntaxTheme = syntaxHighlighting(
 	HighlightStyle.define([
@@ -150,6 +148,13 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 
 const languageExtensionForPath = (filePath: string): Extension => {
 	if (filePath.endsWith('.svelte')) return svelteLanguage();
+	if (filePath.endsWith('.vue')) return htmlLanguage();
+	if (filePath.endsWith('.tsx')) {
+		return javascript({ typescript: true, jsx: true });
+	}
+	if (filePath.endsWith('.jsx')) {
+		return javascript({ jsx: true });
+	}
 	if (filePath.endsWith('.ts') || filePath.endsWith('.d.ts')) {
 		return javascript({ typescript: true });
 	}
@@ -160,7 +165,10 @@ const languageExtensionForPath = (filePath: string): Extension => {
 	return [];
 };
 
-export const createPlaygroundController = (initialDemoId?: string | null) => {
+export const createPlaygroundController = (
+	initialDemoId?: string | null,
+	initialFramework?: PlaygroundFramework | string | null
+) => {
 	let editorHost: HTMLDivElement | null = null;
 	let editorInstance: EditorView | null = null;
 	let suppressEditorUpdate = false;
@@ -191,60 +199,90 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	const languageCompartment = new Compartment();
 	const themeCompartment = new Compartment();
 
-	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/src/**/*', {
+	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/*/src/**/*', {
 		query: '?raw',
 		import: 'default',
 		eager: true
 	}) as Record<string, string>;
 
-	const runtimeTemplateFiles = Object.fromEntries(
-		Object.entries(runtimeTemplateRawModules)
-			.map(([path, source]) => {
-				const marker = '/runtime-template/src/';
-				const markerIndex = path.lastIndexOf(marker);
-				if (markerIndex === -1) return null;
-				const relativePath = `src/${path.slice(markerIndex + marker.length)}`;
-				return [relativePath, source] as const;
-			})
-			.filter((entry): entry is readonly [string, string] => entry !== null)
+	const runtimeTemplateFilesByFramework = playgroundFrameworks.reduce<
+		Record<PlaygroundFramework, Record<string, string>>
+	>(
+		(acc, framework) => {
+			acc[framework] = {};
+			return acc;
+		},
+		{
+			svelte: {},
+			react: {},
+			vue: {}
+		}
 	);
 
-	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
-	let activeDemoId = $state(initialResolvedDemoId);
-	let activeFilePath = $state('src/App.svelte');
-	let openFilePaths = $state<string[]>(['src/App.svelte']);
-	let collapsedDirs = $state<Record<string, boolean>>({});
-	const maxOpenTabs = 3;
-	const demoAppPath = 'src/App.svelte';
-	const demoRuntimePath = 'src/runtime.svelte';
+	for (const [path, source] of Object.entries(runtimeTemplateRawModules)) {
+		const match = path.match(/\/runtime-template\/([^/]+)\/src\/(.+)$/);
+		if (!match) continue;
+		const framework = resolvePlaygroundFramework(match[1]);
+		const relativePath = `src/${match[2]}`;
+		runtimeTemplateFilesByFramework[framework][relativePath] = source;
+	}
 
-	const baseFiles: Record<string, string> = {
-		...runtimeTemplateFiles
+	const frameworkEntryPaths: Record<PlaygroundFramework, { appPath: string; runtimePath: string }> =
+		{
+			svelte: { appPath: 'src/App.svelte', runtimePath: 'src/runtime.svelte' },
+			react: { appPath: 'src/App.tsx', runtimePath: 'src/runtime.tsx' },
+			vue: { appPath: 'src/App.vue', runtimePath: 'src/runtime.vue' }
+		};
+	const reservedDemoSourceFileNames = new Set([
+		'App.svelte',
+		'runtime.svelte',
+		'App.tsx',
+		'runtime.tsx',
+		'App.vue',
+		'runtime.vue'
+	]);
+
+	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
+	const initialResolvedFramework = resolvePlaygroundFramework(initialFramework);
+	let activeFramework = $state(initialResolvedFramework);
+	let activeDemoId = $state(initialResolvedDemoId);
+	let activeFilePath = $state(frameworkEntryPaths[initialResolvedFramework].appPath);
+	const sortFilePaths = (paths: string[], framework: PlaygroundFramework): string[] => {
+		const entryPaths = frameworkEntryPaths[framework];
+		return [...paths].sort((left, right) => {
+			if (left === right) return 0;
+			if (left === entryPaths.appPath) return -1;
+			if (right === entryPaths.appPath) return 1;
+			if (left === entryPaths.runtimePath) return -1;
+			if (right === entryPaths.runtimePath) return 1;
+			return left.localeCompare(right);
+		});
 	};
 
-	const toFilesForDemo = (demoId: string) => {
+	const toFilesForDemo = (
+		demoId: string,
+		frameworkInput: PlaygroundFramework | string = activeFramework
+	) => {
 		const resolvedDemoId = resolvePlaygroundDemoId(demoId);
-		const demo = getPlaygroundDemoById(resolvedDemoId);
-		if (!demo) {
-			return { ...baseFiles };
-		}
+		const framework = resolvePlaygroundFramework(frameworkInput);
+		const demoVariant = getPlaygroundDemoVariant(resolvedDemoId, framework);
+		const baseFiles = runtimeTemplateFilesByFramework[framework] ?? {};
+		const entryPaths = frameworkEntryPaths[framework];
+
+		if (!demoVariant) return { ...baseFiles };
 
 		const files: Record<string, string> = {
 			...baseFiles,
-			[demoAppPath]: demo.appSource
+			[entryPaths.appPath]: demoVariant.appSource
 		};
 
-		if (typeof demo.runtimeSource === 'string') {
-			files[demoRuntimePath] = demo.runtimeSource;
+		if (typeof demoVariant.runtimeSource === 'string') {
+			files[entryPaths.runtimePath] = demoVariant.runtimeSource;
 		}
 
-		for (const [relativePath, source] of Object.entries(demo.additionalFiles ?? {})) {
+		for (const [relativePath, source] of Object.entries(demoVariant.additionalFiles ?? {})) {
 			const normalizedPath = relativePath.replace(/^\.?\//, '');
-			if (
-				!normalizedPath ||
-				normalizedPath === 'App.svelte' ||
-				normalizedPath === 'runtime.svelte'
-			) {
+			if (!normalizedPath || reservedDemoSourceFileNames.has(normalizedPath)) {
 				continue;
 			}
 			files[`src/${normalizedPath}`] = source;
@@ -253,100 +291,13 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		return files;
 	};
 
-	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId);
+	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId, initialResolvedFramework);
+	const initialFilePaths = sortFilePaths(
+		Object.keys(initialDemoFiles),
+		initialResolvedFramework
+	);
 	let fileContents = $state<Record<string, string>>(initialDemoFiles);
-	let filePaths = $state<string[]>(Object.keys(initialDemoFiles));
-
-	const collectTreeRows = (
-		nodes: FileTreeNode[],
-		collapsed: Record<string, boolean>,
-		depth = 0
-	): FileTreeRow[] => {
-		const rows: FileTreeRow[] = [];
-
-		for (const node of nodes) {
-			rows.push({ kind: node.kind, name: node.name, path: node.path, depth });
-			if (node.kind === 'directory' && !collapsed[node.path]) {
-				rows.push(...collectTreeRows(node.children, collapsed, depth + 1));
-			}
-		}
-
-		return rows;
-	};
-
-	const buildFileTree = (paths: string[]): FileTreeNode[] => {
-		type MutableNode = {
-			kind: 'directory' | 'file';
-			name: string;
-			path: string;
-			children?: Record<string, MutableNode>;
-		};
-
-		const rootChildren: Record<string, MutableNode> = {};
-		const getDirectoryNode = (children: Record<string, MutableNode>, key: string, path: string) => {
-			const existing = children[key];
-			if (existing && existing.kind === 'directory') {
-				return existing;
-			}
-
-			const created: MutableNode = {
-				kind: 'directory',
-				name: key,
-				path,
-				children: {}
-			};
-			children[key] = created;
-			return created;
-		};
-
-		for (const filePath of paths) {
-			const segments = filePath.split('/').filter(Boolean);
-			if (segments.length === 0) continue;
-
-			let cursor: Record<string, MutableNode> = rootChildren;
-			let currentPath = '';
-
-			for (let index = 0; index < segments.length; index += 1) {
-				const segment = segments[index]!;
-				currentPath = currentPath ? `${currentPath}/${segment}` : segment;
-				const isLast = index === segments.length - 1;
-
-				if (isLast) {
-					cursor[segment] = { kind: 'file', name: segment, path: currentPath };
-					continue;
-				}
-
-				const directoryNode = getDirectoryNode(cursor, segment, currentPath);
-				cursor = directoryNode.children as Record<string, MutableNode>;
-			}
-		}
-
-		const toReadonlyNodes = (children: Record<string, MutableNode>): FileTreeNode[] =>
-			Object.values(children)
-				.sort((left, right) => {
-					if (left.kind !== right.kind) {
-						return left.kind === 'directory' ? -1 : 1;
-					}
-					return left.name.localeCompare(right.name);
-				})
-				.map((node) => {
-					if (node.kind === 'file') {
-						return { kind: 'file', name: node.name, path: node.path };
-					}
-
-					return {
-						kind: 'directory',
-						name: node.name,
-						path: node.path,
-						children: toReadonlyNodes(node.children as Record<string, MutableNode>)
-					};
-				});
-
-		return toReadonlyNodes(rootChildren);
-	};
-
-	const fileTree = $derived(buildFileTree(filePaths));
-	const visibleFileTreeRows = $derived(collectTreeRows(fileTree, collapsedDirs));
+	let openFilePaths = $state<string[]>([...initialFilePaths]);
 	const runtimeLogTail = $derived(
 		compactLogForDisplay(runtimeLog).split('\n').slice(-120).join('\n')
 	);
@@ -454,36 +405,6 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		editorInstance?.focus();
 	};
 
-	const openFile = (filePath: string) => {
-		if (!(filePath in fileContents)) return;
-		if (!openFilePaths.includes(filePath)) {
-			if (openFilePaths.length >= maxOpenTabs) {
-				openFilePaths = [...openFilePaths.slice(0, maxOpenTabs - 1), filePath];
-			} else {
-				openFilePaths = [...openFilePaths, filePath];
-			}
-		}
-		switchToFile(filePath);
-	};
-
-	const closeFile = (filePath: string) => {
-		if (!openFilePaths.includes(filePath) || openFilePaths.length <= 1) return;
-
-		const nextOpenPaths = openFilePaths.filter((path) => path !== filePath);
-		openFilePaths = nextOpenPaths;
-
-		if (activeFilePath === filePath) {
-			const fallbackPath = nextOpenPaths[nextOpenPaths.length - 1] ?? nextOpenPaths[0];
-			if (fallbackPath) {
-				switchToFile(fallbackPath);
-			}
-		}
-	};
-
-	const toggleDirectory = (path: string) => {
-		collapsedDirs = { ...collapsedDirs, [path]: !collapsedDirs[path] };
-	};
-
 	const applyBundleToPreview = async (bundle: BundleResult) => {
 		if (!previewProxy || !previewReady) {
 			return;
@@ -513,11 +434,14 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		try {
 			const files = toBundlerFiles(fileContents);
-			if (!files.some((file) => file.name === 'App.svelte')) {
-				throw new Error('Missing src/App.svelte in playground files.');
+			const expectedAppFile = frameworkEntryPaths[activeFramework].appPath;
+			const expectedAppModule = expectedAppFile.slice(4);
+			if (!files.some((file) => file.name === expectedAppModule)) {
+				throw new Error(`Missing ${expectedAppFile} in playground files.`);
 			}
 
 			await bundler.bundle(files, {
+				framework: activeFramework,
 				svelte_version: lastResolvedSvelteVersion,
 				runes: true
 			});
@@ -638,6 +562,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		const demo = getPlaygroundDemoById(resolvedDemoId);
 		if (!demo) return;
+		const demoVariant = getPlaygroundDemoVariant(resolvedDemoId, activeFramework);
+		if (!demoVariant) return;
 
 		activeDemoId = resolvedDemoId;
 		errorMessage = '';
@@ -645,16 +571,44 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		// Rebuild the sandbox file map from the selected demo so optional demo files
 		// (for example `shader.ts`) are always present after demo switches.
-		const nextFileContents = toFilesForDemo(resolvedDemoId);
+		const nextFileContents = toFilesForDemo(resolvedDemoId, activeFramework);
+		const frameworkEntry = frameworkEntryPaths[activeFramework].appPath;
+		const sortedPaths = sortFilePaths(Object.keys(nextFileContents), activeFramework);
 
 		fileContents = nextFileContents;
-		filePaths = Object.keys(nextFileContents);
-		openFilePaths = [demoAppPath];
-		activeFilePath = demoAppPath;
+		openFilePaths = [...sortedPaths];
+		activeFilePath = frameworkEntry;
 
 		syncEditorWithActiveFile();
 		editorInstance?.focus();
 		status = `Switched demo: ${demo.name}`;
+		queueBundle();
+	};
+
+	const switchFramework = (nextFramework: PlaygroundFramework | string | null | undefined) => {
+		const resolvedFramework = resolvePlaygroundFramework(nextFramework);
+		if (resolvedFramework === activeFramework) return;
+
+		const demoVariant = getPlaygroundDemoVariant(activeDemoId, resolvedFramework);
+		if (!demoVariant) return;
+
+		activeFramework = resolvedFramework;
+		errorMessage = '';
+		syncError = '';
+		runtimeLog = '';
+		previewReloadToken += 1;
+
+		const nextFileContents = toFilesForDemo(activeDemoId, resolvedFramework);
+		const frameworkEntry = frameworkEntryPaths[resolvedFramework].appPath;
+		const sortedPaths = sortFilePaths(Object.keys(nextFileContents), resolvedFramework);
+
+		fileContents = nextFileContents;
+		openFilePaths = [...sortedPaths];
+		activeFilePath = frameworkEntry;
+
+		syncEditorWithActiveFile();
+		editorInstance?.focus();
+		status = `Switched framework: ${resolvedFramework}`;
 		queueBundle();
 	};
 
@@ -718,11 +672,11 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		get activeDemoId() {
 			return activeDemoId;
 		},
+		get activeFramework() {
+			return activeFramework;
+		},
 		get activeFilePath() {
 			return activeFilePath;
-		},
-		get collapsedDirs() {
-			return collapsedDirs;
 		},
 		get errorMessage() {
 			return errorMessage;
@@ -732,6 +686,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		},
 		get demos() {
 			return playgroundDemos;
+		},
+		get frameworks() {
+			return playgroundFrameworks;
 		},
 		get openFilePaths() {
 			return openFilePaths;
@@ -757,19 +714,14 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		get syncingPath() {
 			return syncingPath;
 		},
-		get visibleFileTreeRows() {
-			return visibleFileTreeRows;
-		},
-		closeFile,
 		mount,
-		openFile,
 		retryRuntime,
 		setEditorHost,
 		setEditorTheme,
 		setPreviewFrame,
 		switchDemo,
-		switchToFile,
-		toggleDirectory
+		switchFramework,
+		switchToFile
 	};
 };
 

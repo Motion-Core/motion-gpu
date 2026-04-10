@@ -10,14 +10,20 @@
 	let {
 		controller,
 		activeDemoId,
+		activeFramework,
 		demoOptions,
+		frameworkOptions,
 		onSelectDemo,
+		onSelectFramework,
 		onPreviewFrameChange
 	}: {
 		controller: PlaygroundController;
 		activeDemoId: string;
+		activeFramework: string;
 		demoOptions: DemoSelectOption[];
+		frameworkOptions: DemoSelectOption[];
 		onSelectDemo: (demoId: string) => void;
+		onSelectFramework: (framework: string) => void;
 		onPreviewFrameChange: (frame: HTMLIFrameElement | null) => void;
 	} = $props();
 
@@ -33,12 +39,22 @@
 
 <section class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background p-px">
 	<div class="relative min-h-0 flex-1 overflow-hidden rounded-[calc(var(--radius-base)*2.75)]">
-		<div class="absolute top-2 right-2 z-10">
+		<div class="absolute top-2 right-2 z-10 flex gap-2">
+			<label class="sr-only" for="playground-preview-framework-select">Choose framework</label>
+			<Select
+				id="playground-preview-framework-select"
+				class="w-24"
+				triggerClass="w-24"
+				value={activeFramework}
+				options={frameworkOptions}
+				onValueChange={onSelectFramework}
+				ariaLabel="Choose framework"
+			/>
 			<label class="sr-only" for="playground-preview-demo-select">Choose demo</label>
 			<Select
 				id="playground-preview-demo-select"
-				class="w-48"
-				triggerClass="w-48"
+				class="w-44"
+				triggerClass="w-44"
 				value={activeDemoId}
 				options={demoOptions}
 				onValueChange={onSelectDemo}

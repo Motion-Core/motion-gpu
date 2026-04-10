@@ -1,28 +1,45 @@
+export type PlaygroundFramework = 'svelte' | 'react' | 'vue';
+
+export type PlaygroundDemoVariant = {
+	appSource: string;
+	runtimeSource?: string;
+	additionalFiles: Record<string, string>;
+};
+
 export type PlaygroundDemoDefinition = {
 	id: string;
 	name: string;
-	appSource: string;
-	runtimeSource?: string;
-	additionalFiles?: Record<string, string>;
+	variants: Record<PlaygroundFramework, PlaygroundDemoVariant>;
 };
 
-const appModules = import.meta.glob('./demos/*/App.svelte', {
+const demoFileModules = import.meta.glob('./demos/**/*', {
 	query: '?raw',
 	import: 'default',
 	eager: true
 }) as Record<string, string>;
 
-const runtimeModules = import.meta.glob('./demos/*/runtime.svelte', {
-	query: '?raw',
-	import: 'default',
-	eager: true
-}) as Partial<Record<string, string>>;
+const frameworkFiles: Record<
+	PlaygroundFramework,
+	{
+		appPath: string;
+		runtimePath: string;
+	}
+> = {
+	svelte: {
+		appPath: 'svelte/App.svelte',
+		runtimePath: 'svelte/runtime.svelte'
+	},
+	react: {
+		appPath: 'react/App.tsx',
+		runtimePath: 'react/runtime.tsx'
+	},
+	vue: {
+		appPath: 'vue/App.vue',
+		runtimePath: 'vue/runtime.vue'
+	}
+};
 
-const demoFileModules = import.meta.glob('./demos/*/*', {
-	query: '?raw',
-	import: 'default',
-	eager: true
-}) as Record<string, string>;
+const variantRoots = new Set(Object.keys(frameworkFiles));
 
 const toStartCase = (value: string) =>
 	value
@@ -31,43 +48,94 @@ const toStartCase = (value: string) =>
 		.map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
 		.join(' ');
 
-const getDemoIdFromAppPath = (path: string) => {
-	const match = path.match(/\/demos\/([^/]+)\/App\.svelte$/);
-	if (!match) return null;
-	return match[1] ?? null;
-};
-
 const getDemoFileInfoFromPath = (path: string) => {
-	const match = path.match(/\/demos\/([^/]+)\/([^/]+)$/);
+	const match = path.match(/\/demos\/([^/]+)\/(.+)$/);
 	if (!match) return null;
 	return {
 		id: match[1] ?? null,
-		fileName: match[2] ?? null
+		relativePath: match[2] ?? null
 	};
 };
 
-const playgroundDemosUnsorted = Object.entries(appModules)
-	.map<PlaygroundDemoDefinition | null>(([path, appSource]) => {
-		const id = getDemoIdFromAppPath(path);
-		if (!id) return null;
-		const runtimePath = path.replace(/\/App\.svelte$/, '/runtime.svelte');
-		const additionalFiles = Object.fromEntries(
-			Object.entries(demoFileModules)
-				.map(([filePath, source]) => {
-					const info = getDemoFileInfoFromPath(filePath);
-					if (!info || info.id !== id || !info.fileName) return null;
-					if (info.fileName === 'App.svelte' || info.fileName === 'runtime.svelte') return null;
-					return [info.fileName, source] as const;
-				})
-				.filter((entry): entry is readonly [string, string] => entry !== null)
-		);
+const demoFilesById = Object.entries(demoFileModules).reduce<
+	Record<string, Record<string, string>>
+>((acc, [path, source]) => {
+	const info = getDemoFileInfoFromPath(path);
+	if (!info?.id || !info.relativePath) {
+		return acc;
+	}
+
+	const existing = acc[info.id] ?? {};
+	existing[info.relativePath] = source;
+	acc[info.id] = existing;
+	return acc;
+}, {});
+
+const buildVariantAdditionalFiles = (
+	files: Record<string, string>,
+	framework: PlaygroundFramework
+): Record<string, string> => {
+	const output: Record<string, string> = {};
+	const { appPath, runtimePath } = frameworkFiles[framework];
+	const frameworkPrefix = `${framework}/`;
+
+	for (const [relativePath, source] of Object.entries(files)) {
+		if (relativePath === appPath || relativePath === runtimePath || relativePath === 'README.md') {
+			continue;
+		}
+
+		const [firstSegment] = relativePath.split('/');
+		if (firstSegment && variantRoots.has(firstSegment)) {
+			if (!relativePath.startsWith(frameworkPrefix)) {
+				continue;
+			}
+
+			const frameworkRelativePath = relativePath.slice(frameworkPrefix.length);
+			if (!frameworkRelativePath) {
+				continue;
+			}
+
+			output[frameworkRelativePath] = source;
+			continue;
+		}
+
+		output[relativePath] = source;
+	}
+
+	return output;
+};
+
+const missingFrameworkVariants: string[] = [];
+
+const playgroundDemosUnsorted = Object.entries(demoFilesById)
+	.map<PlaygroundDemoDefinition | null>(([id, files]) => {
+		const missingForDemo: PlaygroundFramework[] = [];
+		for (const framework of Object.keys(frameworkFiles) as PlaygroundFramework[]) {
+			if (!(frameworkFiles[framework].appPath in files)) {
+				missingForDemo.push(framework);
+			}
+		}
+
+		if (missingForDemo.length > 0) {
+			missingFrameworkVariants.push(`${id}: ${missingForDemo.join(', ')}`);
+			return null;
+		}
+
+		const variants = Object.fromEntries(
+			(Object.keys(frameworkFiles) as PlaygroundFramework[]).map((framework) => [
+				framework,
+				{
+					appSource: files[frameworkFiles[framework].appPath]!,
+					runtimeSource: files[frameworkFiles[framework].runtimePath],
+					additionalFiles: buildVariantAdditionalFiles(files, framework)
+				}
+			])
+		) as Record<PlaygroundFramework, PlaygroundDemoVariant>;
 
 		return {
 			id,
 			name: toStartCase(id),
-			appSource,
-			runtimeSource: runtimeModules[runtimePath],
-			additionalFiles
+			variants
 		};
 	})
 	.filter((entry): entry is PlaygroundDemoDefinition => entry !== null);
@@ -76,8 +144,16 @@ export const playgroundDemos = playgroundDemosUnsorted.sort((left, right) =>
 	left.name.localeCompare(right.name)
 );
 
+if (missingFrameworkVariants.length > 0) {
+	throw new Error(
+		`Missing framework demo variants:\n${missingFrameworkVariants
+			.map((entry) => `- ${entry}`)
+			.join('\n')}`
+	);
+}
+
 if (playgroundDemos.length === 0) {
-	throw new Error('No playground demos found in ./demos/*/App.svelte');
+	throw new Error('No playground demos found in ./demos/**');
 }
 
 const playgroundDemosById = Object.fromEntries(
@@ -90,3 +166,9 @@ export const resolvePlaygroundDemoId = (value: string | null | undefined) =>
 	value && value in playgroundDemosById ? value : defaultPlaygroundDemoId;
 
 export const getPlaygroundDemoById = (id: string) => playgroundDemosById[id] ?? null;
+
+export const getPlaygroundDemoVariant = (demoId: string, framework: PlaygroundFramework) => {
+	const demo = getPlaygroundDemoById(demoId);
+	if (!demo) return null;
+	return demo.variants[framework] ?? null;
+};

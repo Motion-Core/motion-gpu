@@ -1,5 +1,4 @@
 <script lang="ts">
-	import Close from 'carbon-icons-svelte/lib/Close.svelte';
 	import ScrollArea from '$lib/components/ui/ScrollArea.svelte';
 
 	import type { PlaygroundController } from '../playground-controller.svelte';
@@ -30,7 +29,7 @@
 			<div class="flex items-stretch">
 				{#each controller.openFilePaths as filePath (filePath)}
 					<div
-						class={`group inline-flex shrink-0 items-center rounded-t-md border-r ${
+						class={`inline-flex shrink-0 items-center rounded-t-md border-r ${
 							controller.activeFilePath === filePath
 								? 'border-border bg-background dark:bg-background-inset'
 								: 'border-transparent bg-transparent'
@@ -47,19 +46,6 @@
 						>
 							{filePath.split('/').at(-1)}
 						</button>
-						{#if controller.openFilePaths.length > 1}
-							<button
-								type="button"
-								onclick={(event) => {
-									event.stopPropagation();
-									controller.closeFile(filePath);
-								}}
-								class="inline-flex items-center px-3 py-2 text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-								aria-label={`Close ${filePath}`}
-							>
-								<Close size={16} />
-							</button>
-						{/if}
 					</div>
 				{/each}
 			</div>

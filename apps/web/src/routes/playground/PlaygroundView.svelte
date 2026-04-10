@@ -1,7 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { themeStore } from '$lib/stores/theme.svelte';
-	import PlaygroundFileTree from './components/PlaygroundFileTree.svelte';
 	import PlaygroundEditor from './components/PlaygroundEditor.svelte';
 	import PlaygroundPreview from './components/PlaygroundPreview.svelte';
 
@@ -10,116 +8,92 @@
 	let {
 		controller,
 		onSelectDemo,
+		onSelectFramework,
 		onEditorHostChange,
 		onPreviewFrameChange
 	}: {
 		controller: PlaygroundController;
 		onSelectDemo: (demoId: string) => void;
+		onSelectFramework: (framework: string) => void;
 		onEditorHostChange: (host: HTMLDivElement | null) => void;
 		onPreviewFrameChange: (frame: HTMLIFrameElement | null) => void;
 	} = $props();
+
 	let workspaceHost: HTMLDivElement | null = null;
-	let sidebarHeaderHost: HTMLDivElement | null = null;
-	let sidebarListHost: HTMLDivElement | null = null;
-	let treeWidth = $state(256);
-	let previewWidth = $state(420);
-	let mobileTreeHeight = $state(0);
+	let previewWidth = $state<number | null>(null);
+	let previewHeight = $state<number | null>(null);
 	let activeResizeHandle: HTMLButtonElement | null = null;
 	let activeResize = $state<{
-		target: 'tree' | 'preview';
 		pointerId: number;
 		startX: number;
-		startTreeWidth: number;
-		startPreviewWidth: number;
+		startY: number;
+		startPreviewWidth: number | null;
+		startPreviewHeight: number | null;
 	} | null>(null);
 
-	const RESIZER_SIZE = 1;
-	const MIN_TREE_WIDTH = 180;
+	const RESIZER_SIZE = 4;
 	const MIN_EDITOR_WIDTH = 380;
 	const MIN_PREVIEW_WIDTH = 260;
-	const MOBILE_TREE_MIN_HEIGHT = 120;
-	const MOBILE_TREE_EXPANDED_FLOOR = 180;
-	const MOBILE_TREE_MAX_VIEWPORT_RATIO = 0.42;
+	const MIN_EDITOR_HEIGHT = 260;
+	const MIN_PREVIEW_HEIGHT = 220;
 
 	const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 	const getWorkspaceWidth = () => workspaceHost?.clientWidth ?? 0;
+	const getWorkspaceHeight = () => workspaceHost?.clientHeight ?? 0;
 	const isDesktopViewport = () =>
 		typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
 
-	const getMaxTreeWidth = (workspaceWidth: number, nextPreviewWidth = previewWidth) =>
-		Math.max(
-			MIN_TREE_WIDTH,
-			workspaceWidth - RESIZER_SIZE - RESIZER_SIZE - nextPreviewWidth - MIN_EDITOR_WIDTH
-		);
+	const getMaxPreviewWidth = (workspaceWidth: number) =>
+		Math.max(MIN_PREVIEW_WIDTH, workspaceWidth - RESIZER_SIZE - MIN_EDITOR_WIDTH);
+	const getMaxPreviewHeight = (workspaceHeight: number) =>
+		Math.max(MIN_PREVIEW_HEIGHT, workspaceHeight - RESIZER_SIZE - MIN_EDITOR_HEIGHT);
 
-	const getMaxPreviewWidth = (workspaceWidth: number, nextTreeWidth = treeWidth) =>
-		Math.max(
-			MIN_PREVIEW_WIDTH,
-			workspaceWidth - nextTreeWidth - RESIZER_SIZE - RESIZER_SIZE - MIN_EDITOR_WIDTH
-		);
+	const getDefaultPreviewWidth = (workspaceWidth: number) =>
+		Math.round((workspaceWidth - RESIZER_SIZE) / 2);
+	const getDefaultPreviewHeight = (workspaceHeight: number) =>
+		Math.round((workspaceHeight - RESIZER_SIZE) / 2);
 
-	const clampPanelWidths = () => {
-		const workspaceWidth = getWorkspaceWidth();
-		if (workspaceWidth <= 0) return;
+	const clampPanelSize = () => {
+		if (isDesktopViewport()) {
+			const workspaceWidth = getWorkspaceWidth();
+			if (workspaceWidth <= 0 || previewWidth === null) return;
+			previewWidth = clamp(previewWidth, MIN_PREVIEW_WIDTH, getMaxPreviewWidth(workspaceWidth));
+			return;
+		}
 
-		treeWidth = clamp(treeWidth, MIN_TREE_WIDTH, getMaxTreeWidth(workspaceWidth));
-
-		previewWidth = clamp(
-			previewWidth,
-			MIN_PREVIEW_WIDTH,
-			getMaxPreviewWidth(workspaceWidth, treeWidth)
-		);
+		const workspaceHeight = getWorkspaceHeight();
+		if (workspaceHeight <= 0 || previewHeight === null) return;
+		previewHeight = clamp(previewHeight, MIN_PREVIEW_HEIGHT, getMaxPreviewHeight(workspaceHeight));
 	};
 
 	const workspaceColumns = $derived.by(() => {
-		const treeColumn = `${Math.round(treeWidth)}px`;
-		const treeResizerColumn = `${RESIZER_SIZE}px`;
-		const previewResizerColumn = `${RESIZER_SIZE}px`;
-		const previewColumn = `${Math.round(previewWidth)}px`;
-		return `${treeColumn} ${treeResizerColumn} minmax(0,1fr) ${previewResizerColumn} ${previewColumn}`;
+		if (previewWidth === null) {
+			return `minmax(0,1fr) ${RESIZER_SIZE}px minmax(0,1fr)`;
+		}
+		return `minmax(0,1fr) ${RESIZER_SIZE}px ${Math.round(previewWidth)}px`;
 	});
 	const workspaceRows = $derived.by(() => {
-		const isMobile =
-			typeof window !== 'undefined' && !window.matchMedia('(min-width: 1024px)').matches;
-		const treeRow = isMobile ? `${mobileTreeHeight}px` : 'minmax(0,1fr)';
-		return `${treeRow} minmax(0,1fr) minmax(0,1fr)`;
+		if (previewHeight === null) {
+			return `minmax(0,1fr) ${RESIZER_SIZE}px minmax(0,1fr)`;
+		}
+		return `minmax(0,1fr) ${RESIZER_SIZE}px ${Math.round(previewHeight)}px`;
 	});
+
 	const demoSelectOptions = $derived.by(() =>
 		controller.demos.map((demo) => ({
 			value: demo.id,
 			label: demo.name
 		}))
 	);
-	const trackMobileTreeDependencies = (
-		_collapsedDirs: Record<string, boolean>,
-		_rowCount: number
-	) => {};
-	const handleSidebarHeaderHostChange = (host: HTMLDivElement | null) => {
-		sidebarHeaderHost = host;
-	};
-	const handleSidebarListHostChange = (host: HTMLDivElement | null) => {
-		sidebarListHost = host;
-	};
-	const recomputeMobileTreeHeight = () => {
-		if (typeof window === 'undefined') return;
-		if (!window.matchMedia('(max-width: 1023px)').matches) {
-			mobileTreeHeight = 0;
-			return;
-		}
+	const frameworkSelectOptions = $derived.by(() =>
+		controller.frameworks.map((framework) => ({
+			value: framework,
+			label: framework === 'svelte' ? 'Svelte' : framework === 'react' ? 'React' : 'Vue'
+		}))
+	);
 
-		const headerHeight = sidebarHeaderHost?.offsetHeight ?? 0;
-		const listHeight = sidebarListHost?.scrollHeight ?? 0;
-		const desiredHeight = headerHeight + listHeight;
-		const maxHeight = Math.max(
-			MOBILE_TREE_MIN_HEIGHT,
-			Math.round(window.innerHeight * MOBILE_TREE_MAX_VIEWPORT_RATIO)
-		);
-		const targetHeight = Math.max(desiredHeight, MOBILE_TREE_EXPANDED_FLOOR);
-		mobileTreeHeight = clamp(targetHeight, MOBILE_TREE_MIN_HEIGHT, maxHeight);
-	};
-
-	const beginResize = (target: 'tree' | 'preview', event: PointerEvent) => {
-		if (event.button !== 0 || !workspaceHost || !isDesktopViewport()) return;
+	const beginResize = (event: PointerEvent) => {
+		if (event.button !== 0 || !workspaceHost) return;
 		const handle = event.currentTarget;
 		if (!(handle instanceof HTMLButtonElement)) return;
 
@@ -131,11 +105,11 @@
 		}
 		activeResizeHandle = handle;
 		activeResize = {
-			target,
 			pointerId: event.pointerId,
 			startX: event.clientX,
-			startTreeWidth: treeWidth,
-			startPreviewWidth: previewWidth
+			startY: event.clientY,
+			startPreviewWidth: previewWidth,
+			startPreviewHeight: previewHeight
 		};
 		document.body.classList.add('playground-resizing');
 	};
@@ -143,29 +117,27 @@
 	const updateResize = (event: PointerEvent) => {
 		if (!activeResize || !workspaceHost || event.pointerId !== activeResize.pointerId) return;
 
-		const workspaceWidth = getWorkspaceWidth();
-		if (workspaceWidth <= 0) return;
-
-		const deltaX = event.clientX - activeResize.startX;
-
-		if (activeResize.target === 'tree') {
-			treeWidth = clamp(
-				activeResize.startTreeWidth + deltaX,
-				MIN_TREE_WIDTH,
-				getMaxTreeWidth(workspaceWidth)
-			);
+		if (isDesktopViewport()) {
+			const workspaceWidth = getWorkspaceWidth();
+			if (workspaceWidth <= 0) return;
+			const deltaX = event.clientX - activeResize.startX;
+			const baseWidth = activeResize.startPreviewWidth ?? getDefaultPreviewWidth(workspaceWidth);
 			previewWidth = clamp(
-				previewWidth,
+				baseWidth - deltaX,
 				MIN_PREVIEW_WIDTH,
-				getMaxPreviewWidth(workspaceWidth, treeWidth)
+				getMaxPreviewWidth(workspaceWidth)
 			);
 			return;
 		}
 
-		previewWidth = clamp(
-			activeResize.startPreviewWidth - deltaX,
-			MIN_PREVIEW_WIDTH,
-			getMaxPreviewWidth(workspaceWidth)
+		const workspaceHeight = getWorkspaceHeight();
+		if (workspaceHeight <= 0) return;
+		const deltaY = event.clientY - activeResize.startY;
+		const baseHeight = activeResize.startPreviewHeight ?? getDefaultPreviewHeight(workspaceHeight);
+		previewHeight = clamp(
+			baseHeight - deltaY,
+			MIN_PREVIEW_HEIGHT,
+			getMaxPreviewHeight(workspaceHeight)
 		);
 	};
 
@@ -182,34 +154,36 @@
 		document.body.classList.remove('playground-resizing');
 	};
 
-	const resizeByKeyboard = (target: 'tree' | 'preview', event: KeyboardEvent) => {
-		if (!isDesktopViewport()) return;
-		if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+	const resizeByKeyboard = (event: KeyboardEvent) => {
+		const desktop = isDesktopViewport();
+		const validKey = desktop
+			? event.key === 'ArrowLeft' || event.key === 'ArrowRight'
+			: event.key === 'ArrowUp' || event.key === 'ArrowDown';
+		if (!validKey) return;
 
 		event.preventDefault();
-		const workspaceWidth = getWorkspaceWidth();
-		if (workspaceWidth <= 0) return;
 		const step = event.shiftKey ? 48 : 16;
-		const direction = event.key === 'ArrowRight' ? 1 : -1;
+		const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
 
-		if (target === 'tree') {
-			treeWidth = clamp(
-				treeWidth + direction * step,
-				MIN_TREE_WIDTH,
-				getMaxTreeWidth(workspaceWidth)
-			);
+		if (desktop) {
+			const workspaceWidth = getWorkspaceWidth();
+			if (workspaceWidth <= 0) return;
+			const baseWidth = previewWidth ?? getDefaultPreviewWidth(workspaceWidth);
 			previewWidth = clamp(
-				previewWidth,
+				baseWidth - direction * step,
 				MIN_PREVIEW_WIDTH,
-				getMaxPreviewWidth(workspaceWidth, treeWidth)
+				getMaxPreviewWidth(workspaceWidth)
 			);
 			return;
 		}
 
-		previewWidth = clamp(
-			previewWidth - direction * step,
-			MIN_PREVIEW_WIDTH,
-			getMaxPreviewWidth(workspaceWidth)
+		const workspaceHeight = getWorkspaceHeight();
+		if (workspaceHeight <= 0) return;
+		const baseHeight = previewHeight ?? getDefaultPreviewHeight(workspaceHeight);
+		previewHeight = clamp(
+			baseHeight - direction * step,
+			MIN_PREVIEW_HEIGHT,
+			getMaxPreviewHeight(workspaceHeight)
 		);
 	};
 
@@ -217,10 +191,10 @@
 		const host = workspaceHost;
 		if (!host || typeof ResizeObserver === 'undefined') return;
 
-		clampPanelWidths();
+		clampPanelSize();
 
 		const observer = new ResizeObserver(() => {
-			clampPanelWidths();
+			clampPanelSize();
 		});
 		observer.observe(host);
 
@@ -232,37 +206,22 @@
 
 		const onPointerMove = (event: PointerEvent) => updateResize(event);
 		const onPointerUp = (event: PointerEvent) => endResize(event);
+		const onResize = () => clampPanelSize();
 
 		window.addEventListener('pointermove', onPointerMove);
 		window.addEventListener('pointerup', onPointerUp);
 		window.addEventListener('pointercancel', onPointerUp);
+		window.addEventListener('resize', onResize);
 
 		return () => {
 			window.removeEventListener('pointermove', onPointerMove);
 			window.removeEventListener('pointerup', onPointerUp);
 			window.removeEventListener('pointercancel', onPointerUp);
+			window.removeEventListener('resize', onResize);
 			document.body.classList.remove('playground-resizing');
 		};
 	});
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		const mql = window.matchMedia('(max-width: 1023px)');
-		recomputeMobileTreeHeight();
-		const onChange = () => recomputeMobileTreeHeight();
-		window.addEventListener('resize', onChange);
-		mql.addEventListener?.('change', onChange);
-		return () => {
-			window.removeEventListener('resize', onChange);
-			mql.removeEventListener?.('change', onChange);
-		};
-	});
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		trackMobileTreeDependencies(controller.collapsedDirs, controller.visibleFileTreeRows.length);
-		void tick().then(() => {
-			recomputeMobileTreeHeight();
-		});
-	});
+
 	$effect(() => {
 		controller.setEditorTheme(themeStore.isDark ? 'dark' : 'light');
 	});
@@ -278,37 +237,27 @@
 		}`}
 		style={`--playground-columns: ${workspaceColumns}; --playground-rows: ${workspaceRows};`}
 	>
-		<PlaygroundFileTree
-			{controller}
-			onHeaderHostChange={handleSidebarHeaderHostChange}
-			onListHostChange={handleSidebarListHostChange}
-		/>
-		<button
-			type="button"
-			aria-label="Resize file tree panel"
-			tabindex={0}
-			class={`panel-resizer ${activeResize?.target === 'tree' ? 'panel-resizer--active' : ''}`}
-			onpointerdown={(event) => beginResize('tree', event)}
-			onkeydown={(event) => resizeByKeyboard('tree', event)}
-		></button>
-
 		<div class="playground-editor-slot flex min-h-0 overflow-hidden">
 			<PlaygroundEditor {controller} {onEditorHostChange} />
 		</div>
+
 		<button
 			type="button"
 			aria-label="Resize preview panel"
 			tabindex={0}
-			class={`panel-resizer ${activeResize?.target === 'preview' ? 'panel-resizer--active' : ''}`}
-			onpointerdown={(event) => beginResize('preview', event)}
-			onkeydown={(event) => resizeByKeyboard('preview', event)}
+			class={`panel-resizer ${activeResize ? 'panel-resizer--active' : ''}`}
+			onpointerdown={(event) => beginResize(event)}
+			onkeydown={(event) => resizeByKeyboard(event)}
 		></button>
 
 		<PlaygroundPreview
 			{controller}
 			activeDemoId={controller.activeDemoId}
+			activeFramework={controller.activeFramework}
 			demoOptions={demoSelectOptions}
+			frameworkOptions={frameworkSelectOptions}
 			{onSelectDemo}
+			{onSelectFramework}
 			{onPreviewFrameChange}
 		/>
 	</div>
@@ -318,8 +267,9 @@
 	.playground-workspace {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
-		row-gap: 2px;
-		column-gap: 2px;
+		grid-template-rows: var(--playground-rows);
+		column-gap: 0;
+		row-gap: 0;
 	}
 
 	.playground-editor-slot > :global(*) {
@@ -332,23 +282,33 @@
 		transition: none;
 	}
 
+	.panel-resizer {
+		appearance: none;
+		padding: 0;
+		border: 0;
+		position: relative;
+		display: block;
+		width: 100%;
+		height: 100%;
+		touch-action: none;
+		background: transparent;
+		z-index: 2;
+	}
+
+	.panel-resizer::before {
+		position: absolute;
+		content: '';
+		opacity: 0;
+	}
+
 	@media (min-width: 1024px) {
 		.playground-workspace {
 			grid-template-columns: var(--playground-columns);
+			grid-template-rows: minmax(0, 1fr);
 		}
 
 		.panel-resizer {
-			appearance: none;
-			padding: 0;
-			border: 0;
-			position: relative;
-			display: block;
-			width: 100%;
-			height: 100%;
 			cursor: col-resize;
-			touch-action: none;
-			background: transparent;
-			z-index: 2;
 		}
 
 		.panel-resizer::after {
@@ -361,36 +321,55 @@
 		}
 
 		.panel-resizer::before {
-			position: absolute;
 			top: 0;
 			left: 50%;
 			height: 100%;
-			content: '';
 			border-left: 1px solid transparent;
 			transform: translateX(-0.5px);
-			opacity: 0;
 		}
 
 		.playground-workspace--resizing .panel-resizer--active::before {
 			border-left-color: var(--color-accent);
 			opacity: 1;
 		}
+
+		:global(body.playground-resizing) {
+			cursor: col-resize;
+			user-select: none;
+		}
 	}
 
 	@media (max-width: 1023px) {
-		.playground-workspace {
-			grid-template-rows: var(--playground-rows);
-			row-gap: 4px;
-		}
-
 		.panel-resizer {
-			display: none;
+			cursor: row-resize;
 		}
-	}
 
-	:global(body.playground-resizing) {
-		cursor: col-resize;
-		user-select: none;
+		.panel-resizer::after {
+			position: absolute;
+			top: -6px;
+			right: 0;
+			bottom: -6px;
+			left: 0;
+			content: '';
+		}
+
+		.panel-resizer::before {
+			top: 50%;
+			left: 0;
+			width: 100%;
+			border-top: 1px solid transparent;
+			transform: translateY(-0.5px);
+		}
+
+		.playground-workspace--resizing .panel-resizer--active::before {
+			border-top-color: var(--color-accent);
+			opacity: 1;
+		}
+
+		:global(body.playground-resizing) {
+			cursor: row-resize;
+			user-select: none;
+		}
 	}
 
 	:global(.cm-editor),

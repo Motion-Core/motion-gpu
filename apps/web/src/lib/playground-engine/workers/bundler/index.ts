@@ -9,6 +9,8 @@ import mp3 from './plugins/mp3';
 import image from './plugins/image';
 import svg from './plugins/svg';
 import replace from './plugins/replace';
+import reactJsxPlugin from './plugins/react-jsx';
+import vueSfcPlugin from './plugins/vue-sfc';
 import alias_plugin, { resolve } from './plugins/alias';
 import typegpuTransformPlugin from './plugins/typegpu';
 import type { Plugin, RollupCache, TransformResult } from '@rollup/browser';
@@ -51,20 +53,31 @@ self.addEventListener('message', async (event: MessageEvent<BundleMessageData>) 
 		case 'bundle': {
 			try {
 				const { uid, files, options } = event.data;
-				const {
-					svelte,
-					version: svelte_version,
-					can_use_experimental_async
-				} = await get_svelte(options.svelte_version);
+				let svelte: typeof import('svelte/compiler') | null = null;
+				let svelte_version = options.svelte_version;
+				let can_use_experimental_async = false;
+
+				if (options.framework === 'svelte') {
+					const loaded = await get_svelte(options.svelte_version);
+					svelte = loaded.svelte;
+					svelte_version = loaded.version;
+					can_use_experimental_async = loaded.can_use_experimental_async;
+				}
 
 				current_id = uid;
 
 				setTimeout(async () => {
 					if (current_id !== uid) return;
 
-					const use_async = can_use_experimental_async;
-
-					const result = await bundle(svelte, svelte_version, uid, files, options, use_async);
+					const result = await bundle(
+						options.framework,
+						svelte,
+						svelte_version,
+						uid,
+						files,
+						options,
+						can_use_experimental_async
+					);
 
 					// error object might be augmented, see https://github.com/rollup/rollup/blob/76a3b8ede4729a71eb522fc29f7d550a4358827b/docs/plugin-development/index.md#thiserror,
 					// hence only check that the specific abort property we set is there
@@ -114,7 +127,8 @@ let previous: {
 };
 
 async function get_bundle(
-	svelte: typeof import('svelte/compiler'),
+	framework: BundleOptions['framework'],
+	svelte: typeof import('svelte/compiler') | null,
 	svelte_version: string,
 	uid: number,
 	virtual: Map<string, File>,
@@ -140,6 +154,9 @@ async function get_bundle(
 
 			// importing from a URL
 			if (/^[a-z]+:/.test(importee)) return importee;
+			if (importee[0] === '/' && importer && /^[a-z]+:/.test(importer)) {
+				return new URL(importee, importer).href;
+			}
 
 			/** The npm package we're importing from, if any */
 			let current: null | Package;
@@ -187,6 +204,29 @@ async function get_bundle(
 			if (!match) throw new Error(`Invalid import "${importee}"`);
 
 			const pkg_name = match[1];
+
+			if (pkg_name === 'react' || pkg_name === 'react-dom') {
+				const fallbackVersion = '18.3.1';
+				const requestedVersion = match[2] ?? fallbackVersion;
+				const resolvedVersion = await resolve_version(pkg_name, requestedVersion).catch(
+					() => requestedVersion
+				);
+				const subpath = match[3] ?? '';
+				if (pkg_name === 'react') {
+					if (subpath === '/jsx-runtime') {
+						return `https://esm.sh/react@${resolvedVersion}/es2022/jsx-runtime.development.mjs`;
+					}
+					if (subpath === '/jsx-dev-runtime') {
+						return `https://esm.sh/react@${resolvedVersion}/es2022/jsx-dev-runtime.development.mjs`;
+					}
+					return `https://esm.sh/react@${resolvedVersion}/es2022/react.development.mjs`;
+				}
+
+				if (subpath === '/client') {
+					return `https://esm.sh/react-dom@${resolvedVersion}/es2022/client.development.bundle.mjs`;
+				}
+				return `https://esm.sh/react-dom@${resolvedVersion}/es2022/react-dom.development.mjs`;
+			}
 
 			if (pkg_name === 'svelte' && svelte_version === 'local') {
 				return await resolve_local(importee);
@@ -260,11 +300,14 @@ async function get_bundle(
 
 			self.postMessage({ type: 'status', message: `bundling ${name}` });
 
-			if (!/\.(svelte|js|ts)$/.test(id)) return null;
+			if (!/\.(svelte|js|ts|jsx|tsx)$/.test(id)) return null;
 
 			let result: CompileResult;
 
 			if (id.endsWith('.svelte')) {
+				if (framework !== 'svelte' || !svelte) {
+					throw new Error(`Unexpected .svelte file in ${framework} playground: ${name}`);
+				}
 				const is_gt_5 = Number(svelte.VERSION.split('.')[0]) >= 5;
 
 				const compilerOptions: any = {
@@ -311,6 +354,9 @@ async function get_bundle(
 				`.replace(/\t/g, '');
 				}
 			} else if (/\.svelte\.(js|ts)$/.test(id)) {
+				if (framework !== 'svelte' || !svelte) {
+					throw new Error(`Unexpected .svelte module in ${framework} playground: ${name}`);
+				}
 				const compilerOptions: any = {
 					filename: name,
 					generate: 'client',
@@ -358,6 +404,8 @@ async function get_bundle(
 		plugins: [
 			alias_plugin(undefined, virtual),
 			typegpuTransformPlugin(),
+			vueSfcPlugin(),
+			reactJsxPlugin(),
 			typescript_strip_types,
 			repl_plugin,
 			commonjs,
@@ -367,7 +415,10 @@ async function get_bundle(
 			image,
 			glsl,
 			replace({
-				'process.env.NODE_ENV': JSON.stringify('production')
+				'process.env.NODE_ENV': JSON.stringify('production'),
+				__VUE_OPTIONS_API__: JSON.stringify(true),
+				__VUE_PROD_DEVTOOLS__: JSON.stringify(false),
+				__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false)
 			}),
 			{
 				name: 'css',
@@ -405,79 +456,153 @@ async function get_bundle(
 }
 
 async function bundle(
-	svelte: typeof import('svelte/compiler'),
+	framework: BundleOptions['framework'],
+	svelte: typeof import('svelte/compiler') | null,
 	svelte_version: string,
 	uid: number,
 	files: File[],
 	options: BundleOptions,
 	can_use_experimental_async: boolean
 ): Promise<BundleResult> {
-	if (!DEV) {
+	if (!DEV && framework === 'svelte' && svelte) {
 		console.log(`running Svelte compiler version %c${svelte.VERSION}`, 'font-weight: bold');
 	}
 
 	const lookup: Map<string, File> = new Map();
 
-	lookup.set(ENTRYPOINT, {
-		type: 'file',
-		name: ENTRYPOINT,
-		basename: ENTRYPOINT,
-		contents:
-			svelte.VERSION.split('.')[0] >= '5'
-				? `
-			import { unmount as u } from 'svelte';
-			import { styles } from '${VIRTUAL}/${STYLES}';
-			export { mount, untrack } from 'svelte';
-			export { default as App } from '${VIRTUAL}/${WRAPPER}';
-			export function unmount(component) {
-				u(component);
-				styles.forEach(style => style.remove());
-			}
+	if (framework === 'svelte') {
+		if (!svelte) {
+			throw new Error('Svelte compiler is not loaded for svelte playground bundle.');
+		}
+
+		lookup.set(ENTRYPOINT, {
+			type: 'file',
+			name: ENTRYPOINT,
+			basename: ENTRYPOINT,
+			contents:
+				svelte.VERSION.split('.')[0] >= '5'
+					? `
+				import { unmount as u } from 'svelte';
+				import { styles } from '${VIRTUAL}/${STYLES}';
+				export { mount, untrack } from 'svelte';
+				export { default as App } from '${VIRTUAL}/${WRAPPER}';
+				export function unmount(component) {
+					u(component);
+					styles.forEach(style => style.remove());
+				}
+			`
+					: `
+				import { styles } from '${VIRTUAL}/${STYLES}';
+				export { default as App } from './App.svelte';
+				export function mount(component, options) {
+					return new component(options);
+				}
+				export function unmount(component) {
+					component.$destroy();
+					styles.forEach(style => style.remove());
+				}
+				export function untrack(fn) {
+					return fn();
+				}
+			`,
+			text: true
+		});
+
+		const wrapper = can_use_experimental_async
+			? `
+			<script>
+				import App from './App.svelte';
+			</script>
+
+			<svelte:boundary>
+				<App />
+
+				{#snippet pending()}{/snippet}
+			</svelte:boundary>
 		`
-				: `
-			import { styles } from '${VIRTUAL}/${STYLES}';
-			export { default as App } from './App.svelte';
-			export function mount(component, options) {
-				return new component(options);
-			}
-			export function unmount(component) {
-				component.$destroy();
-				styles.forEach(style => style.remove());
-			}
-			export function untrack(fn) {
-				return fn();
-			}
-		`,
-		text: true
-	});
+			: `
+			<script>
+				import App from './App.svelte';
+			</script>
 
-	const wrapper = can_use_experimental_async
-		? `
-		<script>
-			import App from './App.svelte';
-		</script>
-
-		<svelte:boundary>
 			<App />
+		`;
 
-			{#snippet pending()}{/snippet}
-		</svelte:boundary>
-	`
-		: `
-		<script>
-			import App from './App.svelte';
-		</script>
+		lookup.set(WRAPPER, {
+			type: 'file',
+			name: WRAPPER,
+			basename: WRAPPER,
+			contents: wrapper,
+			text: true
+		});
+	} else if (framework === 'react') {
+		const reactAppModule = files.some((file) => file.name === 'App.tsx')
+			? './App.tsx'
+			: files.some((file) => file.name === 'App.jsx')
+				? './App.jsx'
+				: './App.tsx';
 
-		<App />
-	`;
+		lookup.set(ENTRYPOINT, {
+			type: 'file',
+			name: ENTRYPOINT,
+			basename: ENTRYPOINT,
+			contents: `
+				import React from 'react';
+				import { createRoot } from 'react-dom/client';
+				import { styles } from '${VIRTUAL}/${STYLES}';
+				export { default as App } from '${reactAppModule}';
+				export function mount(component, options) {
+					const root = createRoot(options.target);
+					root.render(React.createElement(component));
+					return root;
+				}
+				export function unmount(root) {
+					root?.unmount?.();
+					styles.forEach(style => style.remove());
+				}
+				export function untrack(fn) {
+					return fn();
+				}
+			`,
+			text: true
+		});
+	} else if (framework === 'vue') {
+		const vueAppModule = files.some((file) => file.name === 'App.vue')
+			? './App.vue'
+			: files.some((file) => file.name === 'App.ts')
+				? './App.ts'
+				: './App.js';
 
-	lookup.set(WRAPPER, {
-		type: 'file',
-		name: WRAPPER,
-		basename: WRAPPER,
-		contents: wrapper,
-		text: true
-	});
+		lookup.set(ENTRYPOINT, {
+			type: 'file',
+			name: ENTRYPOINT,
+			basename: ENTRYPOINT,
+			contents: `
+				import { createApp, h } from 'vue';
+				import { styles } from '${VIRTUAL}/${STYLES}';
+				export { default as App } from '${vueAppModule}';
+				export function mount(component, options) {
+					const app = createApp({
+						render() {
+							return h(component);
+						}
+					});
+					app.mount(options.target);
+					return app;
+				}
+				export function unmount(app) {
+					app?.unmount?.();
+					styles.forEach(style => style.remove());
+				}
+				export function untrack(fn) {
+					return fn();
+				}
+			`,
+			text: true
+		});
+	} else {
+		throw new Error(`Unsupported playground framework: ${framework}`);
+	}
 
 	lookup.set(STYLES, {
 		type: 'file',
@@ -491,8 +616,8 @@ async function bundle(
 
 	lookup.set(ESM_ENV, {
 		type: 'file',
-		name: STYLES,
-		basename: STYLES,
+		name: ESM_ENV,
+		basename: ESM_ENV,
 		contents: `
 			export const BROWSER = true;
 			export const DEV = true;
@@ -506,6 +631,7 @@ async function bundle(
 
 	try {
 		let client: Awaited<ReturnType<typeof get_bundle>> = await get_bundle(
+			framework,
 			svelte,
 			svelte_version,
 			uid,

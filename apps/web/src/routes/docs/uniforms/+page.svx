@@ -3,9 +3,14 @@ title: Uniforms
 description: Passing dynamic values from JavaScript to WGSL shaders declaration, types, and updates.
 ---
 
+<script lang="ts">
+	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
+	import * as ex from './examples';
+</script>
+
 Uniforms are the primary mechanism for passing dynamic values from your JavaScript/TypeScript runtime code into WGSL shaders. This page covers declaration, type inference, memory layout, and runtime updates.
 
-Examples below use Svelte hook syntax. React and Vue expose the same runtime uniform APIs through `@motion-core/motion-gpu/react` and `@motion-core/motion-gpu/vue`.
+Examples below use the same runtime uniform APIs across Svelte, React, and Vue.
 
 ## Declaring uniforms
 
@@ -126,16 +131,7 @@ You generally don't need to think about this — it's handled automatically. The
 
 Inside a `useFrame` callback, use `state.setUniform(name, value)` to update a uniform's value for the current frame:
 
-```svelte
-<script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
-
-  useFrame((state) => {
-    state.setUniform('uTime', state.time);
-    state.setUniform('uMouse', [mouseX, mouseY]);
-  });
-</script>
-```
+<FrameworkBlock svelteCode={ex.runtimeUpdatesSvelte} reactCode={ex.runtimeUpdatesReact} vueCode={ex.runtimeUpdatesVue} />
 
 ### Important rules
 

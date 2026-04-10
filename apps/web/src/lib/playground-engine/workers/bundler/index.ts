@@ -10,6 +10,7 @@ import image from './plugins/image';
 import svg from './plugins/svg';
 import replace from './plugins/replace';
 import reactJsxPlugin from './plugins/react-jsx';
+import vueSfcPlugin from './plugins/vue-sfc';
 import alias_plugin, { resolve } from './plugins/alias';
 import typegpuTransformPlugin from './plugins/typegpu';
 import type { Plugin, RollupCache, TransformResult } from '@rollup/browser';
@@ -403,6 +404,7 @@ async function get_bundle(
 		plugins: [
 			alias_plugin(undefined, virtual),
 			typegpuTransformPlugin(),
+			vueSfcPlugin(),
 			reactJsxPlugin(),
 			typescript_strip_types,
 			repl_plugin,
@@ -413,7 +415,10 @@ async function get_bundle(
 			image,
 			glsl,
 			replace({
-				'process.env.NODE_ENV': JSON.stringify('production')
+				'process.env.NODE_ENV': JSON.stringify('production'),
+				__VUE_OPTIONS_API__: JSON.stringify(true),
+				__VUE_PROD_DEVTOOLS__: JSON.stringify(false),
+				__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(false)
 			}),
 			{
 				name: 'css',
@@ -530,7 +535,7 @@ async function bundle(
 			contents: wrapper,
 			text: true
 		});
-	} else {
+	} else if (framework === 'react') {
 		const reactAppModule = files.some((file) => file.name === 'App.tsx')
 			? './App.tsx'
 			: files.some((file) => file.name === 'App.jsx')
@@ -544,6 +549,7 @@ async function bundle(
 			contents: `
 				import React from 'react';
 				import { createRoot } from 'react-dom/client';
+				import { styles } from '${VIRTUAL}/${STYLES}';
 				export { default as App } from '${reactAppModule}';
 				export function mount(component, options) {
 					const root = createRoot(options.target);
@@ -552,6 +558,7 @@ async function bundle(
 				}
 				export function unmount(root) {
 					root?.unmount?.();
+					styles.forEach(style => style.remove());
 				}
 				export function untrack(fn) {
 					return fn();
@@ -559,6 +566,42 @@ async function bundle(
 			`,
 			text: true
 		});
+	} else if (framework === 'vue') {
+		const vueAppModule = files.some((file) => file.name === 'App.vue')
+			? './App.vue'
+			: files.some((file) => file.name === 'App.ts')
+				? './App.ts'
+				: './App.js';
+
+		lookup.set(ENTRYPOINT, {
+			type: 'file',
+			name: ENTRYPOINT,
+			basename: ENTRYPOINT,
+			contents: `
+				import { createApp, h } from 'vue';
+				import { styles } from '${VIRTUAL}/${STYLES}';
+				export { default as App } from '${vueAppModule}';
+				export function mount(component, options) {
+					const app = createApp({
+						render() {
+							return h(component);
+						}
+					});
+					app.mount(options.target);
+					return app;
+				}
+				export function unmount(app) {
+					app?.unmount?.();
+					styles.forEach(style => style.remove());
+				}
+				export function untrack(fn) {
+					return fn();
+				}
+			`,
+			text: true
+		});
+	} else {
+		throw new Error(`Unsupported playground framework: ${framework}`);
 	}
 
 	lookup.set(STYLES, {

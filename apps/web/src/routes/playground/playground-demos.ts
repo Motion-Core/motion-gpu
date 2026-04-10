@@ -1,4 +1,4 @@
-export type PlaygroundFramework = 'svelte' | 'react';
+export type PlaygroundFramework = 'svelte' | 'react' | 'vue';
 
 export type PlaygroundDemoVariant = {
 	appSource: string;
@@ -32,10 +32,14 @@ const frameworkFiles: Record<
 	react: {
 		appPath: 'react/App.tsx',
 		runtimePath: 'react/runtime.tsx'
+	},
+	vue: {
+		appPath: 'vue/App.vue',
+		runtimePath: 'vue/runtime.vue'
 	}
 };
 
-const variantRoots = new Set(['svelte', 'react']);
+const variantRoots = new Set(Object.keys(frameworkFiles));
 
 const toStartCase = (value: string) =>
 	value
@@ -117,18 +121,16 @@ const playgroundDemosUnsorted = Object.entries(demoFilesById)
 			return null;
 		}
 
-		const variants = {
-			svelte: {
-				appSource: files[frameworkFiles.svelte.appPath]!,
-				runtimeSource: files[frameworkFiles.svelte.runtimePath],
-				additionalFiles: buildVariantAdditionalFiles(files, 'svelte')
-			},
-			react: {
-				appSource: files[frameworkFiles.react.appPath]!,
-				runtimeSource: files[frameworkFiles.react.runtimePath],
-				additionalFiles: buildVariantAdditionalFiles(files, 'react')
-			}
-		} satisfies Record<PlaygroundFramework, PlaygroundDemoVariant>;
+		const variants = Object.fromEntries(
+			(Object.keys(frameworkFiles) as PlaygroundFramework[]).map((framework) => [
+				framework,
+				{
+					appSource: files[frameworkFiles[framework].appPath]!,
+					runtimeSource: files[frameworkFiles[framework].runtimePath],
+					additionalFiles: buildVariantAdditionalFiles(files, framework)
+				}
+			])
+		) as Record<PlaygroundFramework, PlaygroundDemoVariant>;
 
 		return {
 			id,

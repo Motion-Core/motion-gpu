@@ -27,7 +27,7 @@ import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.h
 import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
 type EditorThemeMode = 'light' | 'dark';
-const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react'];
+const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
 type FileTreeNode =
 	| { kind: 'directory'; name: string; path: string; children: FileTreeNode[] }
 	| { kind: 'file'; name: string; path: string };
@@ -61,7 +61,7 @@ const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 
 const resolvePlaygroundFramework = (
 	value: PlaygroundFramework | string | null | undefined
-): PlaygroundFramework => (value === 'react' ? 'react' : 'svelte');
+): PlaygroundFramework => (value === 'react' ? 'react' : value === 'vue' ? 'vue' : 'svelte');
 
 const editorSyntaxTheme = syntaxHighlighting(
 	HighlightStyle.define([
@@ -157,6 +157,7 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 
 const languageExtensionForPath = (filePath: string): Extension => {
 	if (filePath.endsWith('.svelte')) return svelteLanguage();
+	if (filePath.endsWith('.vue')) return htmlLanguage();
 	if (filePath.endsWith('.tsx')) {
 		return javascript({ typescript: true, jsx: true });
 	}
@@ -222,7 +223,8 @@ export const createPlaygroundController = (
 		},
 		{
 			svelte: {},
-			react: {}
+			react: {},
+			vue: {}
 		}
 	);
 
@@ -237,13 +239,16 @@ export const createPlaygroundController = (
 	const frameworkEntryPaths: Record<PlaygroundFramework, { appPath: string; runtimePath: string }> =
 		{
 			svelte: { appPath: 'src/App.svelte', runtimePath: 'src/runtime.svelte' },
-			react: { appPath: 'src/App.tsx', runtimePath: 'src/runtime.tsx' }
+			react: { appPath: 'src/App.tsx', runtimePath: 'src/runtime.tsx' },
+			vue: { appPath: 'src/App.vue', runtimePath: 'src/runtime.vue' }
 		};
 	const reservedDemoSourceFileNames = new Set([
 		'App.svelte',
 		'runtime.svelte',
 		'App.tsx',
-		'runtime.tsx'
+		'runtime.tsx',
+		'App.vue',
+		'runtime.vue'
 	]);
 
 	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
@@ -547,10 +552,7 @@ export const createPlaygroundController = (
 
 		try {
 			const files = toBundlerFiles(fileContents);
-			const expectedAppFile =
-				activeFramework === 'react'
-					? frameworkEntryPaths.react.appPath
-					: frameworkEntryPaths.svelte.appPath;
+			const expectedAppFile = frameworkEntryPaths[activeFramework].appPath;
 			const expectedAppModule = expectedAppFile.slice(4);
 			if (!files.some((file) => file.name === expectedAppModule)) {
 				throw new Error(`Missing ${expectedAppFile} in playground files.`);

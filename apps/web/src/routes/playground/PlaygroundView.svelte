@@ -95,7 +95,8 @@
 	const frameworkSelectOptions = $derived.by(() =>
 		controller.frameworks.map((framework) => ({
 			value: framework,
-			label: framework === 'svelte' ? 'Svelte' : 'React'
+			label:
+				framework === 'svelte' ? 'Svelte' : framework === 'react' ? 'React' : 'Vue'
 		}))
 	);
 	const trackMobileTreeDependencies = (

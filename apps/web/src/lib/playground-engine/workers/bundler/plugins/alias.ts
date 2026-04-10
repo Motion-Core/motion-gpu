@@ -58,10 +58,12 @@ export function resolve(virtual: Map<string, File>, importee: string, importer: 
 		'.json',
 		'.ts',
 		'.tsx',
+		'.vue',
 		'/index.js',
 		'/index.jsx',
 		'/index.ts',
-		'/index.tsx'
+		'/index.tsx',
+		'/index.vue'
 	]) {
 		const with_suffix = `${url.href.slice(VIRTUAL.length + 1)}${suffix}`;
 		const file = virtual.get(with_suffix);

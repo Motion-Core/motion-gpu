@@ -32,7 +32,7 @@ const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio 
 </script>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport } from '../core/error-report.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
@@ -54,6 +54,25 @@ const props = withDefaults(defineProps<FragCanvasProps>(), {
 	errorHistoryLimit: 0,
 	canvasClass: ''
 });
+
+const wrapperStyle = Object.freeze({
+	position: 'relative',
+	width: '100%',
+	height: '100%',
+	minWidth: '0',
+	minHeight: '0',
+	overflow: 'hidden'
+});
+
+const baseCanvasStyle = Object.freeze({
+	position: 'absolute',
+	inset: '0',
+	display: 'block',
+	width: '100%',
+	height: '100%'
+});
+
+const resolvedCanvasStyle = computed(() => [baseCanvasStyle, props.canvasStyle]);
 
 defineSlots<{
 	default(): unknown;
@@ -244,8 +263,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-	<div class="motiongpu-canvas-wrap">
-		<canvas ref="canvasEl" :class="canvasClass" :style="canvasStyle"></canvas>
+	<div class="motiongpu-canvas-wrap" :style="wrapperStyle">
+		<canvas ref="canvasEl" :class="canvasClass" :style="resolvedCanvasStyle"></canvas>
 		<template v-if="showErrorOverlay && errorReport">
 			<slot name="errorRenderer" :report="errorReport">
 				<MotionGPUErrorOverlay :report="errorReport" />

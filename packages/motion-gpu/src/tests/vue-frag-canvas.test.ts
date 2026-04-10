@@ -185,4 +185,30 @@ describe('Vue FragCanvas', () => {
 		expect(screen.queryByTestId('custom-error-renderer')).toBeNull();
 		expect(screen.queryByTestId('motiongpu-error')).toBeNull();
 	});
+
+	it('applies layout-safe inline styles to wrapper and canvas', () => {
+		const view = render(FragCanvas, {
+			props: {
+				material,
+				showErrorOverlay: false,
+				canvasStyle: { opacity: 0.5 }
+			}
+		});
+
+		const wrapper = view.container.querySelector('.motiongpu-canvas-wrap');
+		const canvas = view.container.querySelector('canvas');
+
+		expect(wrapper).toBeTruthy();
+		expect(canvas).toBeTruthy();
+		expect(wrapper?.style.position).toBe('relative');
+		expect(wrapper?.style.width).toBe('100%');
+		expect(wrapper?.style.height).toBe('100%');
+		expect(wrapper?.style.overflow).toBe('hidden');
+
+		expect(canvas?.style.position).toBe('absolute');
+		expect(canvas?.style.width).toBe('100%');
+		expect(canvas?.style.height).toBe('100%');
+		expect(canvas?.style.display).toBe('block');
+		expect(canvas?.style.opacity).toBe('0.5');
+	});
 });

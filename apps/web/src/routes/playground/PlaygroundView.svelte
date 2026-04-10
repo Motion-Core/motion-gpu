@@ -10,11 +10,13 @@
 	let {
 		controller,
 		onSelectDemo,
+		onSelectFramework,
 		onEditorHostChange,
 		onPreviewFrameChange
 	}: {
 		controller: PlaygroundController;
 		onSelectDemo: (demoId: string) => void;
+		onSelectFramework: (framework: string) => void;
 		onEditorHostChange: (host: HTMLDivElement | null) => void;
 		onPreviewFrameChange: (frame: HTMLIFrameElement | null) => void;
 	} = $props();
@@ -88,6 +90,12 @@
 		controller.demos.map((demo) => ({
 			value: demo.id,
 			label: demo.name
+		}))
+	);
+	const frameworkSelectOptions = $derived.by(() =>
+		controller.frameworks.map((framework) => ({
+			value: framework,
+			label: framework === 'svelte' ? 'Svelte' : 'React'
 		}))
 	);
 	const trackMobileTreeDependencies = (
@@ -307,8 +315,11 @@
 		<PlaygroundPreview
 			{controller}
 			activeDemoId={controller.activeDemoId}
+			activeFramework={controller.activeFramework}
 			demoOptions={demoSelectOptions}
+			frameworkOptions={frameworkSelectOptions}
 			{onSelectDemo}
+			{onSelectFramework}
 			{onPreviewFrameChange}
 		/>
 	</div>

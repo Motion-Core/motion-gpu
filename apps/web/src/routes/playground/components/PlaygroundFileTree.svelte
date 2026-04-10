@@ -4,6 +4,7 @@
 	import ChevronRight from 'carbon-icons-svelte/lib/ChevronRight.svelte';
 	import Document from 'carbon-icons-svelte/lib/Document.svelte';
 	import Folder from 'carbon-icons-svelte/lib/Folder.svelte';
+	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
 	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
 	import { brandingConfig } from '$lib/config/branding';
 
@@ -20,6 +21,7 @@
 	} = $props();
 
 	const isSvelteFile = (path: string) => path.endsWith('.svelte');
+	const isReactFile = (path: string) => path.endsWith('.tsx') || path.endsWith('.jsx');
 
 	const registerSidebarHeaderHost = (node: HTMLDivElement) => {
 		onHeaderHostChange(node);
@@ -96,6 +98,8 @@
 					<span class="inline-flex items-center text-foreground/55">
 						{#if isSvelteFile(row.path)}
 							<LogoSvelte size={16} />
+						{:else if isReactFile(row.path)}
+							<LogoReact size={16} />
 						{:else}
 							<Document size={16} />
 						{/if}

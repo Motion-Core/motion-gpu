@@ -14,18 +14,22 @@ defineSlots<{
 }>();
 
 /**
- * Resolves a teleport target to a DOM element, falling back to `document.body`.
+ * Resolves a teleport target to a concrete DOM element, falling back to body.
  */
 function resolveTargetElement(input: string | HTMLElement | null | undefined): HTMLElement | string {
 	if (typeof input === 'string') {
-		return input;
+		if (typeof document === 'undefined') {
+			return input;
+		}
+
+		return document.querySelector<HTMLElement>(input) ?? document.body;
 	}
 
 	if (input) {
 		return input;
 	}
 
-	return 'body';
+	return typeof document === 'undefined' ? 'body' : document.body;
 }
 
 const teleportTarget = computed(() => resolveTargetElement(props.target));
@@ -33,6 +37,8 @@ const teleportTarget = computed(() => resolveTargetElement(props.target));
 
 <template>
 	<Teleport :to="teleportTarget">
-		<slot />
+		<div class="motiongpu-portal-root">
+			<slot />
+		</div>
 	</Teleport>
 </template>

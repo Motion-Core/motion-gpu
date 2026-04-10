@@ -21,6 +21,7 @@
 		"skipLibCheck": true
 	},
 	"include": [
+		"src/**/*.d.ts",
 		"src/**/*.ts",
 		"src/**/*.tsx",
 		"src/**/*.svelte",

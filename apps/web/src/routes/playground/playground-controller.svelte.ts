@@ -11,7 +11,9 @@ import { svelte as svelteLanguage } from '@replit/codemirror-lang-svelte';
 import { basicSetup } from 'codemirror';
 import {
 	getPlaygroundDemoById,
+	getPlaygroundDemoVariant,
 	playgroundDemos,
+	type PlaygroundFramework,
 	resolvePlaygroundDemoId
 } from './playground-demos';
 import {
@@ -25,6 +27,7 @@ import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.h
 import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
 type EditorThemeMode = 'light' | 'dark';
+const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react'];
 type FileTreeNode =
 	| { kind: 'directory'; name: string; path: string; children: FileTreeNode[] }
 	| { kind: 'file'; name: string; path: string };
@@ -55,6 +58,10 @@ const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 	const details = [location, error.message, frame].filter(Boolean).join('\n');
 	return details || 'Bundle failed.';
 };
+
+const resolvePlaygroundFramework = (
+	value: PlaygroundFramework | string | null | undefined
+): PlaygroundFramework => (value === 'react' ? 'react' : 'svelte');
 
 const editorSyntaxTheme = syntaxHighlighting(
 	HighlightStyle.define([
@@ -150,6 +157,12 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 
 const languageExtensionForPath = (filePath: string): Extension => {
 	if (filePath.endsWith('.svelte')) return svelteLanguage();
+	if (filePath.endsWith('.tsx')) {
+		return javascript({ typescript: true, jsx: true });
+	}
+	if (filePath.endsWith('.jsx')) {
+		return javascript({ jsx: true });
+	}
 	if (filePath.endsWith('.ts') || filePath.endsWith('.d.ts')) {
 		return javascript({ typescript: true });
 	}
@@ -160,7 +173,10 @@ const languageExtensionForPath = (filePath: string): Extension => {
 	return [];
 };
 
-export const createPlaygroundController = (initialDemoId?: string | null) => {
+export const createPlaygroundController = (
+	initialDemoId?: string | null,
+	initialFramework?: PlaygroundFramework | string | null
+) => {
 	let editorHost: HTMLDivElement | null = null;
 	let editorInstance: EditorView | null = null;
 	let suppressEditorUpdate = false;
@@ -191,60 +207,78 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 	const languageCompartment = new Compartment();
 	const themeCompartment = new Compartment();
 
-	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/src/**/*', {
+	const runtimeTemplateRawModules = import.meta.glob('./runtime-template/*/src/**/*', {
 		query: '?raw',
 		import: 'default',
 		eager: true
 	}) as Record<string, string>;
 
-	const runtimeTemplateFiles = Object.fromEntries(
-		Object.entries(runtimeTemplateRawModules)
-			.map(([path, source]) => {
-				const marker = '/runtime-template/src/';
-				const markerIndex = path.lastIndexOf(marker);
-				if (markerIndex === -1) return null;
-				const relativePath = `src/${path.slice(markerIndex + marker.length)}`;
-				return [relativePath, source] as const;
-			})
-			.filter((entry): entry is readonly [string, string] => entry !== null)
+	const runtimeTemplateFilesByFramework = playgroundFrameworks.reduce<
+		Record<PlaygroundFramework, Record<string, string>>
+	>(
+		(acc, framework) => {
+			acc[framework] = {};
+			return acc;
+		},
+		{
+			svelte: {},
+			react: {}
+		}
 	);
 
+	for (const [path, source] of Object.entries(runtimeTemplateRawModules)) {
+		const match = path.match(/\/runtime-template\/([^/]+)\/src\/(.+)$/);
+		if (!match) continue;
+		const framework = resolvePlaygroundFramework(match[1]);
+		const relativePath = `src/${match[2]}`;
+		runtimeTemplateFilesByFramework[framework][relativePath] = source;
+	}
+
+	const frameworkEntryPaths: Record<PlaygroundFramework, { appPath: string; runtimePath: string }> =
+		{
+			svelte: { appPath: 'src/App.svelte', runtimePath: 'src/runtime.svelte' },
+			react: { appPath: 'src/App.tsx', runtimePath: 'src/runtime.tsx' }
+		};
+	const reservedDemoSourceFileNames = new Set([
+		'App.svelte',
+		'runtime.svelte',
+		'App.tsx',
+		'runtime.tsx'
+	]);
+
 	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
+	const initialResolvedFramework = resolvePlaygroundFramework(initialFramework);
+	let activeFramework = $state(initialResolvedFramework);
 	let activeDemoId = $state(initialResolvedDemoId);
-	let activeFilePath = $state('src/App.svelte');
-	let openFilePaths = $state<string[]>(['src/App.svelte']);
+	let activeFilePath = $state(frameworkEntryPaths[initialResolvedFramework].appPath);
+	let openFilePaths = $state<string[]>([frameworkEntryPaths[initialResolvedFramework].appPath]);
 	let collapsedDirs = $state<Record<string, boolean>>({});
 	const maxOpenTabs = 3;
-	const demoAppPath = 'src/App.svelte';
-	const demoRuntimePath = 'src/runtime.svelte';
 
-	const baseFiles: Record<string, string> = {
-		...runtimeTemplateFiles
-	};
-
-	const toFilesForDemo = (demoId: string) => {
+	const toFilesForDemo = (
+		demoId: string,
+		frameworkInput: PlaygroundFramework | string = activeFramework
+	) => {
 		const resolvedDemoId = resolvePlaygroundDemoId(demoId);
-		const demo = getPlaygroundDemoById(resolvedDemoId);
-		if (!demo) {
-			return { ...baseFiles };
-		}
+		const framework = resolvePlaygroundFramework(frameworkInput);
+		const demoVariant = getPlaygroundDemoVariant(resolvedDemoId, framework);
+		const baseFiles = runtimeTemplateFilesByFramework[framework] ?? {};
+		const entryPaths = frameworkEntryPaths[framework];
+
+		if (!demoVariant) return { ...baseFiles };
 
 		const files: Record<string, string> = {
 			...baseFiles,
-			[demoAppPath]: demo.appSource
+			[entryPaths.appPath]: demoVariant.appSource
 		};
 
-		if (typeof demo.runtimeSource === 'string') {
-			files[demoRuntimePath] = demo.runtimeSource;
+		if (typeof demoVariant.runtimeSource === 'string') {
+			files[entryPaths.runtimePath] = demoVariant.runtimeSource;
 		}
 
-		for (const [relativePath, source] of Object.entries(demo.additionalFiles ?? {})) {
+		for (const [relativePath, source] of Object.entries(demoVariant.additionalFiles ?? {})) {
 			const normalizedPath = relativePath.replace(/^\.?\//, '');
-			if (
-				!normalizedPath ||
-				normalizedPath === 'App.svelte' ||
-				normalizedPath === 'runtime.svelte'
-			) {
+			if (!normalizedPath || reservedDemoSourceFileNames.has(normalizedPath)) {
 				continue;
 			}
 			files[`src/${normalizedPath}`] = source;
@@ -253,7 +287,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		return files;
 	};
 
-	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId);
+	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId, initialResolvedFramework);
 	let fileContents = $state<Record<string, string>>(initialDemoFiles);
 	let filePaths = $state<string[]>(Object.keys(initialDemoFiles));
 
@@ -513,11 +547,17 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		try {
 			const files = toBundlerFiles(fileContents);
-			if (!files.some((file) => file.name === 'App.svelte')) {
-				throw new Error('Missing src/App.svelte in playground files.');
+			const expectedAppFile =
+				activeFramework === 'react'
+					? frameworkEntryPaths.react.appPath
+					: frameworkEntryPaths.svelte.appPath;
+			const expectedAppModule = expectedAppFile.slice(4);
+			if (!files.some((file) => file.name === expectedAppModule)) {
+				throw new Error(`Missing ${expectedAppFile} in playground files.`);
 			}
 
 			await bundler.bundle(files, {
+				framework: activeFramework,
 				svelte_version: lastResolvedSvelteVersion,
 				runes: true
 			});
@@ -638,6 +678,8 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		const demo = getPlaygroundDemoById(resolvedDemoId);
 		if (!demo) return;
+		const demoVariant = getPlaygroundDemoVariant(resolvedDemoId, activeFramework);
+		if (!demoVariant) return;
 
 		activeDemoId = resolvedDemoId;
 		errorMessage = '';
@@ -645,16 +687,44 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 
 		// Rebuild the sandbox file map from the selected demo so optional demo files
 		// (for example `shader.ts`) are always present after demo switches.
-		const nextFileContents = toFilesForDemo(resolvedDemoId);
+		const nextFileContents = toFilesForDemo(resolvedDemoId, activeFramework);
+		const frameworkEntry = frameworkEntryPaths[activeFramework].appPath;
 
 		fileContents = nextFileContents;
 		filePaths = Object.keys(nextFileContents);
-		openFilePaths = [demoAppPath];
-		activeFilePath = demoAppPath;
+		openFilePaths = [frameworkEntry];
+		activeFilePath = frameworkEntry;
 
 		syncEditorWithActiveFile();
 		editorInstance?.focus();
 		status = `Switched demo: ${demo.name}`;
+		queueBundle();
+	};
+
+	const switchFramework = (nextFramework: PlaygroundFramework | string | null | undefined) => {
+		const resolvedFramework = resolvePlaygroundFramework(nextFramework);
+		if (resolvedFramework === activeFramework) return;
+
+		const demoVariant = getPlaygroundDemoVariant(activeDemoId, resolvedFramework);
+		if (!demoVariant) return;
+
+		activeFramework = resolvedFramework;
+		errorMessage = '';
+		syncError = '';
+		runtimeLog = '';
+		previewReloadToken += 1;
+
+		const nextFileContents = toFilesForDemo(activeDemoId, resolvedFramework);
+		const frameworkEntry = frameworkEntryPaths[resolvedFramework].appPath;
+
+		fileContents = nextFileContents;
+		filePaths = Object.keys(nextFileContents);
+		openFilePaths = [frameworkEntry];
+		activeFilePath = frameworkEntry;
+
+		syncEditorWithActiveFile();
+		editorInstance?.focus();
+		status = `Switched framework: ${resolvedFramework}`;
 		queueBundle();
 	};
 
@@ -718,6 +788,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		get activeDemoId() {
 			return activeDemoId;
 		},
+		get activeFramework() {
+			return activeFramework;
+		},
 		get activeFilePath() {
 			return activeFilePath;
 		},
@@ -732,6 +805,9 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		},
 		get demos() {
 			return playgroundDemos;
+		},
+		get frameworks() {
+			return playgroundFrameworks;
 		},
 		get openFilePaths() {
 			return openFilePaths;
@@ -768,6 +844,7 @@ export const createPlaygroundController = (initialDemoId?: string | null) => {
 		setEditorTheme,
 		setPreviewFrame,
 		switchDemo,
+		switchFramework,
 		switchToFile,
 		toggleDirectory
 	};

@@ -51,7 +51,18 @@ function alias_plugin(aliases: Record<string, string> = {}, virtual: Map<string,
 export function resolve(virtual: Map<string, File>, importee: string, importer: string): string {
 	const url = new URL(importee, importer);
 
-	for (const suffix of ['', '.js', '.json', '.ts', '/index.js', '/index.ts']) {
+	for (const suffix of [
+		'',
+		'.js',
+		'.jsx',
+		'.json',
+		'.ts',
+		'.tsx',
+		'/index.js',
+		'/index.jsx',
+		'/index.ts',
+		'/index.tsx'
+	]) {
 		const with_suffix = `${url.href.slice(VIRTUAL.length + 1)}${suffix}`;
 		const file = virtual.get(with_suffix);
 

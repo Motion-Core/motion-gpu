@@ -1,6 +1,9 @@
 import type { PlaygroundFile } from '../types';
 
+export type PlaygroundFramework = 'svelte' | 'react';
+
 export interface BundleOptions {
+	framework: PlaygroundFramework;
 	svelte_version: string;
 	runes?: boolean;
 }

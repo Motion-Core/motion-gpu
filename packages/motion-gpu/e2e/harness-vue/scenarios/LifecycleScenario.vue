@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import {
-	FragCanvas,
-	defineMaterial,
-	useTexture
-} from '../../../src/lib/vue';
+import { FragCanvas, defineMaterial, useTexture } from '../../../src/lib/vue';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 import type { FragMaterial } from '../../../src/lib/core/material';
 import type { RenderMode } from '../../../src/lib/core/types';
@@ -142,7 +138,11 @@ onMounted(async () => {
 				clear default
 			</button>
 
-			<button class="harness-button" data-testid="set-scene-simple" @click="applySceneMode('simple')">
+			<button
+				class="harness-button"
+				data-testid="set-scene-simple"
+				@click="applySceneMode('simple')"
+			>
 				simple
 			</button>
 			<button
@@ -156,14 +156,20 @@ onMounted(async () => {
 			<button
 				class="harness-button"
 				data-testid="start-frame-callback"
-				@click="frameCallbackRunning = true; controls?.startFrameCallback()"
+				@click="
+					frameCallbackRunning = true;
+					controls?.startFrameCallback();
+				"
 			>
 				start callback
 			</button>
 			<button
 				class="harness-button"
 				data-testid="stop-frame-callback"
-				@click="frameCallbackRunning = false; controls?.stopFrameCallback()"
+				@click="
+					frameCallbackRunning = false;
+					controls?.stopFrameCallback();
+				"
 			>
 				stop callback
 			</button>

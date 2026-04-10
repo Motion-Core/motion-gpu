@@ -125,7 +125,10 @@ describe('vue useMotionGPUUserContext', () => {
 			setup(props) {
 				const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
 				const beforeInitial = allStore.current;
-				const initial = setMotionGPUUserContext('plugin', () => ({ mode: 'initial', enabled: true }));
+				const initial = setMotionGPUUserContext('plugin', () => ({
+					mode: 'initial',
+					enabled: true
+				}));
 				const afterInitial = allStore.current;
 				const skipped = setMotionGPUUserContext('plugin', () => ({ mode: 'skipped' }));
 				const afterSkipped = allStore.current;
@@ -137,7 +140,9 @@ describe('vue useMotionGPUUserContext', () => {
 					existing: 'replace'
 				});
 				const afterReplaced = allStore.current;
-				const skippedAfterReplace = setMotionGPUUserContext('plugin', () => ({ mode: 'unchanged' }));
+				const skippedAfterReplace = setMotionGPUUserContext('plugin', () => ({
+					mode: 'unchanged'
+				}));
 				const afterSkippedAfterReplace = allStore.current;
 				const pluginStore = useMotionGPUUserContext<Record<string, unknown>>('plugin');
 

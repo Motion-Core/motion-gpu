@@ -57,7 +57,11 @@ const CustomErrorRendererHarness = defineComponent({
 				},
 				{
 					errorRenderer: ({ report }: { report: MotionGPUErrorReport }) =>
-						h('div', { 'data-testid': 'custom-error-renderer' }, `${report.title} :: ${report.phase}`)
+						h(
+							'div',
+							{ 'data-testid': 'custom-error-renderer' },
+							`${report.title} :: ${report.phase}`
+						)
 				}
 			);
 	}

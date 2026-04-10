@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import {
-	FragCanvas,
-	ComputePass,
-	PingPongComputePass,
-	defineMaterial
-} from '../../../src/lib/vue';
+import { FragCanvas, ComputePass, PingPongComputePass, defineMaterial } from '../../../src/lib/vue';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
 import type { FragMaterial } from '../../../src/lib/core/material';
 import type { AnyPass } from '../../../src/lib/core/types';
@@ -355,30 +350,70 @@ onMounted(async () => {
 			<div data-testid="compute-mode">{{ computeMode }}</div>
 			<div data-testid="pass-count">{{ activePasses.length }}</div>
 
-			<button class="harness-button" data-testid="set-compute-none" @click="applyMode('none')">none</button>
-			<button class="harness-button" data-testid="set-compute-basic" @click="applyMode('basic')">basic</button>
-			<button class="harness-button" data-testid="set-compute-auto-dispatch" @click="applyMode('auto-dispatch')">
-				auto dispatch
+			<button class="harness-button" data-testid="set-compute-none" @click="applyMode('none')">
+				none
 			</button>
-			<button class="harness-button" data-testid="set-compute-dynamic-dispatch" @click="applyMode('dynamic-dispatch')">
-				dynamic dispatch
+			<button class="harness-button" data-testid="set-compute-basic" @click="applyMode('basic')">
+				basic
 			</button>
-			<button class="harness-button" data-testid="set-compute-disabled" @click="applyMode('disabled')">disabled</button>
-			<button class="harness-button" data-testid="set-compute-storage-texture" @click="applyMode('storage-texture')">
-				storage texture
-			</button>
-			<button class="harness-button" data-testid="set-compute-ping-pong" @click="applyMode('ping-pong')">ping-pong</button>
-			<button class="harness-button" data-testid="set-compute-ping-pong-multi" @click="applyMode('ping-pong-multi')">
-				ping-pong multi
-			</button>
-			<button class="harness-button" data-testid="set-compute-particle" @click="applyMode('particle')">particle</button>
-			<button class="harness-button" data-testid="set-compute-bad-shader" @click="applyMode('bad-shader')">bad shader</button>
-
 			<button
 				class="harness-button"
-				data-testid="hot-swap-compute"
-				@click="hotSwapCompute"
+				data-testid="set-compute-auto-dispatch"
+				@click="applyMode('auto-dispatch')"
 			>
+				auto dispatch
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-dynamic-dispatch"
+				@click="applyMode('dynamic-dispatch')"
+			>
+				dynamic dispatch
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-disabled"
+				@click="applyMode('disabled')"
+			>
+				disabled
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-storage-texture"
+				@click="applyMode('storage-texture')"
+			>
+				storage texture
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-ping-pong"
+				@click="applyMode('ping-pong')"
+			>
+				ping-pong
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-ping-pong-multi"
+				@click="applyMode('ping-pong-multi')"
+			>
+				ping-pong multi
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-particle"
+				@click="applyMode('particle')"
+			>
+				particle
+			</button>
+			<button
+				class="harness-button"
+				data-testid="set-compute-bad-shader"
+				@click="applyMode('bad-shader')"
+			>
+				bad shader
+			</button>
+
+			<button class="harness-button" data-testid="hot-swap-compute" @click="hotSwapCompute">
 				hot swap
 			</button>
 
@@ -398,21 +433,15 @@ onMounted(async () => {
 				dispatch override
 			</button>
 
-			<button
-				class="harness-button"
-				data-testid="set-mode-always"
-				@click="setModeAlways"
-			>
+			<button class="harness-button" data-testid="set-mode-always" @click="setModeAlways">
 				always
 			</button>
-			<button
-				class="harness-button"
-				data-testid="set-mode-manual"
-				@click="setModeManual"
-			>
+			<button class="harness-button" data-testid="set-mode-manual" @click="setModeManual">
 				manual
 			</button>
-			<button class="harness-button" data-testid="advance-once" @click="controls?.advance()">advance</button>
+			<button class="harness-button" data-testid="advance-once" @click="controls?.advance()">
+				advance
+			</button>
 		</section>
 
 		<div class="canvas-shell">

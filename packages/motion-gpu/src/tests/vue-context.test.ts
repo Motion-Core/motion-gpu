@@ -5,11 +5,7 @@ import { createCurrentWritable } from '../lib/core/current-value.js';
 import { createFrameRegistry } from '../lib/core/frame-registry.js';
 import type { MotionGPUContext } from '../lib/vue/motiongpu-context.js';
 import { provideMotionGPUContext, useMotionGPU } from '../lib/vue/motiongpu-context.js';
-import {
-	provideFrameRegistry,
-	useFrame,
-	type UseFrameResult
-} from '../lib/vue/frame-context.js';
+import { provideFrameRegistry, useFrame, type UseFrameResult } from '../lib/vue/frame-context.js';
 import {
 	setMotionGPUUserContext,
 	useMotionGPUUserContext
@@ -292,7 +288,10 @@ describe('vue adapter runtime hooks', () => {
 			setup(probeProps) {
 				const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
 				const beforeInitial = allStore.current;
-				const initial = setMotionGPUUserContext('plugin', () => ({ mode: 'initial', enabled: true }));
+				const initial = setMotionGPUUserContext('plugin', () => ({
+					mode: 'initial',
+					enabled: true
+				}));
 				const afterInitial = allStore.current;
 				const skipped = setMotionGPUUserContext('plugin', () => ({ mode: 'skipped' }));
 				const afterSkipped = allStore.current;
@@ -304,7 +303,9 @@ describe('vue adapter runtime hooks', () => {
 					existing: 'replace'
 				});
 				const afterReplaced = allStore.current;
-				const skippedAfterReplace = setMotionGPUUserContext('plugin', () => ({ mode: 'unchanged' }));
+				const skippedAfterReplace = setMotionGPUUserContext('plugin', () => ({
+					mode: 'unchanged'
+				}));
 				const afterSkippedAfterReplace = allStore.current;
 				const pluginStore = useMotionGPUUserContext<Record<string, unknown>>('plugin');
 

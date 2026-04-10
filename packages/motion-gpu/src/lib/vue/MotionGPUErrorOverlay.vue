@@ -152,24 +152,19 @@ const detailsSummary = computed(() =>
 					<p class="motiongpu-error-hint">{{ report.hint }}</p>
 				</div>
 
-				<section
-					v-if="report.source"
-					class="motiongpu-error-source"
-					aria-label="Source"
-				>
+				<section v-if="report.source" class="motiongpu-error-source" aria-label="Source">
 					<h3 class="motiongpu-error-source-title">Source</h3>
 					<div class="motiongpu-error-source-frame" role="presentation">
-						<div
-							class="motiongpu-error-source-tabs"
-							role="tablist"
-							aria-label="Source files"
-						>
+						<div class="motiongpu-error-source-tabs" role="tablist" aria-label="Source files">
 							<span
 								class="motiongpu-error-source-tab motiongpu-error-source-tab-active"
 								role="tab"
 								aria-selected="true"
-							>{{ report.source.location
-								}}<template v-if="report.source.column">, col {{ report.source.column }}</template></span>
+								>{{ report.source.location
+								}}<template v-if="report.source.column"
+									>, col {{ report.source.column }}</template
+								></span
+							>
 							<span class="motiongpu-error-source-tab-spacer" aria-hidden="true"></span>
 						</div>
 
@@ -232,14 +227,7 @@ const detailsSummary = computed(() =>
 	--motiongpu-radius-md: var(--radius-md, 0.5rem);
 	--motiongpu-radius-lg: var(--radius-lg, 0.75rem);
 	--motiongpu-radius-xl: var(--radius-xl, 1rem);
-	--motiongpu-font-sans: var(
-		--font-sans,
-		'Inter',
-		'Segoe UI',
-		'Helvetica Neue',
-		Arial,
-		sans-serif
-	);
+	--motiongpu-font-sans: var(--font-sans, 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif);
 	--motiongpu-font-mono: var(--font-mono, 'SFMono-Regular', 'Menlo', 'Consolas', monospace);
 	position: fixed;
 	inset: 0;

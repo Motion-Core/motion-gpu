@@ -59,21 +59,13 @@ onMounted(async () => {
 			<button class="harness-button" data-testid="set-mode-always" @click="setMode('always')">
 				always
 			</button>
-			<button
-				class="harness-button"
-				data-testid="set-mode-on-demand"
-				@click="setMode('on-demand')"
-			>
+			<button class="harness-button" data-testid="set-mode-on-demand" @click="setMode('on-demand')">
 				on-demand
 			</button>
 			<button class="harness-button" data-testid="set-mode-manual" @click="setMode('manual')">
 				manual
 			</button>
-			<button
-				class="harness-button"
-				data-testid="invalidate-once"
-				@click="controls?.invalidate()"
-			>
+			<button class="harness-button" data-testid="invalidate-once" @click="controls?.invalidate()">
 				invalidate
 			</button>
 			<button class="harness-button" data-testid="advance-once" @click="controls?.advance()">

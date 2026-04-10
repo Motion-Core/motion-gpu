@@ -84,21 +84,30 @@ onMounted(async () => {
 			<button
 				class="harness-button"
 				data-testid="set-pass-none"
-				@click="passes = []; passMode = 'none'"
+				@click="
+					passes = [];
+					passMode = 'none';
+				"
 			>
 				no pass
 			</button>
 			<button
 				class="harness-button"
 				data-testid="set-pass-invert"
-				@click="passes = [invertPass]; passMode = 'invert'"
+				@click="
+					passes = [invertPass];
+					passMode = 'invert';
+				"
 			>
 				invert pass
 			</button>
 			<button
 				class="harness-button"
 				data-testid="set-pass-named"
-				@click="passes = [namedWritePass, namedReadPass]; passMode = 'named'"
+				@click="
+					passes = [namedWritePass, namedReadPass];
+					passMode = 'named';
+				"
 			>
 				named pass
 			</button>

@@ -45,11 +45,7 @@ const textureUrlMode = computed(() => (urls.value[0] === SUCCESS_URL ? 'success'
 			<button class="harness-button" data-testid="set-missing-url" @click="urls = [MISSING_URL]">
 				set missing url
 			</button>
-			<button
-				class="harness-button"
-				data-testid="reload-textures"
-				@click="result.reload()"
-			>
+			<button class="harness-button" data-testid="reload-textures" @click="result.reload()">
 				reload
 			</button>
 		</section>

@@ -13,7 +13,11 @@ const PortalHarness = defineComponent({
 	},
 	setup(props) {
 		return () =>
-			h(Portal, { target: props.target }, { default: () => h('span', { 'data-testid': 'portal-content' }, 'portal content') });
+			h(
+				Portal,
+				{ target: props.target },
+				{ default: () => h('span', { 'data-testid': 'portal-content' }, 'portal content') }
+			);
 	}
 });
 

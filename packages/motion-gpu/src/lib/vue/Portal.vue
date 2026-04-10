@@ -16,7 +16,9 @@ defineSlots<{
 /**
  * Resolves a teleport target to a concrete DOM element, falling back to body.
  */
-function resolveTargetElement(input: string | HTMLElement | null | undefined): HTMLElement | string {
+function resolveTargetElement(
+	input: string | HTMLElement | null | undefined
+): HTMLElement | string {
 	if (typeof input === 'string') {
 		if (typeof document === 'undefined') {
 			return input;

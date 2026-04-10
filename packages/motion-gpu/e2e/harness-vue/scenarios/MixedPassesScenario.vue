@@ -165,7 +165,11 @@ onMounted(async () => {
 			>
 				single shader
 			</button>
-			<button class="harness-button" data-testid="set-config-chain-3" @click="applyConfig('chain-3')">
+			<button
+				class="harness-button"
+				data-testid="set-config-chain-3"
+				@click="applyConfig('chain-3')"
+			>
 				chain 3
 			</button>
 			<button

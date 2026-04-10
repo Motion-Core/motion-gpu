@@ -22,13 +22,7 @@ function collectScriptEntryPoints(directory: string): Record<string, string> {
 		if (!entry.isFile()) {
 			continue;
 		}
-		if (
-			!(
-				fullPath.endsWith('.ts') ||
-				fullPath.endsWith('.tsx') ||
-				fullPath.endsWith('.vue')
-			)
-		) {
+		if (!(fullPath.endsWith('.ts') || fullPath.endsWith('.tsx') || fullPath.endsWith('.vue'))) {
 			continue;
 		}
 

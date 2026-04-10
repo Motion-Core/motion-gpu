@@ -559,9 +559,10 @@ describe('Vue FragCanvas runtime', () => {
 				}
 			}
 		);
-		diagnosticsError.stack = ['Error: WGSL compilation failed', 'at render (Renderer.ts:42:7)'].join(
-			'\n'
-		);
+		diagnosticsError.stack = [
+			'Error: WGSL compilation failed',
+			'at render (Renderer.ts:42:7)'
+		].join('\n');
 		const throwingRenderer: MockRenderer = {
 			render: vi.fn(() => {
 				throw diagnosticsError;
@@ -585,7 +586,9 @@ describe('Vue FragCanvas runtime', () => {
 		expect(overlay.textContent).toContain('at render (Renderer.ts:42:7)');
 		expect(overlay.querySelector('.motiongpu-error-code')).toBeNull();
 		expect(overlay.textContent).not.toContain('WGSL_COMPILATION_FAILED');
-		expect(overlay.querySelector('.motiongpu-error-badge-severity')?.textContent).toContain('error');
+		expect(overlay.querySelector('.motiongpu-error-badge-severity')?.textContent).toContain(
+			'error'
+		);
 		expect(overlay.querySelector('.motiongpu-error-recoverable')?.textContent).toContain('yes');
 		expect(overlay.querySelectorAll('.motiongpu-error-badge')).toHaveLength(2);
 		expect(overlay.querySelectorAll('.motiongpu-error-badge-wrap')).toHaveLength(2);

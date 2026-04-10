@@ -122,10 +122,18 @@ onMounted(async () => {
 			<div data-testid="material-mode">{{ materialMode }}</div>
 			<div data-testid="brightness-level">{{ brightnessLevel }}</div>
 
-			<button class="harness-button" data-testid="set-material-a" @click="applyMaterial('uniform-a')">
+			<button
+				class="harness-button"
+				data-testid="set-material-a"
+				@click="applyMaterial('uniform-a')"
+			>
 				material A
 			</button>
-			<button class="harness-button" data-testid="set-material-b" @click="applyMaterial('uniform-b')">
+			<button
+				class="harness-button"
+				data-testid="set-material-b"
+				@click="applyMaterial('uniform-b')"
+			>
 				material B
 			</button>
 			<button
@@ -146,14 +154,20 @@ onMounted(async () => {
 			<button
 				class="harness-button"
 				data-testid="set-brightness-high"
-				@click="brightnessLevel = 'high'; uniformValue = 1.0"
+				@click="
+					brightnessLevel = 'high';
+					uniformValue = 1.0;
+				"
 			>
 				brightness high
 			</button>
 			<button
 				class="harness-button"
 				data-testid="set-brightness-low"
-				@click="brightnessLevel = 'low'; uniformValue = 0.1"
+				@click="
+					brightnessLevel = 'low';
+					uniformValue = 0.1;
+				"
 			>
 				brightness low
 			</button>

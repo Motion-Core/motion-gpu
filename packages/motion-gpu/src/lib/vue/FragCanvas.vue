@@ -164,28 +164,25 @@ watch(
 	}
 );
 
-watch(
-	[() => errorHistory.value, () => props.errorHistoryLimit],
-	([history, rawLimit]) => {
-		const limit = getNormalizedErrorHistoryLimit(rawLimit);
-		if (limit <= 0) {
-			if (history.length === 0) {
-				return;
-			}
-			errorHistory.value = [];
-			props.onErrorHistory?.([]);
+watch([() => errorHistory.value, () => props.errorHistoryLimit], ([history, rawLimit]) => {
+	const limit = getNormalizedErrorHistoryLimit(rawLimit);
+	if (limit <= 0) {
+		if (history.length === 0) {
 			return;
 		}
-
-		if (history.length <= limit) {
-			return;
-		}
-
-		const trimmed = history.slice(history.length - limit);
-		errorHistory.value = trimmed;
-		props.onErrorHistory?.(trimmed);
+		errorHistory.value = [];
+		props.onErrorHistory?.([]);
+		return;
 	}
-);
+
+	if (history.length <= limit) {
+		return;
+	}
+
+	const trimmed = history.slice(history.length - limit);
+	errorHistory.value = trimmed;
+	props.onErrorHistory?.(trimmed);
+});
 
 onMounted(() => {
 	renderModeState.set(props.renderMode);

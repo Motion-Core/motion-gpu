@@ -30,7 +30,11 @@
 	let isReady = $state(false);
 
 	type HighlightedCode = { light: string; dark: string } | null;
-	let highlighted = $state<Record<Framework, HighlightedCode>>({ svelte: null, react: null, vue: null });
+	let highlighted = $state<Record<Framework, HighlightedCode>>({
+		svelte: null,
+		react: null,
+		vue: null
+	});
 
 	const codeMap: Record<Framework, string> = $derived({
 		svelte: svelteCode,

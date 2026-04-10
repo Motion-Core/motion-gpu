@@ -182,13 +182,15 @@ test.describe('motion-gpu mixed passes e2e', () => {
 	});
 
 	/* ────────────────────────────────────────────────────────
-	 * 5. Multiple errors accumulate in error count
+	 * 5. Repeated identical errors are deduplicated
 	 *
-	 * Catches: error counter reset bugs, dropped errors,
-	 * error handler not called for subsequent failures.
+	 * Catches: regressions in error deduplication and grace
+	 * window handling after a quick recovery cycle.
 	 * ──────────────────────────────────────────────────────── */
 
-	test('multiple errors accumulate in error count across recovery cycles', async ({ page }) => {
+	test('repeated identical errors are deduplicated across quick recovery cycles', async ({
+		page
+	}) => {
 		await page.goto('/?scenario=mixed-passes');
 		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
@@ -205,24 +207,15 @@ test.describe('motion-gpu mixed passes e2e', () => {
 
 		const firstErrorCount = toNumber(await page.getByTestId('error-count').textContent());
 
-		// Recover
+		// Recover and immediately re-trigger the same failing pass.
 		await page.getByTestId('set-config-single-shader').click();
 		await page.getByTestId('advance-once').click();
-		await expect
-			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
-			.toBeGreaterThan(1);
-
-		// Second error cycle — trigger bad shader again
 		await page.getByTestId('set-config-multi-error').click();
 		await page.getByTestId('advance-once').click();
-		await expect
-			.poll(async () => toNumber(await page.getByTestId('error-count').textContent()), {
-				timeout: 5_000
-			})
-			.toBeGreaterThan(firstErrorCount);
 
-		const secondErrorCount = toNumber(await page.getByTestId('error-count').textContent());
-		expect(secondErrorCount).toBeGreaterThan(firstErrorCount);
+		// With intentional deduplication + grace window, the same error key
+		// should not increment count on an immediate repeat.
+		await expect(page.getByTestId('error-count')).toHaveText(String(firstErrorCount));
 	});
 
 	/* ────────────────────────────────────────────────────────

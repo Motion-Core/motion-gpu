@@ -12,7 +12,7 @@
 
 # Motion GPU
 
-**A tiny WebGPU runtime for writing Shadertoy-style fullscreen shaders in pure WGSL.**
+**A minimalist WebGPU framework for writing Shadertoy-style fullscreen shaders in pure WGSL.**
 
 `@motion-core/motion-gpu` ships a framework-agnostic core plus Svelte 5, React, and Vue adapters for building fullscreen shader pipelines using WebGPU and WGSL.
 It provides a minimal runtime loop, scheduler, and render graph designed specifically for fragment-driven GPU programs.
@@ -44,15 +44,15 @@ If your application is primarily a fullscreen fragment shader pipeline, using a 
 Three.js is a powerful general-purpose 3D engine.
 Motion GPU focuses on a much narrower problem: running fullscreen WGSL shader pipelines.
 
-| Feature          | Three.js              | Motion GPU                |
-| ---------------- | --------------------- | ------------------------- |
-| Scope            | Full 3D engine        | Fullscreen shader runtime |
-| Shader language  | TSL / generated WGSL  | Native WGSL               |
-| Bundle size      | large                 | tiny (3.5-5x smaller)     |
-| Rendering model  | Scene graph           | GPU pipeline              |
-| Shader pipeline  | materials             | explicit passes           |
-| Multi-pass       | possible but indirect | first-class               |
-| Shader debugging | generated shaders     | direct WGSL               |
+| Feature          | Three.js              | Motion GPU                  |
+| ---------------- | --------------------- | --------------------------- |
+| Scope            | Full 3D engine        | Fullscreen shader framework |
+| Shader language  | TSL / generated WGSL  | Native WGSL                 |
+| Bundle size      | large                 | tiny (3.5-5x smaller)       |
+| Rendering model  | Scene graph           | GPU pipeline                |
+| Shader pipeline  | materials             | explicit passes             |
+| Multi-pass       | possible but indirect | first-class                 |
+| Shader debugging | generated shaders     | direct WGSL                 |
 
 Motion GPU is **not a replacement for Three.js**.
 

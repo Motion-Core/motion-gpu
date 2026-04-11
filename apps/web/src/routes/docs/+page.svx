@@ -42,7 +42,7 @@ Motion GPU documentation is also available for AI tools via [Context7](https://c
 
 Public exports are defined by package `exports` and covered by API tests in `src/tests/public-api.test.ts`.
 
-## Runtime mental model
+## Framework mental model
 
 Understanding the frame-by-frame flow is the single most useful thing you can learn about Motion GPU:
 

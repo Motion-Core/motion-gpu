@@ -25,7 +25,7 @@
 		<h1
 			class="max-w-3xl text-center text-3xl font-medium tracking-tight text-balance text-foreground sm:text-5xl"
 		>
-			<span class="text-accent">Universal</span> runtime for modern
+			<span class="text-accent">Minimalist</span> framework for modern
 			<span class="text-accent">WebGPU </span> visuals.
 		</h1>
 		<p

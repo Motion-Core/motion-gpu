@@ -11,7 +11,7 @@ export const siteConfig = {
 	url: 'https://motion-gpu.dev',
 	/** Default SEO description for the homepage and fallback metadata. */
 	description:
-		'A WebGPU-first library for Svelte 5, React 18/19, and Vue 3. Build high-performance, GPU-accelerated visualizations with a declarative API, strict runtime contracts, and type-safe WGSL shaders.',
+		'A minimalist WebGPU framework for Svelte 5, React 18/19, and Vue 3. Build high-performance, GPU-accelerated visualizations with a declarative API, strict runtime contracts, and type-safe WGSL shaders.',
 	/** Author shown in metadata and structured data. */
 	author: 'Marek Jóźwiak',
 	/** Primary SEO keywords for indexing and discovery. */

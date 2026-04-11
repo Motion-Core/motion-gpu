@@ -1,5 +1,5 @@
 ---
-title: Core Runtime API
+title: Core API
 description: Framework-agnostic root/core exports for adapter and runtime authors.
 ---
 

@@ -15,7 +15,7 @@
 		{
 			question: 'What is Motion GPU?',
 			answer:
-				'Motion GPU is a WebGPU library for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
+				'Motion GPU is a minimalist WebGPU framework for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
 		},
 		{
 			question: 'Who is it for?',

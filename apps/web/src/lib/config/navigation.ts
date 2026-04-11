@@ -68,7 +68,7 @@ export const docsNavigation: DocItem[] = [
 			{ slug: 'api-material-reference', name: 'Material API' },
 			{ slug: 'api-hooks-reference', name: 'Hooks API' },
 			{ slug: 'api-passes-reference', name: 'Passes API' },
-			{ slug: 'api-core-reference', name: 'Core Runtime API' },
+			{ slug: 'api-core-reference', name: 'Core API' },
 			{ slug: 'api-advanced-reference', name: 'Advanced API' }
 		]
 	},

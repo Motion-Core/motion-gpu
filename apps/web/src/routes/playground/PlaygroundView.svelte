@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import PlaygroundEditor from './components/PlaygroundEditor.svelte';
+	import PlaygroundHeader from './components/PlaygroundHeader.svelte';
 	import PlaygroundPreview from './components/PlaygroundPreview.svelte';
 
 	import type { PlaygroundController } from './playground-controller.svelte';
@@ -83,12 +84,6 @@
 		controller.demos.map((demo) => ({
 			value: demo.id,
 			label: demo.name
-		}))
-	);
-	const frameworkSelectOptions = $derived.by(() =>
-		controller.frameworks.map((framework) => ({
-			value: framework,
-			label: framework === 'svelte' ? 'Svelte' : framework === 'react' ? 'React' : 'Vue'
 		}))
 	);
 
@@ -230,9 +225,17 @@
 <main
 	class="flex h-dvh min-h-0 flex-col overflow-hidden bg-background-muted p-2 dark:bg-background"
 >
+	<PlaygroundHeader
+		activeDemoId={controller.activeDemoId}
+		activeFramework={controller.activeFramework}
+		demoOptions={demoSelectOptions}
+		{onSelectDemo}
+		{onSelectFramework}
+	/>
+
 	<div
 		bind:this={workspaceHost}
-		class={`playground-workspace relative min-h-0 flex-1 ${
+		class={`playground-workspace relative mt-2 min-h-0 flex-1 ${
 			activeResize ? 'playground-workspace--resizing' : ''
 		}`}
 		style={`--playground-columns: ${workspaceColumns}; --playground-rows: ${workspaceRows};`}
@@ -252,12 +255,6 @@
 
 		<PlaygroundPreview
 			{controller}
-			activeDemoId={controller.activeDemoId}
-			activeFramework={controller.activeFramework}
-			demoOptions={demoSelectOptions}
-			frameworkOptions={frameworkSelectOptions}
-			{onSelectDemo}
-			{onSelectFramework}
 			{onPreviewFrameChange}
 		/>
 	</div>

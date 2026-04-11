@@ -188,7 +188,7 @@
 		type="button"
 		{id}
 		class={cn(
-			'inset-shadow inline-flex h-7 w-full items-center justify-between gap-1.5 rounded-sm bg-background-inset px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background-muted focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
+			'relative inline-flex h-7 w-full items-center justify-end gap-1.5 rounded-sm px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
 			triggerClass
 		)}
 		{disabled}
@@ -199,7 +199,9 @@
 		onclick={toggleMenu}
 		onkeydown={handleTriggerKeydown}
 	>
-		<span class="truncate">{selectedLabel}</span>
+		<span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 truncate"
+			>{selectedLabel}</span
+		>
 		<ChevronDown
 			size={16}
 			class={cn(
@@ -212,7 +214,7 @@
 	{#if isOpen}
 		<div
 			class={cn(
-				'card absolute top-[calc(100%+4px)] left-0 z-50 min-w-full overflow-hidden rounded-sm bg-background',
+				'card absolute top-[calc(100%+4px)] left-0 z-500 min-w-full overflow-hidden rounded-sm bg-background',
 				menuClass
 			)}
 			transition:scale={{ start: 0.98, duration: 130, easing: cubicOut }}

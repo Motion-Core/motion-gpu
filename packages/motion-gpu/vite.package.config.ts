@@ -123,7 +123,7 @@ function injectVueAdapterCssImportPlugin(): Plugin {
 				return;
 			}
 
-			if (!chunk.code.includes("../motion-gpu.css")) {
+			if (!chunk.code.includes('../motion-gpu.css')) {
 				chunk.code = `${vueCssImport}${chunk.code}`;
 			}
 		}

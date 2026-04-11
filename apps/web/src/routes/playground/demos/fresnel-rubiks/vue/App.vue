@@ -1,48 +1,48 @@
 <script setup lang="ts">
 //
-	// Shader by @madebyhex
-	// Licensed under CC BY-NC-SA 4.0
-	// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-	//
-	import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
-	import Runtime from './runtime.vue';
+// Shader by @madebyhex
+// Licensed under CC BY-NC-SA 4.0
+// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+//
+import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+import Runtime from './runtime.vue';
 
-	const CUBE_COUNT = 27;
-	const FLOATS_PER_ENTRY = 4;
-	const BUFFER_SIZE = CUBE_COUNT * FLOATS_PER_ENTRY * 4;
+const CUBE_COUNT = 27;
+const FLOATS_PER_ENTRY = 4;
+const BUFFER_SIZE = CUBE_COUNT * FLOATS_PER_ENTRY * 4;
 
-	const createInitialGridPositions = () => {
-		const data = new Float32Array(CUBE_COUNT * FLOATS_PER_ENTRY);
-		let index = 0;
-		for (const x of [-1, 0, 1]) {
-			for (const y of [-1, 0, 1]) {
-				for (const z of [-1, 0, 1]) {
-					const base = index * FLOATS_PER_ENTRY;
-					data[base] = x;
-					data[base + 1] = y;
-					data[base + 2] = z;
-					data[base + 3] = 1;
-					index += 1;
-				}
+const createInitialGridPositions = () => {
+	const data = new Float32Array(CUBE_COUNT * FLOATS_PER_ENTRY);
+	let index = 0;
+	for (const x of [-1, 0, 1]) {
+		for (const y of [-1, 0, 1]) {
+			for (const z of [-1, 0, 1]) {
+				const base = index * FLOATS_PER_ENTRY;
+				data[base] = x;
+				data[base + 1] = y;
+				data[base + 2] = z;
+				data[base + 3] = 1;
+				index += 1;
 			}
 		}
-		return data;
-	};
+	}
+	return data;
+};
 
-	const createInitialIdentityQuaternions = () => {
-		const data = new Float32Array(CUBE_COUNT * FLOATS_PER_ENTRY);
-		for (let index = 0; index < CUBE_COUNT; index += 1) {
-			const base = index * FLOATS_PER_ENTRY;
-			data[base] = 0;
-			data[base + 1] = 0;
-			data[base + 2] = 0;
-			data[base + 3] = 1;
-		}
-		return data;
-	};
+const createInitialIdentityQuaternions = () => {
+	const data = new Float32Array(CUBE_COUNT * FLOATS_PER_ENTRY);
+	for (let index = 0; index < CUBE_COUNT; index += 1) {
+		const base = index * FLOATS_PER_ENTRY;
+		data[base] = 0;
+		data[base + 1] = 0;
+		data[base + 2] = 0;
+		data[base + 3] = 1;
+	}
+	return data;
+};
 
-	const material = defineMaterial({
-		fragment: `
+const material = defineMaterial({
+	fragment: `
 fn saturate(v: f32) -> f32 {
   return clamp(v, 0.0, 1.0);
 }
@@ -227,63 +227,63 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(max(color, vec3f(0.0)), 1.0);
 }
 `,
-		uniforms: {
-			uBodyColor: { type: 'vec3f', value: [0.05, 0.045, 0.048] },
-			uRimColor: { type: 'vec3f', value: [1.0, 1.0, 1.0] },
-			uRimPower: { type: 'f32', value: 3.2 },
-			uRimIntensity: { type: 'f32', value: 2.2 },
-			uCubeScale: { type: 'f32', value: 0.9 },
-			uRoundRadius: { type: 'f32', value: 0.075 },
-			uSceneBound: { type: 'f32', value: 2.7 },
-			uSceneQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
-			uMoveQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
-			uSpacing: { type: 'f32', value: 1 },
-			uActiveAxis: { type: 'f32', value: 0 },
-			uActiveLayer: { type: 'f32', value: 0 },
-			uMoveActive: { type: 'f32', value: 0 }
+	uniforms: {
+		uBodyColor: { type: 'vec3f', value: [0.05, 0.045, 0.048] },
+		uRimColor: { type: 'vec3f', value: [1.0, 1.0, 1.0] },
+		uRimPower: { type: 'f32', value: 3.2 },
+		uRimIntensity: { type: 'f32', value: 2.2 },
+		uCubeScale: { type: 'f32', value: 0.9 },
+		uRoundRadius: { type: 'f32', value: 0.075 },
+		uSceneBound: { type: 'f32', value: 2.7 },
+		uSceneQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
+		uMoveQuat: { type: 'vec4f', value: [0, 0, 0, 1] },
+		uSpacing: { type: 'f32', value: 1 },
+		uActiveAxis: { type: 'f32', value: 0 },
+		uActiveLayer: { type: 'f32', value: 0 },
+		uMoveActive: { type: 'f32', value: 0 }
+	},
+	storageBuffers: {
+		cubeBasePositions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialGridPositions()
 		},
-		storageBuffers: {
-			cubeBasePositions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialGridPositions()
-			},
-			cubeBaseQuaternions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialIdentityQuaternions()
-			},
-			cubeGridPositions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialGridPositions()
-			},
-			cubeWorldPositions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialGridPositions()
-			},
-			cubeWorldQuaternions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialIdentityQuaternions()
-			},
-			cubeInvWorldQuaternions: {
-				size: BUFFER_SIZE,
-				type: 'array<vec4f>',
-				access: 'read-write',
-				initialData: createInitialIdentityQuaternions()
-			}
+		cubeBaseQuaternions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialIdentityQuaternions()
+		},
+		cubeGridPositions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialGridPositions()
+		},
+		cubeWorldPositions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialGridPositions()
+		},
+		cubeWorldQuaternions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialIdentityQuaternions()
+		},
+		cubeInvWorldQuaternions: {
+			size: BUFFER_SIZE,
+			type: 'array<vec4f>',
+			access: 'read-write',
+			initialData: createInitialIdentityQuaternions()
 		}
-	});
+	}
+});
 
-	const transformPass = new ComputePass({
-		compute: `
+const transformPass = new ComputePass({
+	compute: `
 const CUBE_COUNT: u32 = ${CUBE_COUNT}u;
 
 fn quat_normalize(q: vec4f) -> vec4f {
@@ -348,12 +348,12 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   cubeInvWorldQuaternions[i] = invWorldQuat;
 }
 `,
-		dispatch: [1]
-	});
+	dispatch: [1]
+});
 </script>
 
 <template>
-<FragCanvas :material="material" :passes="[transformPass]" outputColorSpace="linear">
-	<Runtime />
-</FragCanvas>
+	<FragCanvas :material="material" :passes="[transformPass]" outputColorSpace="linear">
+		<Runtime />
+	</FragCanvas>
 </template>

@@ -1,27 +1,27 @@
 <script setup lang="ts">
 //
-	// Original Shader by @Nrx
-	// License: Unknown / not declared in source metadata
-	// SPDX-License-Identifier: NOASSERTION
-	// Source:
-	// https://www.shadertoy.com/view/ltfXDM
-	//
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
-	import Runtime from './runtime.vue';
+// Original Shader by @Nrx
+// License: Unknown / not declared in source metadata
+// SPDX-License-Identifier: NOASSERTION
+// Source:
+// https://www.shadertoy.com/view/ltfXDM
+//
+import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+import Runtime from './runtime.vue';
 
-	const material = defineMaterial({
-		defines: {
-			ALPHA: 0.95,
-			AMBIENT: 0.2,
-			DELTA: 0.001,
-			PI: 3.14159265359,
-			RAY_BOUNCE_MAX: { type: 'i32', value: 10 },
-			RAY_LENGTH_MAX: 20.0,
-			RAY_STEP_MAX: { type: 'i32', value: 120 },
-			SPECULAR_INTENSITY: 0.5,
-			SPECULAR_POWER: 3.0
-		},
-		fragment: `
+const material = defineMaterial({
+	defines: {
+		ALPHA: 0.95,
+		AMBIENT: 0.2,
+		DELTA: 0.001,
+		PI: 3.14159265359,
+		RAY_BOUNCE_MAX: { type: 'i32', value: 10 },
+		RAY_LENGTH_MAX: 20.0,
+		RAY_STEP_MAX: { type: 'i32', value: 120 },
+		SPECULAR_INTENSITY: 0.5,
+		SPECULAR_POWER: 3.0
+	},
+	fragment: `
 const COLOR: vec3f = vec3f(0.8, 0.8, 0.9);
 const REFRACT_INDEX: vec3f = vec3f(2.407, 2.426, 2.451);
 const LIGHT_DIRECTION: vec3f = vec3f(0.57735026, 0.57735026, -0.57735026);
@@ -210,14 +210,14 @@ fn frag(uv: vec2f) -> vec4f {
 	return vec4f(max(rgb, vec3f(0.0)), 1.0);
 }
 `,
-		uniforms: {
-			uMouse: { type: 'vec2f', value: [0, 0] }
-		}
-	});
+	uniforms: {
+		uMouse: { type: 'vec2f', value: [0, 0] }
+	}
+});
 </script>
 
 <template>
-<FragCanvas :material="material" outputColorSpace="linear">
-	<Runtime />
-</FragCanvas>
+	<FragCanvas :material="material" outputColorSpace="linear">
+		<Runtime />
+	</FragCanvas>
 </template>

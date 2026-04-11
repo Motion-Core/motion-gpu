@@ -1,15 +1,15 @@
 <script setup>
 //
-	// Original Shader by @mrange
-	// Licensed under CC0 1.0 Universal
-	// SPDX-License-Identifier: CC0-1.0
-	// Source:
-	// https://www.shadertoy.com/view/3lVczV
-	//
-	import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu/vue';
+// Original Shader by @mrange
+// Licensed under CC0 1.0 Universal
+// SPDX-License-Identifier: CC0-1.0
+// Source:
+// https://www.shadertoy.com/view/3lVczV
+//
+import { FragCanvas, ShaderPass, defineMaterial } from '@motion-core/motion-gpu/vue';
 
-	const postProcessPass = new ShaderPass({
-		fragment: `
+const postProcessPass = new ShaderPass({
+	fragment: `
 fn applyPostProcess(colInput: vec3f, q: vec2f) -> vec3f {
 	var col = colInput;
 	col = pow(clamp(col, vec3f(0.0), vec3f(1.0)), vec3f(1.0 / 2.2));
@@ -24,29 +24,29 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 	return vec4f(applyPostProcess(inputColor.rgb, q), inputColor.a);
 }
 `
-	});
-	const passes = [postProcessPass];
+});
+const passes = [postProcessPass];
 
-	const material = defineMaterial({
-		defines: {
-			PI: 3.141592654,
-			TAU: 6.283185307179586,
-			H_VARIANT: 0.67,
-			TRUCHET_LINE_WIDTH: 0.05,
-			TRUCHET_RADIUS: 6.9,
-			TRUCHET_REP_MIN: 8.0,
-			TRUCHET_REP_MAX: 25.0,
-			TRUCHET_SMOOTH_MIN: 0.05,
-			TRUCHET_SMOOTH_MAX: 0.125,
-			TRUCHET_ROT_SPEED: 0.02,
-			TRUCHET_SCROLL_SPEED: 0.05,
-			FBM_OCTAVES: { type: 'i32', value: 4 },
-			FBM_ATTENUATION: -0.45,
-			FBM_SCALE: 3.03,
-			FBM_ROTATION: 1.0
-		},
-		includes: {
-			core_math: `
+const material = defineMaterial({
+	defines: {
+		PI: 3.141592654,
+		TAU: 6.283185307179586,
+		H_VARIANT: 0.67,
+		TRUCHET_LINE_WIDTH: 0.05,
+		TRUCHET_RADIUS: 6.9,
+		TRUCHET_REP_MIN: 8.0,
+		TRUCHET_REP_MAX: 25.0,
+		TRUCHET_SMOOTH_MIN: 0.05,
+		TRUCHET_SMOOTH_MAX: 0.125,
+		TRUCHET_ROT_SPEED: 0.02,
+		TRUCHET_SCROLL_SPEED: 0.05,
+		FBM_OCTAVES: { type: 'i32', value: 4 },
+		FBM_ATTENUATION: -0.45,
+		FBM_SCALE: 3.03,
+		FBM_ROTATION: 1.0
+	},
+	includes: {
+		core_math: `
 fn rot(a: f32) -> mat2x2f {
 	let c = cos(a);
 	let s = sin(a);
@@ -104,7 +104,7 @@ fn pmax(a: f32, b: f32, k: f32) -> f32 {
 	return -pmin(-a, -b, k);
 }
 `,
-			truchet_field: `
+		truchet_field: `
 #include <core_math>
 
 const TRUCHET_ROTS: array<mat2x2f, 4> = array<mat2x2f, 4>(
@@ -246,8 +246,8 @@ fn normal(p: vec2f, time: f32, resolution: vec2f) -> vec3f {
 	return normalize(vec3f(nx, ny, nz));
 }
 `
-		},
-		fragment: `
+	},
+	fragment: `
 #include <truchet_field>
 
 fn frag(uv: vec2f) -> vec4f {
@@ -289,9 +289,9 @@ fn frag(uv: vec2f) -> vec4f {
 	return vec4f(col, 1.0);
 }
 `
-	});
+});
 </script>
 
 <template>
-<FragCanvas :material="material" :passes="passes" outputColorSpace="linear" />
+	<FragCanvas :material="material" :passes="passes" outputColorSpace="linear" />
 </template>

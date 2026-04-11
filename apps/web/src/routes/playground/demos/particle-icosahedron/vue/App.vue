@@ -1,43 +1,43 @@
 <script setup lang="ts">
 //
-	// Shader by @madebyhex
-	// Licensed under CC BY-NC-SA 4.0
-	// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-	//
-	import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
-	import Runtime from './runtime.vue';
+// Shader by @madebyhex
+// Licensed under CC BY-NC-SA 4.0
+// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+//
+import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+import Runtime from './runtime.vue';
 
-	const FACE_COUNT = 20;
-	const PARTICLES_PER_FACE = 24000;
-	const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
-	const FLOATS_PER_PARTICLE = 6;
-	const BUFFER_SIZE = PARTICLE_COUNT * FLOATS_PER_PARTICLE * 4;
-	const TEX_SIZE = 1024;
+const FACE_COUNT = 20;
+const PARTICLES_PER_FACE = 24000;
+const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
+const FLOATS_PER_PARTICLE = 6;
+const BUFFER_SIZE = PARTICLE_COUNT * FLOATS_PER_PARTICLE * 4;
+const TEX_SIZE = 1024;
 
-	const initialData = new Float32Array(PARTICLE_COUNT * FLOATS_PER_PARTICLE);
-	for (let face = 0; face < FACE_COUNT; face++) {
-		for (let i = 0; i < PARTICLES_PER_FACE; i++) {
-			const index = face * PARTICLES_PER_FACE + i;
-			const base = index * FLOATS_PER_PARTICLE;
+const initialData = new Float32Array(PARTICLE_COUNT * FLOATS_PER_PARTICLE);
+for (let face = 0; face < FACE_COUNT; face++) {
+	for (let i = 0; i < PARTICLES_PER_FACE; i++) {
+		const index = face * PARTICLES_PER_FACE + i;
+		const base = index * FLOATS_PER_PARTICLE;
 
-			let u = Math.random();
-			let v = Math.random();
-			if (u + v > 1) {
-				u = 1 - u;
-				v = 1 - v;
-			}
-
-			initialData[base] = face;
-			initialData[base + 1] = u;
-			initialData[base + 2] = v;
-			initialData[base + 3] = Math.random() * Math.PI * 2;
-			initialData[base + 4] = 0.35 + Math.random() * 0.9;
-			initialData[base + 5] = Math.random();
+		let u = Math.random();
+		let v = Math.random();
+		if (u + v > 1) {
+			u = 1 - u;
+			v = 1 - v;
 		}
-	}
 
-	const material = defineMaterial({
-		fragment: `
+		initialData[base] = face;
+		initialData[base + 1] = u;
+		initialData[base + 2] = v;
+		initialData[base + 3] = Math.random() * Math.PI * 2;
+		initialData[base + 4] = 0.35 + Math.random() * 0.9;
+		initialData[base + 5] = Math.random();
+	}
+}
+
+const material = defineMaterial({
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   let aspect = motiongpuFrame.resolution.x / max(motiongpuFrame.resolution.y, 1.0);
   let fit = select(vec2f(1.0, 1.0 / aspect), vec2f(aspect, 1.0), aspect > 1.0);
@@ -54,31 +54,31 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(color, 1.0);
 }
 `,
-		textures: {
-			densityMap: {
-				storage: true,
-				format: 'rgba16float',
-				width: TEX_SIZE,
-				height: TEX_SIZE,
-				filter: 'linear'
-			}
-		},
-		storageBuffers: {
-			particles: {
-				size: BUFFER_SIZE,
-				type: 'array<f32>',
-				access: 'read-write',
-				initialData
-			}
-		},
-		uniforms: {
-			uRotateY: 0,
-			uRotateX: 0
+	textures: {
+		densityMap: {
+			storage: true,
+			format: 'rgba16float',
+			width: TEX_SIZE,
+			height: TEX_SIZE,
+			filter: 'linear'
 		}
-	});
+	},
+	storageBuffers: {
+		particles: {
+			size: BUFFER_SIZE,
+			type: 'array<f32>',
+			access: 'read-write',
+			initialData
+		}
+	},
+	uniforms: {
+		uRotateY: 0,
+		uRotateX: 0
+	}
+});
 
-	const clearDensity = new ComputePass({
-		compute: `
+const clearDensity = new ComputePass({
+	compute: `
 const TEX_SIZE: u32 = ${TEX_SIZE}u;
 
 @compute @workgroup_size(16, 16)
@@ -87,11 +87,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   textureStore(densityMap, vec2u(id.xy), vec4f(0.0));
 }
 `,
-		dispatch: [Math.ceil(TEX_SIZE / 16), Math.ceil(TEX_SIZE / 16)]
-	});
+	dispatch: [Math.ceil(TEX_SIZE / 16), Math.ceil(TEX_SIZE / 16)]
+});
 
-	const simulate = new ComputePass({
-		compute: `
+const simulate = new ComputePass({
+	compute: `
 const FACE_COUNT: u32 = ${FACE_COUNT}u;
 const PARTICLE_COUNT: u32 = ${PARTICLE_COUNT}u;
 const TEX_SIZE_F: f32 = ${TEX_SIZE}.0;
@@ -305,12 +305,12 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   }
 }
 `,
-		dispatch: [Math.ceil(PARTICLE_COUNT / 256)]
-	});
+	dispatch: [Math.ceil(PARTICLE_COUNT / 256)]
+});
 </script>
 
 <template>
-<FragCanvas :material="material" :passes="[clearDensity, simulate]" :dpr="2">
-	<Runtime />
-</FragCanvas>
+	<FragCanvas :material="material" :passes="[clearDensity, simulate]" :dpr="2">
+		<Runtime />
+	</FragCanvas>
 </template>

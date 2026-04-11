@@ -292,10 +292,7 @@ export const createPlaygroundController = (
 	};
 
 	const initialDemoFiles = toFilesForDemo(initialResolvedDemoId, initialResolvedFramework);
-	const initialFilePaths = sortFilePaths(
-		Object.keys(initialDemoFiles),
-		initialResolvedFramework
-	);
+	const initialFilePaths = sortFilePaths(Object.keys(initialDemoFiles), initialResolvedFramework);
 	let fileContents = $state<Record<string, string>>(initialDemoFiles);
 	let openFilePaths = $state<string[]>([...initialFilePaths]);
 	const runtimeLogTail = $derived(

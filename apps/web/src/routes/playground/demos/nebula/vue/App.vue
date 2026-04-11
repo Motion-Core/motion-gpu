@@ -1,13 +1,13 @@
 <script setup>
 //
-	// Shader by @madebyhex
-	// Licensed under CC BY-NC-SA 4.0
-	// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-	//
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+// Shader by @madebyhex
+// Licensed under CC BY-NC-SA 4.0
+// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+//
+import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
 
-	const material = defineMaterial({
-		fragment: `
+const material = defineMaterial({
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
     let resolution = motiongpuFrame.resolution;
     let time = motiongpuFrame.time * 0.1;
@@ -51,9 +51,9 @@ fn frag(uv: vec2f) -> vec4f {
     return vec4f(o.rgb, 1.0);
 }
 `
-	});
+});
 </script>
 
 <template>
-<FragCanvas :material="material" outputColorSpace="linear" :dpr="1.0" />
+	<FragCanvas :material="material" outputColorSpace="linear" :dpr="1.0" />
 </template>

@@ -1,23 +1,23 @@
 <script setup lang="ts">
 //
-	// Shader by @madebyhex
-	// Licensed under CC BY-NC-SA 4.0
-	// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-	//
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
-	import Runtime from './runtime.vue';
+// Shader by @madebyhex
+// Licensed under CC BY-NC-SA 4.0
+// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+//
+import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+import Runtime from './runtime.vue';
 
-	const material = defineMaterial({
-		uniforms: {
-			uClick0: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uClick1: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uClick2: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uClick3: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uClick4: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uClick5: { type: 'vec4f', value: [0, 0, 1, -100] },
-			uViewportScale: { type: 'f32', value: 1.0 }
-		},
-		fragment: `
+const material = defineMaterial({
+	uniforms: {
+		uClick0: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uClick1: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uClick2: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uClick3: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uClick4: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uClick5: { type: 'vec4f', value: [0, 0, 1, -100] },
+		uViewportScale: { type: 'f32', value: 1.0 }
+	},
+	fragment: `
 const MAX_STEPS: i32 = 256;
 const CLOSENESS: f32 = 0.00001;
 const EPSILON: f32 = 0.005;
@@ -207,11 +207,11 @@ fn frag(uv: vec2f) -> vec4f {
 	return fragColor;
 }
 `
-	});
+});
 </script>
 
 <template>
-<FragCanvas :material="material" outputColorSpace="linear" :dpr="1.0">
-	<Runtime />
-</FragCanvas>
+	<FragCanvas :material="material" outputColorSpace="linear" :dpr="1.0">
+		<Runtime />
+	</FragCanvas>
 </template>

@@ -76,8 +76,8 @@ const loadVueCompiler = (): Promise<VueCompiler> => {
 
 	compilerPromise = (async () => {
 		const vueVersion = await resolve_version('vue', 'latest').catch(() => '3.5.32');
-		const compilerVersion = await resolve_version('@vue/compiler-sfc', vueVersion).catch(
-			async () => resolve_version('@vue/compiler-sfc', 'latest').catch(() => '3.5.32')
+		const compilerVersion = await resolve_version('@vue/compiler-sfc', vueVersion).catch(async () =>
+			resolve_version('@vue/compiler-sfc', 'latest').catch(() => '3.5.32')
 		);
 		const compilerPkg = await fetch_package('@vue/compiler-sfc', compilerVersion);
 		const compilerSource = compilerPkg.contents['dist/compiler-sfc.esm-browser.js']?.text;

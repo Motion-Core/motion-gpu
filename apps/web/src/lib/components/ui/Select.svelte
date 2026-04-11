@@ -188,7 +188,7 @@
 		type="button"
 		{id}
 		class={cn(
-			'relative inline-flex h-7 w-full items-center justify-end gap-1.5 rounded-sm px-2 text-xs text-foreground transition-colors duration-150 ease-out outline-none hover:bg-background focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50',
+			'relative inline-flex h-7 w-full items-center justify-end gap-1.5 rounded-sm px-2 text-xs text-foreground-muted transition-colors duration-150 ease-out outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50',
 			triggerClass
 		)}
 		{disabled}

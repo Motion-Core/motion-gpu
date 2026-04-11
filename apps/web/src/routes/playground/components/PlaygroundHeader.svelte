@@ -34,7 +34,7 @@
 	};
 </script>
 
-<div class="flex flex-wrap items-center justify-between gap-2">
+<div class="relative z-20 flex flex-wrap items-center justify-between gap-2">
 	<a
 		href={resolve('/')}
 		class="inline-flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm tracking-tight text-foreground transition-colors duration-150 ease-out hover:text-foreground"
@@ -50,10 +50,12 @@
 	</a>
 
 	<div class="order-3 flex w-full justify-center sm:order-2 sm:w-auto">
-		<div class="inset-shadow inline-flex items-center rounded-sm bg-background-inset p-0.5">
+		<div
+			class="inset-shadow inline-flex w-full items-center justify-between rounded-sm bg-background-inset p-0.5"
+		>
 			<button
 				type="button"
-				class="inline-flex h-7 w-7 items-center justify-center rounded-[3px] text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+				class="inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 				aria-label="Previous demo"
 				onclick={() => cycleDemo(-1)}
 				disabled={demoOptions.length < 2}
@@ -64,8 +66,8 @@
 			<label class="sr-only" for="playground-header-demo-select">Choose demo</label>
 			<Select
 				id="playground-header-demo-select"
-				class="w-[clamp(10rem,28vw,18rem)]"
-				triggerClass="h-7 bg-transparent hover:bg-background-muted"
+				class="w-96"
+				triggerClass="h-7"
 				menuClass="min-w-[11rem]"
 				value={activeDemoId}
 				options={demoOptions}
@@ -75,7 +77,7 @@
 
 			<button
 				type="button"
-				class="inline-flex h-7 w-7 items-center justify-center rounded-[3px] text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+				class="inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 				aria-label="Next demo"
 				onclick={() => cycleDemo(1)}
 				disabled={demoOptions.length < 2}

@@ -28,10 +28,10 @@
 		<button
 			type="button"
 			class={cn(
-				'inline-flex h-5 w-5 items-center justify-center rounded-[6px] text-foreground-muted transition-colors duration-150 ease-out',
+				'inline-flex h-5 w-5 items-center justify-center rounded-[6px] transition-colors duration-150 ease-out',
 				framework.value === activeFramework
 					? 'card bg-background text-foreground'
-					: 'hover:text-foreground'
+					: 'text-foreground-muted hover:text-foreground'
 			)}
 			aria-label={`Switch framework to ${framework.label}`}
 			aria-pressed={framework.value === activeFramework}

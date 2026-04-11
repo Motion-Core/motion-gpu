@@ -1,34 +1,41 @@
 import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
 
 export default function Runtime() {
-	const MAX_YAW = 0.8;
-	const MAX_PITCH = 0.8;
-	const SMOOTHING = 0.12;
+	const MAX_ORBIT_X = 0.8;
+	const MAX_ORBIT_Y = 0.8;
+	const FOLLOW_STRENGTH = 12.0;
+	const RETURN_STRENGTH = 7.0;
 
-	let targetYaw = 0;
-	let targetPitch = 0;
-	let yaw = 0;
-	let pitch = 0;
+	let desiredX = 0;
+	let desiredY = 0;
+	let orbitX = 0;
+	let orbitY = 0;
 
 	const pointer = usePointer({
 		onMove: (state) => {
 			if (!state.inside) {
 				return;
 			}
-			targetYaw = state.ndc[0] * MAX_YAW;
-			targetPitch = state.ndc[1] * MAX_PITCH;
+			desiredX = state.ndc[0] * MAX_ORBIT_X;
+			desiredY = state.ndc[1] * MAX_ORBIT_Y;
 		}
 	});
 
-	useFrame((state) => {
+	useFrame((frame) => {
 		const pointerState = pointer.state.current;
-		if (!pointerState.inside && !pointerState.pressed) {
-			targetYaw = 0;
-			targetPitch = 0;
+		const active = pointerState.inside || pointerState.pressed;
+		if (!active) {
+			desiredX = 0;
+			desiredY = 0;
 		}
-		yaw += (targetYaw - yaw) * SMOOTHING;
-		pitch += (targetPitch - pitch) * SMOOTHING;
-		state.setUniform('uMouse', [yaw, pitch]);
+
+		const stiffness = active ? FOLLOW_STRENGTH : RETURN_STRENGTH;
+		const smoothing = 1.0 - Math.exp(-stiffness * frame.delta);
+
+		orbitX += (desiredX - orbitX) * smoothing;
+		orbitY += (desiredY - orbitY) * smoothing;
+
+		frame.setUniform('uOrbit', [orbitX, orbitY]);
 	});
 
 	return null;

@@ -1,13 +1,17 @@
-//
-// Shader by @madebyhex
-// Licensed under CC BY-NC-SA 4.0
-// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-//
+/*
+ * Created by Marek Jóźwiak @madebyhex
+ *
+ * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+ * SPDX-License-Identifier: CC-BY-NC-SA-4.0
+ *
+ * You are free to share and adapt this work under the terms of the license.
+ * https://creativecommons.org/licenses/by-nc-sa/4.0/
+ */
 import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/react';
 import Runtime from './runtime';
 
 const FACE_COUNT = 20;
-const PARTICLES_PER_FACE = 24000;
+const PARTICLES_PER_FACE = 64000;
 const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
 const FLOATS_PER_PARTICLE = 6;
 const BUFFER_SIZE = PARTICLE_COUNT * FLOATS_PER_PARTICLE * 4;

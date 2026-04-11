@@ -1,216 +1,227 @@
-//
-// Original Shader by @Nrx
-// License: Unknown / not declared in source metadata
-// SPDX-License-Identifier: NOASSERTION
-// Source:
-// https://www.shadertoy.com/view/ltfXDM
-//
+/*
+ * Created by Marek Jóźwiak @madebyhex
+ *
+ * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+ * SPDX-License-Identifier: CC-BY-NC-SA-4.0
+ *
+ * You are free to share and adapt this work under the terms of the license.
+ * https://creativecommons.org/licenses/by-nc-sa/4.0/
+ */
 import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/react';
 import Runtime from './runtime';
 
 const material = defineMaterial({
 	defines: {
-		ALPHA: 0.95,
-		AMBIENT: 0.2,
-		DELTA: 0.001,
+		AMBIENT_LIGHT: 0.2,
+		EPSILON: 0.001,
+		GEM_ALPHA: 0.95,
+		MAX_BOUNCES: { type: 'i32', value: 10 },
+		MAX_DISTANCE: 20.0,
+		MAX_STEPS: { type: 'i32', value: 120 },
 		PI: 3.14159265359,
-		RAY_BOUNCE_MAX: { type: 'i32', value: 10 },
-		RAY_LENGTH_MAX: 20.0,
-		RAY_STEP_MAX: { type: 'i32', value: 120 },
-		SPECULAR_INTENSITY: 0.5,
-		SPECULAR_POWER: 3.0
+		SPECULAR_GAIN: 0.5,
+		SPECULAR_SHARPNESS: 3.0
 	},
 	fragment: `
-const COLOR: vec3f = vec3f(0.8, 0.8, 0.9);
-const REFRACT_INDEX: vec3f = vec3f(2.407, 2.426, 2.451);
-const LIGHT_DIRECTION: vec3f = vec3f(0.57735026, 0.57735026, -0.57735026);
+const BASE_TINT: vec3f = vec3f(0.8, 0.8, 0.9);
+const DISPERSION: vec3f = vec3f(2.451, 2.451, 2.451);
+const LIGHT_VECTOR: vec3f = vec3f(0.57735026, 0.57735026, -0.57735026);
+const SECTOR: f32 = PI / 12.0;
+
+struct RayHit {
+	position: vec3f,
+	distance: f32,
+	travel: f32,
+}
+
+fn wrap_angle(angle: f32, period: f32) -> f32 {
+	return angle - period * floor((angle + 0.5 * period) / period);
+}
 
 fn rotate_x(p: vec3f, angle: f32) -> vec3f {
 	let c = cos(angle);
 	let s = sin(angle);
-	return vec3f(p.x, c * p.y + s * p.z, -s * p.y + c * p.z);
+	return vec3f(p.x, c * p.y - s * p.z, s * p.y + c * p.z);
 }
 
 fn rotate_y(p: vec3f, angle: f32) -> vec3f {
 	let c = cos(angle);
 	let s = sin(angle);
-	return vec3f(c * p.x - s * p.z, p.y, c * p.z + s * p.x);
+	return vec3f(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
 }
 
-fn rotate_z(p: vec3f, angle: f32) -> vec3f {
-	let c = cos(angle);
-	let s = sin(angle);
-	return vec3f(c * p.x + s * p.y, -s * p.x + c * p.y, p.z);
+fn fold_ring(p: vec3f, phase: f32) -> vec3f {
+	let radius = length(p.xz);
+	let azimuth = atan2(p.x, p.z) - phase;
+	let local = wrap_angle(azimuth, SECTOR);
+	return vec3f(radius * sin(local), p.y, radius * cos(local));
 }
 
-fn m_rotate(p: vec3f, angle: vec3f) -> vec3f {
-	let rx = rotate_x(p, angle.x);
-	let ry = rotate_y(rx, angle.y);
-	return rotate_z(ry, angle.z);
+fn orient_gem(p: vec3f) -> vec3f {
+	let orbit = motiongpuUniforms.uOrbit;
+	let pitch = orbit.y;
+	let yaw = orbit.x;
+	return rotate_y(rotate_x(p, pitch), yaw);
 }
 
-fn v_rotate_y(p: vec3f, angle: f32) -> vec3f {
-	let c = cos(angle);
-	let s = sin(angle);
-	return vec3f(c * p.x - s * p.z, p.y, c * p.z + s * p.x);
+fn gem_distance(p_world: vec3f) -> f32 {
+	let p = orient_gem(p_world);
+
+	let top_a = normalize(vec3f(0.0, 1.0, 1.4));
+	let top_b = normalize(vec3f(0.0, 1.0, 1.0));
+	let top_c = normalize(vec3f(0.0, 1.0, 0.5));
+	let bottom_a = normalize(vec3f(0.0, -1.0, 1.0));
+	let bottom_b = normalize(vec3f(0.0, -1.0, 1.6));
+
+	let primary = fold_ring(p, SECTOR * 0.5);
+	let secondary = fold_ring(p, 0.0);
+
+	var d = p.y - 1.0;
+	d = max(d, dot(primary, top_a) - 2.0);
+	d = max(d, dot(primary, top_c) - 1.5);
+	d = max(d, dot(primary, bottom_a) - 1.7);
+	d = max(d, dot(secondary, top_b) - 1.85);
+	d = max(d, dot(secondary, bottom_b) - 1.9);
+	return d;
 }
 
-fn sample_env(direction: vec3f) -> vec3f {
-	let up = clamp(direction.y * 0.5 + 0.5, 0.0, 1.0);
-	let horizon = exp(-8.0 * abs(direction.y));
-	let sky = mix(vec3f(0.14, 0.18, 0.28), vec3f(0.65, 0.68, 0.8), pow(up, 0.9));
-	let haze = mix(
-		vec3f(0.24, 0.22, 0.34),
-		vec3f(0.2, 0.31, 0.43),
-		0.5 + 0.5 * sin(direction.x * 2.0 + direction.z * 1.7)
+fn gem_normal(p: vec3f) -> vec3f {
+	let e = EPSILON;
+	let dx = gem_distance(p + vec3f(e, 0.0, 0.0)) - gem_distance(p - vec3f(e, 0.0, 0.0));
+	let dy = gem_distance(p + vec3f(0.0, e, 0.0)) - gem_distance(p - vec3f(0.0, e, 0.0));
+	let dz = gem_distance(p + vec3f(0.0, 0.0, e)) - gem_distance(p - vec3f(0.0, 0.0, e));
+	return normalize(vec3f(dx, dy, dz));
+}
+
+fn sky_color(rd: vec3f) -> vec3f {
+	let up = clamp(0.5 + 0.5 * rd.y, 0.0, 1.0);
+	let horizon = exp(-9.0 * abs(rd.y));
+	let high = mix(vec3f(0.03, 0.0, 0.0), vec3f(0.11, 0.11, 0.11), pow(up, 20.3));
+	let low = mix(
+		vec3f(0.08, 0.1, 0.15),
+		vec3f(0.14, 0.1, 0.18),
+		0.5 + 0.5 * sin(rd.x * 4.3 + rd.z * 3.1)
 	);
-	return mix(sky, haze, horizon * 0.35);
+	return vec3f(0.02, 0.026, 0.036) + mix(high, low, horizon * 7.0);
 }
 
-fn get_distance(p_in: vec3f) -> f32 {
-	let mouse = motiongpuUniforms.uMouse;
-	let normal_top_a = normalize(vec3f(0.0, 1.0, 1.4));
-	let normal_top_b = normalize(vec3f(0.0, 1.0, 1.0));
-	let normal_top_c = normalize(vec3f(0.0, 1.0, 0.5));
-	let normal_bottom_a = normalize(vec3f(0.0, -1.0, 1.0));
-	let normal_bottom_b = normalize(vec3f(0.0, -1.0, 1.6));
+fn march(origin: vec3f, direction: vec3f, side: f32, start_travel: f32) -> RayHit {
+	var travel = start_travel;
+	var position = origin;
+	var distance = MAX_DISTANCE;
 
-	var p = m_rotate(p_in, vec3f(mouse.y, mouse.x, 0.0));
-	let top_cut = p.y - 1.0;
+	for (var i = 0; i < MAX_STEPS; i = i + 1) {
+		distance = side * gem_distance(position);
+		let step_size = max(distance, EPSILON);
+		travel += step_size;
 
-	let angle_step = PI / 8.0;
-
-	var angle = angle_step * (0.5 + floor(atan2(p.x, p.z) / angle_step));
-	var q = v_rotate_y(p, angle);
-
-	let top_a = dot(q, normal_top_a) - 2.0;
-	let top_c = dot(q, normal_top_c) - 1.5;
-	let bottom_a = dot(q, normal_bottom_a) - 1.7;
-
-	q = v_rotate_y(p, -angle_step * 0.5);
-	angle = angle_step * floor(atan2(q.x, q.z) / angle_step);
-	q = v_rotate_y(p, angle);
-
-	let top_b = dot(q, normal_top_b) - 1.85;
-	let bottom_b = dot(q, normal_bottom_b) - 1.9;
-
-	return max(top_cut, max(top_a, max(top_b, max(top_c, max(bottom_a, bottom_b)))));
-}
-
-fn get_normal(p: vec3f) -> vec3f {
-	let h = vec2f(DELTA, -DELTA);
-	let n = vec3f(h.x, h.x, h.x) * get_distance(p + vec3f(h.x, h.x, h.x))
-		+ vec3f(h.x, h.y, h.y) * get_distance(p + vec3f(h.x, h.y, h.y))
-		+ vec3f(h.y, h.x, h.y) * get_distance(p + vec3f(h.y, h.x, h.y))
-		+ vec3f(h.y, h.y, h.x) * get_distance(p + vec3f(h.y, h.y, h.x));
-	return normalize(n);
-}
-
-fn raycast(origin_in: vec3f, direction_in: vec3f, normal_in: vec4f, color_in: f32, channel: vec3f) -> f32 {
-	var origin = origin_in;
-	var direction = direction_in;
-	var normal = normal_in;
-	var color = color_in * (1.0 - ALPHA);
-	var intensity = ALPHA;
-	var distance_factor = 1.0;
-	let refract_index = dot(REFRACT_INDEX, channel);
-
-	for (var ray_bounce = 1; ray_bounce < RAY_BOUNCE_MAX; ray_bounce = ray_bounce + 1) {
-		let eta = select(refract_index, 1.0 / refract_index, distance_factor > 0.0);
-		let refraction = refract(direction, normal.xyz, eta);
-		if (dot(refraction, refraction) < DELTA) {
-			direction = reflect(direction, normal.xyz);
-			origin += direction * DELTA * 2.0;
-		} else {
-			direction = refraction;
-			distance_factor = -distance_factor;
-		}
-
-		var dist = RAY_LENGTH_MAX;
-		for (var ray_step = 0; ray_step < RAY_STEP_MAX; ray_step = ray_step + 1) {
-			dist = distance_factor * get_distance(origin);
-			let dist_min = max(dist, DELTA);
-			normal = vec4f(normal.xyz, normal.w + dist_min);
-			if (dist < 0.0 || normal.w > RAY_LENGTH_MAX) {
-				break;
-			}
-			origin += direction * dist_min;
-		}
-
-		if (dist >= 0.0) {
+		if (distance < 0.0 || travel > MAX_DISTANCE) {
 			break;
 		}
 
-		normal = vec4f(distance_factor * get_normal(origin), normal.w);
+		position += direction * step_size;
+	}
 
-		if (distance_factor > 0.0) {
-			let reflection_diffuse = max(0.0, dot(normal.xyz, LIGHT_DIRECTION));
-			let reflection_specular = pow(
-				max(0.0, dot(reflect(direction, normal.xyz), LIGHT_DIRECTION)),
-				SPECULAR_POWER
-			) * SPECULAR_INTENSITY;
-			let local_color = (AMBIENT + reflection_diffuse) * dot(COLOR, channel) + reflection_specular;
-			color += local_color * (1.0 - ALPHA) * intensity;
-			intensity *= ALPHA;
+	return RayHit(position, distance, travel);
+}
+
+fn sparkle(n: vec3f, rd: vec3f) -> f32 {
+	let reflected = reflect(rd, n);
+	let highlight = max(dot(reflected, LIGHT_VECTOR), 0.0);
+	return pow(highlight, SPECULAR_SHARPNESS) * SPECULAR_GAIN;
+}
+
+fn refract_channel(
+	surface_position: vec3f,
+	incoming_ray: vec3f,
+	surface_normal: vec3f,
+	base_value: f32,
+	channel_mask: vec3f,
+	travel_seed: f32
+) -> f32 {
+	var position = surface_position;
+	var ray = incoming_ray;
+	var normal = surface_normal;
+	var side = 1.0;
+	var travel = travel_seed;
+	var result = base_value * (1.0 - GEM_ALPHA);
+	var throughput = GEM_ALPHA;
+	let ior = dot(DISPERSION, channel_mask);
+
+	for (var bounce = 1; bounce < MAX_BOUNCES; bounce = bounce + 1) {
+		let eta = select(ior, 1.0 / ior, side > 0.0);
+		let transmitted = refract(ray, normal, eta);
+		let has_refraction = dot(transmitted, transmitted) > EPSILON;
+
+		if (has_refraction) {
+			ray = transmitted;
+			side = -side;
+		} else {
+			ray = reflect(ray, normal);
+			position += ray * EPSILON * 2.0;
+		}
+
+		let hit = march(position, ray, side, travel);
+		position = hit.position;
+		travel = hit.travel;
+
+		if (hit.distance >= 0.0) {
+			break;
+		}
+
+		normal = side * gem_normal(position);
+
+		if (side > 0.0) {
+			let diffuse = max(0.0, dot(normal, LIGHT_VECTOR));
+			let local = (AMBIENT_LIGHT + diffuse) * dot(BASE_TINT, channel_mask) + sparkle(normal, ray);
+			result += local * (1.0 - GEM_ALPHA) * throughput;
+			throughput *= GEM_ALPHA;
 		}
 	}
 
-	let back_color = dot(sample_env(direction), channel);
-	return color + back_color * intensity;
+	return result + dot(sky_color(ray), channel_mask) * throughput;
+}
+
+fn camera_basis(eye: vec3f, look_at: vec3f) -> mat3x3f {
+	let forward = normalize(look_at - eye);
+	let right = normalize(cross(vec3f(0.0, 1.0, 0.0), forward));
+	let up = cross(forward, right);
+	return mat3x3f(right, up, forward);
 }
 
 fn frag(uv: vec2f) -> vec4f {
 	let resolution = motiongpuFrame.resolution;
-	let frag_coord = uv * resolution;
+	let screen = (2.0 * uv * resolution - resolution) / resolution.y;
+	let ray_camera = normalize(vec3f(screen, 2.0));
 
-	let frag = (2.0 * frag_coord - resolution) / resolution.y;
-	var direction = normalize(vec3f(frag, 2.0));
+	let eye = vec3f(8.0, 2.5, 8.0);
+	let ray_world = camera_basis(eye, vec3f(0.0)) * ray_camera;
 
-	var origin = vec3f(8.0, 2.5, 8.0);
-	let forward = -origin;
-	let up = vec3f(0.0, 1.0, 0.0);
-	let rotation_z = normalize(forward);
-	let rotation_x = normalize(cross(up, forward));
-	let rotation_y = cross(rotation_z, rotation_x);
-	let rotation = mat3x3f(rotation_x, rotation_y, rotation_z);
-	direction = rotation * direction;
-
-	var normal = vec4f(0.0);
-	var dist = RAY_LENGTH_MAX;
-
-	for (var ray_step = 0; ray_step < RAY_STEP_MAX; ray_step = ray_step + 1) {
-		dist = get_distance(origin);
-		let dist_min = max(dist, DELTA);
-		normal = vec4f(normal.xyz, normal.w + dist_min);
-		if (dist < 0.0 || normal.w > RAY_LENGTH_MAX) {
-			break;
-		}
-		origin += direction * dist_min;
+	let front_hit = march(eye, ray_world, 1.0, 0.0);
+	if (front_hit.distance >= 0.0) {
+		return vec4f(vec3f(0.02, 0.026, 0.036), 1.0);
 	}
 
-	var rgb = vec3f(0.0);
+	let normal = gem_normal(front_hit.position);
+	let diffuse = max(0.0, dot(normal, LIGHT_VECTOR));
+	let specular = sparkle(normal, ray_world);
+	var color = (AMBIENT_LIGHT + diffuse) * BASE_TINT + specular;
 
-	if (dist >= 0.0) {
-		rgb = sample_env(direction);
-	} else {
-		normal = vec4f(get_normal(origin), normal.w);
-		let reflection_diffuse = max(0.0, dot(normal.xyz, LIGHT_DIRECTION));
-		let reflection_specular = pow(
-			max(0.0, dot(reflect(direction, normal.xyz), LIGHT_DIRECTION)),
-			SPECULAR_POWER
-		) * SPECULAR_INTENSITY;
-		rgb = (AMBIENT + reflection_diffuse) * COLOR + reflection_specular;
+	color.r = refract_channel(front_hit.position, ray_world, normal, color.r, vec3f(1.0, 0.0, 0.0), front_hit.travel);
+	color.g = refract_channel(front_hit.position, ray_world, normal, color.g, vec3f(0.0, 1.0, 0.0), front_hit.travel);
+	color.b = refract_channel(front_hit.position, ray_world, normal, color.b, vec3f(0.0, 0.0, 1.0), front_hit.travel);
 
-		rgb.r = raycast(origin, direction, normal, rgb.r, vec3f(1.0, 0.0, 0.0));
-		rgb.g = raycast(origin, direction, normal, rgb.g, vec3f(0.0, 1.0, 0.0));
-		rgb.b = raycast(origin, direction, normal, rgb.b, vec3f(0.0, 0.0, 1.0));
-	}
+	let rim = pow(1.0 - max(dot(normal, -ray_world), 0.0), max(0.001, motiongpuUniforms.uEdgePower)) * motiongpuUniforms.uEdgeGain;
+	color += motiongpuUniforms.uEdgeColor * rim;
 
-	return vec4f(max(rgb, vec3f(0.0)), 1.0);
+	return vec4f(max(color, vec3f(0.0)), 1.0);
 }
 `,
 	uniforms: {
-		uMouse: { type: 'vec2f', value: [0, 0] }
+		uEdgeColor: { type: 'vec3f', value: [1.0, 1.0, 1.0] },
+		uEdgeGain: { type: 'f32', value: 2.2 },
+		uEdgePower: { type: 'f32', value: 5.2 },
+		uOrbit: { type: 'vec2f', value: [0, 0] }
 	}
 });
 

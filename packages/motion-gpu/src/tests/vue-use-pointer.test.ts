@@ -140,15 +140,16 @@ async function renderPointerProbe(
 			width: 100,
 			height: 100
 		}) as DOMRect;
+	const runtimeHarnessInput: Parameters<typeof createRuntimeHarness>[0] = {
+		canvas,
+		...(input.renderMode !== undefined ? { renderMode: input.renderMode } : {}),
+		...(input.spies?.advanceSpy ? { advanceSpy: input.spies.advanceSpy } : {}),
+		...(input.spies?.invalidateSpy ? { invalidateSpy: input.spies.invalidateSpy } : {})
+	};
 
 	render(MotionGPUProvider, {
 		props: {
-			payload: createRuntimeHarness({
-				canvas,
-				renderMode: input.renderMode,
-				advanceSpy: input.spies?.advanceSpy,
-				invalidateSpy: input.spies?.invalidateSpy
-			}),
+			payload: createRuntimeHarness(runtimeHarnessInput),
 			child: PointerProbe,
 			childProps: {
 				onProbe,

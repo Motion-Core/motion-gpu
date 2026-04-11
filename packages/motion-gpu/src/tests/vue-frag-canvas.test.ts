@@ -195,8 +195,8 @@ describe('Vue FragCanvas', () => {
 			}
 		});
 
-		const wrapper = view.container.querySelector('.motiongpu-canvas-wrap');
-		const canvas = view.container.querySelector('canvas');
+		const wrapper = view.container.querySelector<HTMLElement>('.motiongpu-canvas-wrap');
+		const canvas = view.container.querySelector<HTMLCanvasElement>('canvas');
 
 		expect(wrapper).toBeTruthy();
 		expect(canvas).toBeTruthy();

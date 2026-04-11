@@ -27,10 +27,7 @@ const TextureProbe = defineComponent({
 		}
 	},
 	setup(props) {
-		const result = useTexture(
-			() => props.urls,
-			() => props.options ?? {}
-		);
+		const result = useTexture(() => props.urls, props.options ?? {});
 
 		onMounted(() => {
 			props.onProbe(result);

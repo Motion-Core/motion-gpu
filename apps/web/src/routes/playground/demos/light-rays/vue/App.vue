@@ -1,25 +1,30 @@
 <script setup>
+//
+// Shader by @madebyhex
+// Licensed under CC BY-NC-SA 4.0
+// SPDX-License-Identifier: CC-BY-NC-SA-4.0
+//
 import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
 
-	const material = defineMaterial({
-		defines: {
-			RAY_ANCHOR_X: 0.5,
-			RAY_ANCHOR_Y: 1.2,
-			RAY_DIR_X: 0.0,
-			RAY_DIR_Y: -1.0,
-			RAYS_COLOR_R: 1.0,
-			RAYS_COLOR_G: 1.0,
-			RAYS_COLOR_B: 1.0,
-			RAYS_SPEED: 1.0,
-			LIGHT_SPREAD: 1.0,
-			RAY_LENGTH: 1.0,
-			PULSATING: false,
-			FADE_DISTANCE: 1.0,
-			SATURATION: 1.0,
-			NOISE_AMOUNT: 0.0,
-			DISTORTION: 0.0
-		},
-		fragment: `
+const material = defineMaterial({
+	defines: {
+		RAY_ANCHOR_X: 0.5,
+		RAY_ANCHOR_Y: 1.2,
+		RAY_DIR_X: 0.0,
+		RAY_DIR_Y: -1.0,
+		RAYS_COLOR_R: 1.0,
+		RAYS_COLOR_G: 1.0,
+		RAYS_COLOR_B: 1.0,
+		RAYS_SPEED: 1.0,
+		LIGHT_SPREAD: 1.0,
+		RAY_LENGTH: 1.0,
+		PULSATING: false,
+		FADE_DISTANCE: 1.0,
+		SATURATION: 1.0,
+		NOISE_AMOUNT: 0.0,
+		DISTORTION: 0.0
+	},
+	fragment: `
 fn noise2(st: vec2f) -> f32 {
 	return fract(sin(dot(st, vec2f(12.9898, 78.233))) * 43758.5453123);
 }
@@ -93,9 +98,9 @@ fn frag(uv: vec2f) -> vec4f {
 	return vec4f(rgb, 1.0);
 }
 `
-	});
+});
 </script>
 
 <template>
-<FragCanvas :material="material" outputColorSpace="linear" />
+	<FragCanvas :material="material" outputColorSpace="linear" />
 </template>

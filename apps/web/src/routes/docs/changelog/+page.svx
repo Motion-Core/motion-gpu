@@ -7,6 +7,23 @@ description: All notable changes to Motion Core will be documented in this file.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-04-11
+### Added
+- Added first-class Vue adapter support with dedicated `@motion-core/motion-gpu/vue` and `@motion-core/motion-gpu/vue/advanced` entrypoints.
+- Added Vue adapter runtime surface parity (`FragCanvas`, `MotionGPUErrorOverlay`, `Portal`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, and user-context helpers).
+- Added comprehensive Vue adapter test coverage, including runtime behavior, hooks, context, portal rendering, and adapter API parity.
+- Added a full Vue E2E harness with scenario parity for runtime, uniforms, textures, passes, mixed passes, lifecycle, perf, and shader recovery checks.
+- Added Vue declaration emit step (`emit-vue-dts.mjs`) and Vue TS config support for package type generation and validation.
+
+### Changed
+- Updated package metadata to include Vue exports (`./vue`, `./vue/advanced`), Vue peer dependency declarations, and Vue-oriented dev tooling dependencies.
+- Updated package checks to run `vue-tsc` and added a dedicated `e2e:serve:vue` workflow for framework-scoped E2E runs.
+- Updated package build pipeline to process `.vue` entrypoints and include Vue plugin integration in package builds.
+
+### Fixed
+- Added Vue module shims to stabilize package-level Vue type-check workflows.
+- Stabilized Vue adapter canvas layout behavior and ensured adapter CSS is injected in Vue entry output bundles.
+
 ## [0.7.0] - 2026-04-07
 ### Added
 - Added new framework-agnostic pointer helpers in `core/pointer`, including pointer kind normalization, coordinate conversion (`px`, `uv`, `ndc`), and frame-request mode resolution.
@@ -159,8 +176,9 @@ description: All notable changes to Motion Core will be documented in this file.
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
-[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/f0fde6f...HEAD
+[0.8.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...f0fde6f
+[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915

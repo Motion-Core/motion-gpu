@@ -1,14 +1,21 @@
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
-import { indentWithTab } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { css as cssLanguage } from '@codemirror/lang-css';
 import { html as htmlLanguage } from '@codemirror/lang-html';
 import { javascript } from '@codemirror/lang-javascript';
 import { json as jsonLanguage } from '@codemirror/lang-json';
 import { HighlightStyle, indentUnit, syntaxHighlighting } from '@codemirror/language';
-import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
+import {
+	EditorView,
+	highlightActiveLine,
+	highlightActiveLineGutter,
+	highlightSpecialChars,
+	keymap,
+	lineNumbers,
+	type ViewUpdate
+} from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { svelte as svelteLanguage } from '@replit/codemirror-lang-svelte';
-import { basicSetup } from 'codemirror';
 import {
 	getPlaygroundDemoById,
 	getPlaygroundDemoVariant,
@@ -164,6 +171,15 @@ const languageExtensionForPath = (filePath: string): Extension => {
 	if (filePath.endsWith('.css')) return cssLanguage();
 	return [];
 };
+
+const playgroundEditorBaseExtensions: Extension[] = [
+	lineNumbers(),
+	highlightActiveLineGutter(),
+	highlightSpecialChars(),
+	highlightActiveLine(),
+	history(),
+	keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap])
+];
 
 export const createPlaygroundController = (
 	initialDemoId?: string | null,
@@ -372,11 +388,10 @@ export const createPlaygroundController = (
 				state: EditorState.create({
 					doc: fileContents[activeFilePath] ?? '',
 					extensions: [
-						basicSetup,
+						playgroundEditorBaseExtensions,
 						EditorState.tabSize.of(2),
 						indentUnit.of('  '),
 						EditorView.lineWrapping,
-						keymap.of([indentWithTab]),
 						languageCompartment.of(languageExtensionForPath(activeFilePath)),
 						themeCompartment.of([createEditorTheme(activeEditorTheme), editorSyntaxTheme]),
 						EditorView.updateListener.of(handleEditorUpdate)

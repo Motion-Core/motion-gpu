@@ -113,6 +113,12 @@ const RENDER_EXPORT_REGEX = /\bexport\s+function\s+render\b/;
 
 const vueSfcPlugin = (): Plugin => ({
 	name: 'vue-sfc-transform',
+	shouldTransformCachedModule({ id }) {
+		// Rollup's incremental cache can keep stale SFC transforms in the playground
+		// worker. Force re-transform for .vue modules so editor changes are always
+		// reflected in the preview on every rebuild.
+		return VUE_EXTENSION_REGEX.test(id);
+	},
 	async transform(code, id) {
 		if (!VUE_EXTENSION_REGEX.test(id)) return null;
 

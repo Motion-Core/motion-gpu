@@ -400,7 +400,15 @@ async function get_bundle(
 
 	bundle = await rollup({
 		input: './__entry.js',
-		cache: previous?.key === key ? previous.cache : true,
+		// Vue playground rebuilds can retain stale module state in Rollup's incremental
+		// cache, which breaks repeated runtime error surfacing in the preview.
+		// Use a fresh graph for Vue while keeping cache for Svelte/React rebuild speed.
+		cache:
+			framework === 'vue'
+				? false
+				: previous?.key === key
+					? previous.cache
+					: true,
 		plugins: [
 			alias_plugin(undefined, virtual),
 			typegpuTransformPlugin(),

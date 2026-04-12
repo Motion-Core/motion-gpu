@@ -253,10 +253,7 @@
 			onkeydown={(event) => resizeByKeyboard(event)}
 		></button>
 
-		<PlaygroundPreview
-			{controller}
-			{onPreviewFrameChange}
-		/>
+		<PlaygroundPreview {controller} {onPreviewFrameChange} />
 	</div>
 </main>
 

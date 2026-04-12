@@ -2,7 +2,7 @@
 import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/vue';
 
 const MAX_IMPACTS = 8;
-	const REFERENCE_SHORT_EDGE = 860;
+const REFERENCE_SHORT_EDGE = 860;
 const MIN_FIT = 0.62;
 const MAX_FIT = 1.36;
 

@@ -313,6 +313,6 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	});
 </script>
 
-<FragCanvas {material} passes={[clearDensity, simulate]} dpr={2}>
+<FragCanvas {material} passes={[clearDensity, simulate]}>
 	<Runtime />
 </FragCanvas>

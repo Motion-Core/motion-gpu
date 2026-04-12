@@ -16,4 +16,4 @@
 	});
 </script>
 
-<FragCanvas {material} outputColorSpace="linear" dpr={1.0} />
+<FragCanvas {material} outputColorSpace="linear" />

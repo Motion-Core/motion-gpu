@@ -314,7 +314,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 </script>
 
 <template>
-	<FragCanvas :material="material" :passes="[clearDensity, simulate]" :dpr="2">
+	<FragCanvas :material="material" :passes="[clearDensity, simulate]">
 		<Runtime />
 	</FragCanvas>
 </template>

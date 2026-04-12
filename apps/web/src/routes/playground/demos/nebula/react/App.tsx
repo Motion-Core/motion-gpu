@@ -57,5 +57,5 @@ fn frag(uv: vec2f) -> vec4f {
 });
 
 export default function App() {
-	return <FragCanvas material={material} outputColorSpace="linear" dpr={1.0} />;
+	return <FragCanvas material={material} outputColorSpace="linear" />;
 }

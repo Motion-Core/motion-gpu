@@ -15,15 +15,16 @@ const toSafeOrigin = (value: string | null) => {
 
 type PreviewTheme = 'light' | 'dark';
 
-const toPreviewTheme = (value: string | null): PreviewTheme => (value === 'dark' ? 'dark' : 'light');
+const toPreviewTheme = (value: string | null): PreviewTheme =>
+	value === 'dark' ? 'dark' : 'light';
 
 const previewThemeTokens: Record<PreviewTheme, { background: string; foreground: string }> = {
 	light: {
-		background: 'oklch(1 0 0)',
+		background: 'oklch(0.9764 0.0013 265)',
 		foreground: 'oklch(0.1881 0.006 265)'
 	},
 	dark: {
-		background: 'oklch(0.2574 0.0056 265)',
+		background: 'oklch(0.2099 0.0039 265)',
 		foreground: 'oklch(0.9674 0.0013 265)'
 	}
 };

@@ -1,25 +1,27 @@
 import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/react';
 
 export default function Runtime() {
-	const MAX_WAVES = 6;
-	const REFERENCE_VIEWPORT = 900;
-	const MIN_VIEWPORT_SCALE = 0.7;
-	const MAX_VIEWPORT_SCALE = 1.18;
-	type WaveState = [number, number, number, number];
+	const MAX_IMPACTS = 8;
+		const REFERENCE_SHORT_EDGE = 860;
+	const MIN_FIT = 0.62;
+	const MAX_FIT = 1.36;
+
+	type ImpactState = [number, number, number, number];
 
 	const motiongpu = useMotionGPU();
-	const waves: WaveState[] = Array.from({ length: MAX_WAVES }, () => [0, 0, 1, -100]);
+	const impacts: ImpactState[] = Array.from({ length: MAX_IMPACTS }, () => [0, 0, 1, -100]);
 
-	let nextWaveIndex = 0;
 	let frameTime = 0;
+	let impactCursor = 0;
 
 	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-	const getViewportScale = (): number => {
+	const calcLens = (): number => {
 		const canvas = motiongpu.canvas;
 		if (canvas) {
 			const shortEdge = Math.max(320, Math.min(canvas.clientWidth, canvas.clientHeight));
-			return clamp(shortEdge / REFERENCE_VIEWPORT, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+			const fit = clamp(shortEdge / REFERENCE_SHORT_EDGE, MIN_FIT, MAX_FIT);
+			return 1.08 / fit;
 		}
 
 		const { width, height } = motiongpu.size.current;
@@ -28,30 +30,36 @@ export default function Runtime() {
 		}
 
 		const shortEdge = Math.max(320, Math.min(width, height));
-		return clamp(shortEdge / REFERENCE_VIEWPORT, MIN_VIEWPORT_SCALE, MAX_VIEWPORT_SCALE);
+		const fit = clamp(shortEdge / REFERENCE_SHORT_EDGE, MIN_FIT, MAX_FIT);
+		return 1.08 / fit;
 	};
 
-	const getRayScale = () => 3 / Math.max(getViewportScale(), 0.0001);
-
-	const toRotatedObjectSpace = (
-		point: [number, number, number],
-		time: number
-	): [number, number, number] => {
-		const angle = time * 0.2;
+	const rotateY = (v: [number, number, number], angle: number): [number, number, number] => {
 		const s = Math.sin(angle);
 		const c = Math.cos(angle);
-		const [x, y, z] = point;
-		return [-s * x + c * z, y, c * x + s * z];
+		return [c * v[0] + s * v[2], v[1], -s * v[0] + c * v[2]];
 	};
 
-	const intersectPlanetFromUv = (uv: [number, number]): [number, number, number] | null => {
+	const rotateX = (v: [number, number, number], angle: number): [number, number, number] => {
+		const s = Math.sin(angle);
+		const c = Math.cos(angle);
+		return [v[0], c * v[1] - s * v[2], s * v[1] + c * v[2]];
+	};
+
+	const worldToMoon = (v: [number, number, number], time: number): [number, number, number] => {
+		const yaw = time * 0.145;
+		const tilt = 0.18 + Math.sin(time * 0.11) * 0.05;
+		return rotateX(rotateY(v, yaw), tilt);
+	};
+
+	const intersectMoon = (uv: [number, number]): [number, number, number] | null => {
 		const { width, height } = motiongpu.size.current;
 		if (width <= 0 || height <= 0) {
 			return null;
 		}
 
 		const aspect = width / height;
-		const rayScale = getRayScale();
+		const rayScale = 3 * calcLens();
 		const sx = rayScale * (uv[0] - 0.5) * aspect;
 		const sy = rayScale * (uv[1] - 0.5);
 		const radial2 = sx * sx + sy * sy;
@@ -64,28 +72,33 @@ export default function Runtime() {
 	};
 
 	usePointer({
-		onClick: (click) => {
-			const worldPoint = intersectPlanetFromUv(click.uv);
-			if (!worldPoint) {
+		onClick: (pointerState) => {
+			const worldNormal = intersectMoon(pointerState.uv);
+			if (!worldNormal) {
 				return;
 			}
 
-			const point = toRotatedObjectSpace(worldPoint, frameTime);
-			const len = Math.hypot(point[0], point[1], point[2]);
-			if (len <= 1e-6) {
+			const moonNormal = worldToMoon(worldNormal, frameTime);
+			const norm = Math.hypot(moonNormal[0], moonNormal[1], moonNormal[2]);
+			if (norm <= 1e-6) {
 				return;
 			}
 
-			waves[nextWaveIndex] = [point[0] / len, point[1] / len, point[2] / len, frameTime];
-			nextWaveIndex = (nextWaveIndex + 1) % MAX_WAVES;
+			impacts[impactCursor] = [
+				moonNormal[0] / norm,
+				moonNormal[1] / norm,
+				moonNormal[2] / norm,
+				frameTime
+			];
+			impactCursor = (impactCursor + 1) % MAX_IMPACTS;
 		}
 	});
 
-	useFrame((state) => {
-		frameTime = state.time;
-		state.setUniform('uViewportScale', getViewportScale());
-		for (let i = 0; i < MAX_WAVES; i++) {
-			state.setUniform(`uClick${i}`, waves[i] as [number, number, number, number]);
+	useFrame((frame) => {
+		frameTime = frame.time;
+		frame.setUniform('uLens', calcLens());
+		for (let i = 0; i < MAX_IMPACTS; i++) {
+			frame.setUniform(`uImpact${i}`, impacts[i] as [number, number, number, number]);
 		}
 	});
 

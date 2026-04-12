@@ -19,7 +19,9 @@
 	};
 </script>
 
-<section class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background p-px">
+<section
+	class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background-inset p-px"
+>
 	<div class="relative min-h-0 flex-1 overflow-hidden rounded-[calc(var(--radius-base)*2.75)]">
 		{#key controller.previewFrameKey}
 			<iframe
@@ -39,13 +41,15 @@
 			<p class="font-mono text-xs font-normal whitespace-pre-wrap text-red-500" role="alert">
 				{controller.errorMessage}
 			</p>
-			<button
-				type="button"
-				class="mt-2 inline-flex items-center rounded border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-inset"
-				onclick={controller.retryRuntime}
-			>
-				Retry runtime
-			</button>
+			<div class="inset-shadow mt-2 inline-flex rounded-sm bg-background-inset p-1.5">
+				<button
+					type="button"
+					class="card inline-flex items-center rounded-[5px] bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-muted"
+					onclick={controller.retryRuntime}
+				>
+					Retry runtime
+				</button>
+			</div>
 		</div>
 	{/if}
 </section>

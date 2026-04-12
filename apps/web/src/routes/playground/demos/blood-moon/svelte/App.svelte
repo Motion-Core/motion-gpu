@@ -33,13 +33,6 @@ fn hash31(p: vec3f) -> f32 {
 	return fract(sin(dot(p, vec3f(127.1, 311.7, 74.7))) * 43758.5453123);
 }
 
-fn hash33(p: vec3f) -> vec3f {
-	let x = hash31(p + vec3f(0.0, 0.0, 0.0));
-	let y = hash31(p + vec3f(19.19, 73.13, 41.03));
-	let z = hash31(p + vec3f(57.71, 11.97, 91.39));
-	return vec3f(x, y, z);
-}
-
 fn valueNoise3(p: vec3f) -> f32 {
 	let i = floor(p);
 	let f = fract(p);
@@ -115,34 +108,6 @@ fn atmFieldLores(p: vec3f) -> f32 {
 	let n1 = atmNoise(p1 * 5.0);
 	let rocky = 0.1 * n1 * n1;
 	return length(p) - 1.0 + rocky * 0.2;
-}
-
-fn worleyPair(p: vec3f) -> vec2f {
-	let cell = floor(p);
-	let local = fract(p);
-	var nearest = 1000.0;
-	var second = 1000.0;
-
-	for (var z: i32 = -1; z <= 1; z += 1) {
-		for (var y: i32 = -1; y <= 1; y += 1) {
-			for (var x: i32 = -1; x <= 1; x += 1) {
-				let offset = vec3f(f32(x), f32(y), f32(z));
-				let sampleCell = cell + offset;
-				let jitter = hash33(sampleCell);
-				let delta = offset + jitter - local;
-				let d = dot(delta, delta);
-
-				if (d < nearest) {
-					second = nearest;
-					nearest = d;
-				} else if (d < second) {
-					second = d;
-				}
-			}
-		}
-	}
-
-	return vec2f(sqrt(nearest), sqrt(second));
 }
 
 fn rotateY(v: vec3f, angle: f32) -> vec3f {

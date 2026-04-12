@@ -398,6 +398,10 @@
 		background-color: var(--playground-editor-bg) !important;
 	}
 
+	:global(.cm-editor .cm-gutters) {
+		background-color: var(--playground-editor-gutter-bg) !important;
+	}
+
 	:global(.cm-editor) {
 		height: 100%;
 	}
@@ -461,6 +465,7 @@
 
 	:global(html:not(.dark)) {
 		--playground-editor-bg: transparent;
+		--playground-editor-gutter-bg: var(--color-background);
 		--playground-editor-fg: #1f2328;
 		--playground-editor-gutter-fg: #6e7781;
 		--playground-editor-gutter-border: #d0d7de;
@@ -482,6 +487,7 @@
 
 	:global(html.dark) {
 		--playground-editor-bg: transparent;
+		--playground-editor-gutter-bg: var(--color-background-inset);
 		--playground-editor-fg: #e6edf3;
 		--playground-editor-gutter-fg: #7d8590;
 		--playground-editor-gutter-border: #30363d;

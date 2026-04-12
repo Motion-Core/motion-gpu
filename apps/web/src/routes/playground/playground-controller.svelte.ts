@@ -134,10 +134,13 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 				padding: '0 12px 0 14px'
 			},
 			'.cm-gutters': {
-				backgroundColor: 'var(--playground-editor-bg)',
+				backgroundColor: 'var(--playground-editor-gutter-bg)',
 				borderRight: '1px solid var(--playground-editor-gutter-border)',
 				color: 'var(--playground-editor-gutter-fg)',
-				minWidth: '52px'
+				minWidth: '52px',
+				position: 'sticky',
+				left: '0',
+				zIndex: '2'
 			},
 			'.cm-lineNumbers': {
 				width: '52px',
@@ -432,7 +435,6 @@ export const createPlaygroundController = (
 						playgroundEditorBaseExtensions,
 						EditorState.tabSize.of(2),
 						indentUnit.of('  '),
-						EditorView.lineWrapping,
 						languageCompartment.of(languageExtensionForPath(activeFilePath)),
 						themeCompartment.of([createEditorTheme(activeEditorTheme), editorSyntaxTheme]),
 						EditorView.updateListener.of(handleEditorUpdate)

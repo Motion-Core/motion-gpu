@@ -707,6 +707,7 @@ export const createPlaygroundController = (
 		errorMessage = '';
 		syncError = '';
 		runtimeLog = '';
+		latestBundle = null;
 		reloadPreviewFrame();
 
 		const nextFileContents = toFilesForDemo(activeDemoId, resolvedFramework);

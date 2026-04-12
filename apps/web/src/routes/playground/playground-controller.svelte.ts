@@ -31,7 +31,7 @@ import {
 	type BundleResult,
 	type PlaygroundFile
 } from '$lib/playground-engine';
-import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
+import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
 
 type EditorThemeMode = 'light' | 'dark';
 const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];

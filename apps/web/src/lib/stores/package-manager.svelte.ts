@@ -43,23 +43,28 @@ function syncBootstrapPackageManager(value: PackageManager): void {
 
 function createPackageManagerStore() {
 	const configuredDefault = docsUiConfig.packageManager.default;
-	let active = $state<PackageManager>(
-		packageManagers.includes(configuredDefault) ? configuredDefault : packageManagers[0]
-	);
+	const defaultActive = packageManagers.includes(configuredDefault)
+		? configuredDefault
+		: packageManagers[0];
+	let active = $state<PackageManager>(defaultActive);
 
 	if (browser) {
 		const bootstrapped = getBootstrapPackageManager();
+		let nextActive = defaultActive;
+
 		if (bootstrapped) {
-			active = bootstrapped;
+			nextActive = bootstrapped;
 		} else {
 			const stored = localStorage.getItem(
 				docsUiConfig.packageManager.storageKey
 			) as PackageManager | null;
 			if (stored && packageManagers.includes(stored)) {
-				active = stored;
+				nextActive = stored;
 			}
 		}
-		syncBootstrapPackageManager(active);
+
+		active = nextActive;
+		syncBootstrapPackageManager(nextActive);
 	}
 
 	return {

@@ -118,17 +118,21 @@ const createEditorTheme = (mode: EditorThemeMode) =>
 	EditorView.theme(
 		{
 			'&': {
-				height: '100%',
+				height: 'auto',
+				minHeight: '100%',
 				fontSize: '13px',
 				backgroundColor: 'var(--playground-editor-bg)',
 				color: 'var(--playground-editor-fg)'
 			},
 			'.cm-scroller': {
 				fontFamily: editorFontStack,
-				lineHeight: '1.55'
+				lineHeight: '1.55',
+				overflow: 'visible'
 			},
 			'.cm-content': {
-				padding: '10px 0 12px'
+				padding: '10px 0 12px',
+				width: 'max-content',
+				minWidth: '100%'
 			},
 			'.cm-line': {
 				padding: '0 12px 0 14px'

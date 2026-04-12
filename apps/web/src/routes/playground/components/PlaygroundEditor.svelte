@@ -52,11 +52,17 @@
 		</ScrollArea>
 	</div>
 
-	<div
-		use:registerEditorHost
+	<ScrollArea
+		mode="both"
 		class="min-h-0 flex-1 bg-background dark:bg-background-inset"
-		aria-label="Svelte component editor"
-	></div>
+		viewportClass="h-full w-full"
+	>
+		<div
+			use:registerEditorHost
+			class="min-h-full min-w-full"
+			aria-label="Svelte component editor"
+		></div>
+	</ScrollArea>
 
 	{#if controller.syncError}
 		<p

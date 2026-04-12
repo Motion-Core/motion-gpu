@@ -403,7 +403,13 @@
 	}
 
 	:global(.cm-editor) {
-		height: 100%;
+		height: auto;
+		min-height: 100%;
+		min-width: 100%;
+	}
+
+	:global(.cm-editor .cm-scroller) {
+		overflow: visible !important;
 	}
 
 	:global(.cm-editor .cm-activeLine),

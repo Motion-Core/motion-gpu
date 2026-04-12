@@ -16,6 +16,7 @@ import {
 } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import { svelte as svelteLanguage } from '@replit/codemirror-lang-svelte';
+import { env as publicEnv } from '$env/dynamic/public';
 import {
 	getPlaygroundDemoById,
 	getPlaygroundDemoVariant,
@@ -30,11 +31,26 @@ import {
 	type BundleResult,
 	type PlaygroundFile
 } from '$lib/playground-engine';
-import previewSrcdocTemplate from '$lib/playground-engine/preview/srcdoc/index.html?raw';
 import previewDefaultStyles from '$lib/playground-engine/preview/srcdoc/styles.css?raw';
 
 type EditorThemeMode = 'light' | 'dark';
 const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
+const PLAYGROUND_PREVIEW_ROUTE = '/playground/embed';
+
+const createPreviewSessionId = () =>
+	typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+		? crypto.randomUUID()
+		: `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const resolvePreviewOrigin = (configuredOrigin: string | null | undefined) => {
+	if (typeof window === 'undefined') return '';
+	if (!configuredOrigin) return window.location.origin;
+	try {
+		return new URL(configuredOrigin).origin;
+	} catch {
+		return window.location.origin;
+	}
+};
 
 const editorFontStack =
 	'"Berkeley Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -200,10 +216,12 @@ export const createPlaygroundController = (
 	let previewProxy: ReplProxy | null = null;
 	let previewLoadCleanup: (() => void) | null = null;
 	let previewReady = false;
+	let previewSessionId = '';
+	let previewTargetOrigin = '';
 	let isMounted = false;
 
 	let previewReloadToken = $state(0);
-	const previewSrcdoc = $state(previewSrcdocTemplate);
+	let previewUrl = $state('');
 	let errorMessage = $state('');
 	let syncError = $state('');
 	let runtimeLog = $state('');
@@ -249,14 +267,14 @@ export const createPlaygroundController = (
 			react: { appPath: 'src/App.tsx', runtimePath: 'src/runtime.tsx' },
 			vue: { appPath: 'src/App.vue', runtimePath: 'src/runtime.vue' }
 		};
-	const reservedDemoSourceFileNames = new Set([
+	const reservedDemoSourceFileNames: readonly string[] = [
 		'App.svelte',
 		'runtime.svelte',
 		'App.tsx',
 		'runtime.tsx',
 		'App.vue',
 		'runtime.vue'
-	]);
+	];
 
 	const initialResolvedDemoId = resolvePlaygroundDemoId(initialDemoId);
 	const initialResolvedFramework = resolvePlaygroundFramework(initialFramework);
@@ -298,7 +316,7 @@ export const createPlaygroundController = (
 
 		for (const [relativePath, source] of Object.entries(demoVariant.additionalFiles ?? {})) {
 			const normalizedPath = relativePath.replace(/^\.?\//, '');
-			if (!normalizedPath || reservedDemoSourceFileNames.has(normalizedPath)) {
+			if (!normalizedPath || reservedDemoSourceFileNames.includes(normalizedPath)) {
 				continue;
 			}
 			files[`src/${normalizedPath}`] = source;
@@ -318,6 +336,29 @@ export const createPlaygroundController = (
 	const appendLog = (chunk: string) => {
 		runtimeLog = (runtimeLog + chunk + '\n').slice(-50000);
 	};
+
+	const rebuildPreviewUrl = () => {
+		if (typeof window === 'undefined') return;
+
+		previewSessionId = createPreviewSessionId();
+		const configuredOrigin = publicEnv.PUBLIC_PLAYGROUND_PREVIEW_ORIGIN?.trim() ?? '';
+		const origin = resolvePreviewOrigin(configuredOrigin);
+		const query = [
+			`session=${encodeURIComponent(previewSessionId)}`,
+			`parent_origin=${encodeURIComponent(window.location.origin)}`,
+			`v=${encodeURIComponent(String(previewReloadToken))}`
+		].join('&');
+
+		previewTargetOrigin = origin;
+		previewUrl = `${origin}${PLAYGROUND_PREVIEW_ROUTE}?${query}`;
+	};
+
+	const reloadPreviewFrame = () => {
+		previewReloadToken += 1;
+		rebuildPreviewUrl();
+	};
+
+	rebuildPreviewUrl();
 
 	const toBundlerFiles = (flatFiles: Record<string, string>): PlaygroundFile[] =>
 		Object.entries(flatFiles)
@@ -506,30 +547,51 @@ export const createPlaygroundController = (
 	};
 
 	const connectPreviewProxy = () => {
-		if (!previewFrame || !isMounted) {
+		if (!previewFrame || !isMounted || !previewTargetOrigin || !previewSessionId) {
 			return;
 		}
 
 		disconnectPreviewProxy();
 
 		const frame = previewFrame;
-		previewProxy = new ReplProxy(frame, {
-			on_error: (event) => {
-				appendLog(`[preview:error] ${String(event?.value ?? 'Unknown runtime error')}`);
-				errorMessage = `Runtime error in preview: ${String(event?.value ?? 'unknown')}`;
+		previewProxy = new ReplProxy(
+			frame,
+			{
+				on_error: (event) => {
+					appendLog(`[preview:error] ${String(event?.value ?? 'Unknown runtime error')}`);
+					errorMessage = `Runtime error in preview: ${String(event?.value ?? 'unknown')}`;
+				},
+				on_unhandled_rejection: (event) => {
+					appendLog(`[preview:unhandledrejection] ${String(event?.value ?? 'Unknown rejection')}`);
+				}
 			},
-			on_unhandled_rejection: (event) => {
-				appendLog(`[preview:unhandledrejection] ${String(event?.value ?? 'Unknown rejection')}`);
+			{
+				targetOrigin: previewTargetOrigin,
+				expectedOrigin: previewTargetOrigin,
+				sessionId: previewSessionId
 			}
-		});
+		);
 
 		const onLoad = () => {
 			if (frame !== previewFrame) return;
-			previewReady = true;
-			void previewProxy?.handle_links();
-			if (latestBundle && !latestBundle.error) {
-				void applyBundleToPreview(latestBundle);
-			}
+			void (async () => {
+				try {
+					await previewProxy?.wait_until_ready();
+					if (frame !== previewFrame) return;
+					previewReady = true;
+					await previewProxy?.handle_links();
+					if (latestBundle && !latestBundle.error) {
+						await applyBundleToPreview(latestBundle);
+					}
+				} catch (error) {
+					if (frame !== previewFrame) return;
+					const message =
+						error instanceof Error ? error.message : 'Could not initialize preview frame.';
+					appendLog(`[preview:connect] ${message}`);
+					errorMessage = message;
+					status = 'Preview failed';
+				}
+			})();
 		};
 
 		frame.addEventListener('load', onLoad);
@@ -565,7 +627,7 @@ export const createPlaygroundController = (
 		syncError = '';
 		runtimeLog = '';
 		status = 'Reloading preview...';
-		previewReloadToken += 1;
+		reloadPreviewFrame();
 		queueBundle();
 	};
 
@@ -609,7 +671,7 @@ export const createPlaygroundController = (
 		errorMessage = '';
 		syncError = '';
 		runtimeLog = '';
-		previewReloadToken += 1;
+		reloadPreviewFrame();
 
 		const nextFileContents = toFilesForDemo(activeDemoId, resolvedFramework);
 		const frameworkEntry = frameworkEntryPaths[resolvedFramework].appPath;
@@ -709,8 +771,8 @@ export const createPlaygroundController = (
 		get previewFrameKey() {
 			return String(previewReloadToken);
 		},
-		get previewSrcdoc() {
-			return previewSrcdoc;
+		get previewUrl() {
+			return previewUrl;
 		},
 		get runtimeLog() {
 			return runtimeLog;

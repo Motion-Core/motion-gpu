@@ -25,10 +25,10 @@
 			<iframe
 				use:registerPreviewFrame
 				title="Playground preview"
-				srcdoc={controller.previewSrcdoc}
+				src={controller.previewUrl}
 				class="h-full w-full overflow-hidden rounded-[calc(var(--radius-base)*2.5)]"
 				loading="eager"
-				sandbox="allow-scripts allow-forms allow-modals allow-popups"
+				sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
 				referrerpolicy="no-referrer"
 			></iframe>
 		{/key}

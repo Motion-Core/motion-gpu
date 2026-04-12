@@ -2,6 +2,9 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "motion-gpu",
 	"compatibility_date": "2025-09-27",
+	"vars": {
+		"PUBLIC_PLAYGROUND_PREVIEW_ORIGIN": "https://preview.motion-gpu.dev"
+	},
 	"observability": {
 		"enabled": true
 	},
@@ -10,6 +13,20 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
+	"routes": [
+		{
+			"pattern": "motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "www.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "preview.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		}
+	],
 	"rules": [
 		{
 			"type": "Text",

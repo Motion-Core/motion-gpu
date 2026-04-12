@@ -1,4 +1,5 @@
 import { PLAYGROUND_PREVIEW_CHANNEL } from '$lib/playground-engine/preview/protocol';
+import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
 import type { RequestHandler } from './$types';
 
 export const prerender = false;
@@ -12,18 +13,50 @@ const toSafeOrigin = (value: string | null) => {
 	}
 };
 
+type PreviewTheme = 'light' | 'dark';
+
+const toPreviewTheme = (value: string | null): PreviewTheme => (value === 'dark' ? 'dark' : 'light');
+
+const previewThemeTokens: Record<PreviewTheme, { background: string; foreground: string }> = {
+	light: {
+		background: 'oklch(1 0 0)',
+		foreground: 'oklch(0.1881 0.006 265)'
+	},
+	dark: {
+		background: 'oklch(0.2574 0.0056 265)',
+		foreground: 'oklch(0.9674 0.0013 265)'
+	}
+};
+
+const buildInitialStyle = (theme: PreviewTheme): string => {
+	const tokens = previewThemeTokens[theme];
+	const colorScheme = theme === 'dark' ? 'dark' : 'light';
+	return `${previewDefaultStyles}
+:root {
+	color-scheme: ${colorScheme};
+}
+
+html,
+body {
+	background: ${tokens.background};
+	color: ${tokens.foreground};
+}`;
+};
+
 const buildEmbedHtml = ({
 	sessionId,
-	parentOrigin
+	parentOrigin,
+	initialStyle
 }: {
 	sessionId: string;
 	parentOrigin: string;
+	initialStyle: string;
 }) => `<!doctype html>
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<style id="injected"></style>
+		<style id="injected">${initialStyle}</style>
 	</head>
 	<body>
 		<script>
@@ -140,9 +173,11 @@ const buildEmbedHtml = ({
 export const GET: RequestHandler = async ({ url }) => {
 	const sessionId = (url.searchParams.get('session') ?? '').slice(0, 120);
 	const parentOrigin = toSafeOrigin(url.searchParams.get('parent_origin'));
+	const theme = toPreviewTheme(url.searchParams.get('theme'));
 	const html = buildEmbedHtml({
 		sessionId,
-		parentOrigin
+		parentOrigin,
+		initialStyle: buildInitialStyle(theme)
 	});
 
 	return new Response(html, {

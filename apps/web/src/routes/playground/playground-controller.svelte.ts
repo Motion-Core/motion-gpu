@@ -36,6 +36,16 @@ import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/s
 type EditorThemeMode = 'light' | 'dark';
 const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
 const PLAYGROUND_PREVIEW_ROUTE = '/playground/embed';
+const previewThemeTokens: Record<EditorThemeMode, { background: string; foreground: string }> = {
+	light: {
+		background: 'oklch(1 0 0)',
+		foreground: 'oklch(0.1881 0.006 265)'
+	},
+	dark: {
+		background: 'oklch(0.2574 0.0056 265)',
+		foreground: 'oklch(0.9674 0.0013 265)'
+	}
+};
 
 const createPreviewSessionId = () =>
 	typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -60,6 +70,22 @@ const compactLogForDisplay = (value: string) =>
 		.replace(/\n{3,}/g, '\n\n')
 		.replace(/^(?:[ \t]*\n)+/, '')
 		.replace(/[ \t]+\n/g, '\n');
+
+const buildPreviewThemeStyle = (mode: EditorThemeMode): string => {
+	const tokens = previewThemeTokens[mode];
+	const colorScheme = mode === 'dark' ? 'dark' : 'light';
+	return `
+:root {
+	color-scheme: ${colorScheme};
+}
+
+html,
+body {
+	background: ${tokens.background};
+	color: ${tokens.foreground};
+}
+`;
+};
 
 const formatBundleError = (error: NonNullable<BundleResult['error']>) => {
 	const location =
@@ -235,7 +261,10 @@ export const createPlaygroundController = (
 	let status = $state('Initializing playground...');
 	let isSyncing = $state(false);
 	let syncingPath = $state('');
-	let activeEditorTheme: EditorThemeMode = 'light';
+	let activeEditorTheme: EditorThemeMode =
+		typeof window !== 'undefined' && document.documentElement.classList.contains('dark')
+			? 'dark'
+			: 'light';
 
 	const languageCompartment = new Compartment();
 	const themeCompartment = new Compartment();
@@ -353,6 +382,7 @@ export const createPlaygroundController = (
 		const query = [
 			`session=${encodeURIComponent(previewSessionId)}`,
 			`parent_origin=${encodeURIComponent(window.location.origin)}`,
+			`theme=${encodeURIComponent(activeEditorTheme)}`,
 			`v=${encodeURIComponent(String(previewReloadToken))}`
 		].join('&');
 
@@ -475,7 +505,7 @@ export const createPlaygroundController = (
 		const script = buildEvalScript(bundle);
 		if (!script) return;
 
-		const previewStyle = `${previewDefaultStyles}\n${bundle.css ?? ''}`;
+		const previewStyle = `${previewDefaultStyles}\n${buildPreviewThemeStyle(activeEditorTheme)}\n${bundle.css ?? ''}`;
 		await previewProxy.eval(script, previewStyle);
 	};
 
@@ -697,6 +727,9 @@ export const createPlaygroundController = (
 		if (activeEditorTheme === mode) return;
 		activeEditorTheme = mode;
 		applyEditorTheme(mode);
+		if (latestBundle && !latestBundle.error) {
+			void applyBundleToPreview(latestBundle);
+		}
 	};
 
 	const mount = () => {

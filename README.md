@@ -50,7 +50,7 @@ Motion GPU focuses on a much narrower problem: running fullscreen WGSL shader pi
 | ---------------- | --------------------- | --------------------------- |
 | Scope            | Full 3D engine        | Fullscreen shader framework |
 | Shader language  | TSL / generated WGSL  | Native WGSL                 |
-| Bundle size      | large                 | tiny (3.5-5x smaller)       |
+| Bundle size      | 186 kB (gzip)         | 25.4 kB (gzip)              |
 | Rendering model  | Scene graph           | GPU pipeline                |
 | Shader pipeline  | materials             | explicit passes             |
 | Multi-pass       | possible but indirect | first-class                 |
@@ -59,6 +59,8 @@ Motion GPU focuses on a much narrower problem: running fullscreen WGSL shader pi
 Motion GPU is **not a replacement for Three.js**.
 
 Instead, it is designed for cases where a full 3D engine would be unnecessary overhead.
+
+**Note:** Bundle size figures are based on measurements from https://bundlejs.com/
 
 ---
 

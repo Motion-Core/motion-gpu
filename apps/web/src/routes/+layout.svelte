@@ -1,7 +1,6 @@
 <script lang="ts">
 	import './layout.css';
 	import { page } from '$app/state';
-	import CommandPalette from '$lib/components/docs/search/CommandPalette.svelte';
 	import { docsUiConfig } from '$lib/config/docs-ui';
 	import { siteConfig } from '$lib/config/site';
 
@@ -99,5 +98,4 @@
 	{/if}
 </svelte:head>
 
-<CommandPalette />
 {@render children()}

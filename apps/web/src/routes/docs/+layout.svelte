@@ -14,6 +14,7 @@
 		resolveTocSelector,
 		siteConfig
 	} from '$lib';
+	import CommandPalette from '$lib/components/docs/search/CommandPalette.svelte';
 	import type { LayoutData } from './$types';
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/state';
@@ -205,6 +206,9 @@
 	{/if}
 </svelte:head>
 
+{#if docsUiConfig.search.enabled}
+	<CommandPalette />
+{/if}
 <main class="relative h-dvh bg-background text-foreground">
 	<MobileSidebar />
 

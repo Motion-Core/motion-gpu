@@ -3,6 +3,19 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Performance
+- Added `packUniformsIntoFast` — a validation-free uniform packing path for the renderer hot loop that skips per-entry type checks (already enforced at `setUniform` call time), reducing per-frame CPU overhead by ~3× compared to the public `packUniformsInto` path.
+- Added `Float32Array.set()` fast path inside `writeUniformValueFast` for `mat4x4f` uniforms backed by `Float32Array`, replacing a 16-element manual loop with a single native typed-array copy.
+- Returned a shared `EMPTY_DIRTY_RANGES` sentinel from `findDirtyFloatRanges` when no dirty ranges are detected, eliminating a heap allocation on every clean frame in the renderer upload path.
+- Pre-allocated `canvasSurface` and `frameSlots` objects in the renderer and mutated them in place each frame, removing per-frame `{ texture, view, width, height }` allocations in the render path.
+- Merged two consecutive `.map()` iterations over `uniformLayout.entries` in `syncMaterialRuntimeState` into a single `for` loop, halving traversal work on material signature changes.
+- Integrated `ResizeObserver` into the runtime loop canvas sizing path; canvas dimensions are now read from a cached observer callback instead of calling `getBoundingClientRect()` (a forced layout reflow) on every animation frame.
+
+### Added
+- Added `packUniformsIntoFast` as an internal-use export for the renderer, with JSDoc marking it `@internal`.
+- Added benchmark cases for `packUniformsIntoFast`, `mat4x4f` Float32Array packing, and the clean-frame dirty-ranges path to `scripts/perf/core-benchmark.ts`.
+- Added unit tests for `mat4x4f` `Float32Array` uniform packing (identity matrix, arbitrary values, non-zero layout offsets).
+- Added integration tests for `ResizeObserver` lifecycle (observe/disconnect), dimension propagation, and `getBoundingClientRect` fallback behavior in the runtime loop.
 
 ## [0.8.0] - 2026-04-11
 ### Added

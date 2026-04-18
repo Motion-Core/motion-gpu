@@ -350,6 +350,32 @@ function classifyErrorMessage(
 		};
 	}
 
+	if (
+		message.includes('Dispatch workgroup count') &&
+		message.includes('max compute workgroups per dimension')
+	) {
+		return {
+			code: 'WEBGPU_UNCAPTURED_ERROR',
+			severity: 'error',
+			recoverable: true,
+			title: 'Compute dispatch exceeds device limit',
+			hint: 'Reduce dispatch counts or split compute work into multiple dispatches/chunks.'
+		};
+	}
+
+	if (
+		message.includes('maximum storage buffer binding size') ||
+		message.includes('maxStorageBufferBindingSize')
+	) {
+		return {
+			code: 'WEBGPU_UNCAPTURED_ERROR',
+			severity: 'error',
+			recoverable: true,
+			title: 'Storage buffer exceeds binding limit',
+			hint: 'Keep each storage buffer binding below adapter limits or shard data across multiple buffers.'
+		};
+	}
+
 	if (message.includes('WebGPU uncaptured error')) {
 		return {
 			code: 'WEBGPU_UNCAPTURED_ERROR',

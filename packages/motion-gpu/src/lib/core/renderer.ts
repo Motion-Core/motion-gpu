@@ -704,9 +704,50 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	const device = await adapter.requestDevice(options.deviceDescriptor);
 	let isDestroyed = false;
 	let deviceLostMessage: string | null = null;
-	let uncapturedErrorMessage: string | null = null;
+	const uncapturedErrorMessages: string[] = [];
 	const initializationCleanups: Array<() => void> = [];
 	let acceptInitializationCleanups = true;
+	const MAX_UNCAPTURED_ERROR_MESSAGES = 12;
+
+	const isDerivativeUncapturedMessage = (message: string): boolean => {
+		const normalized = message.toLowerCase();
+		return (
+			(normalized.includes('invalid commandbuffer') && normalized.includes('previous error')) ||
+			normalized.includes('too many warnings, no more warnings will be reported')
+		);
+	};
+
+	const consumeUncapturedErrorMessage = (): string | null => {
+		if (uncapturedErrorMessages.length === 0) {
+			return null;
+		}
+
+		const uniqueMessages: string[] = [];
+		for (const message of uncapturedErrorMessages) {
+			if (!uniqueMessages.includes(message)) {
+				uniqueMessages.push(message);
+			}
+		}
+		uncapturedErrorMessages.length = 0;
+
+		const primaryIndex = uniqueMessages.findIndex((message) => !isDerivativeUncapturedMessage(message));
+		const resolvedPrimaryIndex = primaryIndex === -1 ? 0 : primaryIndex;
+		const primaryMessage = uniqueMessages[resolvedPrimaryIndex];
+		if (!primaryMessage) {
+			return null;
+		}
+
+		const relatedMessages = uniqueMessages.filter((_, index) => index !== resolvedPrimaryIndex);
+		if (relatedMessages.length === 0) {
+			return `WebGPU uncaptured error: ${primaryMessage}`;
+		}
+
+		return [
+			`WebGPU uncaptured error: ${primaryMessage}`,
+			`Additional uncaptured WebGPU errors (${relatedMessages.length}):`,
+			...relatedMessages.map((message, index) => `[${index + 1}] ${message}`)
+		].join('\n');
+	};
 
 	const registerInitializationCleanup = (cleanup: () => void): void => {
 		if (!acceptInitializationCleanups) {
@@ -748,7 +789,17 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			event.error instanceof Error
 				? event.error.message
 				: String((event.error as { message?: string })?.message ?? event.error);
-		uncapturedErrorMessage = `WebGPU uncaptured error: ${message}`;
+		const trimmedMessage = message.trim();
+		const normalizedMessage = trimmedMessage.length > 0 ? trimmedMessage : 'Unknown GPU validation error';
+		const lastMessage = uncapturedErrorMessages[uncapturedErrorMessages.length - 1];
+		if (lastMessage === normalizedMessage) {
+			return;
+		}
+
+		uncapturedErrorMessages.push(normalizedMessage);
+		if (uncapturedErrorMessages.length > MAX_UNCAPTURED_ERROR_MESSAGES) {
+			uncapturedErrorMessages.splice(0, uncapturedErrorMessages.length - MAX_UNCAPTURED_ERROR_MESSAGES);
+		}
 	};
 
 	device.addEventListener('uncapturederror', handleUncapturedError);
@@ -1925,9 +1976,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				throw new Error(deviceLostMessage);
 			}
 
-			if (uncapturedErrorMessage) {
-				const message = uncapturedErrorMessage;
-				uncapturedErrorMessage = null;
+			const uncapturedMessage = consumeUncapturedErrorMessage();
+			if (uncapturedMessage) {
+				const message = uncapturedMessage;
 				throw new Error(message);
 			}
 

@@ -287,6 +287,40 @@ describe('createRenderer', () => {
 		expect(runtime.device.queue.submit).toHaveBeenCalledTimes(1);
 	});
 
+	it('prefers root uncaptured error over derived invalid command buffer messages', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer(baseOptions(runtime));
+
+		runtime.emitUncapturedError(
+			'Dispatch workgroup count X (66317) exceeds max compute workgroups per dimension (65535).'
+		);
+		runtime.emitUncapturedError(
+			'[Invalid CommandBuffer] is invalid due to a previous error.\n - While calling [Queue].Submit([[Invalid CommandBuffer]])'
+		);
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(
+			/WebGPU uncaptured error: Dispatch workgroup count X \(66317\) exceeds max compute workgroups per dimension \(65535\)\./
+		);
+
+		expect(() =>
+			renderer.render({
+				time: 0.016,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).not.toThrow();
+	});
+
 	it('surfaces device lost error after loss promise resolves', async () => {
 		const runtime = createWebGpuRuntime();
 		const renderer = await createRenderer(baseOptions(runtime));

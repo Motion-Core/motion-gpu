@@ -227,6 +227,32 @@ describe('error report', () => {
 		expect(report.hint).toContain('GPU command failed asynchronously');
 	});
 
+	it('classifies compute dispatch limit violations with targeted hint', () => {
+		const report = toMotionGPUErrorReport(
+			new Error(
+				'WebGPU uncaptured error: Dispatch workgroup count X (66317) exceeds max compute workgroups per dimension (65535).'
+			),
+			'render'
+		);
+
+		expect(report.title).toBe('Compute dispatch exceeds device limit');
+		expect(report.code).toBe('WEBGPU_UNCAPTURED_ERROR');
+		expect(report.hint).toContain('split compute work');
+	});
+
+	it('classifies storage buffer binding size violations with targeted hint', () => {
+		const report = toMotionGPUErrorReport(
+			new Error(
+				'WebGPU uncaptured error: Binding size (134222400) of [Buffer (unlabeled)] is larger than the maximum storage buffer binding size (134217728).'
+			),
+			'render'
+		);
+
+		expect(report.title).toBe('Storage buffer exceeds binding limit');
+		expect(report.code).toBe('WEBGPU_UNCAPTURED_ERROR');
+		expect(report.hint).toContain('shard data');
+	});
+
 	it('classifies adapter unavailable errors', () => {
 		const report = toMotionGPUErrorReport(new Error('Unable to acquire WebGPU adapter'), 'render');
 		expect(report.title).toBe('WebGPU adapter unavailable');

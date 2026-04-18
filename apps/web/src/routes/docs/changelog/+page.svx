@@ -28,6 +28,10 @@ description: All notable changes to Motion Core will be documented in this file.
 - Added `frameState` pre-allocation tests verifying object identity across clamped and non-clamped frames.
 - Added profiling key stability test for Symbol-keyed tasks.
 
+### Fixed
+- Improved uncaptured WebGPU error reporting to preserve and prioritize root-cause validation messages (for example dispatch-limit and binding-limit failures) instead of surfacing only derivative `Invalid CommandBuffer` follow-up errors.
+- Added targeted uncaptured-error classifications and hints for compute dispatch workgroup-limit violations and storage-buffer binding-size violations, with renderer + error-report tests covering the new behavior.
+
 ## [0.8.0] - 2026-04-11
 ### Added
 - Added first-class Vue adapter support with dedicated `@motion-core/motion-gpu/vue` and `@motion-core/motion-gpu/vue/advanced` entrypoints.

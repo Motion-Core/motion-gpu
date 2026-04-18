@@ -523,18 +523,30 @@ function createBindGroupLayoutEntries(
 const DIRTY_RANGE_MERGE_GAP = 4;
 
 /**
+ * Shared empty result returned when no float values differ between snapshots.
+ *
+ * Avoids allocating a new `[]` on every clean frame (the common steady-state
+ * case). Callers must not mutate this reference.
+ */
+const EMPTY_DIRTY_RANGES: ReadonlyArray<{ start: number; count: number }> = [];
+
+/**
  * Computes dirty float ranges between two uniform snapshots.
  *
  * Adjacent dirty ranges separated by a gap smaller than or equal to
  * {@link DIRTY_RANGE_MERGE_GAP} are merged to reduce `writeBuffer` calls.
+ *
+ * Returns a shared empty array reference when the buffers are identical —
+ * callers must not mutate the returned array.
  */
 export function findDirtyFloatRanges(
 	previous: Float32Array,
 	next: Float32Array,
 	mergeGapThreshold = DIRTY_RANGE_MERGE_GAP
-): Array<{ start: number; count: number }> {
-	const ranges: Array<{ start: number; count: number }> = [];
+): ReadonlyArray<{ start: number; count: number }> {
 	let start = -1;
+	let rangeCount = 0;
+	const ranges: Array<{ start: number; count: number }> = [];
 
 	for (let index = 0; index < next.length; index += 1) {
 		if (previous[index] !== next[index]) {
@@ -546,20 +558,28 @@ export function findDirtyFloatRanges(
 
 		if (start !== -1) {
 			ranges.push({ start, count: index - start });
+			rangeCount += 1;
 			start = -1;
 		}
 	}
 
 	if (start !== -1) {
 		ranges.push({ start, count: next.length - start });
+		rangeCount += 1;
 	}
 
-	if (ranges.length <= 1) {
+	if (rangeCount === 0) {
+		// Most common case in steady-state animations: no dirty ranges.
+		// Return the shared sentinel to avoid a per-frame heap allocation.
+		return EMPTY_DIRTY_RANGES;
+	}
+
+	if (rangeCount <= 1) {
 		return ranges;
 	}
 
 	const merged: Array<{ start: number; count: number }> = [ranges[0]!];
-	for (let index = 1; index < ranges.length; index += 1) {
+	for (let index = 1; index < rangeCount; index += 1) {
 		const prev = merged[merged.length - 1]!;
 		const curr = ranges[index]!;
 		const gap = curr.start - (prev.start + prev.count);

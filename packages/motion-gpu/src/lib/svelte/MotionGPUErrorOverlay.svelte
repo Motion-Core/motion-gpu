@@ -338,7 +338,7 @@
 		margin: 0;
 		padding: 0.72rem 0.78rem;
 		border: 1px solid color-mix(in oklch, var(--motiongpu-color-accent) 28%, transparent);
-		border-radius: var(--motiongpu-radius-md);
+		border-radius: var(--motiongpu-radius-lg);
 		background: color-mix(in oklch, var(--motiongpu-color-accent) 10%, transparent);
 		font-size: 0.82rem;
 		line-height: 1.4;
@@ -385,8 +385,7 @@
 
 	.motiongpu-error-source-tabs {
 		display: flex;
-		align-items: stretch;
-		border-bottom: 1px solid var(--motiongpu-color-border);
+		align-items: flex-end;
 		background: var(--motiongpu-color-background);
 	}
 
@@ -394,14 +393,20 @@
 		display: inline-flex;
 		align-items: center;
 		padding: 0.5rem 0.68rem;
+		border-right: 1px solid var(--motiongpu-color-border);
 		font-size: 0.76rem;
 		font-weight: 400;
 		line-height: 1.2;
 		color: var(--motiongpu-color-foreground-muted);
-		border-right: 1px solid var(--motiongpu-color-border);
 	}
 
 	.motiongpu-error-source-tab-active {
+		position: relative;
+		z-index: 1;
+		margin-bottom: -1px;
+		border-color: var(--motiongpu-color-border);
+		border-top-left-radius: calc(var(--motiongpu-radius-lg) - 1px);
+		border-top-right-radius: calc(var(--motiongpu-radius-lg) - 1px);
 		color: var(--motiongpu-color-foreground);
 		background: var(--motiongpu-color-background-muted);
 	}
@@ -412,6 +417,7 @@
 
 	.motiongpu-error-source-snippet {
 		display: grid;
+		border-top: 1px solid var(--motiongpu-color-border);
 		background: var(--motiongpu-color-background-muted);
 	}
 

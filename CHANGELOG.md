@@ -10,6 +10,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Removed the intermediate `map()` allocation when rebuilding `activeKeys` in renderer render-target sync, constructing the `Set` in a single pass during render-target signature changes.
 - Replaced three `split('\\n')` line-count scans in `buildShaderSourceWithMap` with allocation-free newline counting, reducing transient string-array creation during shader compilation.
 
+### Fixed
+- Refined the Svelte, React, and Vue error-overlay source snippet styling with a larger alert-message radius, rounded active-tab top corners, and a separated snippet top border treatment.
+
 ## [0.8.1] - 2026-04-18
 ### Performance
 - Added `packUniformsIntoFast` — a validation-free uniform packing path for the renderer hot loop that skips per-entry type checks (already enforced at `setUniform` call time), reducing per-frame CPU overhead by ~3× compared to the public `packUniformsInto` path.

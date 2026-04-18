@@ -7,6 +7,16 @@ import {
 } from './helpers';
 
 test.describe('motion-gpu mixed passes e2e', () => {
+	async function advanceAndWait(page: Parameters<typeof getCanvasHash>[0]): Promise<void> {
+		const previousFrameCount = toNumber(await page.getByTestId('frame-count').textContent());
+		await page.getByTestId('advance-once').click();
+		await expect
+			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()), {
+				timeout: 5_000
+			})
+			.toBeGreaterThan(previousFrameCount);
+	}
+
 	/* ────────────────────────────────────────────────────────
 	 * 1. Three chained shader passes produce cumulative effect
 	 *
@@ -151,11 +161,14 @@ test.describe('motion-gpu mixed passes e2e', () => {
 
 		// Apply bad shader pass
 		await page.getByTestId('set-config-bad-shader-pass').click();
-		await page.getByTestId('advance-once').click();
+		await advanceAndWait(page);
 
 		// Should surface an error
 		await expect
-			.poll(async () => toNumber(await page.getByTestId('error-count').textContent()), {
+			.poll(async () => {
+				await advanceAndWait(page);
+				return toNumber(await page.getByTestId('error-count').textContent());
+			}, {
 				timeout: 5_000
 			})
 			.toBeGreaterThan(0);
@@ -166,7 +179,7 @@ test.describe('motion-gpu mixed passes e2e', () => {
 
 		// Switch to a valid single shader pass
 		await page.getByTestId('set-config-single-shader').click();
-		await page.getByTestId('advance-once').click();
+		await advanceAndWait(page);
 
 		await expect
 			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()), {
@@ -174,7 +187,17 @@ test.describe('motion-gpu mixed passes e2e', () => {
 			})
 			.toBeGreaterThan(1);
 
-		const hashAfterRecovery = await waitForCanvasHashChange(page, hashAfterBad);
+		let hashAfterRecovery = hashAfterBad;
+		await expect
+			.poll(
+				async () => {
+					await advanceAndWait(page);
+					hashAfterRecovery = await getCanvasHash(page);
+					return hashAfterRecovery === hashAfterBad;
+				},
+				{ timeout: 5_000 }
+			)
+			.toBe(false);
 		expect(hashAfterRecovery).not.toBe(hashAfterBad);
 
 		const errorCountAfterRecovery = toNumber(await page.getByTestId('error-count').textContent());
@@ -198,20 +221,23 @@ test.describe('motion-gpu mixed passes e2e', () => {
 
 		// First error cycle
 		await page.getByTestId('set-config-bad-shader-pass').click();
-		await page.getByTestId('advance-once').click();
+		await advanceAndWait(page);
 		await expect
-			.poll(async () => toNumber(await page.getByTestId('error-count').textContent()), {
+			.poll(async () => {
+				await advanceAndWait(page);
+				return toNumber(await page.getByTestId('error-count').textContent());
+			}, {
 				timeout: 5_000
 			})
-			.toBeGreaterThan(0);
+			.toBeGreaterThan(1);
 
 		const firstErrorCount = toNumber(await page.getByTestId('error-count').textContent());
 
 		// Recover and immediately re-trigger the same failing pass.
 		await page.getByTestId('set-config-single-shader').click();
-		await page.getByTestId('advance-once').click();
+		await advanceAndWait(page);
 		await page.getByTestId('set-config-multi-error').click();
-		await page.getByTestId('advance-once').click();
+		await advanceAndWait(page);
 
 		// With intentional deduplication + grace window, the same error key
 		// should not increment count on an immediate repeat.

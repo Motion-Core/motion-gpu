@@ -82,7 +82,6 @@ const passConfig = ref<PassConfig>('none');
 const activePasses = ref<AnyPass[]>([]);
 const passCount = ref(0);
 let errorCounter = 0;
-let badShaderVariant = 0;
 
 function handleError(report: MotionGPUErrorReport): void {
 	errorCounter += 1;
@@ -120,12 +119,6 @@ function applyConfig(config: PassConfig): void {
 		blueShiftPass.enabled = true;
 		nextPasses = [redShiftPass, greenShiftPass, blueShiftPass];
 	} else if (config === 'bad-shader-pass' || config === 'multi-error') {
-		badShaderVariant += 1;
-		badShaderPass.setFragment(`
-fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-	return vec4f(UNDEFINED_VALUE_${badShaderVariant}.rgb, 1.0);
-}
-`);
 		badShaderPass.enabled = true;
 		nextPasses = [badShaderPass];
 	}
@@ -234,6 +227,7 @@ onMounted(async () => {
 			<FragCanvas
 				:material="materialWithStorage"
 				:passes="activePasses"
+				renderMode="manual"
 				:showErrorOverlay="false"
 				:onError="handleError"
 			>

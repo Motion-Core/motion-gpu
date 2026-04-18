@@ -262,6 +262,7 @@ export function MixedPassesScenario() {
 				<FragCanvas
 					material={materialWithStorage}
 					passes={activePasses}
+					renderMode="manual"
 					showErrorOverlay={false}
 					onError={handleError}
 				>

@@ -206,6 +206,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		<FragCanvas
 			material={materialWithStorage}
 			passes={activePasses}
+			renderMode="manual"
 			showErrorOverlay={false}
 			onError={handleError}
 		>

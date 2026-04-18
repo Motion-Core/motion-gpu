@@ -1,12 +1,15 @@
 {
 	"schemaVersion": 1,
-	"updatedAt": "2026-03-06T21:51:41.911Z",
+	"updatedAt": "2026-04-17T21:40:08.933Z",
 	"metrics": {
-		"resolve_material_cached_hz": 13576720.539540457,
-		"resolve_material_uncached_hz": 162243.3941586483,
-		"pack_uniforms_into_64_vec4_hz": 566647.669038811,
-		"plan_render_graph_16_passes_hz": 1140292.657984718,
-		"resolve_render_targets_8_hz": 5765314.467202079,
-		"frame_registry_run_64_tasks_hz": 5915912.719893062
+		"resolve_material_cached_hz": 11634089.393090768,
+		"resolve_material_uncached_hz": 156180.61832715952,
+		"pack_uniforms_into_64_vec4_hz": 860310.7697121995,
+		"pack_uniforms_into_fast_64_vec4_hz": 2487458.5517442753,
+		"plan_render_graph_16_passes_hz": 1218217.3073061414,
+		"resolve_render_targets_8_hz": 5822980.400684011,
+		"frame_registry_run_64_tasks_hz": 6220537.750657189,
+		"pack_uniforms_mat4_float32array_hz": 26179552.709899884,
+		"find_dirty_ranges_clean_frame_hz": 5236535.513995892
 	}
 }

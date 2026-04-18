@@ -16,7 +16,7 @@ import {
 	resolveTextureSize,
 	toTextureData
 } from './textures.js';
-import { packUniformsInto } from './uniforms.js';
+import { packUniformsIntoFast } from './uniforms.js';
 import {
 	buildComputeShaderSourceWithMap,
 	buildPingPongComputeShaderSourceWithMap,
@@ -523,18 +523,30 @@ function createBindGroupLayoutEntries(
 const DIRTY_RANGE_MERGE_GAP = 4;
 
 /**
+ * Shared empty result returned when no float values differ between snapshots.
+ *
+ * Avoids allocating a new `[]` on every clean frame (the common steady-state
+ * case). Callers must not mutate this reference.
+ */
+const EMPTY_DIRTY_RANGES: ReadonlyArray<{ start: number; count: number }> = [];
+
+/**
  * Computes dirty float ranges between two uniform snapshots.
  *
  * Adjacent dirty ranges separated by a gap smaller than or equal to
  * {@link DIRTY_RANGE_MERGE_GAP} are merged to reduce `writeBuffer` calls.
+ *
+ * Returns a shared empty array reference when the buffers are identical —
+ * callers must not mutate the returned array.
  */
 export function findDirtyFloatRanges(
 	previous: Float32Array,
 	next: Float32Array,
 	mergeGapThreshold = DIRTY_RANGE_MERGE_GAP
-): Array<{ start: number; count: number }> {
-	const ranges: Array<{ start: number; count: number }> = [];
+): ReadonlyArray<{ start: number; count: number }> {
 	let start = -1;
+	let rangeCount = 0;
+	const ranges: Array<{ start: number; count: number }> = [];
 
 	for (let index = 0; index < next.length; index += 1) {
 		if (previous[index] !== next[index]) {
@@ -546,20 +558,28 @@ export function findDirtyFloatRanges(
 
 		if (start !== -1) {
 			ranges.push({ start, count: index - start });
+			rangeCount += 1;
 			start = -1;
 		}
 	}
 
 	if (start !== -1) {
 		ranges.push({ start, count: next.length - start });
+		rangeCount += 1;
 	}
 
-	if (ranges.length <= 1) {
+	if (rangeCount === 0) {
+		// Most common case in steady-state animations: no dirty ranges.
+		// Return the shared sentinel to avoid a per-frame heap allocation.
+		return EMPTY_DIRTY_RANGES;
+	}
+
+	if (rangeCount <= 1) {
 		return ranges;
 	}
 
 	const merged: Array<{ start: number; count: number }> = [ranges[0]!];
-	for (let index = 1; index < ranges.length; index += 1) {
+	for (let index = 1; index < rangeCount; index += 1) {
 		const prev = merged[merged.length - 1]!;
 		const curr = ranges[index]!;
 		const gap = curr.start - (prev.start + prev.count);
@@ -1528,6 +1548,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let passHeight = 0;
 
 		/**
+		 * Pre-allocated canvas surface object mutated in-place each frame.
+		 *
+		 * Avoids creating a new `RenderTarget` object on every `render()` call.
+		 * The `texture` and `view` fields are replaced with the current
+		 * swapchain texture before use.
+		 */
+		const canvasSurface: RenderTarget = {
+			texture: null as unknown as GPUTexture,
+			view: null as unknown as GPUTextureView,
+			width: 0,
+			height: 0,
+			format
+		};
+
+		/**
+		 * Pre-allocated slots object mutated in-place each frame when passes are active.
+		 *
+		 * Avoids a new `{ source, target, canvas }` allocation on every `render()` call.
+		 */
+		const frameSlots = {
+			source: null as unknown as RuntimeRenderTarget,
+			target: null as unknown as RuntimeRenderTarget,
+			canvas: canvasSurface
+		};
+		let frameSlotsActive = false;
+
+		/**
 		 * Resolves active render pass list for current frame.
 		 */
 		const resolvePasses = (): AnyPass[] => {
@@ -1909,7 +1956,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				frameScratch.byteLength
 			);
 
-			packUniformsInto(uniforms, options.uniformLayout, uniformScratch);
+			packUniformsIntoFast(uniforms, options.uniformLayout, uniformScratch);
 			if (!hasUniformSnapshot) {
 				device.queue.writeBuffer(
 					uniformBuffer,
@@ -1984,21 +2031,20 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						return nextPlan;
 					})();
 			const canvasTexture = context.getCurrentTexture();
-			const canvasSurface: RenderTarget = {
-				texture: canvasTexture,
-				view: canvasTexture.createView(),
-				width,
-				height,
-				format
-			};
-			const slots =
-				graphPlan.steps.length > 0
-					? {
-							source: ensureSlotTarget('source', width, height),
-							target: ensureSlotTarget('target', width, height),
-							canvas: canvasSurface
-						}
-					: null;
+			// Mutate the pre-allocated surface object rather than allocating a new one.
+			canvasSurface.texture = canvasTexture;
+			canvasSurface.view = canvasTexture.createView();
+			canvasSurface.width = width;
+			canvasSurface.height = height;
+
+			if (graphPlan.steps.length > 0) {
+				frameSlots.source = ensureSlotTarget('source', width, height);
+				frameSlots.target = ensureSlotTarget('target', width, height);
+				frameSlotsActive = true;
+			} else {
+				frameSlotsActive = false;
+			}
+			const slots = frameSlotsActive ? frameSlots : null;
 			const sceneOutput = slots ? slots.source : canvasSurface;
 
 			// Dispatch compute passes BEFORE scene render so storage textures

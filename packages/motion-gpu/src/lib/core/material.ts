@@ -688,12 +688,12 @@ export function resolveMaterial<
 >(
 	material: FragMaterial<TUniformKey, TTextureKey, TDefineKey, TIncludeKey, TStorageBufferKey>
 ): ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> {
-	assertDefinedMaterial(material);
-
 	const cached = getCachedResolvedMaterial(material);
 	if (cached) {
 		return cached;
 	}
+
+	assertDefinedMaterial(material);
 
 	const uniforms = material.uniforms as UniformMap<TUniformKey>;
 	const textures = material.textures as TextureDefinitionMap<TTextureKey>;

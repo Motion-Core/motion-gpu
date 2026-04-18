@@ -4,7 +4,12 @@ import process from 'node:process';
 import { defineMaterial, resolveMaterial } from '../../src/lib/core/material';
 import { planRenderGraph } from '../../src/lib/core/render-graph';
 import { resolveRenderTargetDefinitions } from '../../src/lib/core/render-targets';
-import { packUniformsInto, resolveUniformLayout } from '../../src/lib/core/uniforms';
+import {
+	packUniformsInto,
+	packUniformsIntoFast,
+	resolveUniformLayout
+} from '../../src/lib/core/uniforms';
+import { findDirtyFloatRanges } from '../../src/lib/core/renderer';
 import { createFrameRegistry } from '../../src/lib/core/frame-registry';
 import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
 
@@ -17,6 +22,9 @@ const METRIC_RULES = {
 	resolve_material_cached_hz: { direction: 'higher', maxRegressionPct: 15 },
 	resolve_material_uncached_hz: { direction: 'higher', maxRegressionPct: 15 },
 	pack_uniforms_into_64_vec4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	pack_uniforms_into_fast_64_vec4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	pack_uniforms_mat4_float32array_hz: { direction: 'higher', maxRegressionPct: 15 },
+	find_dirty_ranges_clean_frame_hz: { direction: 'higher', maxRegressionPct: 15 },
 	plan_render_graph_16_passes_hz: { direction: 'higher', maxRegressionPct: 15 },
 	resolve_render_targets_8_hz: { direction: 'higher', maxRegressionPct: 15 },
 	frame_registry_run_64_tasks_hz: { direction: 'higher', maxRegressionPct: 15 }
@@ -275,6 +283,30 @@ fn frag(uv: vec2f) -> vec4f {
 			}
 		},
 		{
+			// Fast unchecked path — mirrors the renderer hot path (values pre-validated at setUniform time)
+			name: 'pack_uniforms_into_fast_64_vec4_hz',
+			batchSize: 8_000,
+			fn: (() => {
+				const fastMap: Record<string, UniformValue> = {};
+				for (let index = 0; index < 64; index += 1) {
+					fastMap[`u${index}`] = [index, index + 1, index + 2, index + 3] as [
+						number,
+						number,
+						number,
+						number
+					];
+				}
+				const fastLayout = resolveUniformLayout(fastMap);
+				const fastOut = new Float32Array(fastLayout.byteLength / 4);
+				let fastTick = 0;
+				return () => {
+					fastTick += 1;
+					fastMap['u0'] = [fastTick, 1, 2, 3] as [number, number, number, number];
+					packUniformsIntoFast(fastMap, fastLayout, fastOut);
+				};
+			})()
+		},
+		{
 			name: 'plan_render_graph_16_passes_hz',
 			batchSize: 10_000,
 			fn: () => {
@@ -296,6 +328,38 @@ fn frag(uv: vec2f) -> vec4f {
 				registry.run(frameState);
 				registry.endFrame();
 			}
+		},
+		{
+			// mat4x4f packing via Float32Array — hot path for camera/transform uniforms
+			name: 'pack_uniforms_mat4_float32array_hz',
+			batchSize: 50_000,
+			fn: (() => {
+				const mat4Map: Record<string, UniformValue> = {
+					uMatrix: { type: 'mat4x4f' as const, value: new Float32Array(16) }
+				};
+				const mat4Layout = resolveUniformLayout(mat4Map);
+				const mat4Out = new Float32Array(mat4Layout.byteLength / 4);
+				const mat = mat4Map['uMatrix'] as { type: 'mat4x4f'; value: Float32Array };
+				let tick = 0;
+				return () => {
+					tick += 1;
+					mat.value[0] = tick;
+					packUniformsInto(mat4Map, mat4Layout, mat4Out);
+				};
+			})()
+		},
+		{
+			// findDirtyFloatRanges called on an unchanged buffer — most common per-frame case
+			name: 'find_dirty_ranges_clean_frame_hz',
+			batchSize: 200_000,
+			fn: (() => {
+				const size = 256; // 64 vec4f uniforms
+				const prev = new Float32Array(size).fill(1);
+				const next = new Float32Array(size).fill(1); // identical → no dirty ranges
+				return () => {
+					findDirtyFloatRanges(prev, next);
+				};
+			})()
 		}
 	];
 }

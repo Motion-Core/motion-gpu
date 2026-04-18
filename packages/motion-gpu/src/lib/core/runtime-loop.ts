@@ -63,6 +63,43 @@ export function createMotionGPURuntimeLoop(
 	let frameId: number | null = null;
 	let renderer: Renderer | null = null;
 	let isDisposed = false;
+
+	// Observed CSS dimensions provided by ResizeObserver.
+	// -1 means no observation has been received yet — the render loop falls
+	// back to getBoundingClientRect() until the first callback fires.
+	let observedCssWidth = -1;
+	let observedCssHeight = -1;
+
+	let resizeObserver: ResizeObserver | null = null;
+	try {
+		// Wrapped in try/catch so a ReferenceError in environments without
+		// ResizeObserver (bare Node.js) is handled gracefully. Tests can stub
+		// this via vi.stubGlobal('ResizeObserver', mock).
+		resizeObserver = new ResizeObserver((entries) => {
+			const entry = entries[entries.length - 1];
+			if (!entry) {
+				return;
+			}
+
+			const boxSize = entry.contentBoxSize?.[0];
+			if (boxSize) {
+				observedCssWidth = Math.max(0, Math.floor(boxSize.inlineSize));
+				observedCssHeight = Math.max(0, Math.floor(boxSize.blockSize));
+			} else {
+				// Fallback for browsers without contentBoxSize support.
+				observedCssWidth = Math.max(0, Math.floor(entry.contentRect.width));
+				observedCssHeight = Math.max(0, Math.floor(entry.contentRect.height));
+			}
+
+			if (!isDisposed) {
+				scheduleFrame();
+			}
+		});
+		resizeObserver.observe(canvasElement);
+	} catch {
+		// ResizeObserver may not support the canvas element in certain environments.
+		resizeObserver = null;
+	}
 	let previousTime = performance.now() / 1000;
 	let activeRendererSignature = '';
 	let failedRendererSignature: string | null = null;
@@ -257,10 +294,16 @@ export function createMotionGPURuntimeLoop(
 			return;
 		}
 
-		uniformKeys = materialState.uniformLayout.entries.map((entry) => entry.name);
-		uniformTypes = new Map(
-			materialState.uniformLayout.entries.map((entry) => [entry.name, entry.type])
-		);
+		// Build uniformKeys and uniformTypes in one pass to avoid iterating entries twice.
+		const layoutEntries = materialState.uniformLayout.entries;
+		const nextUniformKeys: string[] = [];
+		const nextUniformTypes = new Map<string, UniformType>();
+		for (const entry of layoutEntries) {
+			nextUniformKeys.push(entry.name);
+			nextUniformTypes.set(entry.name, entry.type);
+		}
+		uniformKeys = nextUniformKeys;
+		uniformTypes = nextUniformTypes;
 		textureKeys = materialState.textureKeys;
 		uniformKeySet = new Set(uniformKeys);
 		textureKeySet = new Set(textureKeys);
@@ -457,9 +500,20 @@ export function createMotionGPURuntimeLoop(
 		const rawDelta = Math.max(0, time - previousTime);
 		const delta = Math.min(rawDelta, options.maxDelta.current);
 		previousTime = time;
-		const rect = canvasElement.getBoundingClientRect();
-		const width = Math.max(0, Math.floor(rect.width));
-		const height = Math.max(0, Math.floor(rect.height));
+
+		// Use ResizeObserver-supplied dimensions when available; otherwise fall
+		// back to getBoundingClientRect() (e.g. before the first RO callback fires).
+		let width: number;
+		let height: number;
+		if (observedCssWidth >= 0) {
+			width = observedCssWidth;
+			height = observedCssHeight;
+		} else {
+			const rect = canvasElement.getBoundingClientRect();
+			width = Math.max(0, Math.floor(rect.width));
+			height = Math.max(0, Math.floor(rect.height));
+		}
+
 		if (width !== currentCssWidth || height !== currentCssHeight) {
 			currentCssWidth = width;
 			currentCssHeight = height;
@@ -547,6 +601,8 @@ export function createMotionGPURuntimeLoop(
 		advance,
 		destroy: () => {
 			isDisposed = true;
+			resizeObserver?.disconnect();
+			resizeObserver = null;
 			if (frameId !== null) {
 				cancelAnimationFrame(frameId);
 				frameId = null;

@@ -414,3 +414,196 @@ describe('runtime-loop', () => {
 		loop.destroy();
 	});
 });
+
+describe('runtime-loop resize behavior', () => {
+	type ROCallback = (entries: ResizeObserverEntry[]) => void;
+
+	interface MockRO {
+		callback: ROCallback;
+		observe: ReturnType<typeof vi.fn>;
+		disconnect: ReturnType<typeof vi.fn>;
+	}
+
+	let mockROInstances: MockRO[] = [];
+	let rafQueue2: FrameRequestCallback[] = [];
+
+	function fireMockRO(instance: MockRO, inlineSize: number, blockSize: number): void {
+		instance.callback([
+			{
+				contentBoxSize: [{ inlineSize, blockSize }]
+			} as unknown as ResizeObserverEntry
+		]);
+	}
+
+	const material = defineMaterial({
+		fragment: `fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }`
+	});
+
+	beforeEach(() => {
+		mockROInstances = [];
+		rafQueue2 = [];
+
+		// Must use `function` (not arrow) so the implementation can act as a
+		// constructor — vi.fn with an arrow function body throws when called with
+		// `new`, preventing the instance from being pushed to mockROInstances.
+		const MockResizeObserver = vi.fn(function MockRO(this: unknown, cb: ROCallback) {
+			const instance: MockRO = {
+				callback: cb,
+				observe: vi.fn(),
+				disconnect: vi.fn()
+			};
+			mockROInstances.push(instance);
+			return instance;
+		});
+
+		vi.stubGlobal('ResizeObserver', MockResizeObserver);
+		vi.stubGlobal(
+			'requestAnimationFrame',
+			vi.fn((callback: FrameRequestCallback) => {
+				rafQueue2.push(callback);
+				return rafQueue2.length;
+			})
+		);
+		vi.stubGlobal('cancelAnimationFrame', vi.fn());
+		vi.stubGlobal('GPUBufferUsage', { MAP_READ: 0x1, COPY_DST: 0x2 });
+		vi.stubGlobal('GPUMapMode', { READ: 0x1 });
+		createRendererMock.mockReset();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	async function flushFrame2(timestamp: number): Promise<void> {
+		const callback = rafQueue2.shift();
+		if (!callback) return;
+		callback(timestamp);
+		await Promise.resolve();
+		await Promise.resolve();
+	}
+
+	it('observes the canvas element on creation and disconnects on destroy', () => {
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: vi.fn(() => ({ width: 0, height: 0 })),
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas,
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getOutputColorSpace: () => 'srgb',
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		expect(mockROInstances).toHaveLength(1);
+		expect(mockROInstances[0]!.observe).toHaveBeenCalledWith(canvas);
+
+		loop.destroy();
+		expect(mockROInstances[0]!.disconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it('uses ResizeObserver dimensions instead of getBoundingClientRect when available', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 99, height: 99 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getOutputColorSpace: () => 'srgb',
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		// Fire ResizeObserver with explicit dimensions
+		fireMockRO(mockROInstances[0]!, 320, 240);
+
+		// Flush the frame scheduled by the ResizeObserver callback
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		// getBoundingClientRect must NOT be called during normal frame rendering
+		// when ResizeObserver has already provided dimensions.
+		expect(getBoundingClientRectSpy).not.toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 320, height: 240 });
+
+		loop.destroy();
+	});
+
+	it('falls back to getBoundingClientRect when ResizeObserver has not yet fired', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 64, height: 48 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		// Do NOT fire the ResizeObserver before the frame — simulate no observation yet.
+		const loop = createMotionGPURuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getOutputColorSpace: () => 'srgb',
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		// When ResizeObserver hasn't fired, getBoundingClientRect is the fallback.
+		expect(getBoundingClientRectSpy).toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 64, height: 48 });
+
+		loop.destroy();
+	});
+});

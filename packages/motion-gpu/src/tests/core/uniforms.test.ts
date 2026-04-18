@@ -204,4 +204,56 @@ describe('uniform helpers', () => {
 			/Uniform value must resolve/
 		);
 	});
+
+	it('packs mat4x4f from Float32Array with correct column-major values', () => {
+		// Identity matrix in column-major order
+		const identity = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+		const layout = resolveUniformLayout({
+			uMatrix: { type: 'mat4x4f', value: identity }
+		});
+		const packed = packUniforms({ uMatrix: { type: 'mat4x4f', value: identity } }, layout);
+
+		// All 16 values must match exactly — Float32Array.set() path
+		for (let i = 0; i < 16; i += 1) {
+			expect(packed[i]).toBe(identity[i]);
+		}
+	});
+
+	it('packs Float32Array mat4x4f with arbitrary non-identity values', () => {
+		const matrix = new Float32Array(16);
+		for (let i = 0; i < 16; i += 1) {
+			matrix[i] = (i + 1) * 0.1;
+		}
+		const layout = resolveUniformLayout({
+			uM: { type: 'mat4x4f', value: matrix }
+		});
+		const packed = packUniforms({ uM: { type: 'mat4x4f', value: matrix } }, layout);
+
+		for (let i = 0; i < 16; i += 1) {
+			expect(packed[i]).toBeCloseTo(matrix[i]!, 5);
+		}
+	});
+
+	it('packs multiple uniforms including Float32Array mat4x4f at non-zero offset', () => {
+		const matrix = new Float32Array(16);
+		for (let i = 0; i < 16; i += 1) {
+			matrix[i] = i + 10;
+		}
+		const layout = resolveUniformLayout({
+			uScale: 2.5,
+			uMatrix: { type: 'mat4x4f', value: matrix }
+		});
+		const packed = packUniforms(
+			{
+				uScale: 2.5,
+				uMatrix: { type: 'mat4x4f', value: matrix }
+			},
+			layout
+		);
+
+		const matrixBaseFloat = layout.byName['uMatrix']!.offset / 4;
+		for (let i = 0; i < 16; i += 1) {
+			expect(packed[matrixBaseFloat + i]).toBeCloseTo(matrix[i]!, 5);
+		}
+	});
 });

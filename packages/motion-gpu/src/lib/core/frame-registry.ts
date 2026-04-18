@@ -179,6 +179,8 @@ interface RegisteredFrameTask extends UseFrameResult {
  */
 interface InternalTask {
 	task: FrameTask;
+	/** Pre-computed string form of `task.key` — avoids Symbol.toString() on every profiling frame. */
+	keyString: string;
 	callback: FrameCallback;
 	order: number;
 	started: boolean;
@@ -270,7 +272,13 @@ function resolveInvalidationToken(
 		return null;
 	}
 
-	const resolved = typeof token === 'function' ? token() : token;
+	// Fast path: most tokens are static (string | symbol) — skip the typeof
+	// check and return directly. Function tokens are rare (dynamic token resolvers).
+	if (typeof token !== 'function') {
+		return token;
+	}
+
+	const resolved = token();
 	if (resolved === null || resolved === undefined) {
 		return null;
 	}
@@ -685,11 +693,22 @@ export function createFrameRegistry(options?: {
 	let profilingEnabled = options?.profilingEnabled ?? options?.diagnosticsEnabled ?? false;
 	let profilingWindow = options?.profilingWindow ?? 120;
 	let lastRunTimings: FrameRunTimings | null = null;
-	const profilingHistory: FrameRunTimings[] = [];
+
+	// Ring buffer for profiling history. Replaces the Array.shift()-based
+	// approach (O(n)) with an O(1) head-advance on every push past capacity.
+	let ringBuffer: FrameRunTimings[] = new Array(profilingWindow) as FrameRunTimings[];
+	let ringHead = 0; // Index of the oldest valid entry.
+	let ringCount = 0; // Number of valid entries (≤ profilingWindow).
 	let hasUntokenizedInvalidation = true;
 	const invalidationTokens = new Set<FrameInvalidationToken>();
 	let shouldAdvance = false;
 	let orderCounter = 0;
+
+	// Pre-allocated object for the clamped-delta frame state, mutated in-place
+	// each frame instead of allocating a new spread object when maxDelta fires.
+	// Initialised lazily on the first clamped frame — until then `null` signals
+	// that the original state should be passed through unchanged.
+	let clampedFrameState: FrameState | null = null;
 
 	const assertMaxDelta = (value: number): number => {
 		if (!Number.isFinite(value) || value <= 0) {
@@ -777,14 +796,20 @@ export function createFrameRegistry(options?: {
 	};
 
 	const pushProfile = (timings: FrameRunTimings): void => {
-		profilingHistory.push(timings);
-		while (profilingHistory.length > profilingWindow) {
-			profilingHistory.shift();
+		if (ringCount < profilingWindow) {
+			// Buffer not yet full: write at the next free slot.
+			ringBuffer[(ringHead + ringCount) % profilingWindow] = timings;
+			ringCount += 1;
+		} else {
+			// Buffer full: overwrite the oldest slot and advance the head. O(1).
+			ringBuffer[ringHead] = timings;
+			ringHead = (ringHead + 1) % profilingWindow;
 		}
 	};
 
 	const clearProfiling = (): void => {
-		profilingHistory.length = 0;
+		ringHead = 0;
+		ringCount = 0;
 		lastRunTimings = null;
 	};
 
@@ -802,7 +827,8 @@ export function createFrameRegistry(options?: {
 		>();
 		const totalDurations: number[] = [];
 
-		for (const frame of profilingHistory) {
+		for (let ri = 0; ri < ringCount; ri++) {
+			const frame = ringBuffer[(ringHead + ri) % profilingWindow] as FrameRunTimings;
 			totalDurations.push(frame.total);
 			for (const [stageKey, stageTiming] of Object.entries(frame.stages)) {
 				const stageBucket = stageBuckets.get(stageKey) ?? {
@@ -838,7 +864,7 @@ export function createFrameRegistry(options?: {
 
 		return {
 			window: profilingWindow,
-			frameCount: profilingHistory.length,
+			frameCount: ringCount,
 			lastFrame: lastRunTimings,
 			total: buildTimingStats(totalDurations, lastRunTimings?.total ?? 0),
 			stages: stagesSnapshot
@@ -968,6 +994,7 @@ export function createFrameRegistry(options?: {
 
 			const internalTask: InternalTask = {
 				task: { key, stage: stage.key },
+				keyString: frameKeyToString(key),
 				callback,
 				order: orderCounter++,
 				started: taskOptions.autoStart ?? true,
@@ -1012,13 +1039,29 @@ export function createFrameRegistry(options?: {
 		},
 		run(state) {
 			const clampedDelta = Math.min(state.delta, maxDelta);
-			const frameState =
-				clampedDelta === state.delta
-					? state
-					: {
-							...state,
-							delta: clampedDelta
-						};
+			let frameState: FrameState;
+			if (clampedDelta === state.delta) {
+				frameState = state;
+			} else {
+				// Reuse the pre-allocated object — update only the fields that can
+				// change between frames (delta and fields derived from `state`).
+				if (clampedFrameState === null) {
+					clampedFrameState = { ...state, delta: clampedDelta };
+				} else {
+					clampedFrameState.time = state.time;
+					clampedFrameState.delta = clampedDelta;
+					clampedFrameState.setUniform = state.setUniform;
+					clampedFrameState.setTexture = state.setTexture;
+					clampedFrameState.writeStorageBuffer = state.writeStorageBuffer;
+					clampedFrameState.readStorageBuffer = state.readStorageBuffer;
+					clampedFrameState.invalidate = state.invalidate;
+					clampedFrameState.advance = state.advance;
+					clampedFrameState.renderMode = state.renderMode;
+					clampedFrameState.autoRender = state.autoRender;
+					clampedFrameState.canvas = state.canvas;
+				}
+				frameState = clampedFrameState;
+			}
 			syncSchedule();
 			const frameStart = profilingEnabled ? performance.now() : 0;
 			const stageTimings: FrameRunTimings['stages'] = {};
@@ -1040,7 +1083,7 @@ export function createFrameRegistry(options?: {
 
 						task.callback(frameState);
 						if (profilingEnabled) {
-							taskTimings[frameKeyToString(task.task.key)] = performance.now() - taskStart;
+							taskTimings[task.keyString] = performance.now() - taskStart;
 						}
 						applyTaskInvalidation(task);
 					}
@@ -1114,10 +1157,25 @@ export function createFrameRegistry(options?: {
 			}
 		},
 		setProfilingWindow(window) {
-			profilingWindow = assertProfilingWindow(window);
-			while (profilingHistory.length > profilingWindow) {
-				profilingHistory.shift();
+			const newWindow = assertProfilingWindow(window);
+			if (newWindow === profilingWindow) {
+				return;
 			}
+
+			// Drain the ring into a flat ordered array (oldest → newest).
+			const keep = Math.min(ringCount, newWindow);
+			const startOffset = ringCount - keep;
+			const newBuffer: FrameRunTimings[] = new Array(newWindow) as FrameRunTimings[];
+			for (let i = 0; i < keep; i++) {
+				newBuffer[i] = ringBuffer[
+					(ringHead + startOffset + i) % profilingWindow
+				] as FrameRunTimings;
+			}
+
+			profilingWindow = newWindow;
+			ringBuffer = newBuffer;
+			ringHead = 0;
+			ringCount = keep;
 		},
 		resetProfiling() {
 			clearProfiling();

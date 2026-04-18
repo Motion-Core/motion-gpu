@@ -402,6 +402,39 @@ describe('frame registry', () => {
 		expect(() => createFrameRegistry({ profilingWindow: 0 })).toThrow(/profilingWindow must be/);
 	});
 
+	it('profilingHistory ring buffer: frameCount stays pinned at window and survives window resize', () => {
+		const registry = createFrameRegistry({
+			profilingEnabled: true,
+			profilingWindow: 4
+		});
+		registry.register('noop', () => undefined);
+
+		// Run fewer frames than window — frameCount tracks actual frames.
+		for (let i = 0; i < 3; i++) registry.run(createState(registry));
+		expect(registry.getProfilingSnapshot()?.frameCount).toBe(3);
+
+		// Once window is saturated frameCount must not grow past it.
+		for (let i = 0; i < 10; i++) registry.run(createState(registry));
+		expect(registry.getProfilingSnapshot()?.frameCount).toBe(4);
+
+		// Shrinking the window must drop oldest entries.
+		registry.setProfilingWindow(2);
+		expect(registry.getProfilingSnapshot()?.frameCount).toBe(2);
+		expect(registry.getProfilingSnapshot()?.window).toBe(2);
+
+		// Growing the window must not invent phantom frames.
+		registry.setProfilingWindow(8);
+		expect(registry.getProfilingSnapshot()?.frameCount).toBe(2);
+
+		// Running more frames must fill the new (larger) window.
+		for (let i = 0; i < 6; i++) registry.run(createState(registry));
+		expect(registry.getProfilingSnapshot()?.frameCount).toBe(8);
+
+		// Snapshot data integrity: total frame count matches window.
+		const snapshot = registry.getProfilingSnapshot();
+		expect(snapshot?.total.count).toBe(8);
+	});
+
 	it('rejects task registration without a callback', () => {
 		const registry = createFrameRegistry();
 		expect(() =>

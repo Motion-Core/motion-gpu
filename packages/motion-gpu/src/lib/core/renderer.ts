@@ -730,7 +730,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		}
 		uncapturedErrorMessages.length = 0;
 
-		const primaryIndex = uniqueMessages.findIndex((message) => !isDerivativeUncapturedMessage(message));
+		const primaryIndex = uniqueMessages.findIndex(
+			(message) => !isDerivativeUncapturedMessage(message)
+		);
 		const resolvedPrimaryIndex = primaryIndex === -1 ? 0 : primaryIndex;
 		const primaryMessage = uniqueMessages[resolvedPrimaryIndex];
 		if (!primaryMessage) {
@@ -790,7 +792,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				? event.error.message
 				: String((event.error as { message?: string })?.message ?? event.error);
 		const trimmedMessage = message.trim();
-		const normalizedMessage = trimmedMessage.length > 0 ? trimmedMessage : 'Unknown GPU validation error';
+		const normalizedMessage =
+			trimmedMessage.length > 0 ? trimmedMessage : 'Unknown GPU validation error';
 		const lastMessage = uncapturedErrorMessages[uncapturedErrorMessages.length - 1];
 		if (lastMessage === normalizedMessage) {
 			return;
@@ -798,7 +801,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		uncapturedErrorMessages.push(normalizedMessage);
 		if (uncapturedErrorMessages.length > MAX_UNCAPTURED_ERROR_MESSAGES) {
-			uncapturedErrorMessages.splice(0, uncapturedErrorMessages.length - MAX_UNCAPTURED_ERROR_MESSAGES);
+			uncapturedErrorMessages.splice(
+				0,
+				uncapturedErrorMessages.length - MAX_UNCAPTURED_ERROR_MESSAGES
+			);
 		}
 	};
 

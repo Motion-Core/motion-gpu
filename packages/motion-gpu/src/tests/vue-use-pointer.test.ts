@@ -147,7 +147,7 @@ async function renderPointerProbe(
 			default: () =>
 				h(PointerProbe, {
 					onProbe,
-					options: input.options
+					...(input.options ? { options: input.options } : {})
 				})
 		}
 	});

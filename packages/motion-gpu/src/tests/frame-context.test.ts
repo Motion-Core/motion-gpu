@@ -144,6 +144,25 @@ describe('frame registry', () => {
 		expect(execution).toEqual(['a', 'b', 'c']);
 	});
 
+	it('avoids re-sorting the dependency queue for each newly eligible task', () => {
+		const registry = createFrameRegistry();
+
+		for (let index = 19; index >= 0; index -= 1) {
+			registry.register(`task-${index}`, () => undefined, {
+				after: index > 0 ? [`task-${index - 1}`] : []
+			});
+		}
+
+		const sortSpy = vi.spyOn(Array.prototype, 'sort');
+
+		try {
+			registry.run(createState(registry));
+			expect(sortSpy.mock.calls.length).toBeLessThanOrEqual(2);
+		} finally {
+			sortSpy.mockRestore();
+		}
+	});
+
 	it('runs stage graph respecting stage dependencies', () => {
 		const registry = createFrameRegistry();
 		const execution: string[] = [];

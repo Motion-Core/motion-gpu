@@ -521,8 +521,10 @@ function sortByDependencies<T extends { key: FrameKey; order: number }>(
 	queue.sort((a, b) => a.order - b.order);
 
 	const ordered: T[] = [];
-	while (queue.length > 0) {
-		const current = queue.shift();
+	let head = 0;
+	while (head < queue.length) {
+		const current = queue[head];
+		head += 1;
 		if (!current) {
 			break;
 		}
@@ -535,8 +537,11 @@ function sortByDependencies<T extends { key: FrameKey; order: number }>(
 			if (nextDegree === 0) {
 				const child = itemsByKey.get(childKey);
 				if (child) {
-					queue.push(child);
-					queue.sort((a, b) => a.order - b.order);
+					let insertIndex = queue.length;
+					while (insertIndex > head && (queue[insertIndex - 1]?.order ?? 0) > child.order) {
+						insertIndex -= 1;
+					}
+					queue.splice(insertIndex, 0, child);
 				}
 			}
 		}

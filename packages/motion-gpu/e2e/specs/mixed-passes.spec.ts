@@ -165,12 +165,15 @@ test.describe('motion-gpu mixed passes e2e', () => {
 
 		// Should surface an error
 		await expect
-			.poll(async () => {
-				await advanceAndWait(page);
-				return toNumber(await page.getByTestId('error-count').textContent());
-			}, {
-				timeout: 5_000
-			})
+			.poll(
+				async () => {
+					await advanceAndWait(page);
+					return toNumber(await page.getByTestId('error-count').textContent());
+				},
+				{
+					timeout: 5_000
+				}
+			)
 			.toBeGreaterThan(0);
 		await expect(page.getByTestId('last-error')).not.toHaveText('none');
 
@@ -223,12 +226,15 @@ test.describe('motion-gpu mixed passes e2e', () => {
 		await page.getByTestId('set-config-bad-shader-pass').click();
 		await advanceAndWait(page);
 		await expect
-			.poll(async () => {
-				await advanceAndWait(page);
-				return toNumber(await page.getByTestId('error-count').textContent());
-			}, {
-				timeout: 5_000
-			})
+			.poll(
+				async () => {
+					await advanceAndWait(page);
+					return toNumber(await page.getByTestId('error-count').textContent());
+				},
+				{
+					timeout: 5_000
+				}
+			)
 			.toBeGreaterThan(1);
 
 		const firstErrorCount = toNumber(await page.getByTestId('error-count').textContent());

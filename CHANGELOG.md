@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Performance
+- Replaced repeated dependency-queue `sort()` calls and `shift()` in `frame-registry` topological scheduling with sorted insertion plus a head index, reducing scheduler rebuild overhead during task/stage graph recomputation.
 
 ## [0.8.1] - 2026-04-18
 ### Performance

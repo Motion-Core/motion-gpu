@@ -257,10 +257,16 @@ export function createMotionGPURuntimeLoop(
 			return;
 		}
 
-		uniformKeys = materialState.uniformLayout.entries.map((entry) => entry.name);
-		uniformTypes = new Map(
-			materialState.uniformLayout.entries.map((entry) => [entry.name, entry.type])
-		);
+		// Build uniformKeys and uniformTypes in one pass to avoid iterating entries twice.
+		const layoutEntries = materialState.uniformLayout.entries;
+		const nextUniformKeys: string[] = [];
+		const nextUniformTypes = new Map<string, UniformType>();
+		for (const entry of layoutEntries) {
+			nextUniformKeys.push(entry.name);
+			nextUniformTypes.set(entry.name, entry.type);
+		}
+		uniformKeys = nextUniformKeys;
+		uniformTypes = nextUniformTypes;
 		textureKeys = materialState.textureKeys;
 		uniformKeySet = new Set(uniformKeys);
 		textureKeySet = new Set(textureKeys);

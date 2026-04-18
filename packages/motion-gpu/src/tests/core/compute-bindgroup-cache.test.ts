@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createComputeStorageBindGroupCache } from '../../lib/core/compute-bindgroup-cache';
+import {
+	createComputeStorageBindGroupCache,
+	type ComputeStorageBindGroupCache
+} from '../../lib/core/compute-bindgroup-cache';
+
+type CacheWithDebug = ComputeStorageBindGroupCache & {
+	readonly _refAt: (index: number) => unknown;
+};
 
 function createMockDevice() {
 	return {
@@ -11,6 +18,30 @@ function createMockDevice() {
 			(descriptor: GPUBindGroupDescriptor) => ({ descriptor }) as unknown as GPUBindGroup
 		)
 	} as unknown as GPUDevice;
+}
+
+function createTwoBufferRequest(
+	topologyKey: string,
+	refA: GPUBuffer,
+	refB: GPUBuffer
+): {
+	topologyKey: string;
+	layoutEntries: GPUBindGroupLayoutEntry[];
+	bindGroupEntries: GPUBindGroupEntry[];
+	resourceRefs: unknown[];
+} {
+	return {
+		topologyKey,
+		layoutEntries: [
+			{ binding: 0, visibility: 0x20, buffer: { type: 'storage' } },
+			{ binding: 1, visibility: 0x20, buffer: { type: 'storage' } }
+		],
+		bindGroupEntries: [
+			{ binding: 0, resource: { buffer: refA } },
+			{ binding: 1, resource: { buffer: refB } }
+		],
+		resourceRefs: [refA, refB]
+	};
 }
 
 function createStorageBufferRequest(
@@ -104,6 +135,45 @@ describe('createComputeStorageBindGroupCache', () => {
 
 		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(2);
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
+	});
+
+	it('nulls out stale backing-array slots when resource-ref count shrinks', () => {
+		const device = createMockDevice();
+		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
+		const bufferA = {} as GPUBuffer;
+		const bufferB = {} as GPUBuffer;
+		const bufferC = {} as GPUBuffer;
+
+		cache.getOrCreate(createTwoBufferRequest('two-buf', bufferA, bufferB));
+		cache.getOrCreate(createStorageBufferRequest('two-buf', bufferC));
+
+		expect(cache._refAt(1)).toBeNull();
+	});
+
+	it('nulls out backing-array slots on reset', () => {
+		const device = createMockDevice();
+		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
+		const bufferA = {} as GPUBuffer;
+		const bufferB = {} as GPUBuffer;
+
+		cache.getOrCreate(createTwoBufferRequest('two-buf', bufferA, bufferB));
+		cache.reset();
+
+		expect(cache._refAt(0)).toBeNull();
+		expect(cache._refAt(1)).toBeNull();
+	});
+
+	it('nulls out stale backing-array slots on topology change', () => {
+		const device = createMockDevice();
+		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
+		const bufferA = {} as GPUBuffer;
+		const bufferB = {} as GPUBuffer;
+		const bufferC = {} as GPUBuffer;
+
+		cache.getOrCreate(createTwoBufferRequest('topology-A', bufferA, bufferB));
+		cache.getOrCreate(createStorageBufferRequest('topology-B', bufferC));
+
+		expect(cache._refAt(1)).toBeNull();
 	});
 
 	it('returns null for empty entries and clears cached state', () => {

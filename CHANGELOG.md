@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Performance
 - Replaced repeated dependency-queue `sort()` calls and `shift()` in `frame-registry` topological scheduling with sorted insertion plus a head index, reducing scheduler rebuild overhead during task/stage graph recomputation.
 - Reused the internal `resourceRefs` backing array in the compute storage bind-group cache, replacing per-miss spread copies with indexed writes to reduce allocation churn when bound compute resources change.
+- Nulled out stale slots in the compute storage bind-group cache backing array after a resource-ref count shrink, topology change, or `reset()` call, preventing long-lived GPU object references from blocking GC in those code paths.
 - Removed the intermediate `map()` allocation when rebuilding `activeKeys` in renderer render-target sync, constructing the `Set` in a single pass during render-target signature changes.
 - Replaced three `split('\\n')` line-count scans in `buildShaderSourceWithMap` with allocation-free newline counting, reducing transient string-array creation during shader compilation.
 

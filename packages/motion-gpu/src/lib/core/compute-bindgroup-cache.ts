@@ -28,6 +28,12 @@ function equalResourceRefs(
 	return true;
 }
 
+function nullBackingSlots(array: unknown[], from: number, to: number): void {
+	for (let index = from; index < to; index += 1) {
+		array[index] = null;
+	}
+}
+
 export function createComputeStorageBindGroupCache(
 	device: GPUDevice
 ): ComputeStorageBindGroupCache {
@@ -41,11 +47,12 @@ export function createComputeStorageBindGroupCache(
 		cachedTopologyKey = null;
 		cachedLayout = null;
 		cachedBindGroup = null;
+		nullBackingSlots(cachedResourceRefs, 0, cachedResourceRefCount);
 		cachedResourceRefCount = 0;
 	};
 
-	return {
-		getOrCreate(request) {
+	const cache = {
+		getOrCreate(request: ComputeStorageBindGroupCacheRequest): GPUBindGroup | null {
 			if (request.layoutEntries.length === 0) {
 				reset();
 				return null;
@@ -55,6 +62,7 @@ export function createComputeStorageBindGroupCache(
 				cachedTopologyKey = request.topologyKey;
 				cachedLayout = device.createBindGroupLayout({ entries: request.layoutEntries });
 				cachedBindGroup = null;
+				nullBackingSlots(cachedResourceRefs, 0, cachedResourceRefCount);
 				cachedResourceRefCount = 0;
 			}
 
@@ -73,6 +81,7 @@ export function createComputeStorageBindGroupCache(
 				layout: cachedLayout,
 				entries: request.bindGroupEntries
 			});
+			const prevCount = cachedResourceRefCount;
 			cachedResourceRefCount = request.resourceRefs.length;
 			if (cachedResourceRefs.length < cachedResourceRefCount) {
 				cachedResourceRefs = new Array(cachedResourceRefCount);
@@ -80,8 +89,14 @@ export function createComputeStorageBindGroupCache(
 			for (let index = 0; index < cachedResourceRefCount; index += 1) {
 				cachedResourceRefs[index] = request.resourceRefs[index];
 			}
+			nullBackingSlots(cachedResourceRefs, cachedResourceRefCount, prevCount);
 			return cachedBindGroup;
 		},
-		reset
+		reset,
+		_refAt(index: number): unknown {
+			return cachedResourceRefs[index];
+		}
 	};
+
+	return cache;
 }

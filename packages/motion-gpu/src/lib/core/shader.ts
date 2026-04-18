@@ -167,6 +167,16 @@ export interface BuiltShaderSource {
 	lineMap: ShaderLineMap;
 }
 
+function countLines(source: string, end = source.length): number {
+	let lineCount = 1;
+	for (let index = 0; index < end; index += 1) {
+		if (source.charCodeAt(index) === 10) {
+			lineCount += 1;
+		}
+	}
+	return lineCount;
+}
+
 /**
  * Assembles complete WGSL shader source used by the fullscreen renderer pipeline.
  *
@@ -259,7 +269,7 @@ export function buildShaderSourceWithMap(
 ): BuiltShaderSource {
 	const code = buildShaderSource(fragmentWgsl, uniformLayout, textureKeys, options);
 	const fragmentStartIndex = code.indexOf(fragmentWgsl);
-	const lineCount = code.split('\n').length;
+	const lineCount = countLines(code);
 	const lineMap: ShaderLineMap = new Array(lineCount + 1).fill(null);
 
 	if (fragmentStartIndex === -1) {
@@ -269,8 +279,8 @@ export function buildShaderSourceWithMap(
 		};
 	}
 
-	const fragmentStartLine = code.slice(0, fragmentStartIndex).split('\n').length;
-	const fragmentLineCount = fragmentWgsl.split('\n').length;
+	const fragmentStartLine = countLines(code, fragmentStartIndex);
+	const fragmentLineCount = countLines(fragmentWgsl);
 
 	for (let line = 0; line < fragmentLineCount; line += 1) {
 		const generatedLine = fragmentStartLine + line;

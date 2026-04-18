@@ -10,12 +10,16 @@ export interface ComputeStorageBindGroupCache {
 	reset: () => void;
 }
 
-function equalResourceRefs(previous: readonly unknown[], next: readonly unknown[]): boolean {
-	if (previous.length !== next.length) {
+function equalResourceRefs(
+	previous: readonly unknown[],
+	previousCount: number,
+	next: readonly unknown[]
+): boolean {
+	if (previousCount !== next.length) {
 		return false;
 	}
 
-	for (let index = 0; index < previous.length; index += 1) {
+	for (let index = 0; index < previousCount; index += 1) {
 		if (!Object.is(previous[index], next[index])) {
 			return false;
 		}
@@ -30,13 +34,14 @@ export function createComputeStorageBindGroupCache(
 	let cachedTopologyKey: string | null = null;
 	let cachedLayout: GPUBindGroupLayout | null = null;
 	let cachedBindGroup: GPUBindGroup | null = null;
-	let cachedResourceRefs: readonly unknown[] = [];
+	let cachedResourceRefs: unknown[] = [];
+	let cachedResourceRefCount = 0;
 
 	const reset = (): void => {
 		cachedTopologyKey = null;
 		cachedLayout = null;
 		cachedBindGroup = null;
-		cachedResourceRefs = [];
+		cachedResourceRefCount = 0;
 	};
 
 	return {
@@ -50,14 +55,17 @@ export function createComputeStorageBindGroupCache(
 				cachedTopologyKey = request.topologyKey;
 				cachedLayout = device.createBindGroupLayout({ entries: request.layoutEntries });
 				cachedBindGroup = null;
-				cachedResourceRefs = [];
+				cachedResourceRefCount = 0;
 			}
 
 			if (!cachedLayout) {
 				throw new Error('Compute storage bind group cache is missing a layout.');
 			}
 
-			if (cachedBindGroup && equalResourceRefs(cachedResourceRefs, request.resourceRefs)) {
+			if (
+				cachedBindGroup &&
+				equalResourceRefs(cachedResourceRefs, cachedResourceRefCount, request.resourceRefs)
+			) {
 				return cachedBindGroup;
 			}
 
@@ -65,7 +73,13 @@ export function createComputeStorageBindGroupCache(
 				layout: cachedLayout,
 				entries: request.bindGroupEntries
 			});
-			cachedResourceRefs = [...request.resourceRefs];
+			cachedResourceRefCount = request.resourceRefs.length;
+			if (cachedResourceRefs.length < cachedResourceRefCount) {
+				cachedResourceRefs = new Array(cachedResourceRefCount);
+			}
+			for (let index = 0; index < cachedResourceRefCount; index += 1) {
+				cachedResourceRefs[index] = request.resourceRefs[index];
+			}
 			return cachedBindGroup;
 		},
 		reset

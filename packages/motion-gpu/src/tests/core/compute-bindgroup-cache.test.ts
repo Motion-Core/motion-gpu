@@ -65,6 +65,24 @@ describe('createComputeStorageBindGroupCache', () => {
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
+	it('reuses the internal resource refs backing array across cache misses of the same arity', () => {
+		const device = createMockDevice();
+		const cache = createComputeStorageBindGroupCache(device);
+		const firstRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
+		const secondRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
+		const resourceRefsIterator = vi.fn(
+			secondRequest.resourceRefs[Symbol.iterator].bind(secondRequest.resourceRefs)
+		);
+		Object.defineProperty(secondRequest.resourceRefs, Symbol.iterator, {
+			value: resourceRefsIterator
+		});
+
+		cache.getOrCreate(firstRequest);
+		cache.getOrCreate(secondRequest);
+
+		expect(resourceRefsIterator).not.toHaveBeenCalled();
+	});
+
 	it('recreates layout when topology changes', () => {
 		const device = createMockDevice();
 		const cache = createComputeStorageBindGroupCache(device);

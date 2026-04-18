@@ -1548,6 +1548,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let passHeight = 0;
 
 		/**
+		 * Pre-allocated canvas surface object mutated in-place each frame.
+		 *
+		 * Avoids creating a new `RenderTarget` object on every `render()` call.
+		 * The `texture` and `view` fields are replaced with the current
+		 * swapchain texture before use.
+		 */
+		const canvasSurface: RenderTarget = {
+			texture: null as unknown as GPUTexture,
+			view: null as unknown as GPUTextureView,
+			width: 0,
+			height: 0,
+			format
+		};
+
+		/**
+		 * Pre-allocated slots object mutated in-place each frame when passes are active.
+		 *
+		 * Avoids a new `{ source, target, canvas }` allocation on every `render()` call.
+		 */
+		const frameSlots = {
+			source: null as unknown as RuntimeRenderTarget,
+			target: null as unknown as RuntimeRenderTarget,
+			canvas: canvasSurface
+		};
+		let frameSlotsActive = false;
+
+		/**
 		 * Resolves active render pass list for current frame.
 		 */
 		const resolvePasses = (): AnyPass[] => {
@@ -2004,21 +2031,20 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						return nextPlan;
 					})();
 			const canvasTexture = context.getCurrentTexture();
-			const canvasSurface: RenderTarget = {
-				texture: canvasTexture,
-				view: canvasTexture.createView(),
-				width,
-				height,
-				format
-			};
-			const slots =
-				graphPlan.steps.length > 0
-					? {
-							source: ensureSlotTarget('source', width, height),
-							target: ensureSlotTarget('target', width, height),
-							canvas: canvasSurface
-						}
-					: null;
+			// Mutate the pre-allocated surface object rather than allocating a new one.
+			canvasSurface.texture = canvasTexture;
+			canvasSurface.view = canvasTexture.createView();
+			canvasSurface.width = width;
+			canvasSurface.height = height;
+
+			if (graphPlan.steps.length > 0) {
+				frameSlots.source = ensureSlotTarget('source', width, height);
+				frameSlots.target = ensureSlotTarget('target', width, height);
+				frameSlotsActive = true;
+			} else {
+				frameSlotsActive = false;
+			}
+			const slots = frameSlotsActive ? frameSlots : null;
 			const sceneOutput = slots ? slots.source : canvasSurface;
 
 			// Dispatch compute passes BEFORE scene render so storage textures

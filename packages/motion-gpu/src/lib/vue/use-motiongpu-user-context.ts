@@ -1,3 +1,4 @@
+import { getCurrentInstance } from 'vue';
 import type { CurrentReadable } from '../core/current-value.js';
 import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context.js';
 
@@ -104,6 +105,12 @@ export function setMotionGPUUserContext<UCT = unknown>(
 	value: UCT | (() => UCT),
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
+	if (!getCurrentInstance()) {
+		throw new Error(
+			'setMotionGPUUserContext must be called during component setup or lifecycle hooks.'
+		);
+	}
+
 	const userStore = useMotionGPU().user;
 	const mode = options?.existing ?? 'skip';
 	const functionValueMode = options?.functionValue ?? 'factory';

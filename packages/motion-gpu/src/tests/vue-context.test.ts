@@ -75,20 +75,12 @@ const Providers = defineComponent({
 		payload: {
 			type: Object as PropType<ReturnType<typeof createRuntimeHarness>>,
 			required: true
-		},
-		child: {
-			type: Object as PropType<ReturnType<typeof defineComponent>>,
-			required: true
-		},
-		childProps: {
-			type: Object as PropType<Record<string, unknown>>,
-			default: () => ({})
 		}
 	},
-	setup(props) {
+	setup(props, { slots }) {
 		provideFrameRegistry(props.payload.registry);
 		provideMotionGPUContext(props.payload.context);
-		return () => h(props.child, props.childProps);
+		return () => slots.default?.() ?? null;
 	}
 });
 
@@ -96,9 +88,9 @@ describe('vue adapter runtime hooks', () => {
 	it('throws when useMotionGPU is called outside provider', () => {
 		const Probe = defineComponent({
 			name: 'OutsideMotionGPUProbe',
+			render: () => null,
 			setup() {
 				useMotionGPU();
-				return () => null;
 			}
 		});
 
@@ -129,9 +121,10 @@ describe('vue adapter runtime hooks', () => {
 
 		const view = render(Providers, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onRegistration }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onRegistration })
 			}
 		});
 		await waitFor(() => {
@@ -181,11 +174,29 @@ describe('vue adapter runtime hooks', () => {
 			}
 		});
 
-		const view = render(Providers, {
+		const Harness = defineComponent({
+			name: 'StableFrameHarness',
+			props: {
+				payload: {
+					type: Object as PropType<ReturnType<typeof createRuntimeHarness>>,
+					required: true
+				},
+				frame: {
+					type: Number,
+					required: true
+				}
+			},
+			setup(harnessProps) {
+				provideFrameRegistry(harnessProps.payload.registry);
+				provideMotionGPUContext(harnessProps.payload.context);
+				return () => h(Probe, { frame: harnessProps.frame });
+			}
+		});
+
+		const view = render(Harness, {
 			props: {
 				payload,
-				child: Probe,
-				childProps: { frame: 0 }
+				frame: 0
 			}
 		});
 		await waitFor(() => {
@@ -194,8 +205,7 @@ describe('vue adapter runtime hooks', () => {
 
 		await view.rerender({
 			payload,
-			child: Probe,
-			childProps: { frame: 1 }
+			frame: 1
 		});
 		await waitFor(() => {
 			expect(registerSpy).toHaveBeenCalledTimes(1);
@@ -221,11 +231,29 @@ describe('vue adapter runtime hooks', () => {
 			}
 		});
 
-		const view = render(Providers, {
+		const Harness = defineComponent({
+			name: 'FrozenOptionsHarness',
+			props: {
+				payload: {
+					type: Object as PropType<ReturnType<typeof createRuntimeHarness>>,
+					required: true
+				},
+				autoInvalidate: {
+					type: Boolean,
+					required: true
+				}
+			},
+			setup(harnessProps) {
+				provideFrameRegistry(harnessProps.payload.registry);
+				provideMotionGPUContext(harnessProps.payload.context);
+				return () => h(Probe, { autoInvalidate: harnessProps.autoInvalidate });
+			}
+		});
+
+		const view = render(Harness, {
 			props: {
 				payload,
-				child: Probe,
-				childProps: { autoInvalidate: false }
+				autoInvalidate: false
 			}
 		});
 		await waitFor(() => {
@@ -239,8 +267,7 @@ describe('vue adapter runtime hooks', () => {
 
 		await view.rerender({
 			payload,
-			child: Probe,
-			childProps: { autoInvalidate: true }
+			autoInvalidate: true
 		});
 		await waitFor(() => {
 			expect(registerSpy).toHaveBeenCalledTimes(1);
@@ -255,9 +282,9 @@ describe('vue adapter runtime hooks', () => {
 	it('throws when useFrame is called outside FrameRegistry provider', () => {
 		const Probe = defineComponent({
 			name: 'OutsideFrameProbe',
+			render: () => null,
 			setup() {
 				useFrame(() => undefined);
-				return () => null;
 			}
 		});
 
@@ -335,9 +362,10 @@ describe('vue adapter runtime hooks', () => {
 
 		render(Providers, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 		await waitFor(() => {

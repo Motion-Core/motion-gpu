@@ -108,9 +108,9 @@ describe('vue useMotionGPU', () => {
 	it('throws when used outside <FragCanvas>', () => {
 		const OutsideProbe = defineComponent({
 			name: 'OutsideProbe',
+			render: () => null,
 			setup() {
 				useMotionGPU();
-				return () => null;
 			}
 		});
 

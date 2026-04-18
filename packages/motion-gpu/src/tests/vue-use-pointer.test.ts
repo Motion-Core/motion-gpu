@@ -105,19 +105,11 @@ const MotionGPUProvider = defineComponent({
 		payload: {
 			type: Object as PropType<{ context: MotionGPUContext }>,
 			required: true
-		},
-		child: {
-			type: Object as PropType<ReturnType<typeof defineComponent>>,
-			required: true
-		},
-		childProps: {
-			type: Object as PropType<Record<string, unknown>>,
-			default: () => ({})
 		}
 	},
-	setup(props) {
+	setup(props, { slots }) {
 		provideMotionGPUContext(props.payload.context);
-		return () => h(props.child, props.childProps);
+		return () => slots.default?.() ?? null;
 	}
 });
 
@@ -149,12 +141,14 @@ async function renderPointerProbe(
 
 	render(MotionGPUProvider, {
 		props: {
-			payload: createRuntimeHarness(runtimeHarnessInput),
-			child: PointerProbe,
-			childProps: {
-				onProbe,
-				options: input.options
-			}
+			payload: createRuntimeHarness(runtimeHarnessInput)
+		},
+		slots: {
+			default: () =>
+				h(PointerProbe, {
+					onProbe,
+					options: input.options
+				})
 		}
 	});
 
@@ -174,9 +168,9 @@ describe('vue usePointer', () => {
 	it('throws when used outside <FragCanvas>', () => {
 		const OutsideProbe = defineComponent({
 			name: 'OutsidePointerProbe',
+			render: () => null,
 			setup() {
 				usePointer();
-				return () => null;
 			}
 		});
 
@@ -196,9 +190,10 @@ describe('vue usePointer', () => {
 		const payload = createRuntimeHarness({ canvas });
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: PointerProbe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(PointerProbe, { onProbe })
 			}
 		});
 
@@ -440,9 +435,10 @@ describe('vue usePointer', () => {
 					canvas: canvasOnDemand,
 					renderMode: 'on-demand',
 					invalidateSpy
-				}),
-				child: PointerProbe,
-				childProps: { onProbe: onProbeOnDemand }
+				})
+			},
+			slots: {
+				default: () => h(PointerProbe, { onProbe: onProbeOnDemand })
 			}
 		});
 		render(MotionGPUProvider, {
@@ -451,9 +447,10 @@ describe('vue usePointer', () => {
 					canvas: canvasManual,
 					renderMode: 'manual',
 					advanceSpy
-				}),
-				child: PointerProbe,
-				childProps: { onProbe: onProbeManual }
+				})
+			},
+			slots: {
+				default: () => h(PointerProbe, { onProbe: onProbeManual })
 			}
 		});
 

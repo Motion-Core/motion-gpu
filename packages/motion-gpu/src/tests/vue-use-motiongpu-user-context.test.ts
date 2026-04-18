@@ -56,19 +56,11 @@ const MotionGPUProvider = defineComponent({
 		payload: {
 			type: Object as PropType<ReturnType<typeof createRuntimeHarness>>,
 			required: true
-		},
-		child: {
-			type: Object as PropType<ReturnType<typeof defineComponent>>,
-			required: true
-		},
-		childProps: {
-			type: Object as PropType<Record<string, unknown>>,
-			default: () => ({})
 		}
 	},
-	setup(props) {
+	setup(props, { slots }) {
 		provideMotionGPUContext(props.payload.context);
-		return () => h(props.child, props.childProps);
+		return () => slots.default?.() ?? null;
 	}
 });
 
@@ -76,9 +68,9 @@ describe('vue useMotionGPUUserContext', () => {
 	it('throws when used outside <FragCanvas>', () => {
 		const OutsideProbe = defineComponent({
 			name: 'OutsideUserContextProbe',
+			render: () => null,
 			setup() {
 				useMotionGPUUserContext();
-				return () => null;
 			}
 		});
 
@@ -97,8 +89,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: PrimeStore
+				payload
+			},
+			slots: {
+				default: () => h(PrimeStore)
 			}
 		});
 
@@ -172,9 +166,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 
@@ -280,9 +275,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 
@@ -341,9 +337,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 		await waitFor(() => {
@@ -395,9 +392,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 		await waitFor(() => {
@@ -451,9 +449,10 @@ describe('vue useMotionGPUUserContext', () => {
 
 		render(MotionGPUProvider, {
 			props: {
-				payload,
-				child: Probe,
-				childProps: { onProbe }
+				payload
+			},
+			slots: {
+				default: () => h(Probe, { onProbe })
 			}
 		});
 

@@ -179,6 +179,8 @@ interface RegisteredFrameTask extends UseFrameResult {
  */
 interface InternalTask {
 	task: FrameTask;
+	/** Pre-computed string form of `task.key` — avoids Symbol.toString() on every profiling frame. */
+	keyString: string;
 	callback: FrameCallback;
 	order: number;
 	started: boolean;
@@ -270,7 +272,13 @@ function resolveInvalidationToken(
 		return null;
 	}
 
-	const resolved = typeof token === 'function' ? token() : token;
+	// Fast path: most tokens are static (string | symbol) — skip the typeof
+	// check and return directly. Function tokens are rare (dynamic token resolvers).
+	if (typeof token !== 'function') {
+		return token;
+	}
+
+	const resolved = token();
 	if (resolved === null || resolved === undefined) {
 		return null;
 	}
@@ -696,6 +704,12 @@ export function createFrameRegistry(options?: {
 	let shouldAdvance = false;
 	let orderCounter = 0;
 
+	// Pre-allocated object for the clamped-delta frame state, mutated in-place
+	// each frame instead of allocating a new spread object when maxDelta fires.
+	// Initialised lazily on the first clamped frame — until then `null` signals
+	// that the original state should be passed through unchanged.
+	let clampedFrameState: FrameState | null = null;
+
 	const assertMaxDelta = (value: number): number => {
 		if (!Number.isFinite(value) || value <= 0) {
 			throw new Error('maxDelta must be a finite number greater than 0');
@@ -980,6 +994,7 @@ export function createFrameRegistry(options?: {
 
 			const internalTask: InternalTask = {
 				task: { key, stage: stage.key },
+				keyString: frameKeyToString(key),
 				callback,
 				order: orderCounter++,
 				started: taskOptions.autoStart ?? true,
@@ -1024,13 +1039,29 @@ export function createFrameRegistry(options?: {
 		},
 		run(state) {
 			const clampedDelta = Math.min(state.delta, maxDelta);
-			const frameState =
-				clampedDelta === state.delta
-					? state
-					: {
-							...state,
-							delta: clampedDelta
-						};
+			let frameState: FrameState;
+			if (clampedDelta === state.delta) {
+				frameState = state;
+			} else {
+				// Reuse the pre-allocated object — update only the fields that can
+				// change between frames (delta and fields derived from `state`).
+				if (clampedFrameState === null) {
+					clampedFrameState = { ...state, delta: clampedDelta };
+				} else {
+					clampedFrameState.time = state.time;
+					clampedFrameState.delta = clampedDelta;
+					clampedFrameState.setUniform = state.setUniform;
+					clampedFrameState.setTexture = state.setTexture;
+					clampedFrameState.writeStorageBuffer = state.writeStorageBuffer;
+					clampedFrameState.readStorageBuffer = state.readStorageBuffer;
+					clampedFrameState.invalidate = state.invalidate;
+					clampedFrameState.advance = state.advance;
+					clampedFrameState.renderMode = state.renderMode;
+					clampedFrameState.autoRender = state.autoRender;
+					clampedFrameState.canvas = state.canvas;
+				}
+				frameState = clampedFrameState;
+			}
 			syncSchedule();
 			const frameStart = profilingEnabled ? performance.now() : 0;
 			const stageTimings: FrameRunTimings['stages'] = {};
@@ -1052,7 +1083,7 @@ export function createFrameRegistry(options?: {
 
 						task.callback(frameState);
 						if (profilingEnabled) {
-							taskTimings[frameKeyToString(task.task.key)] = performance.now() - taskStart;
+							taskTimings[task.keyString] = performance.now() - taskStart;
 						}
 						applyTaskInvalidation(task);
 					}

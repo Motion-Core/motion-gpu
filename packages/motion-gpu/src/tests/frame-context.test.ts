@@ -402,6 +402,85 @@ describe('frame registry', () => {
 		expect(() => createFrameRegistry({ profilingWindow: 0 })).toThrow(/profilingWindow must be/);
 	});
 
+	// #16: frameState pre-allocation
+	it('run() does not spread-allocate a new frameState object when delta is within maxDelta', () => {
+		const registry = createFrameRegistry({ maxDelta: 1.0 });
+		const seenStates: object[] = [];
+		registry.register('capture', (state) => {
+			seenStates.push(state);
+		});
+
+		const base = createState(registry, 0.016); // well below maxDelta
+		registry.run(base);
+		registry.run(base);
+
+		// Both calls must receive the original state object — no spread copy.
+		expect(seenStates[0]).toBe(base);
+		expect(seenStates[1]).toBe(base);
+	});
+
+	it('run() passes a clamped frameState when delta exceeds maxDelta, reusing the same pre-allocated object', () => {
+		const registry = createFrameRegistry({ maxDelta: 0.05 });
+		const seenStates: object[] = [];
+		registry.register('capture', (state) => {
+			seenStates.push(state);
+		});
+
+		const highDelta = createState(registry, 1.0); // far above maxDelta
+		registry.run(highDelta);
+		registry.run(highDelta);
+
+		// Delta must be clamped, not the original.
+		expect((seenStates[0] as { delta: number }).delta).toBe(0.05);
+		expect((seenStates[1] as { delta: number }).delta).toBe(0.05);
+		// The same pre-allocated object is reused across both frames.
+		expect(seenStates[0]).toBe(seenStates[1]);
+	});
+
+	// #10: resolveInvalidationToken fast-path
+	it('resolveInvalidationToken returns non-function tokens without invoking the token as a function', () => {
+		const registry = createFrameRegistry({ renderMode: 'on-demand' });
+		const tokenFn = vi.fn(() => Symbol('tok'));
+		let callCount = 0;
+
+		// Register a task whose token is a plain symbol (not a function).
+		const TOKEN = Symbol('static-token');
+		registry.register(
+			'tok-task',
+			() => {
+				callCount += 1;
+			},
+			{
+				invalidation: { mode: 'always', token: TOKEN }
+			}
+		);
+
+		registry.run(createState(registry));
+		registry.run(createState(registry));
+
+		// tokenFn should never have been called — the token is static.
+		expect(tokenFn).not.toHaveBeenCalled();
+		expect(callCount).toBe(2);
+	});
+
+	// #9: keyString pre-computation
+	it('profiling keys are stable strings even for Symbol-keyed tasks', () => {
+		const registry = createFrameRegistry({
+			profilingEnabled: true,
+			profilingWindow: 4
+		});
+		const sym = Symbol('my-task');
+		registry.register(sym, () => undefined);
+
+		registry.run(createState(registry));
+		registry.run(createState(registry));
+
+		const snapshot = registry.getProfilingSnapshot();
+		const stageKeys = Object.values(snapshot?.stages ?? {}).flatMap((s) => Object.keys(s.tasks));
+		// The symbol key must appear as its string representation.
+		expect(stageKeys.some((k) => k.includes('my-task'))).toBe(true);
+	});
+
 	it('profilingHistory ring buffer: frameCount stays pinned at window and survives window resize', () => {
 		const registry = createFrameRegistry({
 			profilingEnabled: true,

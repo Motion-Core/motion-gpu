@@ -92,6 +92,8 @@ The normalizer matches error messages against known patterns and assigns code, s
 | `Compute shader compilation failed` | `COMPUTE_COMPILATION_FAILED` | `error` | `true` | Compute shader compilation failed | Check compute shader WGSL source and verify storage bindings. |
 | `Compute shader must declare ...`, missing `global_invocation_id`, invalid `@workgroup_size`, unsupported storage access mode | `COMPUTE_CONTRACT_INVALID` | `error` | `true` | Compute contract is invalid | Ensure compute shader contract (`@compute`, `@workgroup_size`, `global_invocation_id`, storage access) is valid. |
 | `WebGPU device lost` / `Device Lost` | `WEBGPU_DEVICE_LOST` | `fatal` | `false` | WebGPU device lost | GPU device/context was lost. Recreate the renderer and check OS/GPU stability. |
+| `Dispatch workgroup count ... max compute workgroups per dimension` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | Compute dispatch exceeds device limit | Reduce dispatch counts or split compute work into multiple dispatches/chunks. |
+| `maximum storage buffer binding size` / `maxStorageBufferBindingSize` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | Storage buffer exceeds binding limit | Keep each storage buffer binding below adapter limits or shard data across multiple buffers. |
 | `WebGPU uncaptured error` | `WEBGPU_UNCAPTURED_ERROR` | `error` | `true` | WebGPU uncaptured error | A GPU command failed asynchronously. Review details and validate resource/state usage. |
 | `CreateBindGroup` / `bind group layout` | `BIND_GROUP_MISMATCH` | `error` | `true` | Bind group mismatch | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout. |
 | `Unknown uniform ...`, `Unknown texture ...`, `Unknown storage buffer ...`, missing storage/texture definitions | `RUNTIME_RESOURCE_MISSING` | `error` | `true` | Runtime resource binding failed | Check material declarations and runtime keys for uniforms, textures and storage resources. |
@@ -235,6 +237,12 @@ The renderer listens for two asynchronous error conditions:
 | `uncapturederror` event | Unexpected WebGPU validation or out-of-memory error |
 
 Once captured, the error state is stored. The next render call throws a normalized error so `FragCanvas` can display it through the standard reporting path.
+
+For uncaptured errors, the renderer aggregates and normalizes messages before throwing:
+
+- Tracks up to the most recent `12` uncaptured messages and ignores immediate duplicates.
+- Prioritizes a non-derivative root-cause validation message as primary (instead of follow-up `Invalid CommandBuffer` noise).
+- Includes additional unique uncaptured messages in the same thrown error payload under an `Additional uncaptured WebGPU errors (...)` block.
 
 ## Retry strategy
 

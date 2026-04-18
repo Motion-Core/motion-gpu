@@ -13,15 +13,32 @@ import Runtime from './runtime';
 const FACE_COUNT = 20;
 const PARTICLES_PER_FACE = 64000;
 const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
-const FLOATS_PER_PARTICLE = 6;
-const BUFFER_SIZE = PARTICLE_COUNT * FLOATS_PER_PARTICLE * 4;
+const FLOATS_PER_PARTICLE = 5;
+const PARTICLE_STORAGE_SHARDS = 4;
+const SHARD_PARTICLE_CAPACITY = Math.ceil(PARTICLE_COUNT / PARTICLE_STORAGE_SHARDS);
 const TEX_SIZE = 1024;
 
-const initialData = new Float32Array(PARTICLE_COUNT * FLOATS_PER_PARTICLE);
+const particleShards = Array.from({ length: PARTICLE_STORAGE_SHARDS }, (_, shard) => {
+	const start = shard * SHARD_PARTICLE_CAPACITY;
+	const count = Math.max(0, Math.min(SHARD_PARTICLE_CAPACITY, PARTICLE_COUNT - start));
+	return {
+		name: `particles${shard}`,
+		count,
+		data: new Float32Array(count * FLOATS_PER_PARTICLE)
+	};
+}).filter((shard) => shard.count > 0);
+
 for (let face = 0; face < FACE_COUNT; face++) {
 	for (let i = 0; i < PARTICLES_PER_FACE; i++) {
 		const index = face * PARTICLES_PER_FACE + i;
-		const base = index * FLOATS_PER_PARTICLE;
+		const shardIndex = Math.floor(index / SHARD_PARTICLE_CAPACITY);
+		const localIndex = index - shardIndex * SHARD_PARTICLE_CAPACITY;
+		const shard = particleShards[shardIndex];
+		if (!shard) {
+			continue;
+		}
+
+		const base = localIndex * FLOATS_PER_PARTICLE;
 
 		let u = Math.random();
 		let v = Math.random();
@@ -30,14 +47,31 @@ for (let face = 0; face < FACE_COUNT; face++) {
 			v = 1 - v;
 		}
 
-		initialData[base] = face;
-		initialData[base + 1] = u;
-		initialData[base + 2] = v;
-		initialData[base + 3] = Math.random() * Math.PI * 2;
-		initialData[base + 4] = 0.35 + Math.random() * 0.9;
-		initialData[base + 5] = Math.random();
+		shard.data[base] = u;
+		shard.data[base + 1] = v;
+		shard.data[base + 2] = Math.random() * Math.PI * 2;
+		shard.data[base + 3] = 0.35 + Math.random() * 0.9;
+		shard.data[base + 4] = Math.random();
 	}
 }
+
+const storageBuffers = Object.fromEntries(
+	particleShards.map((shard) => [
+		shard.name,
+		{
+			size: shard.data.byteLength,
+			type: 'array<f32>' as const,
+			access: 'read' as const,
+			initialData: shard.data
+		}
+	])
+);
+
+const storageReadCases = particleShards
+	.map((shard, shardIndex) => {
+		return `    case ${shardIndex}u: { return ${shard.name}[base]; }`;
+	})
+	.join('\n');
 
 const material = defineMaterial({
 	fragment: `
@@ -66,14 +100,7 @@ fn frag(uv: vec2f) -> vec4f {
 			filter: 'linear'
 		}
 	},
-	storageBuffers: {
-		particles: {
-			size: BUFFER_SIZE,
-			type: 'array<f32>',
-			access: 'read-write',
-			initialData
-		}
-	},
+	storageBuffers,
 	uniforms: {
 		uRotateY: 0,
 		uRotateX: 0
@@ -97,6 +124,8 @@ const simulate = new ComputePass({
 	compute: `
 const FACE_COUNT: u32 = ${FACE_COUNT}u;
 const PARTICLE_COUNT: u32 = ${PARTICLE_COUNT}u;
+const PARTICLE_STRIDE: u32 = ${FLOATS_PER_PARTICLE}u;
+const PARTICLE_SHARD_CAPACITY: u32 = ${SHARD_PARTICLE_CAPACITY}u;
 const TEX_SIZE_F: f32 = ${TEX_SIZE}.0;
 const TEX_SIZE_I: i32 = ${TEX_SIZE};
 const PHI: f32 = 1.61803398875;
@@ -195,18 +224,28 @@ fn displacedPos(facePos: vec3f, faceNormal: vec3f, dir: vec3f, edgeWeight: f32, 
   return facePos + faceNormal * (n * DISPLACE_AMPLITUDE + ridge * EDGE_BURST);
 }
 
+fn readParticleValue(index: u32, offset: u32) -> f32 {
+  let shard = index / PARTICLE_SHARD_CAPACITY;
+  let localIndex = index - shard * PARTICLE_SHARD_CAPACITY;
+  let base = localIndex * PARTICLE_STRIDE + offset;
+
+  switch shard {
+${storageReadCases}
+    default: { return 0.0; }
+  }
+}
+
 @compute @workgroup_size(256)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
   let idx = id.x;
   if (idx >= PARTICLE_COUNT) { return; }
 
-  let base = idx * 6u;
-  let faceIndex = min(u32(particles[base]), FACE_COUNT - 1u);
-  let u = particles[base + 1u];
-  let v = particles[base + 2u];
-  let phase = particles[base + 3u];
-  let speed = particles[base + 4u];
-  let seed = particles[base + 5u];
+  let faceIndex = min(idx / ${PARTICLES_PER_FACE}u, FACE_COUNT - 1u);
+  let u = readParticleValue(idx, 0u);
+  let v = readParticleValue(idx, 1u);
+  let phase = readParticleValue(idx, 2u);
+  let speed = readParticleValue(idx, 3u);
+  let seed = readParticleValue(idx, 4u);
   let w = max(0.0001, 1.0 - u - v);
 
   let face = ICO_FACES[faceIndex];

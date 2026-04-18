@@ -309,6 +309,23 @@ fn colorize(uv: vec2f) -> vec4f {
 		expect(first).toBe(second);
 	});
 
+	it('skips assertDefinedMaterial on cache hits — Object.isFrozen is not called after first resolution', () => {
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+
+		// Warm the cache.
+		resolveMaterial(material);
+
+		// Any subsequent call must return the cached result without re-validating.
+		const isFrozenSpy = vi.spyOn(Object, 'isFrozen');
+		resolveMaterial(material);
+		resolveMaterial(material);
+
+		expect(isFrozenSpy).not.toHaveBeenCalled();
+		isFrozenSpy.mockRestore();
+	});
+
 	it('captures source metadata from chrome-like stack traces', () => {
 		const resolved = withMockedStack(
 			[

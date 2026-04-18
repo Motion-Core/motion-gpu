@@ -198,16 +198,21 @@ export function resolveUniformLayout(uniforms: UniformMap): UniformLayout {
 }
 
 /**
- * Writes one validated uniform value directly into the output float buffer.
+ * Writes one uniform value into the output float buffer without re-validating.
+ *
+ * Callers are responsible for ensuring the value has already been validated
+ * against `type` (e.g. via {@link assertUniformValueForType}).
+ *
+ * Uses `Float32Array.set()` for mat4x4f values backed by a Float32Array,
+ * which is significantly faster than an element-by-element loop.
  */
-function writeUniformValue(
+function writeUniformValueFast(
 	type: UniformType,
 	value: UniformValue,
 	data: Float32Array,
 	base: number
 ): void {
 	const input = isTypedUniformValue(value) ? value.value : value;
-	assertUniformValueForType(type, value);
 
 	if (type === 'f32') {
 		data[base] = input as number;
@@ -217,14 +222,14 @@ function writeUniformValue(
 	if (type === 'mat4x4f') {
 		const matrix = input as UniformMat4Value;
 		if (matrix instanceof Float32Array) {
-			for (let index = 0; index < 16; index += 1) {
-				data[base + index] = matrix[index] ?? 0;
-			}
+			// Single native copy — faster than a 16-iteration element loop.
+			data.set(matrix, base);
 			return;
 		}
 
+		const arr = matrix as number[];
 		for (let index = 0; index < 16; index += 1) {
-			data[base + index] = matrix[index] ?? 0;
+			data[base + index] = arr[index] ?? 0;
 		}
 		return;
 	}
@@ -252,6 +257,10 @@ export function packUniforms(uniforms: UniformMap, layout: UniformLayout): Float
 /**
  * Packs uniforms into an existing output buffer and zeroes missing values.
  *
+ * Values are validated against their declared types before being written.
+ * Uses an optimised fast-write path internally to avoid redundant type checks
+ * after validation has already been performed for each entry.
+ *
  * @param uniforms - Uniform values to pack.
  * @param layout - Target layout metadata.
  * @param data - Destination float buffer.
@@ -276,7 +285,37 @@ export function packUniformsInto(
 			continue;
 		}
 
+		// Validate once per entry, then write via the fast (non-validating) path.
+		assertUniformValueForType(entry.type, raw);
 		const base = entry.offset / 4;
-		writeUniformValue(entry.type, raw, data, base);
+		writeUniformValueFast(entry.type, raw, data, base);
+	}
+}
+
+/**
+ * Packs uniforms into an existing output buffer without per-entry validation.
+ *
+ * Intended for the renderer render loop where all values have already been
+ * validated at {@link setUniform} call time, making per-write re-validation
+ * redundant. Skips the size guard and validation to minimise hot-path overhead.
+ *
+ * @internal
+ * @param uniforms - Pre-validated uniform values to pack.
+ * @param layout - Target layout metadata.
+ * @param data - Destination float buffer (must match `layout.byteLength / 4`).
+ */
+export function packUniformsIntoFast(
+	uniforms: UniformMap,
+	layout: UniformLayout,
+	data: Float32Array
+): void {
+	data.fill(0);
+	for (const entry of layout.entries) {
+		const raw = uniforms[entry.name];
+		if (raw === undefined) {
+			continue;
+		}
+
+		writeUniformValueFast(entry.type, raw, data, entry.offset / 4);
 	}
 }

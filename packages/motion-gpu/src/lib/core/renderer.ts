@@ -16,7 +16,7 @@ import {
 	resolveTextureSize,
 	toTextureData
 } from './textures.js';
-import { packUniformsInto } from './uniforms.js';
+import { packUniformsIntoFast } from './uniforms.js';
 import {
 	buildComputeShaderSourceWithMap,
 	buildPingPongComputeShaderSourceWithMap,
@@ -1909,7 +1909,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				frameScratch.byteLength
 			);
 
-			packUniformsInto(uniforms, options.uniformLayout, uniformScratch);
+			packUniformsIntoFast(uniforms, options.uniformLayout, uniformScratch);
 			if (!hasUniformSnapshot) {
 				device.queue.writeBuffer(
 					uniformBuffer,

@@ -1870,7 +1870,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const nextSignature = buildRenderTargetSignature(resolvedDefinitions);
 
 			if (nextSignature !== renderTargetSignature) {
-				const activeKeys = new Set(resolvedDefinitions.map((definition) => definition.key));
+				const activeKeys = new Set<string>();
+				for (const definition of resolvedDefinitions) {
+					activeKeys.add(definition.key);
+				}
 
 				for (const [key, target] of runtimeRenderTargets.entries()) {
 					if (!activeKeys.has(key)) {

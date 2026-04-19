@@ -209,7 +209,8 @@ test.describe('motion-gpu compute pass e2e', () => {
 			})
 			.toBeGreaterThan(0);
 
-		await expect(page.getByTestId('last-error')).not.toHaveText('none');
+		await expect(page.getByTestId('last-error')).toContainText('Compute shader compilation failed');
+		await expect(page.getByTestId('last-error')).not.toContainText('WebGPU uncaptured error');
 	});
 
 	/* ────────────────────────────────────────────────────────

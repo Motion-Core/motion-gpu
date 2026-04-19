@@ -6,6 +6,8 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+
+## [0.8.3] - 2026-04-19
 ### Added
 - Added renderer and compute E2E regression coverage for asynchronous compute-shader compilation diagnostics, asserting structured compute failures surface instead of falling back to generic uncaptured-error messaging.
 

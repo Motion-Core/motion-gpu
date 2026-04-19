@@ -465,7 +465,8 @@ export function createMotionGPURuntimeLoop(
 							getClearColor: options.getClearColor,
 							getDpr: () => options.dpr.current,
 							adapterOptions: options.getAdapterOptions(),
-							deviceDescriptor: options.getDeviceDescriptor()
+							deviceDescriptor: options.getDeviceDescriptor(),
+							requestRender: scheduleFrame
 						});
 
 						if (isDisposed) {

@@ -702,6 +702,14 @@ export interface RendererOptions {
 	 */
 	deviceDescriptor?: GPUDeviceDescriptor | undefined;
 	/**
+	 * Optional callback the renderer invokes when an asynchronously detected
+	 * compute shader compilation result becomes available. Hosts should treat
+	 * this as a hint to schedule another render pass so that the next call to
+	 * `Renderer.render` can surface a freshly cached compilation error or use
+	 * a freshly validated compute pipeline.
+	 */
+	requestRender?: (() => void) | undefined;
+	/**
 	 * Internal test hook invoked when an initialization cleanup is registered.
 	 *
 	 * @internal

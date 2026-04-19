@@ -7,6 +7,7 @@ import {
 } from './shader.js';
 import {
 	attachShaderCompilationDiagnostics,
+	type ShaderCompilationDiagnostic,
 	type ShaderCompilationRuntimeContext
 } from './error-diagnostics.js';
 import {
@@ -255,6 +256,14 @@ function toSortedUniqueStrings(values: string[]): string[] {
 	return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Best-effort line extraction from a raw GPU error/exception message.
+ *
+ * Used only as a fallback when WebGPU's structured `getCompilationInfo()` and
+ * `popErrorScope()` channels have no per-message line metadata — primarily to
+ * keep test mocks that throw synchronously from `createComputePipeline()`
+ * reproducible against the structured-diagnostics contract.
+ */
 function extractGeneratedLineFromComputeError(message: string): number | null {
 	const lineMatch = message.match(/\bline\s+(\d+)\b/i);
 	if (lineMatch) {
@@ -275,6 +284,47 @@ function extractGeneratedLineFromComputeError(message: string): number | null {
 	return null;
 }
 
+/**
+ * Builds a compute compilation Error with structured diagnostics attached.
+ */
+function buildComputeCompilationError(input: {
+	diagnostics: ShaderCompilationDiagnostic[];
+	computeSource: string;
+	runtimeContext: ShaderCompilationRuntimeContext;
+}): Error {
+	const summary = input.diagnostics
+		.map((diagnostic) => {
+			const sourceLabel = formatShaderSourceLocation(diagnostic.sourceLocation);
+			const generatedLineLabel =
+				diagnostic.generatedLine > 0 ? `generated WGSL line ${diagnostic.generatedLine}` : null;
+			const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
+			if (contextLabel.length === 0) {
+				return diagnostic.message;
+			}
+
+			return `[${contextLabel.join(' | ')}] ${diagnostic.message}`;
+		})
+		.join('\n');
+
+	const error = new Error(`Compute shader compilation failed:\n${summary}`);
+	return attachShaderCompilationDiagnostics(error, {
+		kind: 'shader-compilation',
+		shaderStage: 'compute',
+		diagnostics: input.diagnostics,
+		fragmentSource: '',
+		computeSource: input.computeSource,
+		includeSources: {},
+		materialSource: null,
+		runtimeContext: input.runtimeContext
+	});
+}
+
+/**
+ * Fallback compute-compilation error builder used when the synchronous
+ * `createShaderModule` / `createComputePipeline` path itself throws — there is
+ * no compilation info or popped scope to inspect, so we extract whatever line
+ * hint we can from the raw exception message.
+ */
 function toComputeCompilationError(input: {
 	error: unknown;
 	lineMap: ShaderLineMap;
@@ -285,30 +335,74 @@ function toComputeCompilationError(input: {
 		input.error instanceof Error ? input.error : new Error(String(input.error ?? 'Unknown error'));
 	const generatedLine = extractGeneratedLineFromComputeError(baseError.message) ?? 0;
 	const sourceLocation = generatedLine > 0 ? (input.lineMap[generatedLine] ?? null) : null;
-	const diagnostics = [
-		{
-			generatedLine,
-			message: baseError.message,
-			sourceLocation
-		}
-	];
-	const sourceLabel = formatShaderSourceLocation(sourceLocation);
-	const generatedLineLabel = generatedLine > 0 ? `generated WGSL line ${generatedLine}` : null;
-	const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
-	const summary =
-		contextLabel.length > 0
-			? `[${contextLabel.join(' | ')}] ${baseError.message}`
-			: baseError.message;
-	const wrapped = new Error(`Compute shader compilation failed:\n${summary}`);
-
-	return attachShaderCompilationDiagnostics(wrapped, {
-		kind: 'shader-compilation',
-		shaderStage: 'compute',
-		diagnostics,
-		fragmentSource: '',
+	return buildComputeCompilationError({
+		diagnostics: [
+			{
+				generatedLine,
+				message: baseError.message,
+				sourceLocation
+			}
+		],
 		computeSource: input.computeSource,
-		includeSources: {},
-		materialSource: null,
+		runtimeContext: input.runtimeContext
+	});
+}
+
+/**
+ * Awaits the async outputs of a compute shader module + pipeline creation
+ * sequence (compilation info + popped validation scope) and, if either reveals
+ * an error, returns a fully-attributed compute compilation Error. Returns
+ * `null` when both channels are clean.
+ */
+async function assertComputeCompilationAsync(input: {
+	module: GPUShaderModule;
+	validationScope: Promise<GPUError | null>;
+	lineMap: ShaderLineMap;
+	computeSource: string;
+	runtimeContext: ShaderCompilationRuntimeContext;
+}): Promise<Error | null> {
+	let compilationMessages: GPUCompilationMessage[] = [];
+	try {
+		const info = await input.module.getCompilationInfo();
+		compilationMessages = info.messages.filter(
+			(message: GPUCompilationMessage) => message.type === 'error'
+		);
+	} catch {
+		// If the runtime cannot report compilation info, fall through to
+		// validation scope or treat as clean.
+	}
+
+	let validationError: GPUError | null = null;
+	try {
+		validationError = await input.validationScope;
+	} catch {
+		validationError = null;
+	}
+
+	if (compilationMessages.length === 0 && !validationError) {
+		return null;
+	}
+
+	const diagnostics =
+		compilationMessages.length > 0
+			? compilationMessages.map((message: GPUCompilationMessage) => ({
+					generatedLine: message.lineNum,
+					message: message.message,
+					linePos: message.linePos,
+					lineLength: message.length,
+					sourceLocation: input.lineMap[message.lineNum] ?? null
+				}))
+			: [
+					{
+						generatedLine: 0,
+						message: validationError!.message,
+						sourceLocation: null
+					}
+				];
+
+	return buildComputeCompilationError({
+		diagnostics,
+		computeSource: input.computeSource,
 		runtimeContext: input.runtimeContext
 	});
 }
@@ -711,8 +805,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 	const isDerivativeUncapturedMessage = (message: string): boolean => {
 		const normalized = message.toLowerCase();
+		// "is invalid due to a previous error" is the canonical Dawn/WebGPU
+		// cascade marker emitted from setPipeline / commandEncoder.finish /
+		// queue.submit when a prior shader/pipeline failed validation. The
+		// authoritative error already lives in our compute-pipeline error cache
+		// (or in another uncaptured message), so suppress these from the user
+		// channel — they only add noise like "[Invalid CommandBuffer] is
+		// invalid due to a previous error".
 		return (
-			(normalized.includes('invalid commandbuffer') && normalized.includes('previous error')) ||
+			normalized.includes('is invalid due to a previous error') ||
 			normalized.includes('too many warnings, no more warnings will be reported')
 		);
 	};
@@ -733,13 +834,20 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const primaryIndex = uniqueMessages.findIndex(
 			(message) => !isDerivativeUncapturedMessage(message)
 		);
-		const resolvedPrimaryIndex = primaryIndex === -1 ? 0 : primaryIndex;
-		const primaryMessage = uniqueMessages[resolvedPrimaryIndex];
+		// When every queued message is derivative cascade noise we have nothing
+		// of substance to surface — return null so the host can fall through to
+		// the structured diagnostics path (e.g. a cached compute compilation
+		// error) instead of throwing an unhelpful "[Invalid X] is invalid due
+		// to a previous error".
+		if (primaryIndex === -1) {
+			return null;
+		}
+		const primaryMessage = uniqueMessages[primaryIndex];
 		if (!primaryMessage) {
 			return null;
 		}
 
-		const relatedMessages = uniqueMessages.filter((_, index) => index !== resolvedPrimaryIndex);
+		const relatedMessages = uniqueMessages.filter((_, index) => index !== primaryIndex);
 		if (relatedMessages.length === 0) {
 			return `WebGPU uncaptured error: ${primaryMessage}`;
 		}
@@ -1186,22 +1294,40 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			workgroupSize: [number, number, number];
 			computeSource: string;
 		}
-		const computePipelineCache = new Map<string, ComputePipelineEntry>();
+		// Per-source cache state. The renderer resolves the compute source for
+		// each pass once per frame and looks it up here. The state machine
+		// preserves the synchronous render contract while still surfacing the
+		// rich asynchronously-discovered diagnostics from getCompilationInfo()
+		// and the validation error scope.
+		//
+		// State transitions:
+		//   (miss) → pending → ready    (compilation succeeded)
+		//                    → error    (compilation failed)
+		//
+		// `pending` carries the optimistically-built entry so the first frame
+		// after a source change can still dispatch (matching the prior
+		// synchronous behaviour). If validation later reports an error the
+		// cache is upgraded and the next render() call surfaces a fully
+		// attributed Error from the compute-pass loop instead of letting the
+		// derivative "[Invalid CommandBuffer] is invalid due to a previous
+		// error" cascade reach the user.
+		type ComputePipelineCacheState =
+			| { kind: 'pending'; entry: ComputePipelineEntry; validation: Promise<void> }
+			| { kind: 'ready'; entry: ComputePipelineEntry }
+			| { kind: 'error'; error: Error };
+		const computePipelineCache = new Map<string, ComputePipelineCacheState>();
+		let nextComputePipelineLabelIndex = 0;
 
-		const buildComputePipelineEntry = (buildOptions: {
-			computeSource: string;
-			pingPongTarget?: string;
-			pingPongFormat?: GPUTextureFormat;
-		}): ComputePipelineEntry => {
-			const cacheKey =
-				buildOptions.pingPongTarget && buildOptions.pingPongFormat
-					? `pingpong:${buildOptions.pingPongTarget}:${buildOptions.pingPongFormat}:${buildOptions.computeSource}`
-					: `compute:${buildOptions.computeSource}`;
-			const cached = computePipelineCache.get(cacheKey);
-			if (cached) {
-				return cached;
+		const requestRender = options.requestRender;
+
+		const computeBuildResult = (
+			cacheKey: string,
+			buildOptions: {
+				computeSource: string;
+				pingPongTarget?: string;
+				pingPongFormat?: GPUTextureFormat;
 			}
-
+		): ComputePipelineCacheState => {
 			const storageBufferDefs: Record<
 				string,
 				{ type: StorageBufferType; access: StorageBufferAccess }
@@ -1242,11 +1368,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						storageTextureDefinitions: storageTextureDefs
 					});
 
-			const computeShaderModule = device.createShaderModule({ code: builtComputeShader.code });
+			const labelIndex = (nextComputePipelineLabelIndex += 1);
+			const labelBase = isPingPongPipeline
+				? `compute-pingpong[${buildOptions.pingPongTarget}/${buildOptions.pingPongFormat}]#${labelIndex}`
+				: `compute#${labelIndex}`;
+			const moduleLabel = `${labelBase}:module`;
+			const pipelineLabel = `${labelBase}:pipeline`;
+
 			const workgroupSize = extractWorkgroupSize(buildOptions.computeSource);
 
 			// Compute bind group layout: group(0)=uniforms, group(1)=storage buffers, group(2)=storage textures
 			const computeUniformBGL = device.createBindGroupLayout({
+				label: `${labelBase}:bgl-uniforms`,
 				entries: [
 					{
 						binding: FRAME_BINDING,
@@ -1263,7 +1396,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			const storageBGL =
 				computeStorageBufferLayoutEntries.length > 0
-					? device.createBindGroupLayout({ entries: computeStorageBufferLayoutEntries })
+					? device.createBindGroupLayout({
+							label: `${labelBase}:bgl-storage`,
+							entries: computeStorageBufferLayoutEntries
+						})
 					: null;
 
 			const storageTextureBGLEntries: GPUBindGroupLayoutEntry[] = isPingPongPipeline
@@ -1292,7 +1428,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				: computeStorageTextureLayoutEntries;
 			const storageTextureBGL =
 				storageTextureBGLEntries.length > 0
-					? device.createBindGroupLayout({ entries: storageTextureBGLEntries })
+					? device.createBindGroupLayout({
+							label: `${labelBase}:bgl-storage-textures`,
+							entries: storageTextureBGLEntries
+						})
 					: null;
 
 			// Bind group layout indices must match shader @group() indices:
@@ -1300,33 +1439,67 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			// When a group is unused, insert an empty placeholder to keep indices aligned.
 			const bindGroupLayouts: GPUBindGroupLayout[] = [computeUniformBGL];
 			if (storageBGL || storageTextureBGL) {
-				bindGroupLayouts.push(storageBGL ?? device.createBindGroupLayout({ entries: [] }));
+				bindGroupLayouts.push(
+					storageBGL ??
+						device.createBindGroupLayout({
+							label: `${labelBase}:bgl-storage-empty`,
+							entries: []
+						})
+				);
 			}
 			if (storageTextureBGL) {
 				bindGroupLayouts.push(storageTextureBGL);
 			}
 
-			const computePipelineLayout = device.createPipelineLayout({ bindGroupLayouts });
+			const computePipelineLayout = device.createPipelineLayout({
+				label: `${labelBase}:layout`,
+				bindGroupLayouts
+			});
+
+			// Wrap the validation-prone calls in an error scope so the parser
+			// error and "invalid module/pipeline" cascade are captured here
+			// instead of leaking to `uncapturederror`. The popped scope is
+			// awaited together with `getCompilationInfo()` below.
+			device.pushErrorScope('validation');
+			let computeShaderModule: GPUShaderModule;
 			let pipeline: GPUComputePipeline;
 			try {
+				computeShaderModule = device.createShaderModule({
+					label: moduleLabel,
+					code: builtComputeShader.code
+				});
 				pipeline = device.createComputePipeline({
+					label: pipelineLabel,
 					layout: computePipelineLayout,
 					compute: {
 						module: computeShaderModule,
 						entryPoint: 'compute'
 					}
 				});
-			} catch (error) {
-				throw toComputeCompilationError({
-					error,
+			} catch (jsError) {
+				// Always pop the scope even when the synchronous call threw,
+				// otherwise the scope would leak. Real WebGPU implementations
+				// rarely throw synchronously for shader compilation issues —
+				// this branch primarily serves test mocks that simulate a
+				// thrown `createComputePipeline`.
+				void device.popErrorScope().catch(() => {
+					// Discard popped error in the synchronous-throw branch —
+					// we already have the JS exception with full context.
+				});
+				const error = toComputeCompilationError({
+					error: jsError,
 					lineMap: builtComputeShader.lineMap,
 					computeSource: buildOptions.computeSource,
 					runtimeContext
 				});
+				return { kind: 'error', error };
 			}
+
+			const validationScope = device.popErrorScope();
 
 			// Build uniform bind group for compute (group 0)
 			const computeUniformBindGroup = device.createBindGroup({
+				label: `${labelBase}:bg-uniforms`,
 				layout: computeUniformBGL,
 				entries: [
 					{ binding: FRAME_BINDING, resource: { buffer: frameBuffer } },
@@ -1340,8 +1513,70 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				workgroupSize,
 				computeSource: buildOptions.computeSource
 			};
-			computePipelineCache.set(cacheKey, entry);
-			return entry;
+
+			const validation = (async () => {
+				const compilationError = await assertComputeCompilationAsync({
+					module: computeShaderModule,
+					validationScope,
+					lineMap: builtComputeShader.lineMap,
+					computeSource: buildOptions.computeSource,
+					runtimeContext
+				});
+				if (isDestroyed) {
+					return;
+				}
+				// Only upgrade state if no later cache-miss has already replaced
+				// us (defensive — the cache is keyed by source so this should
+				// be a no-op in practice, but it guards against in-flight
+				// stragglers when the user edits the same source rapidly).
+				const current = computePipelineCache.get(cacheKey);
+				if (current && current.kind !== 'pending') {
+					return;
+				}
+				if (compilationError) {
+					computePipelineCache.set(cacheKey, { kind: 'error', error: compilationError });
+					// Drain any derivative-cascade noise queued by the
+					// optimistic dispatch so the next render() call doesn't
+					// throw "[Invalid CommandBuffer] is invalid due to a
+					// previous error" before our rich diagnostic surfaces.
+					uncapturedErrorMessages.length = 0;
+					requestRender?.();
+				} else {
+					computePipelineCache.set(cacheKey, { kind: 'ready', entry });
+				}
+			})();
+
+			return { kind: 'pending', entry, validation };
+		};
+
+		const buildComputePipelineEntry = (buildOptions: {
+			computeSource: string;
+			pingPongTarget?: string;
+			pingPongFormat?: GPUTextureFormat;
+		}): ComputePipelineEntry => {
+			const cacheKey =
+				buildOptions.pingPongTarget && buildOptions.pingPongFormat
+					? `pingpong:${buildOptions.pingPongTarget}:${buildOptions.pingPongFormat}:${buildOptions.computeSource}`
+					: `compute:${buildOptions.computeSource}`;
+			const cached = computePipelineCache.get(cacheKey);
+			if (cached) {
+				if (cached.kind === 'error') {
+					// Drain any derivative cascade messages that may have
+					// arrived between frames so consumeUncapturedErrorMessage
+					// in the next render() call doesn't surface them.
+					uncapturedErrorMessages.length = 0;
+					throw cached.error;
+				}
+				return cached.entry;
+			}
+
+			const state = computeBuildResult(cacheKey, buildOptions);
+			computePipelineCache.set(cacheKey, state);
+			if (state.kind === 'error') {
+				uncapturedErrorMessages.length = 0;
+				throw state.error;
+			}
+			return state.entry;
 		};
 
 		// Helper to get the storage bind group for dispatch

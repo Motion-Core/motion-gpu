@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
+import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import { createRenderer } from '../../lib/core/renderer';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
 import type { RenderPass, RenderTargetDefinitionMap } from '../../lib/core/types';
@@ -35,6 +36,8 @@ interface MockWebGpuRuntime {
 		createCommandEncoder: ReturnType<typeof vi.fn>;
 		addEventListener: ReturnType<typeof vi.fn>;
 		removeEventListener: ReturnType<typeof vi.fn>;
+		pushErrorScope: ReturnType<typeof vi.fn>;
+		popErrorScope: ReturnType<typeof vi.fn>;
 		lost: Promise<{ reason?: string; message?: string }>;
 	};
 	textures: MockTexture[];
@@ -136,6 +139,8 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 			}
 		}),
 		removeEventListener: vi.fn(),
+		pushErrorScope: vi.fn(),
+		popErrorScope: vi.fn(async () => null),
 		lost
 	};
 
@@ -1560,6 +1565,99 @@ describe('createRenderer', () => {
 			},
 			activeRenderTargets: []
 		});
+
+		renderer.destroy();
+	});
+
+	it('surfaces structured compute diagnostics from async compilation info instead of uncaptured noise', async () => {
+		const runtime = createWebGpuRuntime();
+		const requestRender = vi.fn();
+
+		runtime.device.createShaderModule.mockImplementation((input: { code: string }) => {
+			const isComputeShader = input.code.includes('@compute');
+			return {
+				getCompilationInfo: vi.fn(async () => ({
+					messages: isComputeShader
+						? [
+								{
+									type: 'error',
+									message: "expected ';' for function call",
+									lineNum: 17,
+									linePos: 3,
+									length: 1
+								}
+							]
+						: []
+				}))
+			} as unknown as GPUShaderModule;
+		});
+
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: [
+				'@compute @workgroup_size(64, 1, 1)',
+				'fn compute(@builtin(global_invocation_id) id: vec3u) {',
+				'\tlet idx = id.x',
+				'\tif (idx < arrayLength(&data)) {',
+				'\t\tdata[idx] = 1.0;',
+				'\t}',
+				'}'
+			].join('\n'),
+			dispatch: [4, 1, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: {
+				data: { size: 256, type: 'array<f32>' }
+			},
+			passes: [computePass as unknown as RenderPass],
+			requestRender
+		});
+
+		expect(() => {
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+		}).not.toThrow();
+
+		await vi.waitFor(() => {
+			expect(requestRender).toHaveBeenCalledTimes(1);
+		});
+
+		let thrown: unknown = null;
+		try {
+			renderer.render({
+				time: 0.016,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(thrown).toBeInstanceOf(Error);
+		expect((thrown as Error).message).toContain('Compute shader compilation failed');
+		expect((thrown as Error).message).toContain("expected ';' for function call");
+
+		const diagnostics = getShaderCompilationDiagnostics(thrown);
+		expect(diagnostics?.shaderStage).toBe('compute');
+		expect(diagnostics?.computeSource).toContain('let idx = id.x');
+		expect(diagnostics?.diagnostics[0]?.message).toContain("expected ';' for function call");
+
+		const report = toMotionGPUErrorReport(thrown, 'render');
+		expect(report.code).toBe('COMPUTE_COMPILATION_FAILED');
+		expect(report.title).toBe('Compute shader compilation failed');
+		expect(report.source?.component).toBe('Compute shader');
+		expect(report.message).toContain('compute line');
+		expect(report.rawMessage).not.toContain('WebGPU uncaptured error');
 
 		renderer.destroy();
 	});

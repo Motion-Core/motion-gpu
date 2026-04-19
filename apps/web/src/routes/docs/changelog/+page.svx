@@ -6,6 +6,11 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+### Added
+- Added renderer and compute E2E regression coverage for asynchronous compute-shader compilation diagnostics, asserting structured compute failures surface instead of falling back to generic uncaptured-error messaging.
+
+### Fixed
+- Updated compute-pipeline compilation reporting to await async shader compilation info and validation scopes, surfacing structured `COMPUTE_COMPILATION_FAILED` diagnostics instead of derivative `WebGPU uncaptured error` / `Invalid ComputePipeline` cascades.
 
 ## [0.8.2] - 2026-04-18
 ### Performance

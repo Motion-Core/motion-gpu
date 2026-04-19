@@ -91,6 +91,7 @@ These notes are for maintainers working on the library internals:
 ### Compute pipeline lifecycle
 
 - Compute pipelines are built lazily on first dispatch and cached by compute shader source.
+- The compute pipeline cache is stateful (`pending`, `ready`, `error`): a newly seen shader source enters `pending`, upgrades to `ready` after async compilation validation succeeds, or upgrades to `error` with structured diagnostics if compilation fails.
 - Compute storage bind-group layouts are cached by resource topology and reused across frames.
 - Compute storage bind groups are reused while bound resource references stay stable.
 - `PingPongComputePass` alternates A/B texture bindings across iterations.

@@ -11,37 +11,6 @@ This documentation was generated directly from the `packages/motion-gpu/src` sou
 
 Motion GPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
 
-## What this package ships
-
-| Area | Source of truth | What it does |
-| --- | --- | --- |
-| **Svelte runtime component** | `svelte/FragCanvas.svelte` | Owns the `<canvas>`, provides Svelte context/hooks, and bridges props/runtime state into the core loop. |
-| **React runtime component** | `react/FragCanvas.tsx` | Owns the `<canvas>`, provides React context/hooks, and bridges props/runtime state into the core loop. |
-| **Vue runtime component** | `vue/FragCanvas.vue` | Owns the `<canvas>`, provides Vue provide/inject composables, and bridges props/runtime state into the core loop. |
-| **Runtime loop (core)** | `core/runtime-loop.ts` | Runs requestAnimationFrame, renderer rebuild policy, frame scheduling, render gating, and normalized error routing. |
-| **Material pipeline** | `material.ts` + `material-preprocess.ts` | Validates fragment shaders, expands `#include` / `defines`, and produces deterministic pipeline signatures. |
-| **Renderer** | `renderer.ts` | Handles WebGPU device init, shader compilation, uniform buffer writes, texture uploads, and render-graph execution. |
-| **Frame scheduler** | `core/frame-registry.ts` + `svelte/frame-context.ts` + `react/frame-context.ts` + `vue/frame-context.ts` | Orchestrates ordered frame tasks, stage graphs, invalidation tokens, render-mode gating, and optional profiling (core), with Svelte/React/Vue hook-context adapter wrappers. |
-| **Pass system** | `render-graph.ts` + `passes/*` | Implements an extensible pass graph with ping-pong slots (`source`/`target`), named render targets, optional canvas output, three built-in render pass types, and two compute pass types (`ComputePass`, `PingPongComputePass`). |
-| **Compute pipeline** | `compute-shader.ts` + `storage-buffers.ts` | Builds compute shader WGSL, validates contracts, manages storage buffer allocation/readback, and dispatches compute workgroups within the render graph. |
-| **Texture loading** | `core/texture-loader.ts` + `svelte/use-texture.ts` + `react/use-texture.ts` + `vue/use-texture.ts` | Fetches, decodes, and caches texture URLs with abort/reload race safety and reactive adapter state. |
-| **Diagnostics** | `error-report.ts` + `error-diagnostics.ts` | Maps low-level WebGPU and WGSL errors to structured reports with hints and source snippets. |
-
-## Public entrypoints
-
-| Entrypoint | Key exports |
-| --- | --- |
-| `@motion-core/motion-gpu` | Framework-agnostic core runtime primitives (`defineMaterial`, `createFrameRegistry`, `createMotionGPURuntimeLoop`, `createCurrentWritable`, passes incl. `ComputePass`/`PingPongComputePass`, texture loader, error normalization) |
-| `@motion-core/motion-gpu/advanced` | Core runtime plus scheduler helper utilities (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
-| `@motion-core/motion-gpu/svelte` | Svelte adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
-| `@motion-core/motion-gpu/svelte/advanced` | Svelte adapter runtime plus user context APIs and scheduler helpers |
-| `@motion-core/motion-gpu/react` | React adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
-| `@motion-core/motion-gpu/react/advanced` | React adapter runtime plus user context APIs and scheduler helpers |
-| `@motion-core/motion-gpu/vue` | Vue adapter runtime (`FragCanvas`, `useMotionGPU`, `useFrame`, `usePointer`, `useTexture`, passes, material helpers) |
-| `@motion-core/motion-gpu/vue/advanced` | Vue adapter runtime plus user context APIs and scheduler helpers |
-
-Public exports are defined by package `exports` and covered by API tests in `src/tests/public-api.test.ts`.
-
 ## Framework mental model
 
 Understanding the frame-by-frame flow is the single most useful thing you can learn about Motion GPU:

@@ -218,6 +218,8 @@ interface ShaderCompilationDiagnosticsPayload {
 
 For compute-stage failures, diagnostics payload carries `shaderStage: 'compute'` and `computeSource`; source mapping points to `compute` lines instead of fragment/include/define locations.
 
+Because compute pipeline validation is partly asynchronous in WebGPU, a bad compute shader may first build an optimistic pending pipeline entry and then resolve to a structured compilation error after `getCompilationInfo()` / validation-scope results arrive. In that case the renderer schedules another render pass and surfaces the cached `COMPUTE_COMPILATION_FAILED` report on the next frame instead of falling back to derivative uncaptured-error noise.
+
 ### Overlay Source panel
 
 When `report.source` is available, the overlay shows:

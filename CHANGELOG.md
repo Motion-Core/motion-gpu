@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 ### Changed
 - `TextureDefinition.fragmentVisible` now defaults to `false` for storage textures with `*uint`/`*sint` formats (previously `true`), matching the fragment shader contract that uses `texture_2d<f32>`. Explicitly setting `fragmentVisible: true` for an integer storage format now throws at material resolution with a descriptive error, replacing the generic WebGPU validation failure that surfaced during pipeline creation.
+- Renderer now honours the explicit `TextureDefinition.format` value when allocating source-driven (non-storage) textures. Previously the format was always re-derived from `colorSpace` at runtime, silently downgrading user-declared formats like `rgba16float` to `rgba8unorm(-srgb)` and triggering a one-time extra reallocation on first upload.
 
 ### Fixed
 - Fixed `PingPongComputePass.getCurrentOutput()` returning the wrong A/B buffer key after `setIterations(...)` was called between frames. Internal state now accumulates total iterations incrementally in `advanceFrame()` instead of multiplying frame count by the current iteration value, preserving correct read/write parity across iteration-count changes.

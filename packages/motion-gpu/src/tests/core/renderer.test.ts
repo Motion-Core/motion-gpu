@@ -1788,4 +1788,43 @@ describe('createRenderer', () => {
 
 		renderer.destroy();
 	});
+
+	it('honours explicit TextureDefinition.format when uploading source textures', async () => {
+		const runtime = createWebGpuRuntime();
+		const source = document.createElement('canvas');
+		source.width = 16;
+		source.height = 16;
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uPhoto'],
+			textureDefinitions: {
+				uPhoto: { colorSpace: 'linear', format: 'rgba16float' }
+			}
+		});
+
+		runtime.device.createTexture.mockClear();
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uPhoto: source }
+		});
+
+		const sizedAllocations = runtime.device.createTexture.mock.calls
+			.map(([descriptor]) => descriptor as GPUTextureDescriptor)
+			.filter((descriptor) => {
+				const size = descriptor.size as { width?: number; height?: number };
+				return size.width === 16 && size.height === 16;
+			});
+		expect(sizedAllocations.length).toBeGreaterThan(0);
+		for (const descriptor of sizedAllocations) {
+			expect(descriptor.format).toBe('rgba16float');
+		}
+
+		renderer.destroy();
+	});
+
 });

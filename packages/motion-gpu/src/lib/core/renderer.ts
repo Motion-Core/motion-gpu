@@ -1731,7 +1731,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			const source = nextData.source;
 			const colorSpace = nextData.colorSpace ?? binding.defaultColorSpace;
-			const format = colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
+			const format = binding.format;
 			const flipY = nextData.flipY ?? binding.defaultFlipY;
 			const premultipliedAlpha = nextData.premultipliedAlpha ?? binding.defaultPremultipliedAlpha;
 			const generateMipmaps = nextData.generateMipmaps ?? binding.defaultGenerateMipmaps;

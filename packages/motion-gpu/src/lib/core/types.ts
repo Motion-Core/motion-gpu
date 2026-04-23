@@ -216,7 +216,12 @@ export interface TextureDefinition {
 	 */
 	height?: number;
 	/**
-	 * When true, texture is visible (sampled) in fragment shader. Default: true.
+	 * When true, texture is visible (sampled) in fragment shader.
+	 *
+	 * Default: `true` for float-sampled formats, `false` for `*uint`/`*sint`
+	 * storage formats (the fragment shader uses `texture_2d<f32>` and would
+	 * fail WebGPU validation against integer sample types). Setting this to
+	 * `true` for an integer storage format throws at material resolution.
 	 */
 	fragmentVisible?: boolean;
 }

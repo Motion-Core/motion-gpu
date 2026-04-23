@@ -3,6 +3,9 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- `TextureDefinition.fragmentVisible` now defaults to `false` for storage textures with `*uint`/`*sint` formats (previously `true`), matching the fragment shader contract that uses `texture_2d<f32>`. Explicitly setting `fragmentVisible: true` for an integer storage format now throws at material resolution with a descriptive error, replacing the generic WebGPU validation failure that surfaced during pipeline creation.
+
 ### Fixed
 - Fixed `PingPongComputePass.getCurrentOutput()` returning the wrong A/B buffer key after `setIterations(...)` was called between frames. Internal state now accumulates total iterations incrementally in `advanceFrame()` instead of multiplying frame count by the current iteration value, preserving correct read/write parity across iteration-count changes.
 

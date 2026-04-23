@@ -1,3 +1,4 @@
+import { storageTextureSampleScalarType } from './compute-shader.js';
 import { assertUniformName } from './uniforms.js';
 import type {
 	TextureData,
@@ -108,10 +109,23 @@ export function normalizeTextureDefinition(
 ): NormalizedTextureDefinition {
 	const isStorage = definition?.storage === true;
 	const defaultFormat = definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
+	const format = definition?.format ?? defaultFormat;
+	const sampleScalar = isStorage ? storageTextureSampleScalarType(format) : 'f32';
+	const explicitFragmentVisible = definition?.fragmentVisible;
+
+	if (explicitFragmentVisible === true && sampleScalar !== 'f32') {
+		throw new Error(
+			`Texture with storage format "${format}" cannot be fragmentVisible: ` +
+				`fragment shader uses texture_2d<f32>, which is incompatible with ${sampleScalar} sample type. ` +
+				`Set fragmentVisible: false or use a float-sampled storage format.`
+		);
+	}
+
+	const fragmentVisible = explicitFragmentVisible ?? sampleScalar === 'f32';
 	const normalized: NormalizedTextureDefinition = {
 		source: definition?.source ?? null,
 		colorSpace: definition?.colorSpace ?? 'srgb',
-		format: definition?.format ?? defaultFormat,
+		format,
 		flipY: definition?.flipY ?? true,
 		generateMipmaps: definition?.generateMipmaps ?? false,
 		premultipliedAlpha: definition?.premultipliedAlpha ?? false,
@@ -120,7 +134,7 @@ export function normalizeTextureDefinition(
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		storage: isStorage,
-		fragmentVisible: definition?.fragmentVisible ?? true
+		fragmentVisible
 	};
 
 	if (definition?.width !== undefined) {

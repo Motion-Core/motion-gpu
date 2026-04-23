@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Fixed `PingPongComputePass.getCurrentOutput()` returning the wrong A/B buffer key after `setIterations(...)` was called between frames. Internal state now accumulates total iterations incrementally in `advanceFrame()` instead of multiplying frame count by the current iteration value, preserving correct read/write parity across iteration-count changes.
+- Fixed `readStorageBuffer()` leaking the staging `GPUBuffer` when `mapAsync` rejected (e.g. on device loss). The staging buffer is now destroyed on both fulfilment and rejection paths.
 
 ## [0.8.3] - 2026-04-19
 ### Added

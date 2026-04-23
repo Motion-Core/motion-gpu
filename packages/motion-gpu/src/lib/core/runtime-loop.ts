@@ -392,12 +392,20 @@ export function createMotionGPURuntimeLoop(
 		const commandEncoder = device.createCommandEncoder();
 		commandEncoder.copyBufferToBuffer(gpuBuffer, 0, stagingBuffer, 0, definition.size);
 		device.queue.submit([commandEncoder.finish()]);
-		return stagingBuffer.mapAsync(GPUMapMode.READ).then(() => {
-			const result = stagingBuffer.getMappedRange().slice(0);
-			stagingBuffer.unmap();
-			stagingBuffer.destroy();
-			return result;
-		});
+		return stagingBuffer.mapAsync(GPUMapMode.READ).then(
+			() => {
+				try {
+					return stagingBuffer.getMappedRange().slice(0);
+				} finally {
+					stagingBuffer.unmap();
+					stagingBuffer.destroy();
+				}
+			},
+			(error) => {
+				stagingBuffer.destroy();
+				throw error;
+			}
+		);
 	};
 
 	const renderFrame = (timestamp: number): void => {

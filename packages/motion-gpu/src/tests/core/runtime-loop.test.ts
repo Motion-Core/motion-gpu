@@ -243,6 +243,74 @@ describe('runtime-loop', () => {
 		loop.destroy();
 	});
 
+	it('destroys staging buffer when mapAsync rejects during readStorageBuffer', async () => {
+		const registry = createFrameRegistry();
+		let readPromise: Promise<ArrayBuffer> | null = null;
+		registry.register('reader', (state) => {
+			if (!readPromise) {
+				readPromise = state.readStorageBuffer('particles');
+			}
+		});
+
+		const stagingBuffer = {
+			mapAsync: vi.fn(() => Promise.reject(new Error('device lost'))),
+			getMappedRange: vi.fn(),
+			unmap: vi.fn(),
+			destroy: vi.fn()
+		};
+		const commandEncoder = {
+			copyBufferToBuffer: vi.fn(),
+			finish: vi.fn(() => ({}))
+		};
+		const device = {
+			createBuffer: vi.fn(() => stagingBuffer),
+			createCommandEncoder: vi.fn(() => commandEncoder),
+			queue: { submit: vi.fn() }
+		};
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => ({}) as unknown as GPUBuffer),
+			getDevice: vi.fn(() => device)
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getOutputColorSpace: () => 'srgb',
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		expect(readPromise).not.toBeNull();
+		if (!readPromise) {
+			throw new Error('Missing read promise');
+		}
+		await expect(readPromise).rejects.toThrow(/device lost/);
+		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);
+		expect(stagingBuffer.unmap).not.toHaveBeenCalled();
+		loop.destroy();
+	});
+
 	it('destroys late-created renderer when loop is disposed during async rebuild', async () => {
 		const registry = createFrameRegistry();
 		let resolveRenderer: ((renderer: MockRenderer) => void) | null = null;

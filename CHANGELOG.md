@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- Fixed `PingPongComputePass.getCurrentOutput()` returning the wrong A/B buffer key after `setIterations(...)` was called between frames. Internal state now accumulates total iterations incrementally in `advanceFrame()` instead of multiplying frame count by the current iteration value, preserving correct read/write parity across iteration-count changes.
 
 ## [0.8.3] - 2026-04-19
 ### Added

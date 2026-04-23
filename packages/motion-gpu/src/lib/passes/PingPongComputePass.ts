@@ -56,7 +56,7 @@ export class PingPongComputePass {
 	private iterations: number;
 	private dispatch: ComputePassOptions['dispatch'];
 	private workgroupSize: [number, number, number];
-	private frameCount: number = 0;
+	private totalIterations: number = 0;
 
 	constructor(options: PingPongComputePassOptions) {
 		assertComputeContract(options.compute);
@@ -80,18 +80,18 @@ export class PingPongComputePass {
 
 	/**
 	 * Returns the texture key holding the latest result.
-	 * Alternates between `{target}A` and `{target}B` based on total iteration parity.
+	 * Alternates between `{target}A` and `{target}B` based on accumulated iteration parity.
 	 */
 	getCurrentOutput(): string {
-		const totalIterations = this.frameCount * this.iterations;
-		return totalIterations % 2 === 0 ? `${this.target}A` : `${this.target}B`;
+		return this.totalIterations % 2 === 0 ? `${this.target}A` : `${this.target}B`;
 	}
 
 	/**
-	 * Advances the internal frame counter (called by renderer after each frame's iterations).
+	 * Advances the iteration accumulator by the current iteration count
+	 * (called by renderer after each frame's iterations).
 	 */
 	advanceFrame(): void {
-		this.frameCount += 1;
+		this.totalIterations += this.iterations;
 	}
 
 	/**

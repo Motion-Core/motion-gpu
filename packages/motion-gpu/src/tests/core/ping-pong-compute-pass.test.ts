@@ -189,6 +189,40 @@ describe('PingPongComputePass', () => {
 		expect(dispatch).toEqual([1, 1, 1]);
 	});
 
+	it('preserves output parity when iterations change mid-run', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			iterations: 3
+		});
+
+		expect(pass.getCurrentOutput()).toBe('simA');
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simB');
+
+		pass.setIterations(2);
+		expect(pass.getCurrentOutput()).toBe('simB');
+	});
+
+	it('tracks total iterations across iteration-count changes', () => {
+		const pass = new PingPongComputePass({
+			compute: validCompute,
+			target: 'sim',
+			iterations: 1
+		});
+
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simB');
+
+		pass.setIterations(2);
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simB');
+
+		pass.setIterations(3);
+		pass.advanceFrame();
+		expect(pass.getCurrentOutput()).toBe('simA');
+	});
+
 	it('keeps output on A for even iteration counts across frames', () => {
 		const pass = new PingPongComputePass({
 			compute: validCompute,

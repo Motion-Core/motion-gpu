@@ -1,6 +1,6 @@
 {
 	"name": "@motion-core/motion-gpu",
-	"version": "0.8.3",
+	"version": "0.8.4",
 	"description": "Framework-agnostic WebGPU runtime for fullscreen WGSL shaders with explicit Svelte, React, and Vue adapter entrypoints.",
 	"keywords": [
 		"svelte",

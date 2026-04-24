@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.8.4] - 2026-04-24
 ### Changed
 - Material signatures now include texture allocation and runtime-update configuration (`format`, `storage`, `update`, `width`, and `height`) so renderer state is rebuilt when texture contracts change.
 - `TextureDefinition.fragmentVisible` now defaults to `false` for storage textures with `*uint`/`*sint` formats (previously `true`), matching the fragment shader contract that uses `texture_2d<f32>`. Explicitly setting `fragmentVisible: true` for an integer storage format now throws at material resolution with a descriptive error, replacing the generic WebGPU validation failure that surfaced during pipeline creation.
@@ -227,7 +229,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/f0fde6f...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/162c156...HEAD
+[0.8.4]: https://github.com/Motion-Core/motion-gpu/compare/a342072...162c156
+[0.8.3]: https://github.com/Motion-Core/motion-gpu/compare/5fd4d9e...a342072
+[0.8.2]: https://github.com/Motion-Core/motion-gpu/compare/d12dc79...5fd4d9e
+[0.8.1]: https://github.com/Motion-Core/motion-gpu/compare/f0fde6f...d12dc79
 [0.8.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...f0fde6f
 [0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
 [0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd

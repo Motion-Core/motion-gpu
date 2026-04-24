@@ -23,7 +23,7 @@ The typical workflow:
 3. **Pass it to `FragCanvas`** via the `passes` prop.
 4. **Read/write storage buffers** in `useFrame` callbacks via `state.writeStorageBuffer()` and `state.readStorageBuffer()`.
 
-For compute-only storage textures, set `fragmentVisible: false` on the texture definition to avoid reserving fragment-stage sampler/texture bindings.
+Compute-only storage textures with integer formats (`*uint`, `*sint`) automatically get `fragmentVisible: false` because `texture_2d<f32>` cannot sample integer textures (setting `fragmentVisible: true` on these formats throws). For float-sampled storage formats, set `fragmentVisible: false` explicitly to avoid reserving fragment-stage sampler/texture bindings.
 
 ## ComputePass
 

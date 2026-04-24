@@ -34,11 +34,13 @@ fn frag(uv: vec2f) -> vec4f {
 });
 ```
 
-Each texture with `fragmentVisible: true` (default) creates two WGSL bindings:
+Each texture with `fragmentVisible: true` creates two WGSL bindings:
 - `uFoo: texture_2d<f32>` — the texture
 - `uFooSampler: sampler` — the associated sampler
 
 When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL declarations and `group(0)` fragment bind-group bindings.
+
+`fragmentVisible` defaults to `true` for non-storage textures and float-sampled storage formats (e.g. `rgba8unorm`, `rgba16float`). For integer storage formats (`*uint`, `*sint`) it defaults to `false` because the fragment shader binding is typed `texture_2d<f32>` and cannot sample integer textures. Setting `fragmentVisible: true` explicitly on an integer storage format throws at material-definition time.
 
 ## TextureDefinition fields
 
@@ -55,10 +57,10 @@ When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL d
 | `addressModeU` | `GPUAddressMode` | `'clamp-to-edge'` | Horizontal wrap mode |
 | `addressModeV` | `GPUAddressMode` | `'clamp-to-edge'` | Vertical wrap mode |
 | `storage` | `boolean` | `false` | Marks texture as compute-writable storage texture |
-| `format` | `GPUTextureFormat` | Color-space derived default | **Required when `storage: true`** (must be storage-compatible) |
+| `format` | `GPUTextureFormat` | Color-space derived default | Honoured for all texture allocations, including source uploads. **Required when `storage: true`** (must be storage-compatible). When omitted, the allocation format is derived from `colorSpace` (`rgba8unorm-srgb` for `'srgb'`, `rgba8unorm` for `'linear'`). |
 | `width` | `number` | `undefined` | Optional explicit width (used for storage texture allocation) |
 | `height` | `number` | `undefined` | Optional explicit height (used for storage texture allocation) |
-| `fragmentVisible` | `boolean` | `true` | Controls whether this slot is bound as a fragment sampled texture in `group(0)` |
+| `fragmentVisible` | `boolean` | Format-aware (see above) | Controls whether this slot is bound as a fragment sampled texture in `group(0)` |
 
 ## Runtime texture value forms
 
@@ -102,7 +104,7 @@ When `storage: true` is enabled, the texture participates in compute bindings (`
 - `format` must be a storage-compatible format.
 - For `PingPongComputePass`, the target texture must have explicit `width` and `height`.
 - Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
-- Use `fragmentVisible: false` for compute-only storage textures that should not consume fragment sampler/texture bindings.
+- For compute-only storage textures, `fragmentVisible` defaults based on the format (integer formats default to `false`, float formats to `true`). Set `fragmentVisible: false` explicitly on float formats when the slot should not consume fragment sampler/texture bindings.
 
 ```ts
 const material = defineMaterial({
@@ -117,7 +119,7 @@ fn frag(uv: vec2f) -> vec4f {
       format: 'rgba16float',
       width: 256,
       height: 256,
-      fragmentVisible: false // compute-only slot
+      fragmentVisible: false // compute-only slot (explicit on float formats)
     }
   }
 });
@@ -174,7 +176,7 @@ Texture identifiers follow the same rules as uniforms: `[A-Za-z_][A-Za-z0-9_]*`.
 | Static image (photo, sprite) | `update: 'once'`, `generateMipmaps: true` when minification is visible |
 | Event-driven updates | `update: 'onInvalidate'` + explicit `invalidate(token)` |
 | Video / camera / canvas stream | `update: 'perFrame'` |
-| Compute-only storage target | `storage: true` + explicit `format/width/height` + `fragmentVisible: false` |
+| Compute-only storage target | `storage: true` + explicit `format/width/height` (`fragmentVisible` auto-disables for integer formats; set `false` explicitly for float formats if compute-only) |
 | Alpha-correct compositing | Set `premultipliedAlpha` intentionally and keep source pipeline consistent |
 | Pixel art | `filter: 'nearest'` to avoid bilinear smoothing |
 | Tiling patterns | `addressModeU: 'repeat'`, `addressModeV: 'repeat'` |

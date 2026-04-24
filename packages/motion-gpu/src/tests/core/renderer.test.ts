@@ -1826,5 +1826,4 @@ describe('createRenderer', () => {
 
 		renderer.destroy();
 	});
-
 });

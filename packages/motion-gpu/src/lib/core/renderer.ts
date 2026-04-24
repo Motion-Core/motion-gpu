@@ -372,12 +372,7 @@ async function assertComputeCompilationAsync(input: {
 		// validation scope or treat as clean.
 	}
 
-	let validationError: GPUError | null = null;
-	try {
-		validationError = await input.validationScope;
-	} catch {
-		validationError = null;
-	}
+	const validationError = await input.validationScope.catch(() => null);
 
 	if (compilationMessages.length === 0 && !validationError) {
 		return null;

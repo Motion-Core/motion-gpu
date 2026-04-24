@@ -535,19 +535,57 @@ function buildTextureConfigSignature<TTextureKey extends string>(
 	for (const key of textureKeys) {
 		const normalized = normalizeTextureDefinition(textures[key]);
 		signature[key] = [
+			normalized.format,
+			normalized.storage ? '1' : '0',
 			normalized.colorSpace,
 			normalized.flipY ? '1' : '0',
 			normalized.generateMipmaps ? '1' : '0',
 			normalized.premultipliedAlpha ? '1' : '0',
+			normalized.update ?? '',
 			normalized.anisotropy,
 			normalized.filter,
 			normalized.addressModeU,
 			normalized.addressModeV,
-			normalized.fragmentVisible ? '1' : '0'
+			normalized.fragmentVisible ? '1' : '0',
+			normalized.width ?? '',
+			normalized.height ?? ''
 		].join(':');
 	}
 
 	return signature;
+}
+
+function assertStorageTextureDimension(
+	name: string,
+	field: 'width' | 'height',
+	value: unknown
+): void {
+	if (
+		typeof value !== 'number' ||
+		!Number.isFinite(value) ||
+		value <= 0 ||
+		!Number.isInteger(value)
+	) {
+		throw new Error(
+			`Texture "${name}" with storage:true requires an explicit positive integer \`${field}\` field.`
+		);
+	}
+}
+
+function assertStorageTextureDefinition(name: string, definition: TextureDefinition): void {
+	if (!definition.format) {
+		throw new Error(`Texture "${name}" with storage:true requires a \`format\` field.`);
+	}
+
+	assertStorageTextureFormat(name, definition.format);
+	assertStorageTextureDimension(name, 'width', definition.width);
+	assertStorageTextureDimension(name, 'height', definition.height);
+
+	if (definition.source !== undefined) {
+		throw new Error(
+			`Texture "${name}" with storage:true is compute-managed and must not define a \`source\` field.`
+		);
+	}
 }
 
 /**
@@ -640,10 +678,7 @@ export function defineMaterial<
 	// Validate storage textures
 	for (const [name, definition] of Object.entries(textures) as Array<[string, TextureDefinition]>) {
 		if (definition?.storage) {
-			if (!definition.format) {
-				throw new Error(`Texture "${name}" with storage:true requires a \`format\` field.`);
-			}
-			assertStorageTextureFormat(name, definition.format);
+			assertStorageTextureDefinition(name, definition);
 		}
 	}
 

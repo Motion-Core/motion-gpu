@@ -161,6 +161,9 @@ export type TextureUpdateMode = 'once' | 'onInvalidate' | 'perFrame';
 export interface TextureDefinition {
 	/**
 	 * Default/initial texture value for this slot.
+	 *
+	 * Unsupported when `storage` is true; storage textures are allocated from
+	 * explicit dimensions and updated by compute passes.
 	 */
 	source?: TextureValue;
 	/**
@@ -208,11 +211,11 @@ export interface TextureDefinition {
 	 */
 	format?: GPUTextureFormat;
 	/**
-	 * Explicit texture width. Required for storage textures without a source.
+	 * Explicit texture width. Required when `storage` is true.
 	 */
 	width?: number;
 	/**
-	 * Explicit texture height. Required for storage textures without a source.
+	 * Explicit texture height. Required when `storage` is true.
 	 */
 	height?: number;
 	/**

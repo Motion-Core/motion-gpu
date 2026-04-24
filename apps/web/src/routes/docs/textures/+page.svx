@@ -46,7 +46,7 @@ When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL d
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
-| `source` | `TextureValue` | `null` | Initial texture binding value |
+| `source` | `TextureValue` | `null` | Initial texture binding value. Unsupported when `storage: true`. |
 | `colorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Determines GPU format: `rgba8unorm-srgb` vs `rgba8unorm` |
 | `flipY` | `boolean` | `true` | Flips texture vertically during upload |
 | `generateMipmaps` | `boolean` | `false` | Enables CPU-generated mip chain after upload |
@@ -58,8 +58,8 @@ When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL d
 | `addressModeV` | `GPUAddressMode` | `'clamp-to-edge'` | Vertical wrap mode |
 | `storage` | `boolean` | `false` | Marks texture as compute-writable storage texture |
 | `format` | `GPUTextureFormat` | Color-space derived default | Honoured for all texture allocations, including source uploads. **Required when `storage: true`** (must be storage-compatible). When omitted, the allocation format is derived from `colorSpace` (`rgba8unorm-srgb` for `'srgb'`, `rgba8unorm` for `'linear'`). |
-| `width` | `number` | `undefined` | Optional explicit width (used for storage texture allocation) |
-| `height` | `number` | `undefined` | Optional explicit height (used for storage texture allocation) |
+| `width` | `number` | `undefined` | Explicit width. Required when `storage: true`. |
+| `height` | `number` | `undefined` | Explicit height. Required when `storage: true`. |
 | `fragmentVisible` | `boolean` | Format-aware (see above) | Controls whether this slot is bound as a fragment sampled texture in `group(0)` |
 
 ## Runtime texture value forms
@@ -102,7 +102,7 @@ The update mode controls **when** the texture is re-uploaded to the GPU:
 When `storage: true` is enabled, the texture participates in compute bindings (`group(2)`):
 
 - `format` must be a storage-compatible format.
-- For `PingPongComputePass`, the target texture must have explicit `width` and `height`.
+- Storage texture targets must have explicit `width` and `height`.
 - Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
 - For compute-only storage textures, `fragmentVisible` defaults based on the format (integer formats default to `false`, float formats to `true`). Set `fragmentVisible: false` explicitly on float formats when the slot should not consume fragment sampler/texture bindings.
 

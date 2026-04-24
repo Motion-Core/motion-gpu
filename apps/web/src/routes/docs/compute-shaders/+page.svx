@@ -130,7 +130,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `compute` | `string` | **Required** | WGSL compute shader source |
-| `target` | `string` | **Required** | Storage texture key from `material.textures` (`storage: true`). For ping-pong allocation, use explicit `width` and `height`. |
+| `target` | `string` | **Required** | Storage texture key from `material.textures` (`storage: true`). Storage texture targets require explicit `width` and `height`. |
 | `iterations` | `number` | `1` | Iterations per frame (must be `>= 1`) |
 | `dispatch` | dispatch mode | `'auto'` | Workgroup dispatch strategy |
 | `enabled` | `boolean` | `true` | Whether pass is active |

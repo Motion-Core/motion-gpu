@@ -218,6 +218,71 @@ describe('material', () => {
 		expect(a.signature).not.toEqual(b.signature);
 	});
 
+	it('changes signature when texture allocation config changes', () => {
+		const baseFragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const rgba8 = resolveMaterial(
+			defineMaterial({
+				fragment: baseFragment,
+				textures: {
+					uMain: { format: 'rgba8unorm', update: 'once' }
+				}
+			})
+		);
+		const rgba16 = resolveMaterial(
+			defineMaterial({
+				fragment: baseFragment,
+				textures: {
+					uMain: { format: 'rgba16float', update: 'once' }
+				}
+			})
+		);
+		const perFrame = resolveMaterial(
+			defineMaterial({
+				fragment: baseFragment,
+				textures: {
+					uMain: { format: 'rgba8unorm', update: 'perFrame' }
+				}
+			})
+		);
+
+		expect(rgba8.signature).not.toEqual(rgba16.signature);
+		expect(rgba8.signature).not.toEqual(perFrame.signature);
+	});
+
+	it('changes signature when storage texture dimensions change', () => {
+		const baseFragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const small = resolveMaterial(
+			defineMaterial({
+				fragment: baseFragment,
+				textures: {
+					sim: {
+						storage: true,
+						format: 'rgba8unorm',
+						width: 16,
+						height: 16,
+						fragmentVisible: false
+					}
+				}
+			})
+		);
+		const large = resolveMaterial(
+			defineMaterial({
+				fragment: baseFragment,
+				textures: {
+					sim: {
+						storage: true,
+						format: 'rgba8unorm',
+						width: 32,
+						height: 16,
+						fragmentVisible: false
+					}
+				}
+			})
+		);
+
+		expect(small.signature).not.toEqual(large.signature);
+	});
+
 	it('rejects invalid fragment contracts and define values', () => {
 		expect(() =>
 			defineMaterial({
@@ -532,7 +597,7 @@ fn colorize(uv: vec2f) -> vec4f {
 			defineMaterial({
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 				textures: {
-					storageTex: { storage: true, format: 'rgba8unorm' }
+					storageTex: { storage: true, format: 'rgba8unorm', width: 16, height: 16 }
 				}
 			})
 		).not.toThrow();
@@ -543,10 +608,51 @@ fn colorize(uv: vec2f) -> vec4f {
 			defineMaterial({
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 				textures: {
-					storageTex: { storage: true }
+					storageTex: { storage: true, width: 16, height: 16 }
 				}
 			})
 		).toThrow(/requires a `format` field/);
+	});
+
+	it('rejects texture with storage:true but missing explicit dimensions', () => {
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: { storage: true, format: 'rgba8unorm', height: 16 }
+				}
+			})
+		).toThrow(/requires an explicit positive integer `width` field/);
+
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: { storage: true, format: 'rgba8unorm', width: 16 }
+				}
+			})
+		).toThrow(/requires an explicit positive integer `height` field/);
+	});
+
+	it('rejects texture with storage:true and source payload', () => {
+		const canvas = document.createElement('canvas');
+		canvas.width = 16;
+		canvas.height = 16;
+
+		expect(() =>
+			defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+				textures: {
+					storageTex: {
+						storage: true,
+						format: 'rgba8unorm',
+						width: 16,
+						height: 16,
+						source: canvas
+					}
+				}
+			})
+		).toThrow(/must not define a `source` field/);
 	});
 
 	it('rejects texture with storage:true and invalid format', () => {
@@ -554,7 +660,7 @@ fn colorize(uv: vec2f) -> vec4f {
 			defineMaterial({
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 				textures: {
-					storageTex: { storage: true, format: 'rgba8unorm-srgb' }
+					storageTex: { storage: true, format: 'rgba8unorm-srgb', width: 16, height: 16 }
 				}
 			})
 		).toThrow(/storage-compatible format/);
@@ -578,7 +684,7 @@ fn colorize(uv: vec2f) -> vec4f {
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 				textures: {
 					normalTex: {},
-					storageTex: { storage: true, format: 'rgba8unorm' }
+					storageTex: { storage: true, format: 'rgba8unorm', width: 16, height: 16 }
 				}
 			})
 		);

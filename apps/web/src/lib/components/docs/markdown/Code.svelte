@@ -27,7 +27,7 @@
 	</code>
 {:else}
 	<span
-		class="inset-shadow relative inline-flex w-fit rounded-sm bg-background-inset p-0.75 font-mono text-sm font-medium whitespace-nowrap text-foreground"
+		class="inset-shadow relative inline-flex w-fit rounded-sm bg-background-inset p-1 font-mono text-sm font-medium whitespace-nowrap text-foreground"
 	>
 		<code
 			{...restProps}

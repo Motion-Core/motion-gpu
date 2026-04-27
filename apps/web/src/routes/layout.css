@@ -86,7 +86,7 @@ html {
 
 @layer base {
 	body {
-		@apply bg-background font-sans text-foreground;
+		@apply bg-background font-sans text-foreground antialiased;
 	}
 
 	* {

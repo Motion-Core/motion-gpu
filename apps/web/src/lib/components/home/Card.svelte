@@ -17,7 +17,7 @@
 	data-reveal="card"
 	class="inset-shadow relative overflow-hidden rounded-lg bg-background-inset p-1.5"
 >
-	<article class={cn('card grid h-54 rounded-md bg-background p-4 sm:h-72 sm:p-6', className)}>
+	<article class={cn('grid h-54 rounded-md bg-background p-4 card sm:h-72 sm:p-6', className)}>
 		<div class={cn('flex items-start', number ? 'justify-between' : 'justify-start')}>
 			<div
 				class="inset-shadow grid size-12 place-items-center rounded-sm bg-background-inset text-accent"

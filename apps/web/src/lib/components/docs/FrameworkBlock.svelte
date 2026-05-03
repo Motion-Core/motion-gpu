@@ -71,8 +71,10 @@
 	data-ready={isReady ? 'true' : 'false'}
 	class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5"
 >
-	<div class="card relative w-full rounded-md bg-background">
-		<div class="flex items-center justify-between rounded-t-md border-b border-border">
+	<div class="relative w-full rounded-md bg-background card">
+		<div
+			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border"
+		>
 			<div class="flex items-center">
 				{#each frameworks as fw (fw)}
 					<button

@@ -13,7 +13,10 @@
 
 <thead
 	{...restProps}
-	class={cn('overflow-hidden rounded-t-lg border-b border-border bg-background', className)}
+	class={cn(
+		"relative overflow-hidden rounded-t-lg bg-background after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border",
+		className
+	)}
 >
 	{@render children?.()}
 </thead>

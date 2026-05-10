@@ -229,7 +229,7 @@ fn shadeAcrylic(p: vec3f, n: vec3f, ro: vec3f) -> vec3f {
 #include <raymarch>
 #include <lighting>
 
-fn frag(uv: vec2f) -> vec4f {
+fn renderScene(uv: vec2f, jitter: vec2f) -> vec3f {
 	let resolution = motiongpuFrame.resolution;
 	let time = motiongpuFrame.time;
 	let cycleDuration = 3.0;
@@ -243,7 +243,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 	let rotInv = transpose(objRot);
 
-	let fragCoord = uv * resolution;
+	let fragCoord = uv * resolution + jitter;
 	let centeredUv = (fragCoord - 0.5 * resolution) / resolution.y;
 
 	let ro = vec3f(0.0, 0.0, 5.8);
@@ -259,6 +259,19 @@ fn frag(uv: vec2f) -> vec4f {
 		let n = getNormal(p, rotInv);
 		col = shadeAcrylic(p, n, ro);
 	}
+
+	return col;
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	var col = vec3f(0.0);
+
+	col += renderScene(uv, vec2f(-0.375, -0.125));
+	col += renderScene(uv, vec2f( 0.125, -0.375));
+	col += renderScene(uv, vec2f(-0.125,  0.375));
+	col += renderScene(uv, vec2f( 0.375,  0.125));
+
+	col *= 0.25;
 
 	return vec4f(col, 1.0);
 }

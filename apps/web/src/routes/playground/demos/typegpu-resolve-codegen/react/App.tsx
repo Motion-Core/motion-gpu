@@ -15,5 +15,5 @@ const material = defineMaterial({
 });
 
 export default function App() {
-	return <FragCanvas material={material} outputColorSpace="linear" />;
+	return <FragCanvas material={material} color={{ outputEncoding: 'linear' }} />;
 }

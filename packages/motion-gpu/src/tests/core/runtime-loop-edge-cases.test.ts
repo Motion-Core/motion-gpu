@@ -104,7 +104,6 @@ function baseOptions(
 		getRenderTargets: () => ({}),
 		getPasses: () => [],
 		getClearColor: () => [0, 0, 0, 1],
-		getOutputColorSpace: () => 'srgb',
 		getAdapterOptions: () => undefined,
 		getDeviceDescriptor: () => undefined,
 		getOnError: () => undefined,

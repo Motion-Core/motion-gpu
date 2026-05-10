@@ -3,7 +3,7 @@ import type { MotionGPUErrorReport } from '../core/error-report.js';
 import type { FragMaterial } from '../core/material.js';
 import type {
 	AnyPass,
-	OutputColorSpace,
+	ColorPipelineOptions,
 	RenderMode,
 	RenderTargetDefinitionMap
 } from '../core/types.js';
@@ -13,7 +13,7 @@ export interface FragCanvasProps {
 	renderTargets?: RenderTargetDefinitionMap;
 	passes?: AnyPass[];
 	clearColor?: [number, number, number, number];
-	outputColorSpace?: OutputColorSpace;
+	color?: ColorPipelineOptions;
 	renderMode?: RenderMode;
 	autoRender?: boolean;
 	maxDelta?: number;
@@ -45,7 +45,6 @@ const props = withDefaults(defineProps<FragCanvasProps>(), {
 	renderTargets: () => ({}),
 	passes: () => [],
 	clearColor: () => [0, 0, 0, 1] as [number, number, number, number],
-	outputColorSpace: 'srgb',
 	renderMode: 'always',
 	autoRender: true,
 	maxDelta: 0.1,
@@ -237,7 +236,7 @@ onMounted(() => {
 		getRenderTargets: () => props.renderTargets,
 		getPasses: () => props.passes,
 		getClearColor: () => props.clearColor,
-		getOutputColorSpace: () => props.outputColorSpace,
+		getColor: () => props.color,
 		getAdapterOptions: () => props.adapterOptions,
 		getDeviceDescriptor: () => props.deviceDescriptor,
 		getOnError: () => props.onError,

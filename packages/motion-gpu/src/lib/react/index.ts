@@ -17,7 +17,7 @@ export { useTexture } from './use-texture.js';
 export type {
 	FrameInvalidationToken,
 	FrameState,
-	OutputColorSpace,
+	OutputEncoding,
 	AnyPass,
 	ComputePassLike,
 	RenderPass,

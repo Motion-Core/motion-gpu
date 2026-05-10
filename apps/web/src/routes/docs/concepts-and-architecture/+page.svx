@@ -123,7 +123,7 @@ Not every change triggers a full renderer rebuild. This table clarifies what doe
 | Change | Triggers rebuild? | What happens instead |
 | --- | --- | --- |
 | Material signature change (shader, uniform layout, texture bindings, storage buffers) | **Yes** | Full renderer recreation |
-| Output color-space change (`'srgb'` ↔ `'linear'`) | **Yes** | Full renderer recreation |
+| Color pipeline change (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`) | **Yes** | Full renderer recreation |
 | Runtime uniform value change | No | Dirty-range buffer write only |
 | Runtime texture source change | No | Texture re-upload only |
 | Runtime texture `fragmentVisible` change | **Yes** | Full renderer recreation |
@@ -167,10 +167,14 @@ Post-processing uses a **slot graph** with built-in ping-pong slots plus optiona
 | --- | --- |
 | `source` | Current scene/result surface |
 | `target` | Ping-pong companion surface (allocated when needed) |
-| `canvas` | Presentation surface (the actual visible canvas) |
+| `canvas` | Final output slot. Usually the visible canvas; with a final color pipeline it is a logical internal target presented to the physical canvas afterwards. |
 | `<targetName>` | Named off-screen surface resolved from `renderTargets[targetName]` |
 
-Without post-process render passes, the base shader renders directly to `canvas`. Compute-only pipelines keep that direct path: compute dispatches happen before the scene, then the scene renders straight to `canvas` with no `source`/`target` ping-pong allocation and no final blit.
+Without post-process render passes and without a final color pipeline, the base shader renders directly to `canvas`. Compute-only pipelines keep that direct path: compute dispatches happen before the scene, then the scene renders straight to `canvas` with no `source`/`target` ping-pong allocation and no final presentation pass.
+
+When `FragCanvas` receives `color.toneMapping`, `color.dynamicRange`, or `color.workingFormat`, the renderer separates the internal working format from the canvas format. `auto` working format selects `rgba16float` for HDR/tone-mapped pipelines, render passes operate before presentation, and the private final presentation pass applies Khronos PBR Neutral, SDR encoding, or HDR canvas output as the last step.
+
+The presentation pass is also where Motion GPU bridges coordinate systems: material shaders keep the documented Y-up `uv` convention, while internal render-target textures are sampled in framebuffer coordinates before presentation.
 
 When render passes are added, `planRenderGraph(...)` validates their slot sequence, resolves clear/preserve flags, and produces an immutable execution plan. The plan also records compute steps for diagnostics and pre-scene dispatch, but compute steps do not make render slots available.
 
@@ -180,7 +184,7 @@ Validation includes:
 - Named slot reads/writes must reference declared `renderTargets`.
 - Inputs must be written before first read (`target` and named targets are tracked per frame).
 
-After all post-scene render passes execute, if final output is not `canvas`, the renderer blits the resolved final surface (`source`, `target`, or named target) to `canvas`.
+After all post-scene render passes execute, the renderer presents the resolved final surface. In the default path this is a simple blit when final output is offscreen. In HDR/tone-mapped paths it is a color presentation pass into the physical swapchain.
 
 ### Compute passes in the render graph
 

@@ -3,8 +3,14 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added `FragCanvas` `color` pipeline options for Khronos PBR Neutral tone mapping, HDR/auto canvas presentation, `display-p3` canvas configuration, and explicit internal working formats.
+- Added a private final presentation pass so tone mapping, HDR passthrough, and SDR encoding run after the base scene and all post-scene render passes.
+
 ### Changed
 - Clarified the render graph contract: compute passes are planned as pre-scene dispatches, while render passes form the post-scene slot graph.
+- Moved final output encoding into the `FragCanvas` `color` object as `color.outputEncoding`; the previous top-level `outputColorSpace` prop/type was removed.
+- Renderer `source`/`target` and default named render targets now use the resolved working format. HDR/tone-mapped pipelines default that working format to `rgba16float`, while the standard SDR path remains on the preferred canvas format.
 
 ### Fixed
 - Compute-only pass pipelines now render the base scene directly to `canvas` without allocating post-process ping-pong targets or running a final blit.

@@ -18,6 +18,8 @@ fn frag(uv: vec2f) -> vec4f
 
 If this signature is missing, `defineMaterial` throws immediately.
 
+Shader output is treated as linear color. In the default SDR path values are presented with the configured `color.outputEncoding`. When `FragCanvas` enables `color.toneMapping`, `color.dynamicRange`, or a custom `color.workingFormat`, the scene and post-process graph run through an internal working format first. Khronos PBR Neutral expects non-negative linear Rec.709 HDR values and is applied by the private final presentation pass after all render passes.
+
 ## Coordinate space
 
 ```
@@ -29,6 +31,8 @@ If this signature is missing, `defineMaterial` throws immediately.
 ```
 
 This is the standard GPU convention (Y-up), **not** the DOM convention (Y-down). When converting pointer coordinates manually, flip Y: `1.0 - (clientY - top) / height`. If you use `usePointer()`, `state.current.uv` already uses this Y-up orientation.
+
+The final presentation pass keeps this public `uv` contract unchanged. Internally it samples render-target textures in framebuffer coordinates, so enabling `color` does not flip the shader output.
 
 ## Built-in bindings
 
@@ -186,8 +190,12 @@ fn frag(uv: vec2f) -> vec4f {
 }
 ```
 
-## Color output and color space
+## Color output and presentation
 
-By default, `FragCanvas` operates in sRGB output color space (`outputColorSpace: 'srgb'`). This means the renderer applies a **linear-to-sRGB conversion** to your fragment output automatically.
+By default, `FragCanvas` uses sRGB output encoding (`color.outputEncoding: 'srgb'`). This means the renderer applies a **linear-to-sRGB conversion** to your fragment output automatically on the standard SDR path.
 
-If you are doing your own color management and want raw linear output, set `outputColorSpace="linear"` on `FragCanvas`. Note that changing this triggers a renderer rebuild since it changes the pipeline signature.
+If you are doing your own color management and want raw linear output, set `color={{ outputEncoding: 'linear' }}` on `FragCanvas`. Note that changing this triggers a renderer rebuild since it changes the pipeline signature.
+
+`color.canvasColorSpace` is a separate WebGPU canvas configuration option. It selects the canvas presentation space such as `'srgb'` or `'display-p3'`; it does not replace the final value encoding step.
+
+When a `color` presentation pipeline is active, output conversion moves to the private final presentation pass. This keeps tone mapping and SDR/HDR presentation after all render passes instead of baking it into the scene shader.

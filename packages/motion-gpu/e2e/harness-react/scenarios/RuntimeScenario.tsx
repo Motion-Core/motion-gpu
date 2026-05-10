@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FragCanvas, defineMaterial } from '../../../src/lib/react';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-import type { OutputColorSpace, RenderMode } from '../../../src/lib/core/types';
+import type { OutputEncoding, RenderMode } from '../../../src/lib/core/types';
 import { detectGpuStatus, type GpuStatus } from '../gpu-status';
 import { RuntimeProbe, type RuntimeControls } from '../RuntimeProbe';
 
@@ -18,7 +18,7 @@ export function RuntimeScenario() {
 	const [gpuStatus, setGpuStatus] = useState<GpuStatus>('checking');
 	const [frameCount, setFrameCount] = useState(0);
 	const [renderMode, setRenderMode] = useState<RenderMode>('always');
-	const [outputColorSpace, setOutputColorSpace] = useState<OutputColorSpace>('srgb');
+	const [outputEncoding, setOutputEncoding] = useState<OutputEncoding>('srgb');
 	const [lastError, setLastError] = useState('none');
 	const [controls, setControls] = useState<RuntimeControls | null>(null);
 
@@ -59,7 +59,7 @@ export function RuntimeScenario() {
 				<div data-testid="controls-ready">{controls ? 'yes' : 'no'}</div>
 				<div data-testid="frame-count">{frameCount}</div>
 				<div data-testid="render-mode">{renderMode}</div>
-				<div data-testid="output-color-space">{outputColorSpace}</div>
+				<div data-testid="output-encoding">{outputEncoding}</div>
 				<div data-testid="last-error">{lastError}</div>
 
 				<button
@@ -99,9 +99,9 @@ export function RuntimeScenario() {
 				</button>
 				<button
 					className="harness-button"
-					data-testid="toggle-output-color-space"
+					data-testid="toggle-output-encoding"
 					onClick={() => {
-						setOutputColorSpace((current) => (current === 'srgb' ? 'linear' : 'srgb'));
+						setOutputEncoding((current) => (current === 'srgb' ? 'linear' : 'srgb'));
 					}}
 				>
 					toggle output
@@ -111,7 +111,7 @@ export function RuntimeScenario() {
 			<div className="canvas-shell">
 				<FragCanvas
 					material={material}
-					outputColorSpace={outputColorSpace}
+					color={{ outputEncoding }}
 					showErrorOverlay={false}
 					onError={handleError}
 				>

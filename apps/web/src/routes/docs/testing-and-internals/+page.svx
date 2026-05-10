@@ -21,7 +21,8 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Textures** | Defaults (`flipY: true`, `filter: 'linear'`, `fragmentVisible: true`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal (including idempotent `dispose()`). |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
-| **Renderer graph execution** | Pre-scene compute dispatch, post-scene render-pass execution, compute-only direct-to-canvas rendering without ping-pong target allocation or final blit. |
+| **Renderer graph execution** | Pre-scene compute dispatch, post-scene render-pass execution, compute-only direct-to-canvas rendering without ping-pong target allocation, HDR working-format routing, logical `canvas` presentation targets, and final presentation pass behavior. |
+| **Color pipeline** | SDR defaults, `rgba16float` internal working format for Khronos PBR Neutral/HDR, HDR canvas configuration, auto HDR fallback, explicit HDR unsupported errors, and generated presentation WGSL. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support, and state-stable rejection for invalid `setFragment(...)` updates. |
 | **Compute passes** | `ComputePass` contract enforcement (`@compute @workgroup_size(...)` + `fn compute(...)` required), dispatch resolution (static/auto/dynamic), `PingPongComputePass` iteration count, ping-pong A/B alternation, workgroup size extraction. |
 | **Compute shader** | Compute shader WGSL generation, storage buffer/texture binding generation, strict contract assertion (`global_invocation_id` in `compute` signature), workgroup size parsing with bounds validation, access-mode validation. |
@@ -39,6 +40,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | `useMotionGPU`, `useFrame`, and `usePointer` require `FragCanvas` ancestor | Prevents undefined runtime context usage outside the component tree. |
 | `defineMaterial` freezes output | Material snapshots are cache-safe and deterministic — no accidental mutation. |
 | Pipeline signature ignores pure uniform value changes | Avoids expensive recompiles when only animation values change. |
+| Color pipeline options participate in pipeline signature | Ensures renderer pipelines rebuild when tone mapping, dynamic range, canvas color space, or working format changes. |
 | `useTexture` abort/reload semantics are race-safe | Prevents stale async results from overwriting fresh texture data. |
 | `useTexture` exposes both raw and normalized errors | Enables app-level UX and telemetry off one loading failure path. |
 | FragCanvas error history stays bounded and deduplicated | Prevents unbounded memory growth and callback spam from repeated identical failures. |
@@ -80,6 +82,15 @@ These notes are for maintainers working on the library internals:
 - Resolved definitions are **signature-compared** each frame: `key:format:widthxheight`.
 - Only targets with changed signatures trigger reallocation.
 - Removed targets are destroyed immediately.
+- Default render-target format follows the renderer working format. Standard SDR uses the preferred canvas format; HDR/tone-mapped pipelines use `rgba16float` unless a target explicitly declares `format`.
+
+### Color pipeline lifecycle
+
+- `color.outputEncoding`, `color.toneMapping`, `color.dynamicRange`, `color.canvasColorSpace`, and `color.workingFormat` are part of the renderer pipeline signature.
+- The default path keeps direct-to-canvas rendering when there are no render passes and no final color pipeline.
+- Khronos PBR Neutral and HDR presentation allocate an internal `rgba16float` working target and run a private final presentation pass after all render passes.
+- `dynamicRange: 'hdr'` configures the canvas as `rgba16float` with WebGPU `toneMapping: { mode: 'extended' }`; unsupported explicit HDR configuration throws a clear render error.
+- `dynamicRange: 'auto'` attempts HDR canvas configuration first and falls back to SDR presentation if the browser rejects it.
 
 ### Storage buffer lifecycle
 

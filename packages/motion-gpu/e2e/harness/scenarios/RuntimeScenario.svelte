@@ -3,7 +3,7 @@
 	import FragCanvas from '../../../src/lib/svelte/FragCanvas.svelte';
 	import { defineMaterial } from '../../../src/lib/core/material';
 	import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-	import type { OutputColorSpace, RenderMode } from '../../../src/lib/core/types';
+	import type { OutputEncoding, RenderMode } from '../../../src/lib/core/types';
 	import RuntimeProbe, { type RuntimeControls } from '../RuntimeProbe.svelte';
 
 	const material = defineMaterial({
@@ -18,7 +18,7 @@ fn frag(uv: vec2f) -> vec4f {
 	let gpuStatus = $state<'checking' | 'unavailable' | 'no-adapter' | 'ready'>('checking');
 	let frameCount = $state(0);
 	let renderMode = $state<RenderMode>('always');
-	let outputColorSpace = $state<OutputColorSpace>('srgb');
+	let outputEncoding = $state<OutputEncoding>('srgb');
 	let lastError = $state('none');
 	let controls = $state<RuntimeControls | null>(null);
 
@@ -56,7 +56,7 @@ fn frag(uv: vec2f) -> vec4f {
 		<div data-testid="controls-ready">{controls ? 'yes' : 'no'}</div>
 		<div data-testid="frame-count">{frameCount}</div>
 		<div data-testid="render-mode">{renderMode}</div>
-		<div data-testid="output-color-space">{outputColorSpace}</div>
+		<div data-testid="output-encoding">{outputEncoding}</div>
 		<div data-testid="last-error">{lastError}</div>
 
 		<button data-testid="set-mode-always" onclick={() => setMode('always')}>always</button>
@@ -65,9 +65,9 @@ fn frag(uv: vec2f) -> vec4f {
 		<button data-testid="invalidate-once" onclick={() => controls?.invalidate()}>invalidate</button>
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
 		<button
-			data-testid="toggle-output-color-space"
+			data-testid="toggle-output-encoding"
 			onclick={() => {
-				outputColorSpace = outputColorSpace === 'srgb' ? 'linear' : 'srgb';
+				outputEncoding = outputEncoding === 'srgb' ? 'linear' : 'srgb';
 			}}
 		>
 			toggle output
@@ -75,7 +75,12 @@ fn frag(uv: vec2f) -> vec4f {
 	</section>
 
 	<div class="canvas-shell">
-		<FragCanvas {material} {outputColorSpace} showErrorOverlay={false} onError={handleError}>
+		<FragCanvas
+			{material}
+			color={{ outputEncoding }}
+			showErrorOverlay={false}
+			onError={handleError}
+		>
 			<RuntimeProbe
 				onFrame={(count) => {
 					frameCount = count;

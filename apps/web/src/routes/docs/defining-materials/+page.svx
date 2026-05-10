@@ -74,7 +74,7 @@ When `FragCanvas` resolves a material, it computes a **deterministic signature**
 4. The **normalized texture sampling/upload config** for each texture (including `fragmentVisible`).
 5. The **storage buffer key list** (sorted) with size, type, and access mode.
 
-This signature is combined with `outputColorSpace` to form the final **pipeline signature**. Only changes in this combined signature trigger a renderer rebuild.
+This signature is combined with `FragCanvas` `color` pipeline options to form the final **pipeline signature**. Only changes in this combined signature trigger a renderer rebuild.
 
 ### What triggers rebuilds vs. buffer updates
 
@@ -88,7 +88,7 @@ This signature is combined with `outputColorSpace` to form the final **pipeline 
 | Changing texture sampler config | **Yes** |
 | Changing texture `fragmentVisible` | **Yes** |
 | Changing a define value | **Yes** |
-| Changing `outputColorSpace` on `FragCanvas` | **Yes** |
+| Changing `color` pipeline options on `FragCanvas` | **Yes** |
 | Changing a uniform **value** at runtime | No — buffer update only |
 | Changing a texture **source** at runtime | No — upload only |
 | Writing to a storage buffer at runtime | No — pending write flushed next frame |

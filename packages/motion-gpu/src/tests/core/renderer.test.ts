@@ -79,6 +79,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 	const computePasses: MockWebGpuRuntime['computePasses'] = [];
 	const commandEncoders: MockWebGpuRuntime['commandEncoders'] = [];
 	let uncapturedErrorHandler: ((event: { error: Error }) => void) | null = null;
+	let currentCanvasFormat: GPUTextureFormat = 'rgba8unorm';
 
 	const device = {
 		queue: {
@@ -149,11 +150,13 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 	}));
 
 	const context = {
-		configure: vi.fn(),
+		configure: vi.fn((descriptor: GPUCanvasConfiguration) => {
+			currentCanvasFormat = descriptor.format;
+		}),
 		getCurrentTexture: vi.fn(() => {
 			const texture = createMockTexture({
 				size: { width: 10, height: 10, depthOrArrayLayers: 1 },
-				format: 'rgba8unorm',
+				format: currentCanvasFormat,
 				usage: GPUTextureUsage.RENDER_ATTACHMENT
 			});
 			textures.push(texture);
@@ -213,7 +216,6 @@ function baseOptions(runtime: MockWebGpuRuntime) {
 		uniformLayout: resolveUniformLayout({}),
 		textureKeys: [],
 		textureDefinitions: {},
-		outputColorSpace: 'srgb' as const,
 		getClearColor: () => [0, 0, 0, 1] as [number, number, number, number],
 		getDpr: () => 1,
 		fragmentSource: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
@@ -921,6 +923,172 @@ describe('createRenderer', () => {
 
 		expect(pass.render).toHaveBeenCalledTimes(1);
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
+	});
+
+	it('renders through an HDR intermediate and final presentation pass for Khronos PBR Neutral', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			color: { toneMapping: 'khronos-pbr-neutral' }
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(runtime.context.configure).toHaveBeenCalledWith(
+			expect.objectContaining({
+				format: 'rgba8unorm',
+				alphaMode: 'premultiplied'
+			})
+		);
+		expect(
+			runtime.textures.some((texture) => {
+				const size = texture.descriptor.size as { width?: number; height?: number };
+				return (
+					size.width === 10 && size.height === 10 && texture.descriptor.format === 'rgba16float'
+				);
+			})
+		).toBe(true);
+
+		const encoder = runtime.commandEncoders[0];
+		expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(2);
+		const shaderCodes = runtime.device.createShaderModule.mock.calls.map(
+			(call) => (call[0] as { code?: string }).code ?? ''
+		);
+		expect(shaderCodes.some((code) => code.includes('motiongpuKhronosPbrNeutral'))).toBe(true);
+		const sceneShader = shaderCodes.find((code) => code.includes('fn motiongpuFragment'));
+		const presentationShader = shaderCodes.find((code) =>
+			code.includes('fn motiongpuPresentationFragment')
+		);
+		expect(sceneShader).toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
+		expect(presentationShader).toContain(
+			'out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);'
+		);
+		expect(presentationShader).not.toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
+	});
+
+	it('configures an extended rgba16float canvas for HDR presentation', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			color: { dynamicRange: 'hdr', canvasColorSpace: 'display-p3', outputEncoding: 'linear' }
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(runtime.context.configure).toHaveBeenCalledWith(
+			expect.objectContaining({
+				format: 'rgba16float',
+				colorSpace: 'display-p3',
+				toneMapping: { mode: 'extended' }
+			})
+		);
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(2);
+	});
+
+	it('falls back from auto HDR presentation to SDR canvas configuration', async () => {
+		const runtime = createWebGpuRuntime();
+		runtime.context.configure.mockImplementationOnce((descriptor: GPUCanvasConfiguration) => {
+			if (descriptor.format === 'rgba16float') {
+				throw new Error('HDR canvas unsupported');
+			}
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			color: { dynamicRange: 'auto', outputEncoding: 'linear' }
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).not.toThrow();
+
+		expect(runtime.context.configure).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				format: 'rgba16float',
+				toneMapping: { mode: 'extended' }
+			})
+		);
+		expect(runtime.context.configure).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				format: 'rgba8unorm'
+			})
+		);
+	});
+
+	it('surfaces a clear error when explicit HDR canvas configuration is unsupported', async () => {
+		const runtime = createWebGpuRuntime();
+		runtime.context.configure.mockImplementationOnce((descriptor: GPUCanvasConfiguration) => {
+			if (descriptor.format === 'rgba16float') {
+				throw new Error('unsupported format');
+			}
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			color: { dynamicRange: 'hdr' }
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(/HDR canvas presentation is not supported.*unsupported format/i);
+	});
+
+	it('maps render-pass canvas output to an internal HDR final target before presentation', async () => {
+		const runtime = createWebGpuRuntime();
+		const pass: RenderPass = {
+			needsSwap: false,
+			input: 'source',
+			output: 'canvas',
+			render: vi.fn((context) => {
+				const renderPass = context.beginRenderPass();
+				renderPass.end();
+			})
+		};
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			color: { toneMapping: 'khronos-pbr-neutral' },
+			passes: [pass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(pass.render).toHaveBeenCalledWith(
+			expect.objectContaining({
+				output: expect.objectContaining({ format: 'rgba16float' }),
+				canvas: expect.objectContaining({ format: 'rgba16float' })
+			})
+		);
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(3);
 	});
 
 	it('maps named target slots into pass context', async () => {

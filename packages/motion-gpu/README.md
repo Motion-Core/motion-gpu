@@ -465,6 +465,16 @@ Inside `useFrame(...)` callbacks you update per-frame values:
 - invalidation / advance state
 - `autoRender`
 
+Color presentation is controlled with the optional `color` prop:
+
+```tsx
+<FragCanvas material={material} color={{ toneMapping: 'khronos-pbr-neutral' }} />
+```
+
+`color.toneMapping: 'khronos-pbr-neutral'` renders the scene and post-process graph through an internal `rgba16float` working target, then applies Khronos PBR Neutral in the private final presentation pass. `color.dynamicRange: 'hdr'` requests an `rgba16float` canvas with WebGPU `toneMapping: { mode: 'extended' }`; `dynamicRange: 'auto'` falls back to SDR if HDR canvas configuration is unavailable.
+
+`color.outputEncoding` controls the final value encoding (`'srgb'` applies linear-to-sRGB encoding, `'linear'` leaves values unchanged). `color.canvasColorSpace` is separate: it configures the canvas presentation space such as `'srgb'` or `'display-p3'`.
+
 ---
 
 # Hard Contracts and Validation Rules
@@ -507,6 +517,8 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 
 12. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
 
+13. Khronos PBR Neutral is an SDR tone mapper. Explicit `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`.
+
 ---
 
 # Pipeline Rebuild Rules
@@ -514,7 +526,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ## Rebuilds renderer
 
 - Material signature changes (shader/layout/bindings)
-- `outputColorSpace` changes
+- `color` pipeline changes (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`)
 
 ---
 

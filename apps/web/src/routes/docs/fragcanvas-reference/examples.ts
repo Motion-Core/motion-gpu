@@ -8,7 +8,7 @@ export const fullConfigSvelte = `\
 <FragCanvas
   material={material}
   clearColor={[0.05, 0.05, 0.1, 1]}
-  outputColorSpace="srgb"
+  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}
   renderMode="on-demand"
   autoRender={true}
   maxDelta={0.05}
@@ -31,7 +31,7 @@ export const fullConfigReact = `\
 <FragCanvas
   material={material}
   clearColor={[0.05, 0.05, 0.1, 1]}
-  outputColorSpace="srgb"
+  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}
   renderMode="on-demand"
   autoRender={true}
   maxDelta={0.05}
@@ -59,7 +59,7 @@ export const fullConfigVue = `\
 <FragCanvas
   :material="material"
   :clear-color="[0.05, 0.05, 0.1, 1]"
-  output-color-space="srgb"
+  :color="{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }"
   render-mode="on-demand"
   :auto-render="true"
   :max-delta="0.05"

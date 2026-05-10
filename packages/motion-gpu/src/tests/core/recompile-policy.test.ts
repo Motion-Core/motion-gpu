@@ -22,17 +22,17 @@ describe('recompile policy', () => {
 		expect(
 			buildRendererPipelineSignature({
 				materialSignature: materialA.signature,
-				outputColorSpace: 'srgb'
+				color: {}
 			})
 		).toBe(
 			buildRendererPipelineSignature({
 				materialSignature: materialB.signature,
-				outputColorSpace: 'srgb'
+				color: {}
 			})
 		);
 	});
 
-	it('requires rebuild when shader contract or output color space changes', () => {
+	it('requires rebuild when shader contract or color pipeline changes', () => {
 		const a = resolveMaterial(
 			defineMaterial({
 				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv.x, uv.y, 0.0, 1.0); }',
@@ -49,24 +49,48 @@ describe('recompile policy', () => {
 		expect(
 			buildRendererPipelineSignature({
 				materialSignature: a.signature,
-				outputColorSpace: 'srgb'
+				color: {}
 			})
 		).not.toBe(
 			buildRendererPipelineSignature({
 				materialSignature: b.signature,
-				outputColorSpace: 'srgb'
+				color: {}
 			})
 		);
 
 		expect(
 			buildRendererPipelineSignature({
 				materialSignature: a.signature,
-				outputColorSpace: 'srgb'
+				color: {}
 			})
 		).not.toBe(
 			buildRendererPipelineSignature({
 				materialSignature: a.signature,
-				outputColorSpace: 'linear'
+				color: { outputEncoding: 'linear' }
+			})
+		);
+
+		expect(
+			buildRendererPipelineSignature({
+				materialSignature: a.signature,
+				color: {}
+			})
+		).not.toBe(
+			buildRendererPipelineSignature({
+				materialSignature: a.signature,
+				color: { toneMapping: 'khronos-pbr-neutral' }
+			})
+		);
+
+		expect(
+			buildRendererPipelineSignature({
+				materialSignature: a.signature,
+				color: { dynamicRange: 'sdr' }
+			})
+		).not.toBe(
+			buildRendererPipelineSignature({
+				materialSignature: a.signature,
+				color: { dynamicRange: 'hdr' }
 			})
 		);
 	});

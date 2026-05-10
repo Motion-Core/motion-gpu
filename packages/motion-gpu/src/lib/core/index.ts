@@ -56,7 +56,11 @@ export type { LoadedTexture, TextureDecodeOptions, TextureLoadOptions } from './
 export type {
 	FrameInvalidationToken,
 	FrameState,
-	OutputColorSpace,
+	OutputEncoding,
+	ToneMapping,
+	OutputDynamicRange,
+	CanvasColorSpace,
+	ColorPipelineOptions,
 	AnyPass,
 	ComputePassLike,
 	RenderPass,

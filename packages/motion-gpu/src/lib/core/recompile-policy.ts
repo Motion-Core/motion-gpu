@@ -1,4 +1,4 @@
-import type { OutputColorSpace } from './types.js';
+import type { ColorPipelineOptions } from './types.js';
 
 /**
  * Inputs that affect renderer pipeline compilation.
@@ -9,9 +9,9 @@ export interface RendererPipelineSignatureInput {
 	 */
 	materialSignature: string;
 	/**
-	 * Output color-space transform mode.
+	 * Color pipeline and HDR presentation options.
 	 */
-	outputColorSpace: OutputColorSpace;
+	color?: ColorPipelineOptions;
 }
 
 /**
@@ -19,7 +19,7 @@ export interface RendererPipelineSignatureInput {
  *
  * Rebuild triggers:
  * - material signature changes (shader/layout related)
- * - output color space changes
+ * - color pipeline, output encoding, or HDR presentation options change
  *
  * Non-triggers:
  * - runtime uniform values
@@ -27,5 +27,5 @@ export interface RendererPipelineSignatureInput {
  * - clear color changes
  */
 export function buildRendererPipelineSignature(input: RendererPipelineSignatureInput): string {
-	return `${input.materialSignature}|${input.outputColorSpace}`;
+	return `${input.materialSignature}|${JSON.stringify(input.color ?? {})}`;
 }

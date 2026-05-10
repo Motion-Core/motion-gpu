@@ -597,7 +597,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 export default function App() {
 	return (
-		<FragCanvas material={material} renderMode="always" outputColorSpace="linear">
+		<FragCanvas material={material} renderMode="always" color={{ outputEncoding: 'linear' }}>
 			<Runtime />
 		</FragCanvas>
 	);

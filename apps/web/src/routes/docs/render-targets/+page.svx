@@ -52,7 +52,9 @@ Rules:
 | `width` | `number` | `undefined` | Explicit width in pixels (floored, minimum 1) |
 | `height` | `number` | `undefined` | Explicit height in pixels (floored, minimum 1) |
 | `scale` | `number` | `1` | Scale factor relative to canvas size |
-| `format` | `GPUTextureFormat` | Canvas format | Texture format |
+| `format` | `GPUTextureFormat` | Current working format | Texture format |
+
+The default working format is the preferred canvas format in the standard SDR path. When `FragCanvas` enables Khronos PBR Neutral, HDR presentation, or a custom `color.workingFormat`, the default working format can be `rgba16float`. Explicit `renderTargets.foo.format` always wins.
 
 ## Resolution rules
 
@@ -149,3 +151,5 @@ const renderTargets = {
 
 // Full canvas resolution but in 16-bit float for high dynamic range
 ```
+
+With `color={{ toneMapping: 'khronos-pbr-neutral' }}` or `color={{ dynamicRange: 'hdr' }}`, Motion GPU already uses `rgba16float` for its internal `source`/`target` working surfaces. Declare named `rgba16float` targets only when your own pass graph needs a named HDR surface.

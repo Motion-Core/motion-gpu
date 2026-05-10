@@ -17,9 +17,9 @@ This is the complete prop reference for `FragCanvas` — the main adapter entryp
 ## Usage
 
 <FrameworkBlock
-  svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
-  reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  outputColorSpace="srgb"\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
-  vueCode={`<FragCanvas\n  :material="myMaterial"\n  :clear-color="[0, 0, 0, 1]"\n  output-color-space="srgb"\n  render-mode="always"\n  :passes="[vignettePass]"\n  :on-error="handleError"\n>\n  <Runtime />\n</FragCanvas>`}
+  svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+  reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+  vueCode={`<FragCanvas\n  :material="myMaterial"\n  :clear-color="[0, 0, 0, 1]"\n  :color="{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }"\n  render-mode="always"\n  :passes="[vignettePass]"\n  :on-error="handleError"\n>\n  <Runtime />\n</FragCanvas>`}
   svelteLang="svelte"
   reactLang="tsx"
   vueLang="vue"
@@ -40,11 +40,49 @@ Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `s
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
 | `clearColor` | `[number, number, number, number]` | `[0, 0, 0, 1]` | RGBA clear color applied before the base pass. |
-| `outputColorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Canvas output color space. **Changing triggers renderer rebuild.** |
+| `color` | `ColorPipelineOptions` | `undefined` | Output encoding, HDR working format, canvas dynamic range, canvas color space, and final tone-mapping options. **Changing triggers renderer rebuild.** |
 | `renderMode` | `'always'` \| `'on-demand'` \| `'manual'` | `'always'` | Controls frame rendering frequency. |
 | `autoRender` | `boolean` | `true` | Hard gate — when `false`, no rendering occurs regardless of render mode. |
 | `maxDelta` | `number` | `0.1` | Maximum frame delta in seconds (clamps `state.delta`). Must be `> 0`. |
 | `dpr` | `number` | `devicePixelRatio` (or `1` during SSR) | Device pixel ratio for resolution scaling. |
+
+### Color pipeline
+
+`color` controls the private final presentation stage. It is not a composable render pass; it always runs after the base scene and after all post-scene render passes.
+
+```ts
+type ColorPipelineOptions = {
+  outputEncoding?: 'srgb' | 'linear';
+  toneMapping?: 'none' | 'khronos-pbr-neutral';
+  dynamicRange?: 'sdr' | 'hdr' | 'auto';
+  canvasColorSpace?: 'srgb' | 'display-p3';
+  workingFormat?: 'auto' | GPUTextureFormat;
+};
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `outputEncoding` | `'srgb'` | Final value encoding. `'srgb'` applies linear-to-sRGB encoding before SDR presentation; `'linear'` leaves values unchanged. |
+| `toneMapping` | `'none'` | `'khronos-pbr-neutral'` applies Khronos PBR Neutral to linear HDR input before SDR presentation. |
+| `dynamicRange` | `'sdr'` | `'hdr'` requests `rgba16float` canvas output with WebGPU `toneMapping: { mode: 'extended' }`; `'auto'` tries HDR and falls back to SDR. |
+| `canvasColorSpace` | `'srgb'` | Canvas presentation color space passed to WebGPU context configuration. This selects the canvas gamut/presentation space; it is separate from `outputEncoding`. |
+| `workingFormat` | `'auto'` | Internal scene/pass target format. `auto` selects `rgba16float` for HDR or tone-mapped pipelines, otherwise the preferred canvas format. |
+
+Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.709 HDR color and returns linear Rec.709 in `[0, 1]`. Explicit `dynamicRange: 'hdr'` with `toneMapping: 'khronos-pbr-neutral'` is rejected because that combination asks for HDR presentation after an SDR tone mapper.
+
+```svelte
+<FragCanvas
+  {material}
+  color={{ toneMapping: 'khronos-pbr-neutral' }}
+/>
+```
+
+```tsx
+<FragCanvas
+  material={material}
+  color={{ dynamicRange: 'hdr', canvasColorSpace: 'display-p3' }}
+/>
+```
 
 ### Post-processing
 

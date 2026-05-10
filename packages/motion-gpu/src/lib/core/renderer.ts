@@ -26,6 +26,13 @@ import {
 } from './compute-shader.js';
 import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
+import {
+	buildCanvasConfiguration,
+	buildPresentationShader,
+	resolveColorPipeline,
+	shouldConvertLinearToSrgb,
+	type EffectiveDynamicRange
+} from './color-pipeline.js';
 import type {
 	AnyPass,
 	RenderPass,
@@ -705,55 +712,6 @@ export function findDirtyFloatRanges(
 }
 
 /**
- * Determines whether shader output should perform linear-to-sRGB conversion.
- */
-function shouldConvertLinearToSrgb(
-	outputColorSpace: 'srgb' | 'linear',
-	canvasFormat: GPUTextureFormat
-): boolean {
-	if (outputColorSpace !== 'srgb') {
-		return false;
-	}
-
-	return !canvasFormat.endsWith('-srgb');
-}
-
-/**
- * WGSL shader used to blit an offscreen texture to the canvas.
- */
-function createFullscreenBlitShader(): string {
-	return `
-struct MotionGPUVertexOut {
-	@builtin(position) position: vec4f,
-	@location(0) uv: vec2f,
-};
-
-@group(0) @binding(0) var motiongpuBlitSampler: sampler;
-@group(0) @binding(1) var motiongpuBlitTexture: texture_2d<f32>;
-
-@vertex
-fn motiongpuBlitVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
-	var positions = array<vec2f, 3>(
-		vec2f(-1.0, -3.0),
-		vec2f(-1.0, 1.0),
-		vec2f(3.0, 1.0)
-	);
-
-	let position = positions[index];
-	var out: MotionGPUVertexOut;
-	out.position = vec4f(position, 0.0, 1.0);
-	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
-	return out;
-}
-
-@fragment
-fn motiongpuBlitFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
-	return textureSample(motiongpuBlitTexture, motiongpuBlitSampler, in.uv);
-}
-`;
-}
-
-/**
  * Allocates a render target texture with usage flags suitable for passes/blits.
  */
 function createRenderTexture(
@@ -805,7 +763,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		throw new Error('Canvas does not support webgpu context');
 	}
 
-	const format = navigator.gpu.getPreferredCanvasFormat();
+	const preferredCanvasFormat = navigator.gpu.getPreferredCanvasFormat();
+	const colorPipeline = resolveColorPipeline({
+		color: options.color,
+		preferredCanvasFormat
+	});
+	const workingFormat = colorPipeline.workingFormat;
+	const scenePipelineFormat = colorPipeline.requiresPresentationPass
+		? workingFormat
+		: colorPipeline.canvasFormat;
+	let effectiveCanvasFormat = colorPipeline.canvasFormat;
+	let effectiveDynamicRange: EffectiveDynamicRange =
+		colorPipeline.dynamicRange === 'auto' ? 'hdr' : colorPipeline.dynamicRange;
 	const adapter = await navigator.gpu.requestAdapter(options.adapterOptions);
 	if (!adapter) {
 		throw new Error('Unable to acquire WebGPU adapter');
@@ -935,7 +904,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	device.addEventListener('uncapturederror', handleUncapturedError);
 	try {
 		const runtimeContext = buildShaderCompilationRuntimeContext(options);
-		const convertLinearToSrgb = shouldConvertLinearToSrgb(options.outputColorSpace, format);
+		const convertLinearToSrgb =
+			!colorPipeline.requiresPresentationPass &&
+			shouldConvertLinearToSrgb(colorPipeline.outputEncoding, colorPipeline.canvasFormat, 'sdr');
 		const fragmentTextureKeys = options.textureKeys.filter(
 			(key) => options.textureDefinitions[key]?.fragmentVisible !== false
 		);
@@ -1126,19 +1097,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			fragment: {
 				module: shaderModule,
 				entryPoint: 'motiongpuFragment',
-				targets: [{ format }]
+				targets: [{ format: scenePipelineFormat }]
 			},
 			primitive: {
 				topology: 'triangle-list'
 			}
 		});
 
-		const blitShaderModule = device.createShaderModule({
-			code: createFullscreenBlitShader()
-		});
-		await assertCompilation(blitShaderModule);
-
-		const blitBindGroupLayout = device.createBindGroupLayout({
+		const presentationBindGroupLayout = device.createBindGroupLayout({
 			entries: [
 				{
 					binding: 0,
@@ -1156,28 +1122,76 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 			]
 		});
-		const blitPipelineLayout = device.createPipelineLayout({
-			bindGroupLayouts: [blitBindGroupLayout]
+		const presentationPipelineLayout = device.createPipelineLayout({
+			bindGroupLayouts: [presentationBindGroupLayout]
 		});
-		const blitPipeline = device.createRenderPipeline({
-			layout: blitPipelineLayout,
-			vertex: { module: blitShaderModule, entryPoint: 'motiongpuBlitVertex' },
-			fragment: {
-				module: blitShaderModule,
-				entryPoint: 'motiongpuBlitFragment',
-				targets: [{ format }]
-			},
-			primitive: {
-				topology: 'triangle-list'
+		const presentationPipelines = new Map<string, GPURenderPipeline>();
+		const buildPresentationPipelineKey = (
+			canvasFormat: GPUTextureFormat,
+			dynamicRange: EffectiveDynamicRange,
+			applyFinalTransform: boolean
+		): string => {
+			return `${canvasFormat}|${dynamicRange}|${applyFinalTransform}`;
+		};
+		const createPresentationPipeline = async (
+			canvasFormat: GPUTextureFormat,
+			dynamicRange: EffectiveDynamicRange,
+			applyFinalTransform: boolean
+		): Promise<void> => {
+			const key = buildPresentationPipelineKey(canvasFormat, dynamicRange, applyFinalTransform);
+			if (presentationPipelines.has(key)) {
+				return;
 			}
-		});
-		const blitSampler = device.createSampler({
+
+			const convertPresentationLinearToSrgb =
+				applyFinalTransform &&
+				shouldConvertLinearToSrgb(colorPipeline.outputEncoding, canvasFormat, dynamicRange);
+			const presentationShaderModule = device.createShaderModule({
+				code: buildPresentationShader({
+					toneMapping: applyFinalTransform ? colorPipeline.toneMapping : 'none',
+					convertLinearToSrgb: convertPresentationLinearToSrgb,
+					dynamicRange
+				})
+			});
+			await assertCompilation(presentationShaderModule);
+			presentationPipelines.set(
+				key,
+				device.createRenderPipeline({
+					layout: presentationPipelineLayout,
+					vertex: {
+						module: presentationShaderModule,
+						entryPoint: 'motiongpuPresentationVertex'
+					},
+					fragment: {
+						module: presentationShaderModule,
+						entryPoint: 'motiongpuPresentationFragment',
+						targets: [{ format: canvasFormat }]
+					},
+					primitive: {
+						topology: 'triangle-list'
+					}
+				})
+			);
+		};
+		await createPresentationPipeline(
+			colorPipeline.canvasFormat,
+			colorPipeline.dynamicRange === 'auto' ? 'hdr' : colorPipeline.dynamicRange,
+			colorPipeline.requiresPresentationPass
+		);
+		if (colorPipeline.dynamicRange === 'auto') {
+			await createPresentationPipeline(
+				colorPipeline.fallbackCanvasFormat,
+				'sdr',
+				colorPipeline.requiresPresentationPass
+			);
+		}
+		const presentationSampler = device.createSampler({
 			magFilter: 'linear',
 			minFilter: 'linear',
 			addressModeU: 'clamp-to-edge',
 			addressModeV: 'clamp-to-edge'
 		});
-		let blitBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
+		let presentationBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		// ── Storage buffer allocation ────────────────────────────────────────
 		const storageBufferMap = new Map<string, GPUBuffer>();
@@ -1836,6 +1850,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let bindGroup = createBindGroup();
 		let sourceSlotTarget: RuntimeRenderTarget | null = null;
 		let targetSlotTarget: RuntimeRenderTarget | null = null;
+		let presentationSlotTarget: RuntimeRenderTarget | null = null;
 		let renderTargetSignature = '';
 		let renderTargetSnapshot: Readonly<Record<string, RenderTarget>> = {};
 		let renderTargetKeys: string[] = [];
@@ -1846,6 +1861,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let contextConfigured = false;
 		let configuredWidth = 0;
 		let configuredHeight = 0;
+		let configuredCanvasFormat: GPUTextureFormat | null = null;
+		let configuredDynamicRange: EffectiveDynamicRange | null = null;
 		const runtimeRenderTargets = new Map<string, RuntimeRenderTarget>();
 		const activePasses: AnyPass[] = [];
 		const lifecyclePreviousSet = new Set<AnyPass>();
@@ -1867,7 +1884,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			view: null as unknown as GPUTextureView,
 			width: 0,
 			height: 0,
-			format
+			format: effectiveCanvasFormat
 		};
 
 		/**
@@ -2089,13 +2106,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				current &&
 				current.width === width &&
 				current.height === height &&
-				current.format === format
+				current.format === workingFormat
 			) {
 				return current;
 			}
 
 			destroyRenderTexture(current);
-			const next = createRenderTexture(device, width, height, format);
+			const next = createRenderTexture(device, width, height, workingFormat);
 			if (slot === 'source') {
 				sourceSlotTarget = next;
 			} else {
@@ -2103,6 +2120,21 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			return next;
+		};
+
+		const ensurePresentationTarget = (width: number, height: number): RuntimeRenderTarget => {
+			if (
+				presentationSlotTarget &&
+				presentationSlotTarget.width === width &&
+				presentationSlotTarget.height === height &&
+				presentationSlotTarget.format === workingFormat
+			) {
+				return presentationSlotTarget;
+			}
+
+			destroyRenderTexture(presentationSlotTarget);
+			presentationSlotTarget = createRenderTexture(device, width, height, workingFormat);
+			return presentationSlotTarget;
 		};
 
 		/**
@@ -2116,7 +2148,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				resolveRenderTargets(),
 				canvasWidth,
 				canvasHeight,
-				format
+				workingFormat
 			);
 			const nextSignature = buildRenderTargetSignature(resolvedDefinitions);
 
@@ -2178,24 +2210,25 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		};
 
 		/**
-		 * Blits a texture view to the current canvas texture.
+		 * Presents a texture view to the current canvas texture.
 		 */
-		const blitToCanvas = (
+		const presentToCanvas = (
 			commandEncoder: GPUCommandEncoder,
 			sourceView: GPUTextureView,
 			canvasView: GPUTextureView,
-			clearColor: [number, number, number, number]
+			clearColor: [number, number, number, number],
+			applyFinalTransform: boolean
 		): void => {
-			let bindGroup = blitBindGroupByView.get(sourceView);
+			let bindGroup = presentationBindGroupByView.get(sourceView);
 			if (!bindGroup) {
 				bindGroup = device.createBindGroup({
-					layout: blitBindGroupLayout,
+					layout: presentationBindGroupLayout,
 					entries: [
-						{ binding: 0, resource: blitSampler },
+						{ binding: 0, resource: presentationSampler },
 						{ binding: 1, resource: sourceView }
 					]
 				});
-				blitBindGroupByView.set(sourceView, bindGroup);
+				presentationBindGroupByView.set(sourceView, bindGroup);
 			}
 
 			const pass = commandEncoder.beginRenderPass({
@@ -2214,7 +2247,19 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				]
 			});
 
-			pass.setPipeline(blitPipeline);
+			const pipeline = presentationPipelines.get(
+				buildPresentationPipelineKey(
+					effectiveCanvasFormat,
+					effectiveDynamicRange,
+					applyFinalTransform
+				)
+			);
+			if (!pipeline) {
+				throw new Error(
+					`Missing presentation pipeline for ${effectiveCanvasFormat}/${effectiveDynamicRange}.`
+				);
+			}
+			pass.setPipeline(pipeline);
 			pass.setBindGroup(0, bindGroup);
 			pass.draw(3);
 			pass.end();
@@ -2244,15 +2289,49 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			const { width, height } = resizeCanvas(options.canvas, options.getDpr(), canvasSize);
 
-			if (!contextConfigured || configuredWidth !== width || configuredHeight !== height) {
-				context.configure({
-					device,
-					format,
-					alphaMode: 'premultiplied'
-				});
+			if (
+				!contextConfigured ||
+				configuredWidth !== width ||
+				configuredHeight !== height ||
+				configuredCanvasFormat !== effectiveCanvasFormat ||
+				configuredDynamicRange !== effectiveDynamicRange
+			) {
+				try {
+					context.configure(
+						buildCanvasConfiguration({
+							device,
+							format: effectiveCanvasFormat,
+							dynamicRange: effectiveDynamicRange,
+							canvasColorSpace: colorPipeline.canvasColorSpace
+						})
+					);
+				} catch (error) {
+					if (colorPipeline.dynamicRange !== 'auto' || effectiveDynamicRange !== 'hdr') {
+						if (colorPipeline.dynamicRange === 'hdr' && effectiveDynamicRange === 'hdr') {
+							const detail = error instanceof Error ? error.message : String(error);
+							throw new Error(`HDR canvas presentation is not supported: ${detail}`, {
+								cause: error
+							});
+						}
+						throw error;
+					}
+
+					effectiveCanvasFormat = colorPipeline.fallbackCanvasFormat;
+					effectiveDynamicRange = 'sdr';
+					context.configure(
+						buildCanvasConfiguration({
+							device,
+							format: effectiveCanvasFormat,
+							dynamicRange: effectiveDynamicRange,
+							canvasColorSpace: colorPipeline.canvasColorSpace
+						})
+					);
+				}
 				contextConfigured = true;
 				configuredWidth = width;
 				configuredHeight = height;
+				configuredCanvasFormat = effectiveCanvasFormat;
+				configuredDynamicRange = effectiveDynamicRange;
 			}
 
 			frameScratch[0] = time;
@@ -2347,16 +2426,22 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			canvasSurface.view = canvasTexture.createView();
 			canvasSurface.width = width;
 			canvasSurface.height = height;
+			canvasSurface.format = effectiveCanvasFormat;
 
+			const presentationRequired = colorPipeline.requiresPresentationPass;
+			const presentationSurface = presentationRequired
+				? ensurePresentationTarget(width, height)
+				: null;
 			if (graphPlan.renderSteps.length > 0) {
 				frameSlots.source = ensureSlotTarget('source', width, height);
 				frameSlots.target = ensureSlotTarget('target', width, height);
+				frameSlots.canvas = presentationSurface ?? canvasSurface;
 				frameSlotsActive = true;
 			} else {
 				frameSlotsActive = false;
 			}
 			const slots = frameSlotsActive ? frameSlots : null;
-			const sceneOutput = slots ? slots.source : canvasSurface;
+			const sceneOutput = slots ? slots.source : (presentationSurface ?? canvasSurface);
 
 			// Dispatch compute passes BEFORE scene render so storage textures
 			// and buffers are up-to-date when the fragment shader samples them.
@@ -2449,6 +2534,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			scenePass.draw(3);
 			scenePass.end();
 
+			let finalPresentationSurface: RenderTarget = sceneOutput;
 			if (slots) {
 				const resolveStepSurface = (
 					slot: RenderPassInputSlot | RenderPassOutputSlot
@@ -2528,10 +2614,26 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					}
 				}
 
-				if (graphPlan.finalOutput !== 'canvas') {
-					const finalSurface = resolveStepSurface(graphPlan.finalOutput);
-					blitToCanvas(commandEncoder, finalSurface.view, slots.canvas.view, clearColor);
+				finalPresentationSurface = resolveStepSurface(graphPlan.finalOutput);
+				if (!presentationRequired && graphPlan.finalOutput !== 'canvas') {
+					presentToCanvas(
+						commandEncoder,
+						finalPresentationSurface.view,
+						canvasSurface.view,
+						clearColor,
+						false
+					);
 				}
+			}
+
+			if (presentationRequired) {
+				presentToCanvas(
+					commandEncoder,
+					finalPresentationSurface.view,
+					canvasSurface.view,
+					clearColor,
+					true
+				);
 			}
 
 			device.queue.submit([commandEncoder.finish()]);
@@ -2564,6 +2666,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				computePipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
 				destroyRenderTexture(targetSlotTarget);
+				destroyRenderTexture(presentationSlotTarget);
 				for (const target of runtimeRenderTargets.values()) {
 					target.texture.destroy();
 				}
@@ -2577,7 +2680,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					binding.texture?.destroy();
 					binding.fallbackTexture.destroy();
 				}
-				blitBindGroupByView = new WeakMap();
+				presentationBindGroupByView = new WeakMap();
 				cachedGraphPlan = null;
 				cachedGraphPasses.length = 0;
 				renderTargetSnapshot = {};

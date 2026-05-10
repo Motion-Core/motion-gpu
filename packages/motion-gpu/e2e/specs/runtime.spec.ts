@@ -48,16 +48,16 @@ test.describe('motion-gpu runtime e2e', () => {
 		await expect(page.getByTestId('last-error')).toHaveText('none');
 	});
 
-	test('keeps rendering after output color space toggle', async ({ page }) => {
+	test('keeps rendering after output encoding toggle', async ({ page }) => {
 		await page.goto('/?scenario=runtime');
 		await expect(page.getByTestId('scenario')).toHaveText('runtime');
 		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
-		await expect(page.getByTestId('output-color-space')).toHaveText('srgb');
+		await expect(page.getByTestId('output-encoding')).toHaveText('srgb');
 
 		const beforeToggle = toNumber(await page.getByTestId('frame-count').textContent());
-		await page.getByTestId('toggle-output-color-space').click();
-		await expect(page.getByTestId('output-color-space')).toHaveText('linear');
+		await page.getByTestId('toggle-output-encoding').click();
+		await expect(page.getByTestId('output-encoding')).toHaveText('linear');
 
 		await expect
 			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))

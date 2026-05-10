@@ -5,7 +5,7 @@ import { createFrameRegistry } from '../core/frame-registry.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import type {
 	AnyPass,
-	OutputColorSpace,
+	ColorPipelineOptions,
 	RenderMode,
 	RenderTargetDefinitionMap
 } from '../core/types.js';
@@ -19,7 +19,7 @@ export interface FragCanvasProps {
 	renderTargets?: RenderTargetDefinitionMap;
 	passes?: AnyPass[];
 	clearColor?: [number, number, number, number];
-	outputColorSpace?: OutputColorSpace;
+	color?: ColorPipelineOptions;
 	renderMode?: RenderMode;
 	autoRender?: boolean;
 	maxDelta?: number;
@@ -41,7 +41,7 @@ interface RuntimePropsSnapshot {
 	renderTargets: RenderTargetDefinitionMap;
 	passes: AnyPass[];
 	clearColor: [number, number, number, number];
-	outputColorSpace: OutputColorSpace;
+	color: ColorPipelineOptions | undefined;
 	adapterOptions: GPURequestAdapterOptions | undefined;
 	deviceDescriptor: GPUDeviceDescriptor | undefined;
 	onError: ((report: MotionGPUErrorReport) => void) | undefined;
@@ -161,7 +161,7 @@ export function FragCanvas({
 	renderTargets = {},
 	passes = [],
 	clearColor = [0, 0, 0, 1],
-	outputColorSpace = 'srgb',
+	color = undefined,
 	renderMode = 'always',
 	autoRender = true,
 	maxDelta = 0.1,
@@ -188,7 +188,7 @@ export function FragCanvas({
 		renderTargets,
 		passes,
 		clearColor,
-		outputColorSpace,
+		color,
 		adapterOptions,
 		deviceDescriptor,
 		onError,
@@ -200,7 +200,7 @@ export function FragCanvas({
 		renderTargets,
 		passes,
 		clearColor,
-		outputColorSpace,
+		color,
 		adapterOptions,
 		deviceDescriptor,
 		onError,
@@ -279,7 +279,7 @@ export function FragCanvas({
 			getRenderTargets: () => runtimePropsRef.current.renderTargets,
 			getPasses: () => runtimePropsRef.current.passes,
 			getClearColor: () => runtimePropsRef.current.clearColor,
-			getOutputColorSpace: () => runtimePropsRef.current.outputColorSpace,
+			getColor: () => runtimePropsRef.current.color,
 			getAdapterOptions: () => runtimePropsRef.current.adapterOptions,
 			getDeviceDescriptor: () => runtimePropsRef.current.deviceDescriptor,
 			getOnError: () => runtimePropsRef.current.onError,

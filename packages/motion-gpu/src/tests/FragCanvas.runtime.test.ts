@@ -81,9 +81,9 @@ describe('FragCanvas runtime', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('rebuilds renderer when outputColorSpace changes', async () => {
-		const created: Array<{ renderer: MockRenderer; options: { outputColorSpace: string } }> = [];
-		createRendererMock.mockImplementation(async (options: { outputColorSpace: string }) => {
+	it('rebuilds renderer when color outputEncoding changes', async () => {
+		const created: Array<{ renderer: MockRenderer; options: { color?: unknown } }> = [];
+		createRendererMock.mockImplementation(async (options: { color?: unknown }) => {
 			const renderer: MockRenderer = {
 				render: vi.fn(),
 				destroy: vi.fn()
@@ -111,7 +111,7 @@ describe('FragCanvas runtime', () => {
 
 		await view.rerender({
 			material,
-			outputColorSpace: 'linear',
+			color: { outputEncoding: 'linear' },
 			showErrorOverlay: false
 		});
 		await flushFrame(48);
@@ -119,13 +119,50 @@ describe('FragCanvas runtime', () => {
 			expect(createRendererMock).toHaveBeenCalledTimes(2);
 		});
 
-		expect(created[1]?.options.outputColorSpace).toBe('linear');
+		expect(created[1]?.options.color).toEqual({ outputEncoding: 'linear' });
 		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);
 
 		await flushFrame(64);
 		await waitFor(() => {
 			expect(created[1]?.renderer.render).toHaveBeenCalled();
 		});
+	});
+
+	it('rebuilds renderer when color pipeline changes', async () => {
+		const created: Array<{ renderer: MockRenderer; options: { color?: unknown } }> = [];
+		createRendererMock.mockImplementation(async (options: { color?: unknown }) => {
+			const renderer: MockRenderer = {
+				render: vi.fn(),
+				destroy: vi.fn()
+			};
+			created.push({ renderer, options });
+			return renderer;
+		});
+
+		const view = render(FragCanvas, {
+			props: {
+				material,
+				showErrorOverlay: false
+			}
+		});
+
+		await flushFrame(16);
+		await waitFor(() => {
+			expect(createRendererMock).toHaveBeenCalledTimes(1);
+		});
+
+		await view.rerender({
+			material,
+			color: { toneMapping: 'khronos-pbr-neutral' },
+			showErrorOverlay: false
+		});
+		await flushFrame(32);
+		await waitFor(() => {
+			expect(createRendererMock).toHaveBeenCalledTimes(2);
+		});
+
+		expect(created[1]?.options.color).toEqual({ toneMapping: 'khronos-pbr-neutral' });
+		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);
 	});
 
 	it('applies retry backoff after renderer initialization failure and recovers', async () => {

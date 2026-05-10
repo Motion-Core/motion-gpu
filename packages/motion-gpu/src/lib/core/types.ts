@@ -290,9 +290,50 @@ export type StorageBufferDefinitionMap<TKey extends string = string> = Record<
 >;
 
 /**
- * Output color space requested for final canvas presentation.
+ * Final output encoding applied before canvas presentation.
  */
-export type OutputColorSpace = 'srgb' | 'linear';
+export type OutputEncoding = 'srgb' | 'linear';
+
+/**
+ * Final tone mapper applied by the private presentation pass.
+ */
+export type ToneMapping = 'none' | 'khronos-pbr-neutral';
+
+/**
+ * Requested display dynamic range for final canvas presentation.
+ */
+export type OutputDynamicRange = 'sdr' | 'hdr' | 'auto';
+
+/**
+ * Canvas color space requested during WebGPU context configuration.
+ */
+export type CanvasColorSpace = 'srgb' | 'display-p3';
+
+/**
+ * High-level color pipeline configuration for `FragCanvas`.
+ */
+export interface ColorPipelineOptions {
+	/**
+	 * Final output encoding. `srgb` applies linear-to-sRGB encoding; `linear` leaves values unchanged.
+	 */
+	outputEncoding?: OutputEncoding;
+	/**
+	 * Final tone mapper. Khronos PBR Neutral maps HDR linear input to SDR output.
+	 */
+	toneMapping?: ToneMapping;
+	/**
+	 * Display dynamic range. `auto` attempts HDR canvas presentation and falls back to SDR.
+	 */
+	dynamicRange?: OutputDynamicRange;
+	/**
+	 * Canvas presentation color space.
+	 */
+	canvasColorSpace?: CanvasColorSpace;
+	/**
+	 * Internal scene/pass render target format. `auto` selects `rgba16float` for HDR/tone mapping.
+	 */
+	workingFormat?: 'auto' | GPUTextureFormat;
+}
 
 /**
  * Declarative render target definition for post-processing or multi-pass pipelines.
@@ -694,9 +735,9 @@ export interface RendererOptions {
 	 */
 	getPasses?: () => AnyPass[] | undefined;
 	/**
-	 * Requested output color space.
+	 * Color pipeline and HDR presentation options.
 	 */
-	outputColorSpace: OutputColorSpace;
+	color?: ColorPipelineOptions;
 	/**
 	 * Function returning current clear color.
 	 */

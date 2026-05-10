@@ -11,8 +11,8 @@ import { assertUniformValueForType } from './uniforms.js';
 import type { FrameRegistry } from './frame-registry.js';
 import type {
 	AnyPass,
+	ColorPipelineOptions,
 	FrameInvalidationToken,
-	OutputColorSpace,
 	PendingStorageWrite,
 	Renderer,
 	RenderTargetDefinitionMap,
@@ -33,7 +33,7 @@ export interface MotionGPURuntimeLoopOptions {
 	getRenderTargets: () => RenderTargetDefinitionMap;
 	getPasses: () => AnyPass[];
 	getClearColor: () => [number, number, number, number];
-	getOutputColorSpace: () => OutputColorSpace;
+	getColor?: () => ColorPipelineOptions | undefined;
 	getAdapterOptions: () => GPURequestAdapterOptions | undefined;
 	getDeviceDescriptor: () => GPUDeviceDescriptor | undefined;
 	getOnError: () => ((report: MotionGPUErrorReport) => void) | undefined;
@@ -427,10 +427,10 @@ export function createMotionGPURuntimeLoop(
 
 		shouldContinueAfterFrame = false;
 
-		const outputColorSpace = options.getOutputColorSpace();
+		const color = options.getColor?.();
 		const rendererSignature = buildRendererPipelineSignature({
 			materialSignature: materialState.signature,
-			outputColorSpace
+			...(color !== undefined ? { color } : {})
 		});
 		syncMaterialRuntimeState(materialState);
 
@@ -469,7 +469,7 @@ export function createMotionGPURuntimeLoop(
 							storageTextureKeys: materialState.storageTextureKeys,
 							getRenderTargets: options.getRenderTargets,
 							getPasses: options.getPasses,
-							outputColorSpace,
+							...(color !== undefined ? { color } : {}),
 							getClearColor: options.getClearColor,
 							getDpr: () => options.dpr.current,
 							adapterOptions: options.getAdapterOptions(),

@@ -16,7 +16,7 @@ Motion GPU documentation is also available for AI tools via [Context7](https://c
 Understanding the frame-by-frame flow is the single most useful thing you can learn about Motion GPU:
 
 1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, storageBuffers, ... })`.
-2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture config/bindings including `fragmentVisible`, and storage buffer definitions).
+2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture config/bindings including `fragmentVisible`, storage buffer definitions, and `color` pipeline options including output encoding).
 3. If the signature changes, the WebGPU **renderer is rebuilt** from scratch. If it stays the same, only uniform buffers and texture bindings are updated — no recompilation.
 4. Every animation frame:
    - **Scheduler tasks** run in topological order (your `useFrame` callbacks).
@@ -25,7 +25,7 @@ Understanding the frame-by-frame flow is the single most useful thing you can le
    - **Compute passes** dispatch in declaration order as a pre-scene phase.
    - The **base fullscreen pass** renders your fragment shader.
    - Optional **post-process render passes** execute through the slot graph.
-   - The **final result** is presented to the canvas.
+   - The **final result** is presented to the canvas, optionally through a private final color pipeline for Khronos PBR Neutral or HDR canvas output.
 
 ## Hard contracts
 
@@ -42,13 +42,15 @@ These are enforced at runtime and will throw immediately if violated:
 | `maxDelta > 0` and `profilingWindow > 0` | Scheduler assertions |
 | Render target `scale`, `width`, `height` must be finite and `> 0` | Render-target resolver |
 | Pass slots must reference valid surfaces (`canvas` output-only, named slots must exist in `renderTargets`) | Render graph planner |
+| `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'` | Color pipeline resolver |
 
 ## Defaults worth knowing
 
 | Setting | Default value |
 | --- | --- |
 | `FragCanvas.clearColor` | `[0, 0, 0, 1]` (opaque black) |
-| `FragCanvas.outputColorSpace` | `'srgb'` |
+| `FragCanvas.color.outputEncoding` | `'srgb'` |
+| `FragCanvas.color` | `undefined` (standard SDR canvas path with default sRGB output encoding) |
 | `FragCanvas.renderMode` | `'always'` |
 | `FragCanvas.autoRender` | `true` |
 | `FragCanvas.maxDelta` | `0.1` (seconds) |

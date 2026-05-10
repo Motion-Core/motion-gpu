@@ -8,8 +8,8 @@
 	import { createMotionGPURuntimeLoop } from '../core/runtime-loop';
 	import type {
 		AnyPass,
+		ColorPipelineOptions,
 		FrameInvalidationToken,
-		OutputColorSpace,
 		RenderMode,
 		RenderTargetDefinitionMap
 	} from '../core/types';
@@ -21,7 +21,7 @@
 		renderTargets?: RenderTargetDefinitionMap;
 		passes?: AnyPass[];
 		clearColor?: [number, number, number, number];
-		outputColorSpace?: OutputColorSpace;
+		color?: ColorPipelineOptions;
 		renderMode?: RenderMode;
 		autoRender?: boolean;
 		maxDelta?: number;
@@ -45,7 +45,7 @@
 		renderTargets = {},
 		passes = [],
 		clearColor = [0, 0, 0, 1],
-		outputColorSpace = 'srgb',
+		color = undefined,
 		renderMode = 'always',
 		autoRender = true,
 		maxDelta = 0.1,
@@ -195,7 +195,7 @@
 			getRenderTargets: () => renderTargets,
 			getPasses: () => passes,
 			getClearColor: () => clearColor,
-			getOutputColorSpace: () => outputColorSpace,
+			getColor: () => color,
 			getAdapterOptions: () => adapterOptions,
 			getDeviceDescriptor: () => deviceDescriptor,
 			getOnError: () => onError,

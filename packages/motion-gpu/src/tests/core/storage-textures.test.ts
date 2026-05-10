@@ -154,7 +154,6 @@ function baseOptions(
 		uniformLayout: resolveUniformLayout({}),
 		textureKeys: [],
 		textureDefinitions: {} as TextureDefinitionMap,
-		outputColorSpace: 'srgb' as const,
 		getClearColor: () => [0, 0, 0, 1] as [number, number, number, number],
 		getDpr: () => 1,
 		fragmentSource: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',

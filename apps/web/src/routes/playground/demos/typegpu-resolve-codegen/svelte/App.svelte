@@ -16,4 +16,4 @@
 	});
 </script>
 
-<FragCanvas {material} outputColorSpace="linear" />
+<FragCanvas {material} color={{ outputEncoding: 'linear' }} />

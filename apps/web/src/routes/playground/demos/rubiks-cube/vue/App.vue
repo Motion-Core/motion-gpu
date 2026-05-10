@@ -357,7 +357,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 </script>
 
 <template>
-	<FragCanvas :material="material" :passes="[transformPass]" outputColorSpace="linear">
+	<FragCanvas :material="material" :passes="[transformPass]" :color="{ outputEncoding: 'linear' }">
 		<Runtime />
 	</FragCanvas>
 </template>

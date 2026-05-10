@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { FragCanvas, defineMaterial } from '../../../src/lib/vue';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-import type { OutputColorSpace, RenderMode } from '../../../src/lib/core/types';
+import type { OutputEncoding, RenderMode } from '../../../src/lib/core/types';
 import { detectGpuStatus, type GpuStatus } from '../gpu-status';
 import RuntimeProbe from '../RuntimeProbe.vue';
 import type { RuntimeControls } from '../runtime-controls';
@@ -19,7 +19,7 @@ fn frag(uv: vec2f) -> vec4f {
 const gpuStatus = ref<GpuStatus>('checking');
 const frameCount = ref(0);
 const renderMode = ref<RenderMode>('always');
-const outputColorSpace = ref<OutputColorSpace>('srgb');
+const outputEncoding = ref<OutputEncoding>('srgb');
 const lastError = ref('none');
 const controls = ref<RuntimeControls | null>(null);
 
@@ -53,7 +53,7 @@ onMounted(async () => {
 			<div data-testid="controls-ready">{{ controls ? 'yes' : 'no' }}</div>
 			<div data-testid="frame-count">{{ frameCount }}</div>
 			<div data-testid="render-mode">{{ renderMode }}</div>
-			<div data-testid="output-color-space">{{ outputColorSpace }}</div>
+			<div data-testid="output-encoding">{{ outputEncoding }}</div>
 			<div data-testid="last-error">{{ lastError }}</div>
 
 			<button class="harness-button" data-testid="set-mode-always" @click="setMode('always')">
@@ -73,8 +73,8 @@ onMounted(async () => {
 			</button>
 			<button
 				class="harness-button"
-				data-testid="toggle-output-color-space"
-				@click="outputColorSpace = outputColorSpace === 'srgb' ? 'linear' : 'srgb'"
+				data-testid="toggle-output-encoding"
+				@click="outputEncoding = outputEncoding === 'srgb' ? 'linear' : 'srgb'"
 			>
 				toggle output
 			</button>
@@ -83,7 +83,7 @@ onMounted(async () => {
 		<div class="canvas-shell">
 			<FragCanvas
 				:material="material"
-				:outputColorSpace="outputColorSpace"
+				:color="{ outputEncoding }"
 				:showErrorOverlay="false"
 				:onError="handleError"
 			>

@@ -10,14 +10,7 @@
 
 </div>
 
-# Motion GPU
-
-**A minimalist WebGPU framework for writing Shadertoy-style fullscreen shaders in pure WGSL.**
-
-`@motion-core/motion-gpu` ships a framework-agnostic core plus Svelte 5, React, and Vue adapters for building fullscreen shader pipelines using WebGPU and WGSL.
-It provides a minimal runtime loop, scheduler, pre-scene compute pass queue, and post-process render graph designed specifically for fragment-driven GPU programs.
-
-Unlike general-purpose 3D engines, Motion GPU focuses on a very narrow problem: **running fullscreen fragment shaders and multi-pass GPU pipelines**.
+**Motion GPU** is a minimalist WebGPU framework for writing Shadertoy-style fullscreen shaders in pure WGSL. It provides a framework-agnostic core with Svelte 5, React, and Vue adapters for building fragment-driven GPU programs and multi-pass rendering pipelines. The framework includes a minimal runtime loop, scheduler, and render graph tailored specifically for fullscreen shader execution, focusing on a narrow GPU workflow rather than general-purpose 3D rendering.
 
 ---
 
@@ -83,145 +76,13 @@ Motion GPU follows a simple three-step flow:
   - `BlitPass`
   - `CopyPass`
 
-- Pre-scene GPU compute passes:
+- GPU compute passes:
   - `ComputePass` — single-dispatch GPU compute workloads
   - `PingPongComputePass` — iterative multi-step simulations with texture A/B alternation
 
 - Named render targets for multi-pass pipelines
 - Structured error normalization with built-in overlay UI and custom renderer support
 - Advanced runtime API for namespaced shared user context and scheduler presets
-
----
-
-# Entrypoints
-
-## Svelte adapter
-
-`@motion-core/motion-gpu/svelte` exposes the runtime API for Svelte:
-
-- `FragCanvas`
-- `defineMaterial`
-- `useMotionGPU`
-- `useFrame`
-- `usePointer`
-- `useTexture`
-- `ShaderPass`
-- `BlitPass`
-- `CopyPass`
-- `ComputePass`
-- `PingPongComputePass`
-
-Also exports runtime/core types:
-
-- uniforms
-- textures
-- render passes
-- scheduler
-- loader types
-
----
-
-`@motion-core/motion-gpu/svelte/advanced` re-exports everything above, plus:
-
-- `useMotionGPUUserContext`
-- `setMotionGPUUserContext`
-- `applySchedulerPreset`
-- `captureSchedulerDebugSnapshot`
-
----
-
-## React adapter
-
-`@motion-core/motion-gpu/react` exposes the runtime API for React:
-
-- `FragCanvas`
-- `defineMaterial`
-- `useMotionGPU`
-- `useFrame`
-- `usePointer`
-- `useTexture`
-- `ShaderPass`
-- `BlitPass`
-- `CopyPass`
-- `ComputePass`
-- `PingPongComputePass`
-
-Also exports runtime/core types:
-
-- uniforms
-- textures
-- render passes
-- scheduler
-- loader types
-
----
-
-`@motion-core/motion-gpu/react/advanced` re-exports everything above, plus:
-
-- `useMotionGPUUserContext`
-- `useSetMotionGPUUserContext`
-- `setMotionGPUUserContext`
-- `applySchedulerPreset`
-- `captureSchedulerDebugSnapshot`
-
----
-
-## Vue adapter
-
-`@motion-core/motion-gpu/vue` exposes the runtime API for Vue:
-
-- `FragCanvas`
-- `defineMaterial`
-- `useMotionGPU`
-- `useFrame`
-- `usePointer`
-- `useTexture`
-- `ShaderPass`
-- `BlitPass`
-- `CopyPass`
-- `ComputePass`
-- `PingPongComputePass`
-
-Also exports runtime/core types:
-
-- uniforms
-- textures
-- render passes
-- scheduler
-- loader types
-
----
-
-`@motion-core/motion-gpu/vue/advanced` re-exports everything above, plus:
-
-- `useMotionGPUUserContext`
-- `setMotionGPUUserContext`
-- `applySchedulerPreset`
-- `captureSchedulerDebugSnapshot`
-
----
-
-## Framework-agnostic core
-
-`@motion-core/motion-gpu` (and explicit alias `@motion-core/motion-gpu/core`) exposes adapter-building primitives:
-
-- `defineMaterial`
-- `resolveMaterial`
-- `createCurrentWritable`
-- `createFrameRegistry`
-- `createMotionGPURuntimeLoop`
-- `loadTexturesFromUrls`
-- `toMotionGPUErrorReport`
-- `ShaderPass`
-- `BlitPass`
-- `CopyPass`
-- `ComputePass`
-- `PingPongComputePass`
-
-`@motion-core/motion-gpu/advanced` (and explicit alias `@motion-core/motion-gpu/core/advanced`) re-exports core plus:
-
-- `applySchedulerPreset`
-- `captureSchedulerDebugSnapshot`
 
 ---
 
@@ -465,16 +326,6 @@ Inside `useFrame(...)` callbacks you update per-frame values:
 - invalidation / advance state
 - `autoRender`
 
-Color presentation is controlled with the optional `color` prop:
-
-```tsx
-<FragCanvas material={material} color={{ toneMapping: 'khronos-pbr-neutral' }} />
-```
-
-`color.toneMapping: 'khronos-pbr-neutral'` renders the scene and post-process graph through an internal `rgba16float` working target, then applies Khronos PBR Neutral in the private final presentation pass. `color.dynamicRange: 'hdr'` requests an `rgba16float` canvas with WebGPU `toneMapping: { mode: 'extended' }`; `dynamicRange: 'auto'` falls back to SDR if HDR canvas configuration is unavailable.
-
-`color.outputEncoding` controls the final value encoding (`'srgb'` applies linear-to-sRGB encoding, `'linear'` leaves values unchanged). `color.canvasColorSpace` is separate: it configures the canvas presentation space such as `'srgb'` or `'display-p3'`.
-
 ---
 
 # Hard Contracts and Validation Rules
@@ -513,11 +364,9 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 
 10. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
 
-11. Compute passes execute before the base scene render and do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+11. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
 
 12. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
-
-13. Khronos PBR Neutral is an SDR tone mapper. Explicit `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`.
 
 ---
 
@@ -526,7 +375,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ## Rebuilds renderer
 
 - Material signature changes (shader/layout/bindings)
-- `color` pipeline changes (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`)
+- `outputColorSpace` changes
 
 ---
 

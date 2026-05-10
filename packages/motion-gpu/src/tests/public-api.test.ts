@@ -7,6 +7,8 @@ import * as react from '../lib/react/index';
 import * as reactAdvanced from '../lib/react/advanced';
 import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
+import * as vue from '../lib/vue/index';
+import * as vueAdvanced from '../lib/vue/advanced';
 
 describe('public api contract', () => {
 	it('exports framework-agnostic runtime symbols from root and /core entrypoints', () => {
@@ -110,6 +112,39 @@ describe('public api contract', () => {
 			'useMotionGPUUserContext',
 			'usePointer',
 			'useSetMotionGPUUserContext',
+			'useTexture'
+		]);
+	});
+
+	it('exposes Vue runtime symbols only from adapter entrypoints', () => {
+		expect(Object.keys(vue).sort()).toEqual([
+			'BlitPass',
+			'ComputePass',
+			'CopyPass',
+			'FragCanvas',
+			'PingPongComputePass',
+			'ShaderPass',
+			'defineMaterial',
+			'useFrame',
+			'useMotionGPU',
+			'usePointer',
+			'useTexture'
+		]);
+		expect(Object.keys(vueAdvanced).sort()).toEqual([
+			'BlitPass',
+			'ComputePass',
+			'CopyPass',
+			'FragCanvas',
+			'PingPongComputePass',
+			'ShaderPass',
+			'applySchedulerPreset',
+			'captureSchedulerDebugSnapshot',
+			'defineMaterial',
+			'setMotionGPUUserContext',
+			'useFrame',
+			'useMotionGPU',
+			'useMotionGPUUserContext',
+			'usePointer',
 			'useTexture'
 		]);
 	});

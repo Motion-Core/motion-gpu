@@ -34,6 +34,7 @@
     "format": "bun run --cwd apps/web format && bun run --cwd packages/motion-gpu format"
   },
   "dependencies": {
-    "prettier-plugin-tailwindcss": "^0.7.2"
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "rehype-slug": "^6.0.0"
   }
 }

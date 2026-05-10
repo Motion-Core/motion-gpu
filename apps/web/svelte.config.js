@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url';
 import adapter from '@sveltejs/adapter-cloudflare';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import rehypeSlug from 'rehype-slug';
 import { escapeSvelte, mdsvex } from 'mdsvex';
 import { createHighlighter } from 'shiki';
 
@@ -119,7 +120,7 @@ const config = {
 			layout: {
 				docs: markdownLayout
 			},
-			rehypePlugins: [tableCellFormatter],
+			rehypePlugins: [tableCellFormatter, rehypeSlug],
 			highlight: {
 				highlighter: async (code, lang = 'text') => {
 					const lightHtml = escapeSvelte(

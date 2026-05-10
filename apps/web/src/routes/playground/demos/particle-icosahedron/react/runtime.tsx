@@ -40,7 +40,7 @@ export default function Runtime() {
 		const pointerState = pointer.state.current;
 		if (pointerState.pressed && pointerState.dragging) {
 			targetRotateY += pointerState.deltaPx[0] * -0.005;
-			targetRotateX += pointerState.deltaPx[1] * 0.005;
+			targetRotateX += pointerState.deltaPx[1] * -0.005;
 			targetRotateX = Math.max(-1.1, Math.min(1.1, targetRotateX));
 		}
 

@@ -11,12 +11,12 @@ import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu
 import Runtime from './runtime';
 
 const FACE_COUNT = 20;
-const PARTICLES_PER_FACE = 64000;
+const PARTICLES_PER_FACE = 128000;
 const PARTICLE_COUNT = FACE_COUNT * PARTICLES_PER_FACE;
 const FLOATS_PER_PARTICLE = 5;
 const PARTICLE_STORAGE_SHARDS = 4;
 const SHARD_PARTICLE_CAPACITY = Math.ceil(PARTICLE_COUNT / PARTICLE_STORAGE_SHARDS);
-const TEX_SIZE = 1024;
+const TEX_SIZE = 2056;
 
 const particleShards = Array.from({ length: PARTICLE_STORAGE_SHARDS }, (_, shard) => {
 	const start = shard * SHARD_PARTICLE_CAPACITY;
@@ -314,23 +314,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   if (facing <= 0.02) { return; }
 
   let ambient = 3.34;
-  let diffuse = max(dot(normal, lightDir), 0.0) * 8.14;
-
-  let hemiBottom = baseColor * 0.28;
-  let hemiTop = baseColor * 0.72;
-  let hemi = mix(hemiBottom, hemiTop, normal.y * 0.5 + 0.5) * 0.25;
+  let diffuse = max(dot(normal, lightDir), 0.0) * 12.14;
 
   let reflectDir = reflect(-lightDir, normal);
-  let specular = pow(max(dot(reflectDir, viewDir), 0.0), 120.0) * 1.45;
 
   let n = stylizedNoise(dir, t, seed);
-  let ridge = pow(1.0 - edgeWeight, 1.6);
-  let rim = pow(1.0 - max(dot(normal, viewDir), 0.0), 2.4);
+  let ridge = pow(1.0 - edgeWeight, 16.4);
 
   var lit = baseColor * (ambient + diffuse);
-  lit += hemi;
-  lit += emissiveColor * (0.05 + n * 0.22 + ridge * 0.14 + rim * 0.24);
-  lit += vec3f(1.0, 0.92, 1.0) * specular;
 
   let depth = CAMERA_DIST + position.z;
   let perspective = CAMERA_DIST / max(depth, 0.06);
@@ -341,7 +332,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   let ty = i32((-sy * 0.78 + 0.5) * TEX_SIZE_F);
 
   if (tx >= 0 && tx < TEX_SIZE_I && ty >= 0 && ty < TEX_SIZE_I) {
-    let energy = (0.42 + n * 0.58 + ridge * 5.5) * clamp(perspective, 0.6, 1.7) * facing;
+    let energy = (0.42 + n * 0.58 + ridge * 4.5) * clamp(perspective, 0.6, 1.7) * facing;
     let color = lit * energy * 0.045;
     textureStore(densityMap, vec2u(u32(tx), u32(ty)), vec4f(color, 1.0));
   }

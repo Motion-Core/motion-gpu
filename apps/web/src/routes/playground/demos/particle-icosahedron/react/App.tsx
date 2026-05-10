@@ -343,7 +343,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
 export default function App() {
 	return (
-		<FragCanvas material={material} passes={[clearDensity, simulate]}>
+		<FragCanvas
+			material={material}
+			color={{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }}
+			passes={[clearDensity, simulate]}
+		>
 			<Runtime />
 		</FragCanvas>
 	);

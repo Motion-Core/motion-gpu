@@ -356,6 +356,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	});
 </script>
 
-<FragCanvas {material} passes={[transformPass]} color={{ outputEncoding: 'linear' }}>
+<FragCanvas
+	{material}
+	passes={[transformPass]}
+	color={{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }}
+>
 	<Runtime />
 </FragCanvas>

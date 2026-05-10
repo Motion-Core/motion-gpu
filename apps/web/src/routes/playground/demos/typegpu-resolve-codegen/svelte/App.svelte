@@ -16,4 +16,7 @@
 	});
 </script>
 
-<FragCanvas {material} color={{ outputEncoding: 'linear' }} />
+<FragCanvas
+	{material}
+	color={{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }}
+/>

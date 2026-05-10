@@ -1,17 +1,17 @@
 <script setup lang="ts">
-	/*
-	 * Created by Marek Jóźwiak @madebyhex
-	 *
-	 * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
-	 * SPDX-License-Identifier: CC-BY-NC-SA-4.0
-	 *
-	 * You are free to share and adapt this work under the terms of the license.
-	 * https://creativecommons.org/licenses/by-nc-sa/4.0/
-	 */
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
-	import Runtime from './runtime.vue';
+/*
+ * Created by Marek Jóźwiak @madebyhex
+ *
+ * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+ * SPDX-License-Identifier: CC-BY-NC-SA-4.0
+ *
+ * You are free to share and adapt this work under the terms of the license.
+ * https://creativecommons.org/licenses/by-nc-sa/4.0/
+ */
+import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
+import Runtime from './runtime.vue';
 
-	const sdfPrimitives = `
+const sdfPrimitives = `
 fn smin(a: f32, b: f32, k: f32) -> f32 {
 	let h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
 	return mix(b, a, h) - k * h * (1.0 - h);
@@ -44,7 +44,7 @@ fn sdTaperedStemCut(p: vec3f, a: vec3f, b: vec3f, radiusA: f32, radiusB: f32) ->
 }
 `;
 
-	const transforms = `
+const transforms = `
 fn rotateZ(p: vec3f, angle: f32) -> vec3f {
 	let c = cos(angle);
 	let s = sin(angle);
@@ -64,7 +64,7 @@ fn rotateY(p: vec3f, angle: f32) -> vec3f {
 }
 `;
 
-	const noise = `
+const noise = `
 fn hash31(p: vec3f) -> f32 {
 	return fract(sin(dot(p, vec3f(127.1, 311.7, 74.7))) * 43758.5453123);
 }
@@ -111,7 +111,7 @@ fn surfaceGrain(p: vec3f) -> f32 {
 }
 `;
 
-	const normalUtils = `
+const normalUtils = `
 #include <noise>
 
 fn safeNormalize(v: vec3f, fallback: vec3f) -> vec3f {
@@ -134,7 +134,7 @@ fn grainNormal(p: vec3f, e: f32) -> vec3f {
 }
 	`;
 
-	const foliageDetail = `
+const foliageDetail = `
 #include <transforms>
 #include <normalUtils>
 
@@ -216,41 +216,41 @@ fn stemFiberNormal(p_world: vec3f, e: f32) -> vec3f {
 }
 	`;
 
-	const material = defineMaterial({
-		includes: {
-			sdfPrimitives,
-			transforms,
-			noise,
-			normalUtils,
-			foliageDetail
-		},
-		defines: {
-			MAX_MARCH_STEPS: { type: 'i32', value: 96 },
-			MARCH_STEP_SCALE: 0.9,
-			MARCH_MAX_DIST: 4.5,
-			MARCH_HIT_EPS: 0.0008,
-			NORMAL_EPS: 0.0012,
-			STEM_CAP_SMOOTH: 0.054,
-			STEM_CAP_BLEND_BAND: 0.078,
-			CAP_LEAF_JOIN_SMOOTH: 0.02,
-			FBM_OCTAVES: { type: 'i32', value: 3 },
-			BODY_COLOR_A_R: 0.14,
-			BODY_COLOR_A_G: 0.06,
-			BODY_COLOR_A_B: 0.22,
-			BODY_COLOR_B_R: 0.42,
-			BODY_COLOR_B_G: 0.14,
-			BODY_COLOR_B_B: 0.54,
-			CAP_COLOR_A_R: 0.06,
-			CAP_COLOR_A_G: 0.18,
-			CAP_COLOR_A_B: 0.1,
-			CAP_COLOR_B_R: 0.16,
-			CAP_COLOR_B_G: 0.32,
-			CAP_COLOR_B_B: 0.18,
-			STEM_COLOR_R: 0.2,
-			STEM_COLOR_G: 0.34,
-			STEM_COLOR_B: 0.22
-		},
-		fragment: `
+const material = defineMaterial({
+	includes: {
+		sdfPrimitives,
+		transforms,
+		noise,
+		normalUtils,
+		foliageDetail
+	},
+	defines: {
+		MAX_MARCH_STEPS: { type: 'i32', value: 96 },
+		MARCH_STEP_SCALE: 0.9,
+		MARCH_MAX_DIST: 4.5,
+		MARCH_HIT_EPS: 0.0008,
+		NORMAL_EPS: 0.0012,
+		STEM_CAP_SMOOTH: 0.054,
+		STEM_CAP_BLEND_BAND: 0.078,
+		CAP_LEAF_JOIN_SMOOTH: 0.02,
+		FBM_OCTAVES: { type: 'i32', value: 3 },
+		BODY_COLOR_A_R: 0.14,
+		BODY_COLOR_A_G: 0.06,
+		BODY_COLOR_A_B: 0.22,
+		BODY_COLOR_B_R: 0.42,
+		BODY_COLOR_B_G: 0.14,
+		BODY_COLOR_B_B: 0.54,
+		CAP_COLOR_A_R: 0.06,
+		CAP_COLOR_A_G: 0.18,
+		CAP_COLOR_A_B: 0.1,
+		CAP_COLOR_B_R: 0.16,
+		CAP_COLOR_B_G: 0.32,
+		CAP_COLOR_B_B: 0.18,
+		STEM_COLOR_R: 0.2,
+		STEM_COLOR_G: 0.34,
+		STEM_COLOR_B: 0.22
+	},
+	fragment: `
 #include <sdfPrimitives>
 #include <foliageDetail>
 
@@ -584,21 +584,25 @@ fn frag(uv: vec2f) -> vec4f {
 	return vec4f(color, 1.0);
 }
 `,
-		uniforms: {
-			uRotateY: { type: 'f32', value: 0 },
-			uRotateX: { type: 'f32', value: 0 },
-			uTranslateX: { type: 'f32', value: 0 },
-			uTranslateY: { type: 'f32', value: 0 },
-			uJellyAmp: { type: 'f32', value: 0 },
-			uJellyTime: { type: 'f32', value: 0 },
-			uJellyDirX: { type: 'f32', value: 1 },
-			uJellyDirY: { type: 'f32', value: 0 }
-		}
-	});
+	uniforms: {
+		uRotateY: { type: 'f32', value: 0 },
+		uRotateX: { type: 'f32', value: 0 },
+		uTranslateX: { type: 'f32', value: 0 },
+		uTranslateY: { type: 'f32', value: 0 },
+		uJellyAmp: { type: 'f32', value: 0 },
+		uJellyTime: { type: 'f32', value: 0 },
+		uJellyDirX: { type: 'f32', value: 1 },
+		uJellyDirY: { type: 'f32', value: 0 }
+	}
+});
 </script>
 
 <template>
-	<FragCanvas :material="material" renderMode="always" :color="{ outputEncoding: 'linear' }">
+	<FragCanvas
+		:material="material"
+		renderMode="always"
+		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
+	>
 		<Runtime />
 	</FragCanvas>
 </template>

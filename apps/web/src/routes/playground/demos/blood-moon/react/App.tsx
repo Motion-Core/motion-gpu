@@ -365,7 +365,10 @@ return vec4f(color, 1.0);
 
 export default function App() {
 	return (
-		<FragCanvas material={material} color={{ outputEncoding: 'linear' }}>
+		<FragCanvas
+			material={material}
+			color={{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }}
+		>
 			<Runtime />
 		</FragCanvas>
 	);

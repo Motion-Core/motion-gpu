@@ -366,7 +366,10 @@ return vec4f(color, 1.0);
 </script>
 
 <template>
-	<FragCanvas :material="material" :color="{ outputEncoding: 'linear' }">
+	<FragCanvas
+		:material="material"
+		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
+	>
 		<Runtime />
 	</FragCanvas>
 </template>

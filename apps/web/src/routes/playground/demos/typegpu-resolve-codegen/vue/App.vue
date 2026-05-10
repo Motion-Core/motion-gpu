@@ -17,5 +17,8 @@ const material = defineMaterial({
 </script>
 
 <template>
-	<FragCanvas :material="material" :color="{ outputEncoding: 'linear' }" />
+	<FragCanvas
+		:material="material"
+		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
+	/>
 </template>

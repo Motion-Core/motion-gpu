@@ -280,5 +280,8 @@ fn frag(uv: vec2f) -> vec4f {
 </script>
 
 <template>
-	<FragCanvas :material="material" :color="{ outputEncoding: 'linear' }" :dpr="2" />
+	<FragCanvas
+		:material="material"
+		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
+	/>
 </template>

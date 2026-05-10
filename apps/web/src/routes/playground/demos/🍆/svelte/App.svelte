@@ -597,6 +597,10 @@ fn frag(uv: vec2f) -> vec4f {
 	});
 </script>
 
-<FragCanvas {material} renderMode="always" color={{ outputEncoding: 'linear' }}>
+<FragCanvas
+	{material}
+	renderMode="always"
+	color={{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }}
+>
 	<Runtime />
 </FragCanvas>

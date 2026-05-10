@@ -214,8 +214,8 @@ fn shadeAcrylic(p: vec3f, n: vec3f, ro: vec3f) -> vec3f {
 	let fillHalf = normalize(warmFill + viewDir);
 	let keySpec = pow(saturate(dot(n, keyHalf)), 72.0) * 72.8;
 	let sharpKeySpec = pow(saturate(dot(n, keyHalf)), 360.0) * 7.5;
-	let fillSpec = pow(saturate(dot(n, fillHalf)), 140.0) * 0.9;
-	let fresnel = pow(1.0 - saturate(dot(n, viewDir)), 2.2);
+	let fillSpec = pow(saturate(dot(n, fillHalf)), 140.0) * 10.9;
+	let fresnel = pow(1.0 - saturate(dot(n, viewDir)), 5.2);
 
 	let acrylicOrange = vec3f(1.0, 0.21, 0.0);
 	let innerOrange = vec3f(1.0, 0.62, 0.08);
@@ -280,7 +280,7 @@ fn frag(uv: vec2f) -> vec4f {
 	col += renderScene(uv, vec2f(-0.125,  0.375));
 	col += renderScene(uv, vec2f( 0.375,  0.125));
 
-	col *= 0.25;
+	col *= 0.125;
 
 	return vec4f(col, 1.0);
 }

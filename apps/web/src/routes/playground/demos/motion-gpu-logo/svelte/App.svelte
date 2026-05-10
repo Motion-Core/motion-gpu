@@ -3,7 +3,7 @@
 
 	const material = defineMaterial({
 		defines: {
-			MAX_STEPS: { type: 'i32', value: 96 },
+			MAX_STEPS: { type: 'i32', value: 72 },
 			MAX_DIST: 20.0,
 			SURF_DIST: 0.001,
 			LOGO_HALF_DEPTH: 0.2,

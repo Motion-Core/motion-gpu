@@ -6,6 +6,8 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+
+## [0.9.0] - 2026-05-10
 ### Added
 - Added `FragCanvas` `color` pipeline options for Khronos PBR Neutral tone mapping, HDR/auto canvas presentation, `display-p3` canvas configuration, and explicit internal working formats.
 - Added a private final presentation pass so tone mapping, HDR passthrough, and SDR encoding run after the base scene and all post-scene render passes.

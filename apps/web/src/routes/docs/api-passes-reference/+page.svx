@@ -14,7 +14,9 @@ Reference for post-processing and compute APIs shared by Svelte/React/Vue adapte
 | `@motion-core/motion-gpu/vue` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 | `@motion-core/motion-gpu` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass` |
 
-## Shared pass options
+## Shared render-pass options
+
+`ShaderPass`, `BlitPass`, and `CopyPass` share these post-scene render-pass options:
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -67,6 +69,8 @@ Direct-copy path requires all of:
 ## `ComputePass`
 
 GPU compute pass for single-dispatch workloads.
+
+Compute passes are renderer-managed pre-scene workloads. The public extension point is the WGSL source plus dispatch strategy passed to `ComputePass` or `PingPongComputePass`.
 
 Required shader contract:
 
@@ -138,7 +142,7 @@ resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `isCompute` | `true` | Discriminant for render graph |
+| `isCompute` | `true` | Discriminant for pre-scene compute planning |
 | `isPingPong` | `true` | Ping-pong identifier |
 | `enabled` | `boolean` | Active state |
 
@@ -151,7 +155,7 @@ resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
 | Named targets must exist in `renderTargets` | Unknown target names throw |
 | Named targets must be written before read in frame plan | Read-before-write throws |
 
-Compute passes do **not** participate in slot routing. They have no `input`, `output`, or `needsSwap` options.
+Compute passes do **not** participate in slot routing. They have no `input`, `output`, or `needsSwap` options, and they always dispatch before the base scene render. Render pass order is preserved only within the post-scene render-pass group.
 
 ## Related docs
 

@@ -6,6 +6,11 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+### Changed
+- Clarified the render graph contract: compute passes are planned as pre-scene dispatches, while render passes form the post-scene slot graph.
+
+### Fixed
+- Compute-only pass pipelines now render the base scene directly to `canvas` without allocating post-process ping-pong targets or running a final blit.
 
 ## [0.8.4] - 2026-04-24
 ### Changed
@@ -129,7 +134,7 @@ description: All notable changes to Motion Core will be documented in this file.
 - Added expanded runtime error classification coverage with dedicated codes for material preprocessing, compute-contract violations, runtime resource binding failures, storage read/write bounds failures, render-graph validation failures, ping-pong configuration failures, and invalid uniform payloads.
 
 ### Changed
-- Updated pass plumbing from render-only arrays to mixed `AnyPass[]`, allowing render and compute passes to coexist in one graph.
+- Updated pass plumbing from render-only arrays to mixed `AnyPass[]`, allowing post-scene render passes and pre-scene compute passes to coexist in one `passes` array.
 - Updated renderer internals to allocate/manage storage buffers and storage textures, cache compute pipelines, and flush pending storage writes during frame submission.
 - Updated material resolution/signature inputs to include storage buffer definitions and storage texture bindings, triggering deterministic rebuilds when those contracts change.
 - Updated benchmark/runtime frame-state mocks to include the new storage-buffer APIs.
@@ -137,7 +142,7 @@ description: All notable changes to Motion Core will be documented in this file.
 
 ### Fixed
 - Added explicit compute compilation error normalization with `COMPUTE_COMPILATION_FAILED` classification and recovery metadata.
-- Fixed compute-only pass plans to resolve a valid final output path for canvas presentation.
+- Fixed early compute-only pass plans to resolve a valid final output path for canvas presentation.
 
 ## [0.4.2] - 2026-03-22
 ### Changed

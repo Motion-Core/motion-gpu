@@ -1251,6 +1251,7 @@ describe('createRenderer', () => {
 			},
 			passes: [computePass as unknown as RenderPass]
 		});
+		const textureAllocationsBeforeRender = runtime.device.createTexture.mock.calls.length;
 
 		renderer.render({
 			time: 0,
@@ -1262,6 +1263,19 @@ describe('createRenderer', () => {
 
 		expect(runtime.device.createComputePipeline).toHaveBeenCalled();
 		expect(runtime.device.queue.submit).toHaveBeenCalledTimes(1);
+		expect(runtime.device.createTexture.mock.calls.length).toBe(textureAllocationsBeforeRender);
+		const encoder = runtime.commandEncoders[0];
+		if (!encoder) {
+			throw new Error('Missing command encoder');
+		}
+		expect(encoder?.beginComputePass).toHaveBeenCalledTimes(1);
+		expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(1);
+		const computeOrder = encoder.beginComputePass.mock.invocationCallOrder[0];
+		const renderOrder = encoder.beginRenderPass.mock.invocationCallOrder[0];
+		if (computeOrder === undefined || renderOrder === undefined) {
+			throw new Error('Missing command order');
+		}
+		expect(computeOrder).toBeLessThan(renderOrder);
 
 		renderer.destroy();
 	});

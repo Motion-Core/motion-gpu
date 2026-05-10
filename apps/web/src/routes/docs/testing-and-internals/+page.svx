@@ -21,6 +21,7 @@ Tests live in `packages/motion-gpu/src/tests/`:
 | **Textures** | Defaults (`flipY: true`, `filter: 'linear'`, `fragmentVisible: true`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
 | **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal (including idempotent `dispose()`). |
 | **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
+| **Renderer graph execution** | Pre-scene compute dispatch, post-scene render-pass execution, compute-only direct-to-canvas rendering without ping-pong target allocation or final blit. |
 | **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support, and state-stable rejection for invalid `setFragment(...)` updates. |
 | **Compute passes** | `ComputePass` contract enforcement (`@compute @workgroup_size(...)` + `fn compute(...)` required), dispatch resolution (static/auto/dynamic), `PingPongComputePass` iteration count, ping-pong A/B alternation, workgroup size extraction. |
 | **Compute shader** | Compute shader WGSL generation, storage buffer/texture binding generation, strict contract assertion (`global_invocation_id` in `compute` signature), workgroup size parsing with bounds validation, access-mode validation. |
@@ -96,7 +97,8 @@ These notes are for maintainers working on the library internals:
 - Compute storage bind groups are reused while bound resource references stay stable.
 - `PingPongComputePass` alternates A/B texture bindings across iterations.
 - Ping-pong A→B and B→A bind groups are cached and reused instead of being recreated each iteration.
-- Compute passes share the same `GPUCommandEncoder` as render passes within a frame.
+- Compute passes share the same `GPUCommandEncoder` as render passes within a frame, but always dispatch before the base scene render.
+- Compute-only frames render the scene directly to `canvas` and skip post-process ping-pong texture allocation.
 - Ping-pong A/B textures are explicitly destroyed during renderer teardown.
 
 ### Diagnostics and profiling

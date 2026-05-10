@@ -104,9 +104,9 @@ Each frame follows this exact sequence:
    - Flushes pending storage buffer writes to GPU,
    - Uploads changed textures,
    - Writes dirty uniform ranges to GPU buffer,
-   - Dispatches compute passes (workgroup execution on storage buffers/textures),
+   - Dispatches all enabled compute passes in declaration order (pre-scene workgroup execution on storage buffers/textures),
    - Executes the base fullscreen pass,
-   - Executes post-process render passes through the render graph,
+   - Executes post-process render passes through the slot graph,
    - Presents the final output to the canvas.
 6. **End frame** — clears one-frame invalidation and advance flags.
 
@@ -170,7 +170,9 @@ Post-processing uses a **slot graph** with built-in ping-pong slots plus optiona
 | `canvas` | Presentation surface (the actual visible canvas) |
 | `<targetName>` | Named off-screen surface resolved from `renderTargets[targetName]` |
 
-Without any passes, the base shader renders directly to `canvas`. When passes are added, `planRenderGraph(...)` validates the pass sequence, resolves clear/preserve flags, and produces an immutable execution plan.
+Without post-process render passes, the base shader renders directly to `canvas`. Compute-only pipelines keep that direct path: compute dispatches happen before the scene, then the scene renders straight to `canvas` with no `source`/`target` ping-pong allocation and no final blit.
+
+When render passes are added, `planRenderGraph(...)` validates their slot sequence, resolves clear/preserve flags, and produces an immutable execution plan. The plan also records compute steps for diagnostics and pre-scene dispatch, but compute steps do not make render slots available.
 
 Validation includes:
 - `needsSwap: true` is only valid for `source -> target`.
@@ -178,12 +180,14 @@ Validation includes:
 - Named slot reads/writes must reference declared `renderTargets`.
 - Inputs must be written before first read (`target` and named targets are tracked per frame).
 
-After all passes execute, if final output is not `canvas`, the renderer blits the resolved final surface (`source`, `target`, or named target) to `canvas`.
+After all post-scene render passes execute, if final output is not `canvas`, the renderer blits the resolved final surface (`source`, `target`, or named target) to `canvas`.
 
 ### Compute passes in the render graph
 
 Compute passes (`ComputePass`, `PingPongComputePass`) coexist in the same pass array as render passes. They have `kind: 'compute'` and:
 - Do **not** participate in slot routing (`source`/`target`/`canvas`).
+- Execute before the base scene render, preserving declaration order relative to other compute passes.
+- Do not execute between post-process render passes, even if interleaved with render passes in the array.
 - Execute compute pipelines with configurable workgroup dispatch.
 - Share the same command encoder and submit queue as render passes.
 - `PingPongComputePass` runs multiple iterations per frame, alternating read/write bindings.

@@ -5,7 +5,7 @@ import type { AnyPass, RenderPass, RenderPassInputSlot, RenderPassOutputSlot } f
  */
 export interface RenderGraphStep {
 	/**
-	 * Step kind. 'render' for existing passes, 'compute' for compute passes.
+	 * Step kind. 'render' for post-scene render passes, 'compute' for pre-scene compute passes.
 	 */
 	kind: 'render' | 'compute';
 	/**
@@ -13,11 +13,11 @@ export interface RenderGraphStep {
 	 */
 	pass: AnyPass;
 	/**
-	 * Resolved input slot.
+	 * Resolved input slot. Ignored for compute steps.
 	 */
 	input: RenderPassInputSlot;
 	/**
-	 * Resolved output slot.
+	 * Resolved output slot. Ignored for compute steps.
 	 */
 	output: RenderPassOutputSlot;
 	/**
@@ -43,11 +43,20 @@ export interface RenderGraphStep {
  */
 export interface RenderGraphPlan {
 	/**
-	 * Resolved enabled steps in execution order.
+	 * Resolved enabled steps in declaration order.
 	 */
 	steps: RenderGraphStep[];
 	/**
-	 * Output slot holding final frame result before presentation.
+	 * Enabled compute steps. These always execute before the base scene render.
+	 */
+	computeSteps: RenderGraphStep[];
+	/**
+	 * Enabled render steps. These always execute after the base scene render.
+	 */
+	renderSteps: RenderGraphStep[];
+	/**
+	 * Output slot holding final post-scene render result before presentation.
+	 * Remains 'canvas' when there are no render steps.
 	 */
 	finalOutput: RenderPassOutputSlot;
 }
@@ -74,6 +83,8 @@ export function planRenderGraph(
 	renderTargetSlots?: Iterable<string>
 ): RenderGraphPlan {
 	const steps: RenderGraphStep[] = [];
+	const computeSteps: RenderGraphStep[] = [];
+	const renderSteps: RenderGraphStep[] = [];
 	const declaredTargets = new Set(renderTargetSlots ?? []);
 	const availableSlots = new Set<RenderPassInputSlot | RenderPassOutputSlot>(['source']);
 	let finalOutput: RenderPassOutputSlot = 'canvas';
@@ -87,7 +98,7 @@ export function planRenderGraph(
 		// Compute passes don't participate in slot routing
 		const isCompute = 'isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true;
 		if (isCompute) {
-			steps.push({
+			const step: RenderGraphStep = {
 				kind: 'compute',
 				pass,
 				input: 'source',
@@ -96,7 +107,9 @@ export function planRenderGraph(
 				clear: false,
 				clearColor: cloneClearColor(defaultClearColor),
 				preserve: true
-			});
+			};
+			steps.push(step);
+			computeSteps.push(step);
 			continue;
 		}
 
@@ -134,7 +147,7 @@ export function planRenderGraph(
 		const clearColor = cloneClearColor(rp.clearColor ?? defaultClearColor);
 		const preserve = rp.preserve ?? true;
 
-		steps.push({
+		const step: RenderGraphStep = {
 			kind: 'render',
 			pass,
 			input,
@@ -143,7 +156,9 @@ export function planRenderGraph(
 			clear,
 			clearColor,
 			preserve
-		});
+		};
+		steps.push(step);
+		renderSteps.push(step);
 
 		if (needsSwap) {
 			availableSlots.add('target');
@@ -159,15 +174,10 @@ export function planRenderGraph(
 		enabledIndex += 1;
 	}
 
-	// When steps exist (even compute-only) but no render pass changed
-	// finalOutput from 'canvas', the scene was drawn to 'source' and
-	// needs blitting to the canvas surface.
-	if (steps.length > 0 && enabledIndex === 0) {
-		finalOutput = 'source';
-	}
-
 	return {
 		steps,
+		computeSteps,
+		renderSteps,
 		finalOutput
 	};
 }

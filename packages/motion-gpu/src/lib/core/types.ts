@@ -447,7 +447,11 @@ export interface RenderPassContext extends Required<RenderPassFlags> {
 }
 
 /**
- * Context provided to compute pass render calls.
+ * Reserved low-level context shape for compute integrations.
+ *
+ * @deprecated Compute passes are renderer-managed pre-scene workloads. Use
+ * `ComputePass`, `PingPongComputePass`, and `ComputeDispatchContext`; custom
+ * compute `render(context)` callbacks are not part of the public runtime contract.
  */
 export interface ComputePassContext {
 	/**
@@ -515,8 +519,8 @@ export interface RenderPass extends RenderPassFlags {
 }
 
 /**
- * Minimal interface for compute passes in the render graph.
- * Compute passes do not participate in slot routing.
+ * Minimal marker interface for renderer-managed pre-scene compute passes.
+ * Compute passes do not participate in render-pass slot routing.
  */
 export interface ComputePassLike {
 	readonly isCompute: true;

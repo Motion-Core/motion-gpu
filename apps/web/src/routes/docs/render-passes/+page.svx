@@ -8,7 +8,7 @@ description: Building post-processing pipelines with the render graph and built-
 	import * as ex from './examples';
 </script>
 
-Motion GPU supports post-processing through a **render graph** that sequences passes over ping-pong buffers and optional named render targets. This page covers the render graph model, slot semantics, the three built-in render pass types, and two compute pass types.
+Motion GPU supports post-processing through a **post-scene render graph** that sequences render passes over ping-pong buffers and optional named render targets. The same `passes` array also accepts compute passes, but compute passes are extracted into a separate **pre-scene compute phase** and never participate in slot routing.
 
 For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders).
 
@@ -16,15 +16,16 @@ Pass constructors are framework-agnostic and can be imported from root/core entr
 
 ## Render graph model
 
-When you add passes to `FragCanvas`, the renderer builds an execution plan:
+When you add passes to `FragCanvas`, the renderer builds an execution plan with two execution groups:
 
-1. The **base shader** renders your material's `fn frag(...)` into the `source` slot.
-2. Each **pass** reads from an input slot, processes the image, and writes to an output slot.
-3. After all passes execute, the **final output** is presented to the canvas (direct if output is `canvas`, otherwise via blit from `source`, `target`, or named target).
+1. All enabled **compute passes** dispatch first, in declaration order. They update storage buffers/textures before the scene shader samples them.
+2. The **base shader** renders your material's `fn frag(...)`. If post-process render passes are enabled, it renders into `source`; otherwise it renders directly to `canvas`.
+3. Enabled **render passes** execute after the base shader, in declaration order. Each render pass reads from an input slot, processes the image, and writes to an output slot.
+4. If the final render-pass output is not `canvas`, the renderer blits the resolved surface (`source`, `target`, or named target) to `canvas`.
 
 <FrameworkBlock svelteCode={`<FragCanvas {material} passes={[passA, passB, passC]} />`} reactCode={`<FragCanvas material={material} passes={[passA, passB, passC]} />`} vueCode={`<FragCanvas :material="material" :passes="[passA, passB, passC]" />`} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-Without any passes, the base shader renders directly to the canvas.
+Without render passes, the base shader renders directly to the canvas. Compute-only pipelines do not allocate `source`/`target` ping-pong textures and do not run a final blit.
 
 ## Slot semantics
 
@@ -90,7 +91,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 ## Validation rules
 
-`planRenderGraph(...)` validates the pass sequence before execution:
+`planRenderGraph(...)` validates render-pass slot usage before execution. Compute passes are kept in the plan for diagnostics and pre-scene dispatch ordering, but they do not make slots available and cannot satisfy render-pass read dependencies.
 
 | Rule | Error condition |
 | --- | --- |
@@ -259,7 +260,7 @@ When implementing custom passes, the `render(context)` method receives:
 
 ## Compute passes
 
-Compute passes run GPU compute workloads within the same render graph. They do **not** participate in slot routing and operate on storage buffers and storage textures instead.
+Compute passes run GPU compute workloads from the same `passes` prop, but they execute in the pre-scene phase. They do **not** participate in slot routing and operate on storage buffers and storage textures instead.
 
 ### ComputePass
 
@@ -294,12 +295,12 @@ const diffuse = new PingPongComputePass({
 });
 ```
 
-### Compute in the render graph
+### Compute in the frame
 
 Compute and render passes coexist in the `passes` array:
 
 <FrameworkBlock svelteCode={ex.computePassSvelte} reactCode={ex.computePassReact} vueCode={ex.computePassVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-Compute passes dispatch their workgroups **before** the scene render, so storage textures and buffers are up-to-date when the fragment shader samples them. Render passes execute **after** the scene as post-processing steps. All passes share the same command encoder.
+All enabled compute passes dispatch **before** the scene render, regardless of where render passes appear in the array. Their relative order against other compute passes is preserved. Enabled render passes then execute **after** the scene as post-processing steps, preserving their relative order against other render passes. All passes share the same command encoder and one queue submit.
 
 For full compute shader documentation, see [Compute Shaders](/docs/compute-shaders) and [Storage Buffers](/docs/storage-buffers).

@@ -22,9 +22,9 @@ Understanding the frame-by-frame flow is the single most useful thing you can le
    - **Scheduler tasks** run in topological order (your `useFrame` callbacks).
    - Runtime **uniforms and textures** are merged with material defaults.
    - **Pending storage buffer writes** are flushed to the GPU.
-   - **Compute passes** dispatch their workgroups through the render graph.
+   - **Compute passes** dispatch in declaration order as a pre-scene phase.
    - The **base fullscreen pass** renders your fragment shader.
-   - Optional **post-process passes** execute through the render graph.
+   - Optional **post-process render passes** execute through the slot graph.
    - The **final result** is presented to the canvas.
 
 ## Hard contracts

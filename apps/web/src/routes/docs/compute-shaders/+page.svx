@@ -8,9 +8,11 @@ description: Running GPU compute workloads with ComputePass, PingPongComputePass
 	import * as ex from './examples';
 </script>
 
-Motion GPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes run in the render graph alongside render passes, giving you GPU-accelerated parallel computation for particle systems, physics simulations, image processing, and more.
+Motion GPU supports WebGPU **compute shaders** through `ComputePass` and `PingPongComputePass`. Compute passes are accepted in the same `passes` prop as render passes, but they always dispatch in a pre-scene phase before the base fragment shader renders.
 
 The pass constructors are framework-agnostic and available from all entrypoints.
+
+The stable public compute API is intentionally narrow: provide WGSL source and a dispatch strategy through `ComputePass` or `PingPongComputePass`.
 
 ## Overview
 
@@ -175,7 +177,7 @@ Storage buffers are automatically bound in alphabetical order by name. You acces
 
 ## Compute + fragment integration
 
-Compute passes and render passes coexist in the same `passes` array. Compute passes dispatch **before** the scene render so that storage textures and buffers are up-to-date when the fragment shader reads them:
+Compute passes and render passes coexist in the same `passes` array. All enabled compute passes dispatch **before** the scene render so that storage textures and buffers are up-to-date when the fragment shader reads them:
 
 ```ts
 const material = defineMaterial({
@@ -215,12 +217,15 @@ The compute pass runs first, updating the `particles` buffer. The fragment shade
 
 ## Render graph behavior
 
-Compute passes have `kind: 'compute'` in the render graph and behave differently from render passes:
+Compute passes have `kind: 'compute'` in the render graph plan and behave differently from render passes:
 
 - They do **not** participate in slot routing (`source`/`target`/`canvas`).
 - They do **not** swap ping-pong buffers.
-- They execute their compute pipeline and dispatch workgroups directly.
+- They execute their compute pipeline before the base scene render.
+- Their relative order against other compute passes is preserved.
+- Interleaving a compute pass between two render passes in the array does **not** create a mid-post-process compute step.
 - They share the same command encoder and submit queue as render passes.
+- Compute-only pipelines render the base scene directly to `canvas`; they do not allocate post-process ping-pong textures or run a final blit.
 
 Disabled compute passes (`enabled: false`) are fully skipped.
 

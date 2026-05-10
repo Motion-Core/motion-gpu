@@ -50,7 +50,7 @@ Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `s
 
 | Prop | Type | Default | Description |
 | --- | --- | --- | --- |
-| `passes` | `AnyPass[]` | `[]` | Ordered array of render and compute passes. See [Render Passes](/docs/render-passes) and [Compute Shaders](/docs/compute-shaders). |
+| `passes` | `AnyPass[]` | `[]` | Array of compute and render passes. Compute passes dispatch pre-scene in declaration order; render passes execute post-scene in declaration order. See [Render Passes](/docs/render-passes) and [Compute Shaders](/docs/compute-shaders). |
 | `renderTargets` | `RenderTargetDefinitionMap` | `{}` | Named off-screen render targets. See [Render Targets](/docs/render-targets). |
 
 ### WebGPU configuration

@@ -135,6 +135,27 @@ interface RenderGraphPassSnapshot {
 }
 
 /**
+ * Internal shape implemented by renderer-managed compute pass classes.
+ */
+interface RuntimeComputePass {
+	isCompute?: boolean;
+	getCompute?: () => string;
+	resolveDispatch?: (ctx: {
+		width: number;
+		height: number;
+		time: number;
+		delta: number;
+		workgroupSize: [number, number, number];
+	}) => [number, number, number];
+	getWorkgroupSize?: () => [number, number, number];
+	isPingPong?: boolean;
+	getTarget?: () => string;
+	getCurrentOutput?: () => string;
+	getIterations?: () => number;
+	advanceFrame?: () => void;
+}
+
+/**
  * Returns sampler/texture binding slots for a texture index.
  */
 function getTextureBindings(index: number): {
@@ -2327,7 +2348,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			canvasSurface.width = width;
 			canvasSurface.height = height;
 
-			if (graphPlan.steps.length > 0) {
+			if (graphPlan.renderSteps.length > 0) {
 				frameSlots.source = ensureSlotTarget('source', width, height);
 				frameSlots.target = ensureSlotTarget('target', width, height);
 				frameSlotsActive = true;
@@ -2339,92 +2360,67 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			// Dispatch compute passes BEFORE scene render so storage textures
 			// and buffers are up-to-date when the fragment shader samples them.
-			if (slots) {
-				for (const step of graphPlan.steps) {
-					if (step.kind !== 'compute') {
-						continue;
+			for (const step of graphPlan.computeSteps) {
+				const computePass = step.pass as RuntimeComputePass;
+				if (computePass.getCompute && computePass.resolveDispatch && computePass.getWorkgroupSize) {
+					const computeSource = computePass.getCompute();
+					const pingPongTarget =
+						computePass.isPingPong && computePass.getTarget ? computePass.getTarget() : undefined;
+					if (computePass.isPingPong && !pingPongTarget) {
+						throw new Error('PingPongComputePass must provide a target texture key.');
 					}
-					const computePass = step.pass as {
-						isCompute?: boolean;
-						getCompute?: () => string;
-						resolveDispatch?: (ctx: {
-							width: number;
-							height: number;
-							time: number;
-							delta: number;
-							workgroupSize: [number, number, number];
-						}) => [number, number, number];
-						getWorkgroupSize?: () => [number, number, number];
-						isPingPong?: boolean;
-						getTarget?: () => string;
-						getCurrentOutput?: () => string;
-						getIterations?: () => number;
-						advanceFrame?: () => void;
-					};
-					if (
-						computePass.getCompute &&
-						computePass.resolveDispatch &&
-						computePass.getWorkgroupSize
-					) {
-						const computeSource = computePass.getCompute();
-						const pingPongTarget =
-							computePass.isPingPong && computePass.getTarget ? computePass.getTarget() : undefined;
-						if (computePass.isPingPong && !pingPongTarget) {
-							throw new Error('PingPongComputePass must provide a target texture key.');
-						}
-						const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
-						const pipelineEntry = buildComputePipelineEntry({
-							computeSource,
-							...(pingPongPair
-								? {
-										pingPongTarget: pingPongPair.target,
-										pingPongFormat: pingPongPair.format
-									}
-								: {})
+					const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
+					const pipelineEntry = buildComputePipelineEntry({
+						computeSource,
+						...(pingPongPair
+							? {
+									pingPongTarget: pingPongPair.target,
+									pingPongFormat: pingPongPair.format
+								}
+							: {})
+					});
+					const workgroupSize = computePass.getWorkgroupSize();
+					const storageBindGroup = getComputeStorageBindGroup();
+					const storageTextureBindGroup = getComputeStorageTextureBindGroup();
+					const iterations =
+						computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
+					const currentOutput =
+						computePass.isPingPong && computePass.getCurrentOutput
+							? computePass.getCurrentOutput()
+							: null;
+					const readFromAAtIterationZero =
+						pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
+
+					for (let iter = 0; iter < iterations; iter += 1) {
+						const dispatch = computePass.resolveDispatch({
+							width,
+							height,
+							time,
+							delta,
+							workgroupSize
 						});
-						const workgroupSize = computePass.getWorkgroupSize();
-						const storageBindGroup = getComputeStorageBindGroup();
-						const storageTextureBindGroup = getComputeStorageTextureBindGroup();
-						const iterations =
-							computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
-						const currentOutput =
-							computePass.isPingPong && computePass.getCurrentOutput
-								? computePass.getCurrentOutput()
-								: null;
-						const readFromAAtIterationZero =
-							pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
-
-						for (let iter = 0; iter < iterations; iter += 1) {
-							const dispatch = computePass.resolveDispatch({
-								width,
-								height,
-								time,
-								delta,
-								workgroupSize
-							});
-							const cPass = commandEncoder.beginComputePass();
-							cPass.setPipeline(pipelineEntry.pipeline);
-							cPass.setBindGroup(0, pipelineEntry.bindGroup);
-							if (storageBindGroup) {
-								cPass.setBindGroup(1, storageBindGroup);
-							}
-							if (pingPongPair) {
-								const readFromA =
-									iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
-								cPass.setBindGroup(
-									2,
-									getPingPongStorageTextureBindGroup(pingPongPair.target, readFromA)
-								);
-							} else if (storageTextureBindGroup) {
-								cPass.setBindGroup(2, storageTextureBindGroup);
-							}
-							cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
-							cPass.end();
+						const cPass = commandEncoder.beginComputePass();
+						cPass.setPipeline(pipelineEntry.pipeline);
+						cPass.setBindGroup(0, pipelineEntry.bindGroup);
+						if (storageBindGroup) {
+							cPass.setBindGroup(1, storageBindGroup);
 						}
-
-						if (computePass.isPingPong && computePass.advanceFrame) {
-							computePass.advanceFrame();
+						if (pingPongPair) {
+							const readFromA =
+								iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
+							cPass.setBindGroup(
+								2,
+								getPingPongStorageTextureBindGroup(pingPongPair.target, readFromA)
+							);
+						} else if (storageTextureBindGroup) {
+							cPass.setBindGroup(2, storageTextureBindGroup);
 						}
+						cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
+						cPass.end();
+					}
+
+					if (computePass.isPingPong && computePass.advanceFrame) {
+						computePass.advanceFrame();
 					}
 				}
 			}
@@ -2477,12 +2473,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					return named;
 				};
 
-				for (const step of graphPlan.steps) {
-					// Compute passes already dispatched above
-					if (step.kind === 'compute') {
-						continue;
-					}
-
+				for (const step of graphPlan.renderSteps) {
 					const input = resolveStepSurface(step.input);
 					const output = resolveStepSurface(step.output);
 

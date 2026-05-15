@@ -822,4 +822,32 @@ describe('runtime-loop edge cases', () => {
 
 		loop.destroy();
 	});
+
+	it('rebuilds the renderer after the active device is lost', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const firstRenderer = createRenderer();
+		firstRenderer.render.mockImplementation(() => {
+			throw new Error('WebGPU device lost: gpu reset (destroyed)');
+		});
+		const secondRenderer = createRenderer();
+
+		createRendererMock.mockResolvedValueOnce(firstRenderer).mockResolvedValueOnce(secondRenderer);
+
+		const loop = createMotionGPURuntimeLoop(baseOptions(registry, undefined, { reportError }));
+
+		await flushFrame(16); // first renderer initializes
+		await flushFrame(32); // first renderer reports device loss
+		await flushFrame(48); // replacement renderer initializes
+		await flushFrame(64); // replacement renderer renders
+
+		expect(reportError).toHaveBeenCalledWith(
+			expect.objectContaining({ code: 'WEBGPU_DEVICE_LOST', phase: 'render' })
+		);
+		expect(firstRenderer.destroy).toHaveBeenCalledTimes(1);
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+		expect(secondRenderer.render).toHaveBeenCalledTimes(1);
+
+		loop.destroy();
+	});
 });

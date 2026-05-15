@@ -229,6 +229,10 @@ export function createMotionGPURuntimeLoop(
 		options.reportError(null);
 	};
 
+	const shouldRecreateRendererAfterError = (error: unknown): boolean => {
+		return toMotionGPUErrorReport(error, 'render').code === 'WEBGPU_DEVICE_LOST';
+	};
+
 	const scheduleFrame = (): void => {
 		if (isDisposed || frameId !== null) {
 			return;
@@ -583,6 +587,15 @@ export function createMotionGPURuntimeLoop(
 			maybeClearError(timestamp);
 		} catch (error) {
 			setError(error, 'render', timestamp);
+			if (renderer && shouldRecreateRendererAfterError(error)) {
+				renderer.destroy();
+				renderer = null;
+				activeRendererSignature = '';
+				failedRendererSignature = null;
+				failedRendererAttempts = 0;
+				nextRendererRetryAt = 0;
+				shouldContinueAfterFrame = true;
+			}
 		} finally {
 			registry.endFrame();
 		}

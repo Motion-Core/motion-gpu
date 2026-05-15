@@ -3,6 +3,10 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Fixed
+- Rebuild the active renderer after WebGPU device loss so the runtime can recover instead of remaining stuck on a dead device.
+- Flush queued storage-buffer writes while `autoRender` is disabled, preventing unbounded write accumulation while scheduler updates continue.
+- Defer Svelte and Vue `useTexture()` loading until client mount so browser-only texture IO no longer starts during SSR setup.
 
 ## [0.9.0] - 2026-05-10
 ### Added

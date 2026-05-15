@@ -1,4 +1,4 @@
-import { onDestroy } from 'svelte';
+import { onDestroy, onMount } from 'svelte';
 import {
 	createCurrentWritable as currentWritable,
 	type CurrentReadable
@@ -213,7 +213,9 @@ export function useTexture(
 		return trackedPending;
 	};
 
-	void load();
+	onMount(() => {
+		void load();
+	});
 
 	onDestroy(() => {
 		disposed = true;

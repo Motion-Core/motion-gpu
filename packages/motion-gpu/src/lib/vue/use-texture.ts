@@ -1,4 +1,4 @@
-import { onBeforeUnmount } from 'vue';
+import { onBeforeUnmount, onMounted } from 'vue';
 import {
 	createCurrentWritable as currentWritable,
 	type CurrentReadable
@@ -213,7 +213,9 @@ export function useTexture(
 		return trackedPending;
 	};
 
-	void load();
+	onMounted(() => {
+		void load();
+	});
 
 	onBeforeUnmount(() => {
 		disposed = true;

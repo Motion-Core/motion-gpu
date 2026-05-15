@@ -6,6 +6,8 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+
+## [0.9.1] - 2026-05-16
 ### Fixed
 - Rebuild the active renderer after WebGPU device loss so the runtime can recover instead of remaining stuck on a dead device.
 - Flush queued storage-buffer writes while `autoRender` is disabled, preventing unbounded write accumulation while scheduler updates continue.

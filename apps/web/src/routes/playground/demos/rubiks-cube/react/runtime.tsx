@@ -135,7 +135,6 @@ export default function Runtime() {
 
 	let isDragging = false;
 	let lastPointerTime = 0;
-	let lastArcballVec: Vec3 | null = null;
 	let sceneQuat: Quat = [0, 0, 0, 1];
 	let dragVelocityY = 0;
 	let dragVelocityX = 0;
@@ -175,56 +174,9 @@ export default function Runtime() {
 		sceneQuat = quatMultiply(qDelta, sceneQuat);
 	};
 
-	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
-
 	const normalizeVec3 = (v: Vec3): Vec3 => {
 		const length = Math.hypot(v[0], v[1], v[2]) || 1;
 		return [v[0] / length, v[1] / length, v[2] / length];
-	};
-
-	const crossVec3 = (a: Vec3, b: Vec3): Vec3 => [
-		a[1] * b[2] - a[2] * b[1],
-		a[2] * b[0] - a[0] * b[2],
-		a[0] * b[1] - a[1] * b[0]
-	];
-
-	const dotVec3 = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-
-	const quatFromUnitVectors = (from: Vec3, to: Vec3): Quat => {
-		const d = clamp(dotVec3(from, to), -1, 1);
-		const cross = crossVec3(from, to);
-		const crossLen = Math.hypot(cross[0], cross[1], cross[2]);
-
-		if (crossLen < 1e-6 && d < -0.9999) {
-			const fallback =
-				Math.abs(from[0]) < 0.9 ? crossVec3(from, [1, 0, 0]) : crossVec3(from, [0, 1, 0]);
-			const axis = normalizeVec3(fallback);
-			return quatFromAxisAngle(axis, Math.PI);
-		}
-
-		return quatNormalize([cross[0], cross[1], cross[2], 1 + d]);
-	};
-
-	const projectPointerToArcball = (
-		clientX: number,
-		clientY: number,
-		canvas: HTMLCanvasElement
-	): Vec3 => {
-		const rect = canvas.getBoundingClientRect();
-		const width = Math.max(rect.width, 1);
-		const height = Math.max(rect.height, 1);
-		let x = ((clientX - rect.left) / width) * 2 - 1;
-		let y = ((clientY - rect.top) / height) * 2 - 1;
-
-		const radiusSq = x * x + y * y;
-		if (radiusSq > 1) {
-			const inv = 1 / Math.sqrt(radiusSq);
-			x *= inv;
-			y *= inv;
-			return [x, y, 0];
-		}
-
-		return [x, y, Math.sqrt(1 - radiusSq)];
 	};
 
 	const commitMove = () => {
@@ -279,12 +231,11 @@ export default function Runtime() {
 
 	const beginDrag = (
 		state: { time: number },
-		event: PointerEvent,
+		_event: PointerEvent,
 		canvas: HTMLCanvasElement
 	): void => {
 		isDragging = true;
 		lastPointerTime = state.time;
-		lastArcballVec = projectPointerToArcball(event.clientX, event.clientY, canvas);
 		dragVelocityY = 0;
 		dragVelocityX = 0;
 		dragAngularSpeed = 0;
@@ -298,8 +249,8 @@ export default function Runtime() {
 
 	const updateDrag = (
 		state: { deltaPx: [number, number]; time: number },
-		event: PointerEvent,
-		canvas: HTMLCanvasElement
+		_event: PointerEvent,
+		_canvas: HTMLCanvasElement
 	): void => {
 		if (!isDragging) return;
 		const dt = Math.max(0.001, state.time - lastPointerTime);
@@ -330,7 +281,6 @@ export default function Runtime() {
 		momentumVelocityX = dragVelocityX;
 		momentumAngularSpeed = dragAngularSpeed;
 		momentumAngularAxis = dragAngularAxis;
-		lastArcballVec = null;
 		canvas.style.cursor = 'grab';
 	};
 

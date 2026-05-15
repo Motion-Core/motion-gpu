@@ -30,8 +30,7 @@
     "format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format"
   },
   "dependencies": {
-    "prettier-plugin-tailwindcss": "^0.7.2",
-    "rehype-slug": "^6.0.0"
+    "prettier-plugin-tailwindcss": "^0.7.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

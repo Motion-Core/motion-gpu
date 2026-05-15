@@ -307,7 +307,6 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
   let lightDir = normalize(vec3f(0.75, 0.95, 0.55));
   let baseColor = vec3f(0.6, 0.112, 0.0);
-  let emissiveColor = baseColor * 0.22;
 
   let cameraPos = vec3f(0.0, 0.0, CAMERA_DIST);
   let viewDir = normalize(cameraPos - position);

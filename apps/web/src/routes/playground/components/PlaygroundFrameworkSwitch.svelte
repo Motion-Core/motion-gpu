@@ -30,7 +30,7 @@
 			class={cn(
 				'inline-flex h-5 w-5 items-center justify-center rounded-[6px] transition-colors duration-150 ease-out',
 				framework.value === activeFramework
-					? 'card bg-background text-foreground'
+					? 'bg-background text-foreground card'
 					: 'text-foreground-muted hover:text-foreground'
 			)}
 			aria-label={`Switch framework to ${framework.label}`}

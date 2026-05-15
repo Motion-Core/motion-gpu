@@ -83,7 +83,7 @@
 					data-reveal="card"
 					class="inset-shadow relative overflow-hidden rounded-lg bg-background-inset p-1.5"
 				>
-					<article class="card rounded-md bg-background">
+					<article class="rounded-md bg-background card">
 						<button
 							type="button"
 							id={`faq-trigger-${index}`}

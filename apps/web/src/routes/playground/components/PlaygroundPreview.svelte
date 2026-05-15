@@ -44,7 +44,7 @@
 			<div class="inset-shadow mt-2 inline-flex rounded-sm bg-background-inset p-1.5">
 				<button
 					type="button"
-					class="card inline-flex items-center rounded-[5px] bg-background px-2 py-1 text-xs font-medium text-foreground transition-colors duration-150 ease-out hover:bg-background-muted"
+					class="inline-flex items-center rounded-[5px] bg-background px-2 py-1 text-xs font-medium text-foreground card transition-colors duration-150 ease-out hover:bg-background-muted"
 					onclick={controller.retryRuntime}
 				>
 					Retry runtime

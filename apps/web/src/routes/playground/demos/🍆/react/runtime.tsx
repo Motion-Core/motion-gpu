@@ -1,7 +1,6 @@
 import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
 
 export default function Runtime() {
-
 	const MAX_ORBIT_X = 0.78;
 	const MAX_ORBIT_Y = 0.72;
 	const MAX_OFFSET_X = 0.2;
@@ -92,8 +91,22 @@ export default function Runtime() {
 		const rotStiffness = active ? ROT_STIFFNESS_ACTIVE : ROT_STIFFNESS_IDLE;
 		const rotDamping = active ? ROT_DAMPING_ACTIVE : ROT_DAMPING_IDLE;
 
-		[offsetX, offsetVX] = springStep(offsetX, offsetVX, targetOffsetX, posStiffness, posDamping, dt);
-		[offsetY, offsetVY] = springStep(offsetY, offsetVY, targetOffsetY, posStiffness, posDamping, dt);
+		[offsetX, offsetVX] = springStep(
+			offsetX,
+			offsetVX,
+			targetOffsetX,
+			posStiffness,
+			posDamping,
+			dt
+		);
+		[offsetY, offsetVY] = springStep(
+			offsetY,
+			offsetVY,
+			targetOffsetY,
+			posStiffness,
+			posDamping,
+			dt
+		);
 		[orbitX, orbitVX] = springStep(orbitX, orbitVX, targetOrbitX, rotStiffness, rotDamping, dt);
 		[orbitY, orbitVY] = springStep(orbitY, orbitVY, targetOrbitY, rotStiffness, rotDamping, dt);
 

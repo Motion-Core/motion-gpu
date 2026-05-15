@@ -255,7 +255,7 @@
 						use:portal
 						bind:this={dropdownRef}
 						style={dropdownStyle}
-						class="card z-50 flex w-48 origin-top-right flex-col gap-0.5 rounded-md bg-background p-1"
+						class="z-50 flex w-48 origin-top-right flex-col gap-0.5 rounded-md bg-background p-1 card"
 						in:fly={{ y: -5, duration: 200, easing: backOut }}
 						out:fly={{ y: -5, duration: 150, easing: backOut }}
 					>

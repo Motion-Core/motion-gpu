@@ -20,7 +20,7 @@
 		<span class="flex-1 text-left">{docsUiConfig.search.triggerPlaceholder}</span>
 		{#if docsUiConfig.search.hotkey.enabled}
 			<kbd
-				class="card pointer-events-none relative hidden h-5 items-center gap-1 rounded-xs bg-background px-1.5 font-mono text-[10px] font-medium text-foreground-muted/70 select-none sm:flex"
+				class="pointer-events-none relative hidden h-5 items-center gap-1 rounded-xs bg-background px-1.5 font-mono text-[10px] font-medium text-foreground-muted/70 card select-none sm:flex"
 			>
 				{docsUiConfig.search.hotkey.label}
 			</kbd>

@@ -15,7 +15,7 @@
 	<blockquote
 		{...restProps}
 		class={cn(
-			'card relative rounded-md border-l-2 border-l-accent bg-background px-5 py-3 text-base font-normal text-foreground-muted italic',
+			'relative rounded-md border-l-2 border-l-accent bg-background px-5 py-3 text-base font-normal text-foreground-muted italic card',
 			className
 		)}
 	>

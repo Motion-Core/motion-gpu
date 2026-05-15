@@ -35,7 +35,7 @@
 		class={cn(
 			unstyled
 				? 'group/pre relative font-mono text-base font-normal'
-				: 'group/pre card relative rounded-md bg-background p-4 font-mono text-base font-normal text-foreground',
+				: 'group/pre relative rounded-md bg-background p-4 font-mono text-base font-normal text-foreground card',
 			className
 		)}
 	>

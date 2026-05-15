@@ -32,7 +32,7 @@
 		<code
 			{...restProps}
 			class={cn(
-				'card rounded-[calc(var(--radius-base)*1.25)] bg-background px-1.5 py-0.5',
+				'rounded-[calc(var(--radius-base)*1.25)] bg-background px-1.5 py-0.5 card',
 				className
 			)}
 		>

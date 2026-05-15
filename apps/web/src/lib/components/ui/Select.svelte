@@ -214,7 +214,7 @@
 	{#if isOpen}
 		<div
 			class={cn(
-				'card absolute top-[calc(100%+4px)] left-0 z-500 min-w-full overflow-hidden rounded-sm bg-background',
+				'absolute top-[calc(100%+4px)] left-0 z-500 min-w-full overflow-hidden rounded-sm bg-background card',
 				menuClass
 			)}
 			transition:scale={{ start: 0.98, duration: 130, easing: cubicOut }}

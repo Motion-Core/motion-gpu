@@ -91,8 +91,22 @@
 		const rotStiffness = active ? ROT_STIFFNESS_ACTIVE : ROT_STIFFNESS_IDLE;
 		const rotDamping = active ? ROT_DAMPING_ACTIVE : ROT_DAMPING_IDLE;
 
-		[offsetX, offsetVX] = springStep(offsetX, offsetVX, targetOffsetX, posStiffness, posDamping, dt);
-		[offsetY, offsetVY] = springStep(offsetY, offsetVY, targetOffsetY, posStiffness, posDamping, dt);
+		[offsetX, offsetVX] = springStep(
+			offsetX,
+			offsetVX,
+			targetOffsetX,
+			posStiffness,
+			posDamping,
+			dt
+		);
+		[offsetY, offsetVY] = springStep(
+			offsetY,
+			offsetVY,
+			targetOffsetY,
+			posStiffness,
+			posDamping,
+			dt
+		);
 		[orbitX, orbitVX] = springStep(orbitX, orbitVX, targetOrbitX, rotStiffness, rotDamping, dt);
 		[orbitY, orbitVY] = springStep(orbitY, orbitVY, targetOrbitY, rotStiffness, rotDamping, dt);
 

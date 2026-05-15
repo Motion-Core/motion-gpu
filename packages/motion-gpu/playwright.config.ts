@@ -24,19 +24,19 @@ export default defineConfig({
 	},
 	webServer: [
 		{
-			command: 'bun run e2e:serve:svelte',
+			command: 'pnpm run e2e:serve:svelte',
 			url: 'http://127.0.0.1:4175',
 			reuseExistingServer: !process.env['CI'],
 			timeout: 120_000
 		},
 		{
-			command: 'bun run e2e:serve:react',
+			command: 'pnpm run e2e:serve:react',
 			url: 'http://127.0.0.1:4176',
 			reuseExistingServer: !process.env['CI'],
 			timeout: 120_000
 		},
 		{
-			command: 'bun run e2e:serve:vue',
+			command: 'pnpm run e2e:serve:vue',
 			url: 'http://127.0.0.1:4177',
 			reuseExistingServer: !process.env['CI'],
 			timeout: 120_000

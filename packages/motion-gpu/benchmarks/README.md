@@ -4,21 +4,21 @@ This folder contains the long-term performance reference for `@motion-core/motio
 
 ## Commands
 
-- `bun run --cwd packages/motion-gpu perf:core`
-- `bun run --cwd packages/motion-gpu perf:core:check`
-- `bun run --cwd packages/motion-gpu perf:core:baseline`
-- `bun run --cwd packages/motion-gpu perf:runtime`
-- `bun run --cwd packages/motion-gpu perf:runtime:check`
-- `bun run --cwd packages/motion-gpu perf:runtime:baseline`
+- `pnpm --dir packages/motion-gpu run perf:core`
+- `pnpm --dir packages/motion-gpu run perf:core:check`
+- `pnpm --dir packages/motion-gpu run perf:core:baseline`
+- `pnpm --dir packages/motion-gpu run perf:runtime`
+- `pnpm --dir packages/motion-gpu run perf:runtime:check`
+- `pnpm --dir packages/motion-gpu run perf:runtime:baseline`
 
 Root aliases:
 
-- `bun run perf:motion-gpu:core`
-- `bun run perf:motion-gpu:core:check`
-- `bun run perf:motion-gpu:core:baseline`
-- `bun run perf:motion-gpu`
-- `bun run perf:motion-gpu:check`
-- `bun run perf:motion-gpu:baseline`
+- `pnpm run perf:motion-gpu:core`
+- `pnpm run perf:motion-gpu:core:check`
+- `pnpm run perf:motion-gpu:core:baseline`
+- `pnpm run perf:motion-gpu`
+- `pnpm run perf:motion-gpu:check`
+- `pnpm run perf:motion-gpu:baseline`
 
 ## What It Measures
 
@@ -49,9 +49,9 @@ Root aliases:
 
 ## Baseline Workflow
 
-1. Run `bun run perf:motion-gpu:core:baseline` and `bun run perf:motion-gpu:baseline` on the reference environment.
+1. Run `pnpm run perf:motion-gpu:core:baseline` and `pnpm run perf:motion-gpu:baseline` on the reference environment.
 2. Commit updated baseline files.
-3. Run `bun run perf:motion-gpu:core:check` and `bun run perf:motion-gpu:check` for regression checks.
+3. Run `pnpm run perf:motion-gpu:core:check` and `pnpm run perf:motion-gpu:check` for regression checks.
 
 ## Notes
 

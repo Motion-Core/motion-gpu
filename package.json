@@ -3,38 +3,42 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "docs:changelog": "node ./scripts/generate-changelog-docs.mjs",
-    "dev": "bun run dev:web",
-    "dev:web": "bun run build:motion-gpu && bun run dev:web:live",
-    "dev:web:live": "bash -lc 'set -euo pipefail; bun run --cwd packages/motion-gpu build:watch & WATCH_PID=$!; trap \"kill $WATCH_PID 2>/dev/null || true\" EXIT INT TERM; bun run --cwd apps/web dev'",
-    "build": "bun run build:motion-gpu && bun run build:web",
-    "build:web": "bun run --cwd apps/web build",
-    "build:motion-gpu": "bun run --cwd packages/motion-gpu build",
-    "preview": "bun run build:motion-gpu && bun run --cwd apps/web preview",
-    "deploy:web": "bun run build:motion-gpu && bun run --cwd apps/web deploy",
-    "check": "bun run build:motion-gpu && bun run check:motion-gpu && bun run check:web",
-    "check:web": "bun run --cwd apps/web check",
-    "check:motion-gpu": "bun run --cwd packages/motion-gpu check",
-    "test": "bun run build:motion-gpu && bun run test:motion-gpu",
-    "test:motion-gpu": "bun run --cwd packages/motion-gpu test",
-    "perf:motion-gpu:core": "bun run --cwd packages/motion-gpu perf:core",
-    "perf:motion-gpu:core:check": "bun run --cwd packages/motion-gpu perf:core:check",
-    "perf:motion-gpu:core:baseline": "bun run --cwd packages/motion-gpu perf:core:baseline",
-    "perf:motion-gpu": "bun run --cwd packages/motion-gpu perf:runtime",
-    "perf:motion-gpu:check": "bun run --cwd packages/motion-gpu perf:runtime:check",
-    "perf:motion-gpu:baseline": "bun run --cwd packages/motion-gpu perf:runtime:baseline",
-    "lint": "bun run lint:motion-gpu && bun run lint:web",
-    "lint:web": "bun run --cwd apps/web lint",
-    "lint:motion-gpu": "bun run --cwd packages/motion-gpu lint",
-    "format": "bun run --cwd apps/web format && bun run --cwd packages/motion-gpu format"
+    "dev": "pnpm run dev:web",
+    "dev:web": "pnpm run build:motion-gpu && pnpm run dev:web:live",
+    "dev:web:live": "bash -lc 'set -euo pipefail; pnpm --dir packages/motion-gpu run build:watch & WATCH_PID=$!; trap \"kill $WATCH_PID 2>/dev/null || true\" EXIT INT TERM; pnpm --dir apps/web run dev'",
+    "build": "pnpm run build:motion-gpu && pnpm run build:web",
+    "build:web": "pnpm --dir apps/web run build",
+    "build:motion-gpu": "pnpm --dir packages/motion-gpu run build",
+    "preview": "pnpm run build:motion-gpu && pnpm --dir apps/web run preview",
+    "deploy:web": "pnpm run build:motion-gpu && pnpm --dir apps/web run deploy",
+    "check": "pnpm run build:motion-gpu && pnpm run check:motion-gpu && pnpm run check:web",
+    "check:web": "pnpm --dir apps/web run check",
+    "check:motion-gpu": "pnpm --dir packages/motion-gpu run check",
+    "test": "pnpm run build:motion-gpu && pnpm run test:motion-gpu",
+    "test:motion-gpu": "pnpm --dir packages/motion-gpu run test",
+    "perf:motion-gpu:core": "pnpm --dir packages/motion-gpu run perf:core",
+    "perf:motion-gpu:core:check": "pnpm --dir packages/motion-gpu run perf:core:check",
+    "perf:motion-gpu:core:baseline": "pnpm --dir packages/motion-gpu run perf:core:baseline",
+    "perf:motion-gpu": "pnpm --dir packages/motion-gpu run perf:runtime",
+    "perf:motion-gpu:check": "pnpm --dir packages/motion-gpu run perf:runtime:check",
+    "perf:motion-gpu:baseline": "pnpm --dir packages/motion-gpu run perf:runtime:baseline",
+    "lint": "pnpm run lint:motion-gpu && pnpm run lint:web",
+    "lint:web": "pnpm --dir apps/web run lint",
+    "lint:motion-gpu": "pnpm --dir packages/motion-gpu run lint",
+    "format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format"
   },
   "dependencies": {
     "prettier-plugin-tailwindcss": "^0.7.2",
     "rehype-slug": "^6.0.0"
-  }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  },
+  "packageManager": "pnpm@10.24.0"
 }

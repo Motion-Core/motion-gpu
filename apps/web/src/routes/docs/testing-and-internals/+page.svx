@@ -124,23 +124,23 @@ These notes are for maintainers working on the library internals:
 ### Package (`packages/motion-gpu`)
 
 ```bash
-bun run build     # Build the library
-bun run test      # Run all tests
-bun run check     # Svelte + TypeScript type checking
-bun run lint      # ESLint
-bun run perf:core          # Run CPU microbenchmarks
-bun run perf:core:check    # Compare CPU metrics vs baseline
-bun run perf:runtime       # Run runtime WebGPU benchmark
-bun run perf:runtime:check # Compare runtime metrics vs baseline
+pnpm run build     # Build the library
+pnpm run test      # Run all tests
+pnpm run check     # Svelte + TypeScript type checking
+pnpm run lint      # ESLint
+pnpm run perf:core          # Run CPU microbenchmarks
+pnpm run perf:core:check    # Compare CPU metrics vs baseline
+pnpm run perf:runtime       # Run runtime WebGPU benchmark
+pnpm run perf:runtime:check # Compare runtime metrics vs baseline
 ```
 
 ### Documentation app (`apps/web`)
 
 ```bash
-bun run dev       # Start dev server
-bun run build     # Production build
-bun run check     # Svelte + TypeScript type checking
-bun run lint      # ESLint
+pnpm run dev       # Start dev server
+pnpm run build     # Production build
+pnpm run check     # Svelte + TypeScript type checking
+pnpm run lint      # ESLint
 ```
 
 ## Practical caveats

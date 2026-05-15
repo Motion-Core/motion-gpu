@@ -145,7 +145,7 @@ async function waitForServer(url: string, timeoutMs = 45_000): Promise<void> {
 }
 
 function startHarnessServer(): ChildProcess {
-	const child = spawn('bun', ['run', 'e2e:serve'], {
+	const child = spawn('pnpm', ['run', 'e2e:serve'], {
 		cwd: PACKAGE_ROOT,
 		stdio: ['ignore', 'pipe', 'pipe']
 	});
@@ -208,22 +208,20 @@ async function setMode(page: Page, mode: 'always' | 'on-demand' | 'manual'): Pro
 
 async function sampleMode(page: Page, durationMs: number): Promise<ModeSample> {
 	return page.evaluate(async (duration) => {
-		const readCount = (id: string): number => {
-			const element = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-			if (!element) {
-				throw new Error(`Missing test id: ${id}`);
-			}
+		const startSchedulerElement = document.querySelector<HTMLElement>(
+			'[data-testid="scheduler-count"]'
+		);
+		const startRenderElement = document.querySelector<HTMLElement>('[data-testid="render-count"]');
+		if (!startSchedulerElement || !startRenderElement) {
+			throw new Error('Missing scheduler/render counters');
+		}
 
-			const parsed = Number(element.textContent ?? '');
-			if (!Number.isFinite(parsed)) {
-				throw new Error(`Expected numeric text for "${id}", got "${element.textContent ?? ''}"`);
-			}
+		const startScheduler = Number(startSchedulerElement.textContent ?? '');
+		const startRender = Number(startRenderElement.textContent ?? '');
+		if (!Number.isFinite(startScheduler) || !Number.isFinite(startRender)) {
+			throw new Error('Expected numeric scheduler/render counters');
+		}
 
-			return parsed;
-		};
-
-		const startScheduler = readCount('scheduler-count');
-		const startRender = readCount('render-count');
 		const startedAt = performance.now();
 
 		await new Promise<void>((resolveSample) => {
@@ -231,8 +229,19 @@ async function sampleMode(page: Page, durationMs: number): Promise<ModeSample> {
 		});
 
 		const endedAt = performance.now();
-		const endScheduler = readCount('scheduler-count');
-		const endRender = readCount('render-count');
+		const endSchedulerElement = document.querySelector<HTMLElement>(
+			'[data-testid="scheduler-count"]'
+		);
+		const endRenderElement = document.querySelector<HTMLElement>('[data-testid="render-count"]');
+		if (!endSchedulerElement || !endRenderElement) {
+			throw new Error('Missing scheduler/render counters');
+		}
+
+		const endScheduler = Number(endSchedulerElement.textContent ?? '');
+		const endRender = Number(endRenderElement.textContent ?? '');
+		if (!Number.isFinite(endScheduler) || !Number.isFinite(endRender)) {
+			throw new Error('Expected numeric scheduler/render counters');
+		}
 		const elapsedSec = Math.max(0.001, (endedAt - startedAt) / 1000);
 		const schedulerDelta = endScheduler - startScheduler;
 		const renderDelta = endRender - startRender;
@@ -250,28 +259,27 @@ async function sampleMode(page: Page, durationMs: number): Promise<ModeSample> {
 async function sampleManualAdvance(page: Page): Promise<ModeSample & { pulses: number }> {
 	return page.evaluate(
 		async ({ durationMs, intervalMs }) => {
-			const readCount = (id: string): number => {
-				const element = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-				if (!element) {
-					throw new Error(`Missing test id: ${id}`);
-				}
-
-				const parsed = Number(element.textContent ?? '');
-				if (!Number.isFinite(parsed)) {
-					throw new Error(`Expected numeric text for "${id}", got "${element.textContent ?? ''}"`);
-				}
-
-				return parsed;
-			};
-
 			const perfWindow = window as PerfWindow;
 			const api = perfWindow.__MOTION_GPU_PERF__;
 			if (!api) {
 				throw new Error('window.__MOTION_GPU_PERF__ is not available');
 			}
 
-			const startScheduler = readCount('scheduler-count');
-			const startRender = readCount('render-count');
+			const startSchedulerElement = document.querySelector<HTMLElement>(
+				'[data-testid="scheduler-count"]'
+			);
+			const startRenderElement = document.querySelector<HTMLElement>(
+				'[data-testid="render-count"]'
+			);
+			if (!startSchedulerElement || !startRenderElement) {
+				throw new Error('Missing scheduler/render counters');
+			}
+
+			const startScheduler = Number(startSchedulerElement.textContent ?? '');
+			const startRender = Number(startRenderElement.textContent ?? '');
+			if (!Number.isFinite(startScheduler) || !Number.isFinite(startRender)) {
+				throw new Error('Expected numeric scheduler/render counters');
+			}
 			const startedAt = performance.now();
 			let pulses = 0;
 
@@ -284,8 +292,19 @@ async function sampleManualAdvance(page: Page): Promise<ModeSample & { pulses: n
 			}
 
 			const endedAt = performance.now();
-			const endScheduler = readCount('scheduler-count');
-			const endRender = readCount('render-count');
+			const endSchedulerElement = document.querySelector<HTMLElement>(
+				'[data-testid="scheduler-count"]'
+			);
+			const endRenderElement = document.querySelector<HTMLElement>('[data-testid="render-count"]');
+			if (!endSchedulerElement || !endRenderElement) {
+				throw new Error('Missing scheduler/render counters');
+			}
+
+			const endScheduler = Number(endSchedulerElement.textContent ?? '');
+			const endRender = Number(endRenderElement.textContent ?? '');
+			if (!Number.isFinite(endScheduler) || !Number.isFinite(endRender)) {
+				throw new Error('Expected numeric scheduler/render counters');
+			}
 			const elapsedSec = Math.max(0.001, (endedAt - startedAt) / 1000);
 			const schedulerDelta = endScheduler - startScheduler;
 			const renderDelta = endRender - startRender;

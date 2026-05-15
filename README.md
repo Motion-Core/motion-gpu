@@ -398,12 +398,12 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 Run from `packages/motion-gpu`:
 
 ```bash
-bun run build
-bun run check
-bun run test
-bun run test:e2e
-bun run lint
-bun run format
+pnpm run build
+pnpm run check
+pnpm run test
+pnpm run test:e2e
+pnpm run lint
+pnpm run format
 ```
 
 ---
@@ -411,12 +411,12 @@ bun run format
 ## Performance
 
 ```bash
-bun run perf:core
-bun run perf:core:check
-bun run perf:core:baseline
-bun run perf:runtime
-bun run perf:runtime:check
-bun run perf:runtime:baseline
+pnpm run perf:core
+pnpm run perf:core:check
+pnpm run perf:core:baseline
+pnpm run perf:runtime
+pnpm run perf:runtime:check
+pnpm run perf:runtime:baseline
 ```
 
 ---

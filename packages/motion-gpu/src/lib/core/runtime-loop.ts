@@ -582,6 +582,9 @@ export function createMotionGPURuntimeLoop(
 				if (pendingStorageWrites.length > 0) {
 					pendingStorageWrites.length = 0;
 				}
+			} else if (pendingStorageWrites.length > 0) {
+				renderer.flushStorageWrites(pendingStorageWrites);
+				pendingStorageWrites.length = 0;
 			}
 
 			maybeClearError(timestamp);

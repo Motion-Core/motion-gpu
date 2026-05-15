@@ -790,6 +790,10 @@ export interface Renderer {
 		pendingStorageWrites?: PendingStorageWrite[] | undefined;
 	}) => void;
 	/**
+	 * Applies queued storage buffer writes without issuing a draw call.
+	 */
+	flushStorageWrites: (writes: PendingStorageWrite[]) => void;
+	/**
 	 * Returns the GPU buffer for a named storage buffer, if allocated.
 	 */
 	getStorageBuffer?: (name: string) => GPUBuffer | undefined;

@@ -18,6 +18,7 @@ interface MockRenderer {
 	destroy: ReturnType<typeof vi.fn>;
 	getStorageBuffer?: ReturnType<typeof vi.fn>;
 	getDevice?: ReturnType<typeof vi.fn>;
+	flushStorageWrites?: ReturnType<typeof vi.fn>;
 }
 
 let rafQueue: FrameRequestCallback[] = [];
@@ -471,6 +472,107 @@ describe('runtime-loop', () => {
 		// When no writes queued, the field must be absent or undefined.
 		const writes = renderArgs.pendingStorageWrites;
 		expect(writes === undefined || writes.length === 0).toBe(true);
+
+		loop.destroy();
+	});
+
+	it('flushes storage writes without rasterizing when autoRender is disabled', async () => {
+		const registry = createFrameRegistry({ autoRender: false });
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+
+		registry.register('writer', (state) => {
+			state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+		});
+
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await flushFrame(48);
+
+		expect(renderer.render).not.toHaveBeenCalled();
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }], [{ name: 'particles' }]]);
+
+		loop.destroy();
+	});
+
+	it('does not replay storage writes accumulated while autoRender was disabled', async () => {
+		const registry = createFrameRegistry({ autoRender: false });
+		const writesPerRenderCall: Array<Array<{ name: string }>> = [];
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+
+		registry.register('writer', (state) => {
+			state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+		});
+
+		const renderer: MockRenderer = {
+			render: vi.fn((input: { pendingStorageWrites?: Array<{ name: string }> }) => {
+				writesPerRenderCall.push((input.pendingStorageWrites ?? []).map(({ name }) => ({ name })));
+			}),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await flushFrame(48);
+		registry.setAutoRender(true);
+		await flushFrame(64);
+
+		expect(writesPerRenderCall).toEqual([[{ name: 'particles' }]]);
 
 		loop.destroy();
 	});

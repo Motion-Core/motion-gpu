@@ -2265,6 +2265,23 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			pass.end();
 		};
 
+		const flushStorageWrites = (writes: Parameters<Renderer['flushStorageWrites']>[0]): void => {
+			for (const write of writes) {
+				const buffer = storageBufferMap.get(write.name);
+				if (!buffer) {
+					continue;
+				}
+				const data = write.data;
+				device.queue.writeBuffer(
+					buffer,
+					write.offset,
+					data.buffer as ArrayBuffer,
+					data.byteOffset,
+					data.byteLength
+				);
+			}
+		};
+
 		/**
 		 * Executes a full frame render.
 		 */
@@ -2393,19 +2410,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			// Apply pending storage buffer writes
 			if (pendingStorageWrites) {
-				for (const write of pendingStorageWrites) {
-					const buffer = storageBufferMap.get(write.name);
-					if (buffer) {
-						const data = write.data;
-						device.queue.writeBuffer(
-							buffer,
-							write.offset,
-							data.buffer as ArrayBuffer,
-							data.byteOffset,
-							data.byteLength
-						);
-					}
-				}
+				flushStorageWrites(pendingStorageWrites);
 			}
 
 			const commandEncoder = device.createCommandEncoder();
@@ -2643,6 +2648,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		initializationCleanups.length = 0;
 		return {
 			render,
+			flushStorageWrites,
 			getStorageBuffer: (name: string): GPUBuffer | undefined => {
 				return storageBufferMap.get(name);
 			},

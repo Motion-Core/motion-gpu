@@ -88,6 +88,10 @@
 	const requestFrame = (): void => {
 		requestFrameSignal?.();
 	};
+	const requestFrameForRuntimeInputs = (inputs: readonly unknown[]): void => {
+		void inputs;
+		requestFrame();
+	};
 	const invalidateFrame = (token?: FrameInvalidationToken): void => {
 		registry.invalidate(token);
 		requestFrame();
@@ -146,6 +150,18 @@
 		maxDeltaState.set(maxDelta);
 		dprState.set(dpr);
 		requestFrame();
+	});
+
+	$effect(() => {
+		requestFrameForRuntimeInputs([
+			adapterOptions,
+			clearColor,
+			color,
+			deviceDescriptor,
+			material,
+			passes,
+			renderTargets
+		]);
 	});
 
 	$effect(() => {

@@ -787,16 +787,26 @@ describe('runtime-loop edge cases', () => {
 		const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
 
 		await flushFrame(16); // kicks off renderer creation (fails)
-		await flushFrame(32); // next scheduled frame after failure
 
 		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'initialization' }));
 
 		loop.destroy();
 	});
 
-	it('does not attempt renderer rebuild while within the retry backoff window', async () => {
+	it('schedules renderer rebuild retries on a timer instead of spinning RAF frames', async () => {
 		const registry = createFrameRegistry();
 		const reportError = vi.fn();
+		let now = 0;
+		vi.stubGlobal('performance', { now: vi.fn(() => now) });
+		const retryCallbacks: Array<() => void> = [];
+		const retryDelays: number[] = [];
+		const setTimeoutMock = vi.fn((callback: () => void, delayMs?: number) => {
+			retryCallbacks.push(callback);
+			retryDelays.push(delayMs ?? 0);
+			return retryCallbacks.length as unknown as ReturnType<typeof setTimeout>;
+		});
+		vi.stubGlobal('setTimeout', setTimeoutMock);
+		vi.stubGlobal('clearTimeout', vi.fn());
 
 		const material = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }'
@@ -804,19 +814,61 @@ describe('runtime-loop edge cases', () => {
 
 		createRendererMock.mockRejectedValue(new Error('gpu init failed'));
 
-		// performance.now() starts at 0; nextRendererRetryAt will be set to 250ms.
-		// We keep performance.now() at 0, so subsequent frames are always within
-		// the backoff window and createRenderer should NOT be called again.
 		const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
 
 		await flushFrame(16); // triggers first createRenderer attempt (fails)
-		// At this point createRendererMock called once.
 
-		// Flush several more frames; performance.now() stays at 0, still within
-		// the 250ms backoff window → createRenderer must NOT be called again.
+		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
+		expect(retryDelays).toEqual([250]);
+
+		now = 250;
+		retryCallbacks[0]?.();
+		expect(rafQueue).toHaveLength(1);
 		await flushFrame(32);
-		await flushFrame(48);
-		await flushFrame(64);
+
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+
+		loop.destroy();
+	});
+
+	it('schedules material resolution retries on a timer instead of spinning RAF frames', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const retryCallbacks: Array<() => void> = [];
+		const retryDelays: number[] = [];
+		const setTimeoutMock = vi.fn((callback: () => void, delayMs?: number) => {
+			retryCallbacks.push(callback);
+			retryDelays.push(delayMs ?? 0);
+			return retryCallbacks.length as unknown as ReturnType<typeof setTimeout>;
+		});
+		vi.stubGlobal('setTimeout', setTimeoutMock);
+		vi.stubGlobal('clearTimeout', vi.fn());
+
+		const validMaterial = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }'
+		});
+		let currentMaterial = {
+			fragment: validMaterial.fragment
+		} as FragMaterial;
+
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, validMaterial, {
+				getMaterial: () => currentMaterial,
+				reportError
+			})
+		);
+
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'initialization' }));
+		expect(rafQueue).toHaveLength(0);
+		expect(retryDelays).toEqual([250]);
+
+		currentMaterial = validMaterial;
+		retryCallbacks[0]?.();
+		expect(rafQueue).toHaveLength(1);
+		await flushFrame(16);
 
 		expect(createRendererMock).toHaveBeenCalledTimes(1);
 

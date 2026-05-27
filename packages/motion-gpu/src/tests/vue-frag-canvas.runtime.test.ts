@@ -54,6 +54,7 @@ interface MockRenderer {
 type FrameMutationMode = 'none' | 'valid-both' | 'invalid-uniform' | 'invalid-texture';
 
 let rafQueue: FrameRequestCallback[] = [];
+let retryTimers: Array<{ callback: () => void; delayMs: number }> = [];
 
 async function flushFrame(timestamp: number): Promise<void> {
 	const callback = rafQueue.shift();
@@ -64,6 +65,28 @@ async function flushFrame(timestamp: number): Promise<void> {
 	callback(timestamp);
 	await Promise.resolve();
 	await Promise.resolve();
+}
+
+function stubRetryTimers(): { clearTimeoutMock: ReturnType<typeof vi.fn> } {
+	retryTimers = [];
+	vi.stubGlobal(
+		'setTimeout',
+		vi.fn((callback: () => void, delayMs?: number) => {
+			retryTimers.push({ callback, delayMs: delayMs ?? 0 });
+			return retryTimers.length as unknown as ReturnType<typeof setTimeout>;
+		})
+	);
+	const clearTimeoutMock = vi.fn();
+	vi.stubGlobal('clearTimeout', clearTimeoutMock);
+	return { clearTimeoutMock };
+}
+
+function flushRetryTimer(index = 0): void {
+	const timer = retryTimers[index];
+	if (!timer) {
+		throw new Error('No queued retry timer callback');
+	}
+	timer.callback();
 }
 
 const MotionGPUProbe = defineComponent({
@@ -220,6 +243,7 @@ const FragCanvasFrameMutationHarness = defineComponent({
 describe('Vue FragCanvas runtime', () => {
 	beforeEach(() => {
 		rafQueue = [];
+		retryTimers = [];
 		vi.stubGlobal(
 			'requestAnimationFrame',
 			vi.fn((callback: FrameRequestCallback) => {
@@ -324,6 +348,7 @@ describe('Vue FragCanvas runtime', () => {
 	it('applies retry backoff after renderer initialization failure and recovers', async () => {
 		let now = 0;
 		vi.spyOn(performance, 'now').mockImplementation(() => now);
+		stubRetryTimers();
 
 		const recoveredRenderer: MockRenderer = {
 			render: vi.fn(),
@@ -342,35 +367,34 @@ describe('Vue FragCanvas runtime', () => {
 		});
 
 		await flushFrame(16);
-		await waitFor(() => {
-			expect(createRendererMock).toHaveBeenCalledTimes(1);
-			expect(onError).toHaveBeenCalledWith(
-				expect.objectContaining({
-					phase: 'initialization',
-					rawMessage: 'bootstrap failed'
-				})
-			);
-		});
+		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({
+				phase: 'initialization',
+				rawMessage: 'bootstrap failed'
+			})
+		);
+		expect(retryTimers.at(-1)?.delayMs).toBe(250);
+		expect(rafQueue).toHaveLength(0);
 
 		now = 100;
-		await flushFrame(32);
 		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
 
 		now = 300;
+		flushRetryTimer();
+		expect(rafQueue).toHaveLength(1);
 		await flushFrame(48);
-		await waitFor(() => {
-			expect(createRendererMock).toHaveBeenCalledTimes(2);
-		});
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
 
 		await flushFrame(64);
-		await waitFor(() => {
-			expect(recoveredRenderer.render).toHaveBeenCalled();
-		});
+		expect(recoveredRenderer.render).toHaveBeenCalled();
 	});
 
 	it('resets retry backoff immediately when material signature changes', async () => {
 		let now = 0;
 		vi.spyOn(performance, 'now').mockImplementation(() => now);
+		const { clearTimeoutMock } = stubRetryTimers();
 
 		const recoveredRenderer: MockRenderer = {
 			render: vi.fn(),
@@ -387,9 +411,8 @@ describe('Vue FragCanvas runtime', () => {
 		});
 
 		await flushFrame(16);
-		await waitFor(() => {
-			expect(createRendererMock).toHaveBeenCalledTimes(1);
-		});
+		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(retryTimers.at(-1)?.delayMs).toBe(250);
 
 		now = 120;
 		await view.rerender({
@@ -397,9 +420,8 @@ describe('Vue FragCanvas runtime', () => {
 			showErrorOverlay: false
 		});
 		await flushFrame(32);
-		await waitFor(() => {
-			expect(createRendererMock).toHaveBeenCalledTimes(2);
-		});
+		expect(clearTimeoutMock).toHaveBeenCalledTimes(1);
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
 	});
 
 	it('does not enqueue duplicate renderer rebuild while previous rebuild is pending', async () => {
@@ -1046,10 +1068,6 @@ describe('Vue FragCanvas runtime', () => {
 			);
 		});
 		expect(createRendererMock).not.toHaveBeenCalled();
-
-		await flushFrame(16);
-		await flushFrame(32);
-		await flushFrame(48);
 
 		expect(onError).toHaveBeenCalledTimes(1);
 		expect(createRendererMock).not.toHaveBeenCalled();

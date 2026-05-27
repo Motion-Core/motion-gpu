@@ -61,6 +61,7 @@ export function createMotionGPURuntimeLoop(
 ): MotionGPURuntimeLoop {
 	const { canvas: canvasElement, registry, size } = options;
 	let frameId: number | null = null;
+	let retryTimerId: ReturnType<typeof setTimeout> | null = null;
 	let renderer: Renderer | null = null;
 	let isDisposed = false;
 
@@ -105,6 +106,7 @@ export function createMotionGPURuntimeLoop(
 	let failedRendererSignature: string | null = null;
 	let failedRendererAttempts = 0;
 	let nextRendererRetryAt = 0;
+	let materialResolveAttempts = 0;
 	let rendererRebuildPromise: Promise<void> | null = null;
 
 	const runtimeUniforms: Record<string, UniformValue> = {};
@@ -233,12 +235,36 @@ export function createMotionGPURuntimeLoop(
 		return toMotionGPUErrorReport(error, 'render').code === 'WEBGPU_DEVICE_LOST';
 	};
 
+	const clearRetryTimer = (): void => {
+		if (retryTimerId === null) {
+			return;
+		}
+
+		clearTimeout(retryTimerId);
+		retryTimerId = null;
+	};
+
 	const scheduleFrame = (): void => {
 		if (isDisposed || frameId !== null) {
 			return;
 		}
 
+		clearRetryTimer();
 		frameId = requestAnimationFrame(renderFrame);
+	};
+
+	const scheduleRetryFrame = (delayMs: number): void => {
+		if (isDisposed || frameId !== null || retryTimerId !== null) {
+			return;
+		}
+
+		retryTimerId = setTimeout(
+			() => {
+				retryTimerId = null;
+				scheduleFrame();
+			},
+			Math.max(0, delayMs)
+		);
 	};
 
 	const requestFrame = (): void => {
@@ -423,9 +449,11 @@ export function createMotionGPURuntimeLoop(
 		let materialState: ResolvedMaterial;
 		try {
 			materialState = resolveActiveMaterial();
+			materialResolveAttempts = 0;
 		} catch (error) {
+			materialResolveAttempts += 1;
 			setError(error, 'initialization', timestamp);
-			scheduleFrame();
+			scheduleRetryFrame(getRendererRetryDelayMs(materialResolveAttempts));
 			return;
 		}
 
@@ -445,16 +473,15 @@ export function createMotionGPURuntimeLoop(
 		}
 
 		if (!renderer || activeRendererSignature !== rendererSignature) {
-			if (
-				failedRendererSignature === rendererSignature &&
-				performance.now() < nextRendererRetryAt
-			) {
-				scheduleFrame();
+			const nowMs = performance.now();
+			if (failedRendererSignature === rendererSignature && nowMs < nextRendererRetryAt) {
+				scheduleRetryFrame(nextRendererRetryAt - nowMs);
 				return;
 			}
 
 			if (!rendererRebuildPromise) {
 				rendererRebuildPromise = (async () => {
+					let retryDelayMs: number | null = null;
 					try {
 						const nextRenderer = await createRenderer({
 							canvas: canvasElement,
@@ -496,12 +523,16 @@ export function createMotionGPURuntimeLoop(
 					} catch (error) {
 						failedRendererSignature = rendererSignature;
 						failedRendererAttempts += 1;
-						const retryDelayMs = getRendererRetryDelayMs(failedRendererAttempts);
+						retryDelayMs = getRendererRetryDelayMs(failedRendererAttempts);
 						nextRendererRetryAt = performance.now() + retryDelayMs;
 						setError(error, 'initialization');
 					} finally {
 						rendererRebuildPromise = null;
-						scheduleFrame();
+						if (retryDelayMs === null) {
+							scheduleFrame();
+						} else {
+							scheduleRetryFrame(retryDelayMs);
+						}
 					}
 				})();
 			}
@@ -611,12 +642,14 @@ export function createMotionGPURuntimeLoop(
 	(async () => {
 		try {
 			const initialMaterial = resolveActiveMaterial();
+			materialResolveAttempts = 0;
 			syncMaterialRuntimeState(initialMaterial);
 			activeRendererSignature = '';
 			scheduleFrame();
 		} catch (error) {
+			materialResolveAttempts += 1;
 			setError(error, 'initialization');
-			scheduleFrame();
+			scheduleRetryFrame(getRendererRetryDelayMs(materialResolveAttempts));
 		}
 	})();
 
@@ -632,6 +665,7 @@ export function createMotionGPURuntimeLoop(
 				cancelAnimationFrame(frameId);
 				frameId = null;
 			}
+			clearRetryTimer();
 			renderer?.destroy();
 			registry.clear();
 		}

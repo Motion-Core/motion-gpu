@@ -300,6 +300,19 @@ export function FragCanvas({
 		};
 	}, [runtime]);
 
+	useEffect(() => {
+		runtime.requestFrame();
+	}, [
+		adapterOptions,
+		clearColor,
+		color,
+		deviceDescriptor,
+		material,
+		passes,
+		renderTargets,
+		runtime
+	]);
+
 	const canvasStyle: CSSProperties = {
 		position: 'absolute',
 		inset: 0,

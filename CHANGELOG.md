@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 ### Fixed
 - Wake the renderer after asynchronous WebGPU `device.lost` and `uncapturederror` events so manual and on-demand render modes surface those failures without waiting for another user-driven frame.
+- Back off renderer initialization and material-resolution retries with timers instead of scheduling continuous RAF frames while the same initialization failure is still active.
 
 ## [0.9.1] - 2026-05-16
 ### Fixed

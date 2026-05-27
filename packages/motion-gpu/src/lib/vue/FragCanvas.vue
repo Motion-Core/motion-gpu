@@ -182,6 +182,21 @@ watch(
 	}
 );
 
+watch(
+	[
+		() => props.adapterOptions,
+		() => props.clearColor,
+		() => props.color,
+		() => props.deviceDescriptor,
+		() => props.material,
+		() => props.passes,
+		() => props.renderTargets
+	],
+	() => {
+		requestFrame();
+	}
+);
+
 watch([() => errorHistory.value, () => props.errorHistoryLimit], ([history, rawLimit]) => {
 	const limit = getNormalizedErrorHistoryLimit(rawLimit);
 	if (limit <= 0) {

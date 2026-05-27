@@ -93,6 +93,7 @@ interface RuntimeTextureBinding {
 	update: TextureUpdateMode;
 	defaultUpdate?: TextureUpdateMode;
 	lastToken: TextureValue;
+	mipmapsDirty: boolean;
 }
 
 /**
@@ -567,20 +568,6 @@ function createFallbackTexture(device: GPUDevice, format: GPUTextureFormat): GPU
 }
 
 /**
- * Creates an offscreen canvas used for CPU mipmap generation.
- */
-function createMipmapCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
-	if (typeof OffscreenCanvas !== 'undefined') {
-		return new OffscreenCanvas(width, height);
-	}
-
-	const canvas = document.createElement('canvas');
-	canvas.width = width;
-	canvas.height = height;
-	return canvas;
-}
-
-/**
  * Creates typed descriptor for `copyExternalImageToTexture`.
  */
 function createExternalCopySource(
@@ -597,16 +584,15 @@ function createExternalCopySource(
 }
 
 /**
- * Uploads source content to a GPU texture and optionally generates mip chain on CPU.
+ * Uploads source content to the base GPU texture level.
  */
-function uploadTexture(
+function uploadTextureBaseLevel(
 	device: GPUDevice,
 	texture: GPUTexture,
-	binding: Pick<RuntimeTextureBinding, 'flipY' | 'premultipliedAlpha' | 'generateMipmaps'>,
+	binding: Pick<RuntimeTextureBinding, 'flipY' | 'premultipliedAlpha'>,
 	source: TextureSource,
 	width: number,
-	height: number,
-	mipLevelCount: number
+	height: number
 ): void {
 	device.queue.copyExternalImageToTexture(
 		createExternalCopySource(source, {
@@ -616,47 +602,160 @@ function uploadTexture(
 		{ texture, mipLevel: 0 },
 		{ width, height, depthOrArrayLayers: 1 }
 	);
+}
 
-	if (!binding.generateMipmaps || mipLevelCount <= 1) {
-		return;
-	}
+const GPU_MIPMAP_SHADER = `
+struct VertexOutput {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f
+};
 
-	let previousSource: CanvasImageSource = source;
-	let previousWidth = width;
-	let previousHeight = height;
+@vertex
+fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+	let position = positions[vertexIndex];
+	var out: VertexOutput;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = position * vec2f(0.5, -0.5) + vec2f(0.5, 0.5);
+	return out;
+}
 
-	for (let level = 1; level < mipLevelCount; level += 1) {
-		const nextWidth = Math.max(1, Math.floor(previousWidth / 2));
-		const nextHeight = Math.max(1, Math.floor(previousHeight / 2));
-		const canvas = createMipmapCanvas(nextWidth, nextHeight);
-		const context = canvas.getContext('2d');
-		if (!context) {
-			throw new Error('Unable to create 2D context for mipmap generation');
+@group(0) @binding(0) var mipSampler: sampler;
+@group(0) @binding(1) var mipSource: texture_2d<f32>;
+
+@fragment
+fn fragmentMain(in: VertexOutput) -> @location(0) vec4f {
+	return textureSample(mipSource, mipSampler, in.uv);
+}
+`;
+
+interface GpuMipmapGenerator {
+	generate: (input: {
+		commandEncoder: GPUCommandEncoder;
+		texture: GPUTexture;
+		format: GPUTextureFormat;
+		mipLevelCount: number;
+	}) => void;
+}
+
+function createGpuMipmapGenerator(device: GPUDevice): GpuMipmapGenerator {
+	let sampler: GPUSampler | null = null;
+	let shaderModule: GPUShaderModule | null = null;
+	let bindGroupLayout: GPUBindGroupLayout | null = null;
+	let pipelineLayout: GPUPipelineLayout | null = null;
+	const pipelineByFormat = new Map<GPUTextureFormat, GPURenderPipeline>();
+
+	const ensureBindGroupLayout = (): GPUBindGroupLayout => {
+		if (!bindGroupLayout) {
+			bindGroupLayout = device.createBindGroupLayout({
+				entries: [
+					{
+						binding: 0,
+						visibility: GPUShaderStage.FRAGMENT,
+						sampler: { type: 'filtering' }
+					},
+					{
+						binding: 1,
+						visibility: GPUShaderStage.FRAGMENT,
+						texture: { sampleType: 'float' }
+					}
+				]
+			});
 		}
 
-		context.drawImage(
-			previousSource,
-			0,
-			0,
-			previousWidth,
-			previousHeight,
-			0,
-			0,
-			nextWidth,
-			nextHeight
-		);
+		return bindGroupLayout;
+	};
 
-		device.queue.copyExternalImageToTexture(
-			createExternalCopySource(canvas, {
-				premultipliedAlpha: binding.premultipliedAlpha
-			}),
-			{ texture, mipLevel: level },
-			{ width: nextWidth, height: nextHeight, depthOrArrayLayers: 1 }
-		);
+	const ensurePipeline = (format: GPUTextureFormat): GPURenderPipeline => {
+		const cached = pipelineByFormat.get(format);
+		if (cached) {
+			return cached;
+		}
 
-		previousSource = canvas;
-		previousWidth = nextWidth;
-		previousHeight = nextHeight;
+		const layout = ensureBindGroupLayout();
+		shaderModule ??= device.createShaderModule({ code: GPU_MIPMAP_SHADER });
+		pipelineLayout ??= device.createPipelineLayout({
+			bindGroupLayouts: [layout]
+		});
+		const pipeline = device.createRenderPipeline({
+			layout: pipelineLayout,
+			vertex: {
+				module: shaderModule,
+				entryPoint: 'vertexMain'
+			},
+			fragment: {
+				module: shaderModule,
+				entryPoint: 'fragmentMain',
+				targets: [{ format }]
+			},
+			primitive: {
+				topology: 'triangle-list'
+			}
+		});
+		pipelineByFormat.set(format, pipeline);
+		return pipeline;
+	};
+
+	return {
+		generate: ({ commandEncoder, texture, format, mipLevelCount }) => {
+			if (mipLevelCount <= 1) {
+				return;
+			}
+
+			sampler ??= device.createSampler({
+				minFilter: 'linear',
+				magFilter: 'linear'
+			});
+			const layout = ensureBindGroupLayout();
+			const pipeline = ensurePipeline(format);
+
+			for (let level = 1; level < mipLevelCount; level += 1) {
+				const sourceView = texture.createView({
+					baseMipLevel: level - 1,
+					mipLevelCount: 1
+				});
+				const targetView = texture.createView({
+					baseMipLevel: level,
+					mipLevelCount: 1
+				});
+				const bindGroup = device.createBindGroup({
+					layout,
+					entries: [
+						{ binding: 0, resource: sampler },
+						{ binding: 1, resource: sourceView }
+					]
+				});
+				const pass = commandEncoder.beginRenderPass({
+					colorAttachments: [
+						{
+							view: targetView,
+							clearValue: { r: 0, g: 0, b: 0, a: 0 },
+							loadOp: 'clear',
+							storeOp: 'store'
+						}
+					]
+				});
+				pass.setPipeline(pipeline);
+				pass.setBindGroup(0, bindGroup);
+				pass.draw(3);
+				pass.end();
+			}
+		}
+	};
+}
+
+function markTextureMipmapsDirty(
+	binding: Pick<RuntimeTextureBinding, 'generateMipmaps' | 'mipmapsDirty'>,
+	mipLevelCount: number
+): void {
+	if (binding.generateMipmaps && mipLevelCount > 1) {
+		binding.mipmapsDirty = true;
+	} else {
+		binding.mipmapsDirty = false;
 	}
 }
 
@@ -1070,7 +1169,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				premultipliedAlpha: config.premultipliedAlpha,
 				defaultPremultipliedAlpha: config.premultipliedAlpha,
 				update: config.update ?? 'once',
-				lastToken: null
+				lastToken: null,
+				mipmapsDirty: false
 			};
 
 			if (config.update !== undefined) {
@@ -1806,6 +1906,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const uniformScratch = new Float32Array(options.uniformLayout.byteLength / 4);
 		const uniformPrevious = new Float32Array(options.uniformLayout.byteLength / 4);
 		let hasUniformSnapshot = false;
+		const mipmapGenerator = createGpuMipmapGenerator(device);
 
 		/**
 		 * Rebuilds bind group using current texture views.
@@ -1857,6 +1958,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				binding.width = undefined;
 				binding.height = undefined;
 				binding.lastToken = null;
+				binding.mipmapsDirty = false;
 				return true;
 			}
 
@@ -1893,7 +1995,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					binding.generateMipmaps = generateMipmaps;
 					binding.premultipliedAlpha = premultipliedAlpha;
 					binding.colorSpace = colorSpace;
-					uploadTexture(device, binding.texture, binding, source, width, height, mipLevelCount);
+					uploadTextureBaseLevel(device, binding.texture, binding, source, width, height);
+					markTextureMipmapsDirty(binding, mipLevelCount);
 				}
 
 				binding.source = source;
@@ -1927,7 +2030,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			binding.premultipliedAlpha = premultipliedAlpha;
 			binding.colorSpace = colorSpace;
 			binding.format = format;
-			uploadTexture(device, texture, binding, source, width, height, mipLevelCount);
+			uploadTextureBaseLevel(device, texture, binding, source, width, height);
+			markTextureMipmapsDirty(binding, mipLevelCount);
 
 			binding.texture?.destroy();
 			binding.texture = texture;
@@ -1939,6 +2043,27 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			binding.update = update;
 			binding.lastToken = value;
 			return true;
+		};
+
+		const generateDirtyTextureMipmaps = (commandEncoder: GPUCommandEncoder): void => {
+			for (const binding of textureBindings) {
+				if (
+					!binding.mipmapsDirty ||
+					!binding.texture ||
+					!binding.generateMipmaps ||
+					binding.mipLevelCount <= 1
+				) {
+					continue;
+				}
+
+				mipmapGenerator.generate({
+					commandEncoder,
+					texture: binding.texture,
+					format: binding.format,
+					mipLevelCount: binding.mipLevelCount
+				});
+				binding.mipmapsDirty = false;
+			}
 		};
 
 		for (const binding of textureBindings) {
@@ -2494,6 +2619,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 			}
 
+			const commandEncoder = device.createCommandEncoder();
 			let bindGroupDirty = false;
 			for (const binding of textureBindings) {
 				// Storage textures are managed by compute passes, skip source-driven updates
@@ -2514,7 +2640,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				flushStorageWrites(pendingStorageWrites);
 			}
 
-			const commandEncoder = device.createCommandEncoder();
+			generateDirtyTextureMipmaps(commandEncoder);
 			const passes = resolvePasses();
 			const clearColor = options.getClearColor();
 			syncPassLifecycle(passes, width, height);

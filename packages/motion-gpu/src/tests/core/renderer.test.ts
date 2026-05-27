@@ -64,7 +64,13 @@ function createMockTexture(descriptor: GPUTextureDescriptor): MockTexture {
 	const texture: MockTexture = {
 		descriptor,
 		destroy: vi.fn(),
-		createView: vi.fn(() => ({ textureDescriptor: descriptor }) as unknown as GPUTextureView)
+		createView: vi.fn(
+			(viewDescriptor?: GPUTextureViewDescriptor) =>
+				({
+					textureDescriptor: descriptor,
+					viewDescriptor
+				}) as unknown as GPUTextureView
+		)
 	};
 	return texture;
 }
@@ -817,73 +823,72 @@ describe('createRenderer', () => {
 		expect(runtime.device.createBindGroup.mock.calls.length).toBeGreaterThanOrEqual(3);
 	});
 
-	it('fails mipmap upload when no 2d context is available for generated levels', async () => {
+	it('generates texture mipmaps with GPU render passes after the base upload', async () => {
 		const runtime = createWebGpuRuntime();
 		const source = document.createElement('canvas');
 		source.width = 8;
-		source.height = 8;
+		source.height = 4;
 
-		vi.stubGlobal(
-			'OffscreenCanvas',
-			class {
-				width: number;
-				height: number;
-
-				constructor(width: number, height: number) {
-					this.width = width;
-					this.height = height;
-				}
-
-				getContext(): null {
-					return null;
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: {
+				uTex: {
+					source,
+					generateMipmaps: true
 				}
 			}
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(runtime.device.queue.copyExternalImageToTexture).toHaveBeenCalledTimes(1);
+
+		const uploadedTexture = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 8 && size.height === 4;
+		});
+		expect(uploadedTexture?.descriptor.mipLevelCount).toBe(4);
+		expect(uploadedTexture?.createView).toHaveBeenCalledWith(
+			expect.objectContaining({ baseMipLevel: 0, mipLevelCount: 1 })
+		);
+		expect(uploadedTexture?.createView).toHaveBeenCalledWith(
+			expect.objectContaining({ baseMipLevel: 1, mipLevelCount: 1 })
+		);
+		expect(uploadedTexture?.createView).toHaveBeenCalledWith(
+			expect.objectContaining({ baseMipLevel: 2, mipLevelCount: 1 })
+		);
+		expect(uploadedTexture?.createView).toHaveBeenCalledWith(
+			expect.objectContaining({ baseMipLevel: 3, mipLevelCount: 1 })
 		);
 
-		await expect(
-			createRenderer({
-				...baseOptions(runtime),
-				textureKeys: ['uTex'],
-				textureDefinitions: {
-					uTex: {
-						source,
-						generateMipmaps: true
-					}
-				}
-			})
-		).rejects.toThrow(/Unable to create 2D context for mipmap generation/);
-		expect(runtime.textures.length).toBeGreaterThan(0);
-		expect(runtime.textures.every((texture) => texture.destroy.mock.calls.length > 0)).toBe(true);
-		expect(runtime.buffers.length).toBeGreaterThan(0);
-		expect(runtime.buffers.every((buffer) => buffer.destroy.mock.calls.length > 0)).toBe(true);
-		expect(runtime.device.removeEventListener).toHaveBeenCalledWith(
-			'uncapturederror',
-			expect.any(Function)
-		);
+		const encoder = runtime.commandEncoders[0];
+		expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(4);
+		const mipPassOrder = encoder?.beginRenderPass.mock.invocationCallOrder[0];
+		const scenePassOrder = encoder?.beginRenderPass.mock.invocationCallOrder[3];
+		if (mipPassOrder === undefined || scenePassOrder === undefined) {
+			throw new Error('Missing mipmap or scene render pass order');
+		}
+		expect(mipPassOrder).toBeLessThan(scenePassOrder);
 	});
 
-	it('uses DOM canvas fallback for mipmap generation when OffscreenCanvas is unavailable', async () => {
+	it('does not allocate CPU canvas fallback while generating mipmaps', async () => {
 		const runtime = createWebGpuRuntime();
 		const source = document.createElement('canvas');
 		source.width = 8;
 		source.height = 8;
-		const drawImage = vi.fn();
 		const originalCreateElement = document.createElement.bind(document);
 		const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation(((
 			tagName: string
 		) => {
 			if (tagName === 'canvas') {
-				return {
-					width: 0,
-					height: 0,
-					getContext: vi.fn((kind: string) =>
-						kind === '2d'
-							? ({
-									drawImage
-								} as unknown as CanvasRenderingContext2D)
-							: null
-					)
-				} as unknown as HTMLCanvasElement;
+				throw new Error('CPU mipmap canvas should not be allocated');
 			}
 
 			return originalCreateElement(tagName);
@@ -909,9 +914,48 @@ describe('createRenderer', () => {
 			textures: {}
 		});
 
-		expect(createElementSpy).toHaveBeenCalledWith('canvas');
-		expect(drawImage).toHaveBeenCalled();
-		expect(runtime.device.queue.copyExternalImageToTexture.mock.calls.length).toBeGreaterThan(1);
+		expect(createElementSpy).not.toHaveBeenCalledWith('canvas');
+		expect(runtime.device.queue.copyExternalImageToTexture).toHaveBeenCalledTimes(1);
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(4);
+	});
+
+	it('reuses the GPU mipmap pipeline across per-frame texture updates', async () => {
+		const runtime = createWebGpuRuntime();
+		const source = document.createElement('canvas');
+		source.width = 8;
+		source.height = 8;
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: {
+				uTex: {
+					generateMipmaps: true,
+					update: 'perFrame'
+				}
+			}
+		});
+		const pipelinesAfterInit = runtime.device.createRenderPipeline.mock.calls.length;
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: source }
+		});
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: source }
+		});
+
+		expect(runtime.device.queue.copyExternalImageToTexture).toHaveBeenCalledTimes(2);
+		expect(runtime.device.createRenderPipeline.mock.calls.length).toBe(pipelinesAfterInit + 1);
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(4);
+		expect(runtime.commandEncoders[1]?.beginRenderPass).toHaveBeenCalledTimes(4);
 	});
 
 	it('blits final source slot to canvas when pass graph ends offscreen', async () => {

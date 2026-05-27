@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Performance
 - Bound the renderer compute-pipeline cache with LRU eviction so live compute-shader edits cannot retain unbounded pipeline states for obsolete sources.
+- Generate dynamic texture mipmaps with GPU render passes instead of CPU canvas downscaling, reducing per-update CPU work and external-image copies for `generateMipmaps` textures.
 
 ## [0.9.1] - 2026-05-16
 ### Fixed

@@ -102,6 +102,11 @@ export interface LoadedTexture {
 	dispose: () => void;
 }
 
+export interface MergedAbortSignal {
+	signal: AbortSignal;
+	dispose: () => void;
+}
+
 interface NormalizedTextureLoadOptions {
 	colorSpace: 'srgb' | 'linear';
 	requestInit?: RequestInit;
@@ -141,6 +146,58 @@ export function isAbortError(error: unknown): boolean {
 		error instanceof Error &&
 		(error.name === 'AbortError' || error.message.toLowerCase().includes('aborted'))
 	);
+}
+
+export function mergeAbortSignals(
+	primary: AbortSignal,
+	secondary: AbortSignal | undefined
+): MergedAbortSignal {
+	if (!secondary) {
+		return {
+			signal: primary,
+			dispose: () => {}
+		};
+	}
+
+	if (typeof AbortSignal.any === 'function') {
+		return {
+			signal: AbortSignal.any([primary, secondary]),
+			dispose: () => {}
+		};
+	}
+
+	const fallback = new AbortController();
+	let disposed = false;
+	const cleanup = (): void => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		primary.removeEventListener('abort', abort);
+		secondary.removeEventListener('abort', abort);
+	};
+	const abort = (): void => {
+		if (!fallback.signal.aborted) {
+			fallback.abort();
+		}
+		cleanup();
+	};
+
+	if (primary.aborted || secondary.aborted) {
+		fallback.abort();
+		return {
+			signal: fallback.signal,
+			dispose: () => {}
+		};
+	}
+
+	primary.addEventListener('abort', abort, { once: true });
+	secondary.addEventListener('abort', abort, { once: true });
+
+	return {
+		signal: fallback.signal,
+		dispose: cleanup
+	};
 }
 
 function toBodyFingerprint(body: BodyInit | null | undefined): string | null {
@@ -460,18 +517,12 @@ export async function loadTexturesFromUrls(
 ): Promise<LoadedTexture[]> {
 	const loaded: LoadedTexture[] = [];
 	const batchController = new AbortController();
-	const externalSignal = options.signal;
+	const mergedSignal = mergeAbortSignals(batchController.signal, options.signal);
 	const abortBatch = (): void => {
 		if (!batchController.signal.aborted) {
 			batchController.abort();
 		}
 	};
-
-	if (externalSignal?.aborted) {
-		abortBatch();
-	} else {
-		externalSignal?.addEventListener('abort', abortBatch, { once: true });
-	}
 
 	let failed = false;
 
@@ -479,7 +530,7 @@ export async function loadTexturesFromUrls(
 		const loadPromises = urls.map(async (url) => {
 			const texture = await loadTextureFromUrl(url, {
 				...options,
-				signal: batchController.signal
+				signal: mergedSignal.signal
 			});
 			if (failed) {
 				texture.dispose();
@@ -498,6 +549,6 @@ export async function loadTexturesFromUrls(
 		}
 		throw error;
 	} finally {
-		externalSignal?.removeEventListener('abort', abortBatch);
+		mergedSignal.dispose();
 	}
 }

@@ -6,6 +6,7 @@ import {
 import {
 	isAbortError,
 	loadTexturesFromUrls,
+	mergeAbortSignals,
 	type LoadedTexture,
 	type TextureLoadOptions
 } from '../core/texture-loader.js';
@@ -65,50 +66,6 @@ function disposeTextures(list: LoadedTexture[] | null): void {
 	for (const texture of list ?? []) {
 		texture.dispose();
 	}
-}
-
-interface MergedAbortSignal {
-	signal: AbortSignal;
-	dispose: () => void;
-}
-
-function mergeAbortSignals(
-	primary: AbortSignal,
-	secondary: AbortSignal | undefined
-): MergedAbortSignal {
-	if (!secondary) {
-		return {
-			signal: primary,
-			dispose: () => {}
-		};
-	}
-
-	if (typeof AbortSignal.any === 'function') {
-		return {
-			signal: AbortSignal.any([primary, secondary]),
-			dispose: () => {}
-		};
-	}
-
-	const fallback = new AbortController();
-	let disposed = false;
-	const cleanup = (): void => {
-		if (disposed) {
-			return;
-		}
-		disposed = true;
-		primary.removeEventListener('abort', abort);
-		secondary.removeEventListener('abort', abort);
-	};
-	const abort = (): void => fallback.abort();
-
-	primary.addEventListener('abort', abort, { once: true });
-	secondary.addEventListener('abort', abort, { once: true });
-
-	return {
-		signal: fallback.signal,
-		dispose: cleanup
-	};
 }
 
 /**

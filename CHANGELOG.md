@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Back off renderer initialization and material-resolution retries with timers instead of scheduling continuous RAF frames while the same initialization failure is still active.
 - Validate compute dispatch workgroup counts before command encoding so invalid or over-limit dispatch values fail with deterministic runtime errors instead of WebGPU validation cascades.
 - Make multi-texture URL loading fail fast, abort sibling requests on the first failure, and dispose any textures that finished before the batch failed.
+- Centralize texture abort-signal merging and fix the fallback path used without `AbortSignal.any` so already-aborted input signals are preserved.
 
 ### Performance
 - Bound the renderer compute-pipeline cache with LRU eviction so live compute-shader edits cannot retain unbounded pipeline states for obsolete sources.

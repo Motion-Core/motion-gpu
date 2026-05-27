@@ -4,7 +4,8 @@ import {
 	clearTextureBlobCache,
 	isAbortError,
 	loadTextureFromUrl,
-	loadTexturesFromUrls
+	loadTexturesFromUrls,
+	mergeAbortSignals
 } from '../../lib/core/texture-loader';
 
 function createMockBlob(): Blob {
@@ -233,6 +234,27 @@ describe('texture-loader', () => {
 
 		expect(slowAbort).toHaveBeenCalledTimes(1);
 		expect(createImageBitmap).not.toHaveBeenCalled();
+	});
+
+	it('merged abort signal fallback preserves already-aborted input signals', () => {
+		const abortSignalRef = AbortSignal as unknown as {
+			any: ((signals: AbortSignal[]) => AbortSignal) | undefined;
+		};
+		const originalAny = abortSignalRef.any;
+		abortSignalRef.any = undefined;
+
+		try {
+			const primary = new AbortController();
+			const secondary = new AbortController();
+			secondary.abort();
+
+			const merged = mergeAbortSignals(primary.signal, secondary.signal);
+
+			expect(merged.signal.aborted).toBe(true);
+			expect(() => merged.dispose()).not.toThrow();
+		} finally {
+			abortSignalRef.any = originalAny;
+		}
 	});
 
 	it('closes decoded bitmap when signal aborts before result is returned', async () => {

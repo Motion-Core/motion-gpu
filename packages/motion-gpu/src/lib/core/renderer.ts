@@ -162,6 +162,74 @@ interface RuntimeComputePass {
 	advanceFrame?: () => void;
 }
 
+const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
+const COMPUTE_DISPATCH_AXES = ['x', 'y', 'z'] as const;
+
+function formatComputeDispatchValue(value: unknown): string {
+	if (value === undefined) {
+		return 'undefined';
+	}
+	if (typeof value === 'number') {
+		return Number.isNaN(value) ? 'NaN' : String(value);
+	}
+	if (typeof value === 'string') {
+		return `"${value}"`;
+	}
+
+	try {
+		return JSON.stringify(value) ?? String(value);
+	} catch {
+		return String(value);
+	}
+}
+
+function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
+	const max = (device.limits as GPUSupportedLimits | undefined)?.maxComputeWorkgroupsPerDimension;
+	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
+		return Math.floor(max);
+	}
+
+	return DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION;
+}
+
+function validateComputeDispatch(
+	dispatch: unknown,
+	maxWorkgroupsPerDimension: number,
+	label: string
+): [number, number, number] {
+	if (!Array.isArray(dispatch)) {
+		throw new Error(
+			`${label} dispatch must resolve to an array [x, y, z], got ${formatComputeDispatchValue(dispatch)}.`
+		);
+	}
+
+	const resolved = [dispatch[0], dispatch[1] ?? 1, dispatch[2] ?? 1] as const;
+	const output: [number, number, number] = [1, 1, 1];
+
+	for (let index = 0; index < COMPUTE_DISPATCH_AXES.length; index += 1) {
+		const axis = COMPUTE_DISPATCH_AXES[index];
+		const value = resolved[index];
+		if (
+			typeof value !== 'number' ||
+			!Number.isFinite(value) ||
+			!Number.isInteger(value) ||
+			value < 1
+		) {
+			throw new Error(
+				`${label} dispatch ${axis} must be a positive integer, got ${formatComputeDispatchValue(value)}.`
+			);
+		}
+		if (value > maxWorkgroupsPerDimension) {
+			throw new Error(
+				`${label} dispatch ${axis} must be <= device.limits.maxComputeWorkgroupsPerDimension (${maxWorkgroupsPerDimension}), got ${value}.`
+			);
+		}
+		output[index] = value;
+	}
+
+	return output;
+}
+
 /**
  * Returns sampler/texture binding slots for a texture index.
  */
@@ -781,6 +849,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	}
 
 	const device = await adapter.requestDevice(options.deviceDescriptor);
+	const maxComputeWorkgroupsPerDimension = getMaxComputeWorkgroupsPerDimension(device);
 	let isDestroyed = false;
 	let deviceLostMessage: string | null = null;
 	const uncapturedErrorMessages: string[] = [];
@@ -2452,7 +2521,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			// Dispatch compute passes BEFORE scene render so storage textures
 			// and buffers are up-to-date when the fragment shader samples them.
+			let computeStepIndex = 0;
 			for (const step of graphPlan.computeSteps) {
+				const computeStepLabel = `Compute pass #${computeStepIndex}`;
+				computeStepIndex += 1;
 				const computePass = step.pass as RuntimeComputePass;
 				if (computePass.getCompute && computePass.resolveDispatch && computePass.getWorkgroupSize) {
 					const computeSource = computePass.getCompute();
@@ -2484,13 +2556,19 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
 
 					for (let iter = 0; iter < iterations; iter += 1) {
-						const dispatch = computePass.resolveDispatch({
-							width,
-							height,
-							time,
-							delta,
-							workgroupSize
-						});
+						const dispatchLabel =
+							iterations > 1 ? `${computeStepLabel} iteration ${iter + 1}` : computeStepLabel;
+						const dispatch = validateComputeDispatch(
+							computePass.resolveDispatch({
+								width,
+								height,
+								time,
+								delta,
+								workgroupSize
+							}),
+							maxComputeWorkgroupsPerDimension,
+							dispatchLabel
+						);
 						const cPass = commandEncoder.beginComputePass();
 						cPass.setPipeline(pipelineEntry.pipeline);
 						cPass.setBindGroup(0, pipelineEntry.bindGroup);

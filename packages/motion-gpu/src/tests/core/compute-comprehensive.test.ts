@@ -1077,6 +1077,74 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		expect(cPass.dispatchWorkgroups).toHaveBeenCalledWith(10, 20, 3);
 	});
 
+	it('compute pass rejects invalid dispatch values before command encoding', async () => {
+		const runtime = createWebGpuRuntime();
+
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			getCompute: () =>
+				'@compute @workgroup_size(16)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
+			resolveDispatch: () => [0, 1, 1] as [number, number, number],
+			getWorkgroupSize: () => [16, 1, 1] as [number, number, number]
+		};
+
+		const renderer = await createRenderer(
+			baseOptions(runtime, {
+				getPasses: () => [computePass]
+			})
+		);
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(/Compute pass #0 dispatch x must be a positive integer, got 0\./);
+
+		const encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
+		expect(encoder.beginComputePass).not.toHaveBeenCalled();
+		expect(runtime.device.queue.submit).not.toHaveBeenCalled();
+	});
+
+	it('compute pass rejects dispatch values above the device limit', async () => {
+		const runtime = createWebGpuRuntime();
+
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			getCompute: () =>
+				'@compute @workgroup_size(16)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
+			resolveDispatch: () => [65_536, 1, 1] as [number, number, number],
+			getWorkgroupSize: () => [16, 1, 1] as [number, number, number]
+		};
+
+		const renderer = await createRenderer(
+			baseOptions(runtime, {
+				getPasses: () => [computePass]
+			})
+		);
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(
+			/Compute pass #0 dispatch x must be <= device\.limits\.maxComputeWorkgroupsPerDimension \(65535\), got 65536\./
+		);
+
+		const encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
+		expect(encoder.beginComputePass).not.toHaveBeenCalled();
+		expect(runtime.device.queue.submit).not.toHaveBeenCalled();
+	});
+
 	it('compute pass ends after dispatch', async () => {
 		const runtime = createWebGpuRuntime();
 

@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.9.2] - 2026-05-27
 ### Fixed
 - Wake the renderer after asynchronous WebGPU `device.lost` and `uncapturederror` events so manual and on-demand render modes surface those failures without waiting for another user-driven frame.
 - Back off renderer initialization and material-resolution retries with timers instead of scheduling continuous RAF frames while the same initialization failure is still active.

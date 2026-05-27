@@ -1145,6 +1145,51 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		expect(runtime.device.queue.submit).not.toHaveBeenCalled();
 	});
 
+	it('evicts old compute pipeline cache entries when compute sources keep changing', async () => {
+		const runtime = createWebGpuRuntime();
+		let sourceIndex = 0;
+		const makeComputeSource = (index: number): string =>
+			[
+				'@compute @workgroup_size(1)',
+				'fn compute(@builtin(global_invocation_id) id: vec3u) {',
+				`\t// variant ${index}`,
+				'}'
+			].join('\n');
+
+		const computePass = {
+			isCompute: true as const,
+			enabled: true,
+			getCompute: () => makeComputeSource(sourceIndex),
+			resolveDispatch: () => [1, 1, 1] as [number, number, number],
+			getWorkgroupSize: () => [1, 1, 1] as [number, number, number]
+		};
+
+		const renderer = await createRenderer(
+			baseOptions(runtime, {
+				getPasses: () => [computePass]
+			})
+		);
+
+		const renderOnce = (): void => {
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+		};
+
+		for (sourceIndex = 0; sourceIndex < 33; sourceIndex += 1) {
+			renderOnce();
+		}
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(33);
+
+		sourceIndex = 0;
+		renderOnce();
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(34);
+	});
+
 	it('compute pass ends after dispatch', async () => {
 		const runtime = createWebGpuRuntime();
 

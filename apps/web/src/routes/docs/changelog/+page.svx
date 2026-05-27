@@ -11,6 +11,9 @@ description: All notable changes to Motion Core will be documented in this file.
 - Back off renderer initialization and material-resolution retries with timers instead of scheduling continuous RAF frames while the same initialization failure is still active.
 - Validate compute dispatch workgroup counts before command encoding so invalid or over-limit dispatch values fail with deterministic runtime errors instead of WebGPU validation cascades.
 
+### Performance
+- Bound the renderer compute-pipeline cache with LRU eviction so live compute-shader edits cannot retain unbounded pipeline states for obsolete sources.
+
 ## [0.9.1] - 2026-05-16
 ### Fixed
 - Rebuild the active renderer after WebGPU device loss so the runtime can recover instead of remaining stuck on a dead device.

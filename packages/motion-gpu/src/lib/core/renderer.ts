@@ -1416,10 +1416,36 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			| { kind: 'pending'; entry: ComputePipelineEntry; validation: Promise<void> }
 			| { kind: 'ready'; entry: ComputePipelineEntry }
 			| { kind: 'error'; error: Error };
+		const MAX_COMPUTE_PIPELINE_CACHE_ENTRIES = 32;
 		const computePipelineCache = new Map<string, ComputePipelineCacheState>();
 		let nextComputePipelineLabelIndex = 0;
 
 		const requestRender = options.requestRender;
+
+		const setComputePipelineCacheState = (
+			cacheKey: string,
+			state: ComputePipelineCacheState
+		): void => {
+			if (computePipelineCache.has(cacheKey)) {
+				computePipelineCache.delete(cacheKey);
+			}
+			computePipelineCache.set(cacheKey, state);
+			while (computePipelineCache.size > MAX_COMPUTE_PIPELINE_CACHE_ENTRIES) {
+				const oldestKey = computePipelineCache.keys().next().value;
+				if (oldestKey === undefined) {
+					break;
+				}
+				computePipelineCache.delete(oldestKey);
+			}
+		};
+
+		const touchComputePipelineCacheState = (
+			cacheKey: string,
+			state: ComputePipelineCacheState
+		): void => {
+			computePipelineCache.delete(cacheKey);
+			computePipelineCache.set(cacheKey, state);
+		};
 
 		const computeBuildResult = (
 			cacheKey: string,
@@ -1631,11 +1657,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				// be a no-op in practice, but it guards against in-flight
 				// stragglers when the user edits the same source rapidly).
 				const current = computePipelineCache.get(cacheKey);
-				if (current && current.kind !== 'pending') {
+				if (!current || current.kind !== 'pending') {
 					return;
 				}
 				if (compilationError) {
-					computePipelineCache.set(cacheKey, { kind: 'error', error: compilationError });
+					setComputePipelineCacheState(cacheKey, {
+						kind: 'error',
+						error: compilationError
+					});
 					// Drain any derivative-cascade noise queued by the
 					// optimistic dispatch so the next render() call doesn't
 					// throw "[Invalid CommandBuffer] is invalid due to a
@@ -1643,7 +1672,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					uncapturedErrorMessages.length = 0;
 					requestRender?.();
 				} else {
-					computePipelineCache.set(cacheKey, { kind: 'ready', entry });
+					setComputePipelineCacheState(cacheKey, { kind: 'ready', entry });
 				}
 			})();
 
@@ -1661,6 +1690,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					: `compute:${buildOptions.computeSource}`;
 			const cached = computePipelineCache.get(cacheKey);
 			if (cached) {
+				touchComputePipelineCacheState(cacheKey, cached);
 				if (cached.kind === 'error') {
 					// Drain any derivative cascade messages that may have
 					// arrived between frames so consumeUncapturedErrorMessage
@@ -1672,7 +1702,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			const state = computeBuildResult(cacheKey, buildOptions);
-			computePipelineCache.set(cacheKey, state);
+			setComputePipelineCacheState(cacheKey, state);
 			if (state.kind === 'error') {
 				uncapturedErrorMessages.length = 0;
 				throw state.error;

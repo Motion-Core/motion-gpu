@@ -222,7 +222,8 @@ test.describe('motion-gpu mixed passes e2e', () => {
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
 		await expect(page.getByTestId('error-count')).toHaveText('0');
 
-		// First error cycle
+		// First active error should be reported once, even if the failing
+		// pass remains active across multiple manual frames.
 		await page.getByTestId('set-config-bad-shader-pass').click();
 		await advanceAndWait(page);
 		await expect
@@ -235,7 +236,11 @@ test.describe('motion-gpu mixed passes e2e', () => {
 					timeout: 5_000
 				}
 			)
-			.toBeGreaterThan(1);
+			.toBe(1);
+
+		await advanceAndWait(page);
+		await advanceAndWait(page);
+		await expect(page.getByTestId('error-count')).toHaveText('1');
 
 		const firstErrorCount = toNumber(await page.getByTestId('error-count').textContent());
 

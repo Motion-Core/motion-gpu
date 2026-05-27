@@ -873,6 +873,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		deviceLostMessage = details
 			? `WebGPU device lost: ${details}${reason}`
 			: `WebGPU device lost${reason}`;
+		options.requestRender?.();
 	});
 
 	const handleUncapturedError = (event: GPUUncapturedErrorEvent): void => {
@@ -899,6 +900,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				uncapturedErrorMessages.length - MAX_UNCAPTURED_ERROR_MESSAGES
 			);
 		}
+		options.requestRender?.();
 	};
 
 	device.addEventListener('uncapturederror', handleUncapturedError);

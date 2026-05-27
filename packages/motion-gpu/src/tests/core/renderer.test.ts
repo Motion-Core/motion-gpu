@@ -269,9 +269,18 @@ describe('createRenderer', () => {
 
 	it('surfaces uncaptured GPU errors exactly once and keeps rendering afterwards', async () => {
 		const runtime = createWebGpuRuntime();
-		const renderer = await createRenderer(baseOptions(runtime));
+		const requestRender = vi.fn();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			requestRender
+		});
 
 		runtime.emitUncapturedError('validation failed');
+		expect(requestRender).toHaveBeenCalledTimes(1);
+
+		runtime.emitUncapturedError('validation failed');
+		expect(requestRender).toHaveBeenCalledTimes(1);
+
 		expect(() =>
 			renderer.render({
 				time: 0,
@@ -330,10 +339,15 @@ describe('createRenderer', () => {
 
 	it('surfaces device lost error after loss promise resolves', async () => {
 		const runtime = createWebGpuRuntime();
-		const renderer = await createRenderer(baseOptions(runtime));
+		const requestRender = vi.fn();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			requestRender
+		});
 
 		runtime.resolveDeviceLost({ reason: 'destroyed', message: 'gpu reset' });
 		await Promise.resolve();
+		expect(requestRender).toHaveBeenCalledTimes(1);
 
 		expect(() =>
 			renderer.render({

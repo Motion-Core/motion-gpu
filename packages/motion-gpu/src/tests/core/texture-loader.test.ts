@@ -205,6 +205,36 @@ describe('texture-loader', () => {
 		expect(bitmapClose).toHaveBeenCalledTimes(1);
 	});
 
+	it('fails fast and aborts pending sibling texture loads when one URL fails', async () => {
+		const slowAbort = vi.fn();
+		const fetchMock = vi.fn((url: string, requestInit?: RequestInit) => {
+			if (url.includes('bad')) {
+				return Promise.resolve({
+					ok: false,
+					status: 404,
+					blob: async () => createMockBlob()
+				});
+			}
+
+			const signal = requestInit?.signal as AbortSignal | undefined;
+			return new Promise((_, reject) => {
+				const onAbort = (): void => {
+					slowAbort();
+					reject(new DOMException('Aborted', 'AbortError'));
+				};
+				signal?.addEventListener('abort', onAbort, { once: true });
+			});
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		await expect(loadTexturesFromUrls(['/assets/slow.png', '/assets/bad.png'])).rejects.toThrow(
+			/Texture request failed \(404\)/
+		);
+
+		expect(slowAbort).toHaveBeenCalledTimes(1);
+		expect(createImageBitmap).not.toHaveBeenCalled();
+	});
+
 	it('closes decoded bitmap when signal aborts before result is returned', async () => {
 		const close = vi.fn();
 		const controller = new AbortController();

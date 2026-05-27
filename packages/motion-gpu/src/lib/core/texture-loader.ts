@@ -458,25 +458,46 @@ export async function loadTexturesFromUrls(
 	urls: string[],
 	options: TextureLoadOptions = {}
 ): Promise<LoadedTexture[]> {
-	const settled = await Promise.allSettled(urls.map((url) => loadTextureFromUrl(url, options)));
 	const loaded: LoadedTexture[] = [];
-	let firstError: unknown = null;
-
-	for (const entry of settled) {
-		if (entry.status === 'fulfilled') {
-			loaded.push(entry.value);
-			continue;
+	const batchController = new AbortController();
+	const externalSignal = options.signal;
+	const abortBatch = (): void => {
+		if (!batchController.signal.aborted) {
+			batchController.abort();
 		}
+	};
 
-		firstError ??= entry.reason;
+	if (externalSignal?.aborted) {
+		abortBatch();
+	} else {
+		externalSignal?.addEventListener('abort', abortBatch, { once: true });
 	}
 
-	if (firstError) {
+	let failed = false;
+
+	try {
+		const loadPromises = urls.map(async (url) => {
+			const texture = await loadTextureFromUrl(url, {
+				...options,
+				signal: batchController.signal
+			});
+			if (failed) {
+				texture.dispose();
+				throw createAbortError();
+			}
+			loaded.push(texture);
+			return texture;
+		});
+
+		return await Promise.all(loadPromises);
+	} catch (error) {
+		failed = true;
+		abortBatch();
 		for (const texture of loaded) {
 			texture.dispose();
 		}
-		throw firstError;
+		throw error;
+	} finally {
+		externalSignal?.removeEventListener('abort', abortBatch);
 	}
-
-	return loaded;
 }

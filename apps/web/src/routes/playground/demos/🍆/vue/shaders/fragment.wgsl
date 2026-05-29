@@ -187,9 +187,7 @@ fn shadeBody(pos: vec3f, n: vec3f, v: vec3f, key: vec3f, fill: vec3f, back: vec3
 	let backDiff = max(dot(n, back), 0.0);
 	let grad = clamp(0.52 + 0.58 * pModel.x + 0.24 * pModel.y, 0.0, 1.0);
 	let peel = 0.5 + 0.5 * surfaceGrain(pModel * vec3f(3.2, 3.8, 3.3));
-	let bodyColorA = vec3f(BODY_COLOR_A_R, BODY_COLOR_A_G, BODY_COLOR_A_B);
-	let bodyColorB = vec3f(BODY_COLOR_B_R, BODY_COLOR_B_G, BODY_COLOR_B_B);
-	let base = mix(bodyColorA, bodyColorB, clamp(grad + (peel - 0.5) * 0.1, 0.0, 1.0));
+	let base = mix(BODY_COLOR_A, BODY_COLOR_B, clamp(grad + (peel - 0.5) * 0.1, 0.0, 1.0));
 	let shade = 0.16 + keyDiff * 0.58 + fillDiff * 0.20 + backDiff * 0.08;
 	var color = base * shade;
 
@@ -209,9 +207,7 @@ fn shadeCap(pos: vec3f, n: vec3f, v: vec3f, key: vec3f, fill: vec3f, back: vec3f
 	let backDiff = max(dot(n, back), 0.0);
 	let grad = clamp(0.44 + 0.78 * pModel.y - 0.22 * pModel.x, 0.0, 1.0);
 	let capVein = 0.5 + 0.5 * capLeafSignal(pModel);
-	let capColorA = vec3f(CAP_COLOR_A_R, CAP_COLOR_A_G, CAP_COLOR_A_B);
-	let capColorB = vec3f(CAP_COLOR_B_R, CAP_COLOR_B_G, CAP_COLOR_B_B);
-	let base = mix(capColorA, capColorB, clamp(grad + (capVein - 0.5) * 0.12, 0.0, 1.0));
+	let base = mix(CAP_COLOR_A, CAP_COLOR_B, clamp(grad + (capVein - 0.5) * 0.12, 0.0, 1.0));
 	let shade = 0.22 + keyDiff * 0.50 + fillDiff * 0.20 + backDiff * 0.06;
 	var color = base * shade;
 
@@ -229,7 +225,7 @@ fn shadeStem(pos: vec3f, n: vec3f, v: vec3f, key: vec3f, fill: vec3f, back: vec3
 	let fillDiff = max(dot(n, fill), 0.0);
 	let backDiff = max(dot(n, back), 0.0);
 	let stemFiber = 0.5 + 0.5 * stemFiberSignal(pModel);
-	let base = vec3f(STEM_COLOR_R, STEM_COLOR_G, STEM_COLOR_B);
+	let base = STEM_COLOR;
 	let shade = 0.20 + keyDiff * 0.56 + fillDiff * 0.18 + backDiff * 0.08;
 	let stemRelief = clamp(stemFiber, 0.0, 1.0);
 	let stemCavity = pow(1.0 - stemRelief, 1.6);

@@ -54,7 +54,7 @@ When writing or refactoring code, keep these differences explicit.
 ### `FragCanvas` props
 
 Shared runtime props (all adapters):
-- `material`, `renderTargets`, `passes`, `clearColor`, `outputColorSpace`, `renderMode`, `autoRender`, `maxDelta`, `adapterOptions`, `deviceDescriptor`, `showErrorOverlay`, `onError`, `errorHistoryLimit`, `onErrorHistory`
+- `material`, `renderTargets`, `passes`, `clearColor`, `color`, `renderMode`, `autoRender`, `maxDelta`, `dpr`, `adapterOptions`, `deviceDescriptor`, `showErrorOverlay`, `onError`, `errorHistoryLimit`, `onErrorHistory`
 
 Adapter-specific differences:
 - Svelte:
@@ -127,7 +127,8 @@ Enforce these constraints without exceptions:
 15. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
 16. Storage buffer `size` must be `> 0` and a multiple of 4.
 17. `PingPongComputePass` `iterations` must be `>= 1`.
-18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`) and always dispatch before the base scene render.
+19. `FragCanvas.color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`; Khronos PBR Neutral maps HDR scene values to SDR.
 
 ## Architecture Pattern
 
@@ -177,6 +178,7 @@ Put in material:
 - Storage buffer declarations (`storageBuffers`) with size, type, access mode, and optional `initialData`.
 - `defines` for compile-time constants.
 - `includes` for reusable WGSL chunks.
+- `color` pipeline options for output encoding, tone mapping, HDR/SDR presentation, canvas color space, and internal working format.
 
 Put in runtime (`useFrame`):
 - `state.setUniform(...)` for dynamic values.
@@ -212,12 +214,13 @@ Disable overlay only when the user asks for silent/custom handling.
 Run checks available in the target package/app:
 
 ```bash
-npm run check
-npm run test
-npm run lint
+pnpm run check
+pnpm run test
+pnpm run lint
 ```
 
-If repository scripts use other package manager commands, run equivalents (`pnpm`/`yarn`/`bun`).
+If working from the monorepo root, prefer scoped commands such as `pnpm --dir packages/motion-gpu run test` or `pnpm --dir apps/web run check`.
+If repository scripts use other package manager commands, run equivalents (`npm`/`yarn`/`bun`).
 If a script is missing, run closest available static/type/test checks and report what was not run.
 
 If touching `.svelte` files and `svelte-autofixer` is available, run:
@@ -245,6 +248,9 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Set static sampling defaults in `defineMaterial({ textures })`.
 - Use runtime `state.setTexture` for source changes.
+- Use `fragmentVisible: false` for compute-only texture slots that should not consume fragment sampler/texture bindings.
+- Storage textures require explicit `format`, `width`, and `height`; they must not define a `source`.
+- Integer storage texture formats (`*uint`, `*sint`) default `fragmentVisible` to `false`; explicitly setting `fragmentVisible: true` for them throws because fragment bindings are `texture_2d<f32>`.
 - Update-mode guidance:
   - `once` for static images,
   - `onInvalidate` for event-driven updates,
@@ -258,7 +264,19 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 - Use `defines` for compile-time toggles and loop constants.
 - Use typed integer defines for integer loops:
 `{ type: 'i32', value: N }` or `{ type: 'u32', value: N }`.
+- Use typed vector defines for static WGSL vector constants:
+`{ type: 'vec2f', value: [x, y] }`, `{ type: 'vec3f', value: [r, g, b] }`, or `{ type: 'vec4f', value: [r, g, b, a] }`.
+- Use uniforms instead of defines for values that change per frame or through interaction.
 - Expect renderer rebuild when define/include output changes.
+
+### Color Pipeline
+
+- Use `FragCanvas.color` for color pipeline configuration.
+- `color.outputEncoding` controls final SDR encoding (`'srgb'` by default, `'linear'` for linear output).
+- `color.toneMapping: 'khronos-pbr-neutral'` enables the private final presentation pass and expects non-negative linear HDR scene color.
+- `color.dynamicRange: 'hdr'` requests HDR canvas presentation; `dynamicRange: 'auto'` tries HDR and falls back to SDR.
+- `color.workingFormat: 'auto'` selects `rgba16float` for HDR or tone-mapped pipelines, otherwise the preferred canvas format.
+- Changing any color pipeline option is a renderer signature change and rebuilds the renderer.
 
 ### Scheduler and User Context
 
@@ -281,12 +299,14 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Declare storage buffers in `defineMaterial({ storageBuffers: { name: { size, type, access? } } })`.
 - Use `ComputePass` for single-dispatch GPU compute; `PingPongComputePass` for iterative simulations.
-- Compute passes run alongside render passes but do not read/write render pass slots.
+- Compute passes are accepted in the same `passes` array as render passes, but dispatch in declaration order before the base scene render.
+- Compute passes do not read/write render pass slots and cannot satisfy render-pass slot dependencies.
 - `dispatch` can be static tuple `[x, y?, z?]`, `'auto'`, or dynamic function.
 - Use `state.writeStorageBuffer(name, data)` in `useFrame` to upload CPU data before compute.
 - Use `state.readStorageBuffer(name)` to read back GPU results asynchronously.
 - Storage buffers are bound at group(1) in compute shaders; storage textures at group(2).
 - Fragment shaders can read storage buffers as read-only via `var<storage, read>` at group(1).
+- `fragmentVisible: false` affects only fragment-stage texture bindings; compute storage texture bindings at group(2) are still generated.
 - `PingPongComputePass` generates two texture bindings from `target`:
   - `{target}A` sampled read texture at `@group(2) @binding(0)`
   - `{target}B` write storage texture at `@group(2) @binding(1)`

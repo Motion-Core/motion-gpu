@@ -1,5 +1,6 @@
 import { assertUniformName } from './uniforms.js';
 import type {
+	MaterialDefineVectorType,
 	MaterialDefineValue,
 	MaterialDefines,
 	MaterialIncludes,
@@ -7,6 +8,11 @@ import type {
 } from './material.js';
 
 const INCLUDE_DIRECTIVE_PATTERN = /^\s*#include\s+<([A-Za-z_][A-Za-z0-9_]*)>\s*$/;
+const DEFINE_VECTOR_LENGTHS: Record<MaterialDefineVectorType, number> = {
+	vec2f: 2,
+	vec3f: 3,
+	vec4f: 4
+};
 
 /**
  * Source location metadata for one generated fragment line.
@@ -70,6 +76,28 @@ function normalizeTypedDefine(
 		};
 	}
 
+	if (define.type === 'vec2f' || define.type === 'vec3f' || define.type === 'vec4f') {
+		const expectedLength = DEFINE_VECTOR_LENGTHS[define.type];
+		if (
+			!Array.isArray(value) ||
+			value.length !== expectedLength ||
+			!value.every((entry) => typeof entry === 'number' && Number.isFinite(entry))
+		) {
+			throw new Error(
+				`Invalid define value for "${name}". ${define.type} define requires a tuple with ${expectedLength} finite numbers.`
+			);
+		}
+
+		return {
+			type: define.type,
+			value: Object.freeze([...value]) as TypedMaterialDefineValue['value']
+		} as TypedMaterialDefineValue;
+	}
+
+	if (define.type !== 'f32' && define.type !== 'i32' && define.type !== 'u32') {
+		throw new Error(`Invalid define value for "${name}". Unsupported define type.`);
+	}
+
 	if (typeof value !== 'number' || !Number.isFinite(value)) {
 		throw new Error(`Invalid define value for "${name}". Numeric define must be finite.`);
 	}
@@ -86,6 +114,19 @@ function normalizeTypedDefine(
 		type: define.type,
 		value
 	};
+}
+
+function toF32Literal(value: number): string {
+	return Number.isInteger(value) ? `${value}.0` : `${value}`;
+}
+
+function toVectorDefineLine(
+	key: string,
+	type: MaterialDefineVectorType,
+	value: readonly number[]
+): string {
+	const literals = value.map(toF32Literal).join(', ');
+	return `const ${key}: ${type} = ${type}(${literals});`;
 }
 
 /**
@@ -149,25 +190,25 @@ export function toDefineLine(key: string, value: MaterialDefineValue): string {
 	}
 
 	if (typeof value === 'number') {
-		const valueLiteral = Number.isInteger(value) ? `${value}.0` : `${value}`;
-		return `const ${key}: f32 = ${valueLiteral};`;
+		return `const ${key}: f32 = ${toF32Literal(value)};`;
 	}
 
-	if (value.type === 'bool') {
-		return `const ${key}: bool = ${value.value ? 'true' : 'false'};`;
+	switch (value.type) {
+		case 'bool':
+			return `const ${key}: bool = ${value.value ? 'true' : 'false'};`;
+		case 'f32':
+			return `const ${key}: f32 = ${toF32Literal(value.value)};`;
+		case 'i32':
+			return `const ${key}: i32 = ${value.value};`;
+		case 'u32':
+			return `const ${key}: u32 = ${value.value}u;`;
+		case 'vec2f':
+		case 'vec3f':
+		case 'vec4f':
+			return toVectorDefineLine(key, value.type, value.value);
+		default:
+			throw new Error(`Invalid define value for "${key}". Unsupported define type.`);
 	}
-
-	if (value.type === 'f32') {
-		const numberValue = value.value as number;
-		const valueLiteral = Number.isInteger(numberValue) ? `${numberValue}.0` : `${numberValue}`;
-		return `const ${key}: f32 = ${valueLiteral};`;
-	}
-
-	if (value.type === 'i32') {
-		return `const ${key}: i32 = ${value.value};`;
-	}
-
-	return `const ${key}: u32 = ${value.value}u;`;
 }
 
 function expandChunk(

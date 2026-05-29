@@ -148,6 +148,7 @@ fn sdCircle(p: vec2f, r: f32) -> f32 {
 | Non-finite define number | Throws |
 | Fractional `i32` or `u32` define | Throws |
 | Negative `u32` define | Throws |
+| Invalid `vec2f` / `vec3f` / `vec4f` define tuple length or non-finite component | Throws |
 | Empty include source | Throws |
 | Storage buffer `size <= 0` or not multiple of 4 | Throws |
 | Invalid storage buffer type or access mode | Throws |
@@ -158,5 +159,5 @@ fn sdCircle(p: vec2f, r: f32) -> f32 {
 1. **Keep material objects stable** — reuse the same instance. Creating a new material with the same content still matches the same signature, but unnecessary allocations add overhead.
 2. **Put shape/type changes in `defineMaterial`** — uniform types and texture bindings should be declared upfront.
 3. **Put value changes in `useFrame`** — animation, interaction, and dynamic state go through `state.setUniform()` and `state.setTexture()`.
-4. **Use defines for compile-time branches** — the compiler can eliminate dead code paths.
+4. **Use defines for compile-time branches and static constants** — the compiler can eliminate dead code paths, and typed vector defines can hold static centers, directions, and color constants.
 5. **Use includes for shared utility code** — noise functions, SDF helpers, color transforms.

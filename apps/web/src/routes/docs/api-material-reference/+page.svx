@@ -62,6 +62,10 @@ Use this in adapter implementations or low-level tooling.
 | Storage buffer `size` must be `> 0` and a multiple of 4 | Throws during validation |
 | Matrix uniforms should use typed form `{ type: 'mat4x4f', value: [...] }` | Ensures stable layout and packing |
 
+## Define value types
+
+`MaterialDefines` accepts booleans, untyped numbers (`f32`), typed scalar values (`bool`, `f32`, `i32`, `u32`), and typed float vectors (`vec2f`, `vec3f`, `vec4f`). Vector define values must be finite numeric tuples with the matching component count.
+
 ## Related docs
 
 - [Defining Materials](/docs/defining-materials)

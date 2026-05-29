@@ -13,13 +13,21 @@ describe('material preprocess', () => {
 			USE_COLOR: true,
 			ITER: { type: 'i32', value: 2 },
 			MASK: { type: 'u32', value: 3 },
-			GAIN: { type: 'f32', value: 4 }
+			GAIN: { type: 'f32', value: 4 },
+			OFFSET: { type: 'vec2f', value: [0.25, 1] },
+			TINT: { type: 'vec3f', value: [1, 0.5, 0] },
+			RAMP: { type: 'vec4f', value: [0, 0.25, 0.5, 1] }
 		});
 
 		expect(toDefineLine('USE_COLOR', defines.USE_COLOR!)).toBe('const USE_COLOR: bool = true;');
 		expect(toDefineLine('ITER', defines.ITER!)).toBe('const ITER: i32 = 2;');
 		expect(toDefineLine('MASK', defines.MASK!)).toBe('const MASK: u32 = 3u;');
 		expect(toDefineLine('GAIN', defines.GAIN!)).toBe('const GAIN: f32 = 4.0;');
+		expect(toDefineLine('OFFSET', defines.OFFSET!)).toBe('const OFFSET: vec2f = vec2f(0.25, 1.0);');
+		expect(toDefineLine('TINT', defines.TINT!)).toBe('const TINT: vec3f = vec3f(1.0, 0.5, 0.0);');
+		expect(toDefineLine('RAMP', defines.RAMP!)).toBe(
+			'const RAMP: vec4f = vec4f(0.0, 0.25, 0.5, 1.0);'
+		);
 	});
 
 	it('rejects malformed include and define contracts', () => {
@@ -29,6 +37,21 @@ describe('material preprocess', () => {
 				ITER: { type: 'i32', value: 1.5 }
 			})
 		).toThrow(/i32 define requires integer/);
+		expect(() =>
+			normalizeDefines({
+				OFFSET: { type: 'vec2f', value: [0, 1, 2] as unknown as [number, number] }
+			})
+		).toThrow(/vec2f define requires a tuple with 2 finite numbers/);
+		expect(() =>
+			normalizeDefines({
+				TINT: { type: 'vec3f', value: [0, Number.NaN, 1] }
+			})
+		).toThrow(/vec3f define requires a tuple with 3 finite numbers/);
+		expect(() =>
+			normalizeDefines({
+				BAD: { type: 'vec5f', value: [0, 1, 2, 3, 4] } as unknown as TypedMaterialDefineValue
+			})
+		).toThrow(/Unsupported define type/);
 	});
 
 	it('expands nested includes and preserves include source mapping', () => {
@@ -100,12 +123,14 @@ describe('material preprocess', () => {
 
 	it('enforces typed define value compatibility at compile time', () => {
 		const typed: TypedMaterialDefineValue = {
-			type: 'bool',
-			value: true
+			type: 'vec3f',
+			value: [1, 0.5, 0]
 		};
-		expect(typed).toEqual({ type: 'bool', value: true });
+		expect(typed).toEqual({ type: 'vec3f', value: [1, 0.5, 0] });
 
 		// @ts-expect-error bool defines require boolean literals
 		({ type: 'bool', value: 1 }) satisfies TypedMaterialDefineValue;
+		// @ts-expect-error vec2f defines require a 2-number tuple
+		({ type: 'vec2f', value: [1, 2, 3] }) satisfies TypedMaterialDefineValue;
 	});
 });

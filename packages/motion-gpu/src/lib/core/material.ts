@@ -28,6 +28,37 @@ import type {
 } from './types.js';
 
 /**
+ * WGSL float-vector types accepted by compile-time define declarations.
+ */
+export type MaterialDefineVectorType = 'vec2f' | 'vec3f' | 'vec4f';
+
+/**
+ * Tuple value for a WGSL float-vector define declaration.
+ */
+export type MaterialDefineVectorValue<TType extends MaterialDefineVectorType> =
+	TType extends 'vec2f'
+		? readonly [number, number]
+		: TType extends 'vec3f'
+			? readonly [number, number, number]
+			: readonly [number, number, number, number];
+
+/**
+ * Typed WGSL float-vector define declaration.
+ */
+export type TypedMaterialVectorDefineValue = {
+	[TType in MaterialDefineVectorType]: {
+		/**
+		 * WGSL float-vector type.
+		 */
+		type: TType;
+		/**
+		 * Literal vector components for the selected WGSL type.
+		 */
+		value: MaterialDefineVectorValue<TType>;
+	};
+}[MaterialDefineVectorType];
+
+/**
  * Typed compile-time define declaration.
  */
 export type TypedMaterialDefineValue =
@@ -50,7 +81,8 @@ export type TypedMaterialDefineValue =
 			 * Literal value for the selected WGSL type.
 			 */
 			value: number;
-	  };
+	  }
+	| TypedMaterialVectorDefineValue;
 
 /**
  * Allowed value types for WGSL `const` define injection.

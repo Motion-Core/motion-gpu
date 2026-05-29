@@ -148,12 +148,14 @@ describe('material', () => {
 		const block = buildDefinesBlock({
 			USE_FOG: true,
 			INTENSITY: 2,
-			ITERATIONS: { type: 'i32', value: 4 }
+			ITERATIONS: { type: 'i32', value: 4 },
+			CENTER: { type: 'vec2f', value: [0.5, 0.25] }
 		});
 
 		expect(block).toContain('const USE_FOG: bool = true;');
 		expect(block).toContain('const INTENSITY: f32 = 2.0;');
 		expect(block).toContain('const ITERATIONS: i32 = 4;');
+		expect(block).toContain('const CENTER: vec2f = vec2f(0.5, 0.25);');
 
 		const withDefines = applyMaterialDefines(
 			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
@@ -162,6 +164,24 @@ describe('material', () => {
 
 		expect(withDefines).toContain('const USE_FOG: bool = false;');
 		expect(withDefines).toContain('fn frag(uv: vec2f) -> vec4f');
+	});
+
+	it('clones and freezes vector define values', () => {
+		const center: [number, number] = [0.5, 0.25];
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			defines: {
+				CENTER: { type: 'vec2f', value: center }
+			}
+		});
+
+		center[0] = 0;
+
+		expect(material.defines.CENTER).toEqual({ type: 'vec2f', value: [0.5, 0.25] });
+		expect(Object.isFrozen(material.defines.CENTER)).toBe(true);
+		expect(Object.isFrozen((material.defines.CENTER as { value: readonly number[] }).value)).toBe(
+			true
+		);
 	});
 
 	it('resolves material and tracks signature', () => {

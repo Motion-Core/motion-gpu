@@ -45,11 +45,14 @@ export type {
 export type {
 	FragMaterial,
 	FragMaterialInput,
+	MaterialDefineVectorType,
+	MaterialDefineVectorValue,
 	MaterialDefineValue,
 	MaterialDefines,
 	MaterialIncludes,
 	ResolvedMaterial,
-	TypedMaterialDefineValue
+	TypedMaterialDefineValue,
+	TypedMaterialVectorDefineValue
 } from './material.js';
 export type { MotionGPURuntimeLoop, MotionGPURuntimeLoopOptions } from './runtime-loop.js';
 export type { LoadedTexture, TextureDecodeOptions, TextureLoadOptions } from './texture-loader.js';

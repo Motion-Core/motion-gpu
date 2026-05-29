@@ -137,7 +137,9 @@ fn frag(uv: vec2f) -> vec4f {
   defines: {
     ENABLE_GLOW: true,
     GLOW_INTENSITY: 0.02,
-    ITERATIONS: { type: 'i32', value: 8 }
+    ITERATIONS: { type: 'i32', value: 8 },
+    GLOW_CENTER: { type: 'vec2f', value: [0.5, 0.5] },
+    TINT: { type: 'vec3f', value: [1.0, 0.65, 0.35] }
   }
 });
 ```
@@ -153,6 +155,9 @@ fn frag(uv: vec2f) -> vec4f {
 | `{ type: 'f32', value: 1.5 }` | `const NAME: f32 = 1.5;` |
 | `{ type: 'i32', value: 8 }` | `const NAME: i32 = 8;` |
 | `{ type: 'u32', value: 16 }` | `const NAME: u32 = 16u;` |
+| `{ type: 'vec2f', value: [0.5, 0.25] }` | `const NAME: vec2f = vec2f(0.5, 0.25);` |
+| `{ type: 'vec3f', value: [1, 0.5, 0] }` | `const NAME: vec3f = vec3f(1.0, 0.5, 0.0);` |
+| `{ type: 'vec4f', value: [0, 0.25, 0.5, 1] }` | `const NAME: vec4f = vec4f(0.0, 0.25, 0.5, 1.0);` |
 
 ### Validation rules for defines
 
@@ -161,6 +166,7 @@ fn frag(uv: vec2f) -> vec4f {
 | Numeric values must be finite | Throws if `NaN` or `Infinity` |
 | `i32` / `u32` values must be integers | Throws if fractional |
 | `u32` values must be `>= 0` | Throws if negative |
+| `vec2f` / `vec3f` / `vec4f` values must be finite numeric tuples of length 2 / 3 / 4 | Throws if length or component values are invalid |
 | Invalid identifier name | Throws naming validation error |
 
 ### Expansion order
@@ -179,6 +185,7 @@ This is deterministic and part of the material signature, meaning changing a def
 | --- | --- | --- |
 | Feature toggles (`ENABLE_X`) | ✅ | ❌ |
 | Loop iteration counts | ✅ | ❌ |
+| Static vector constants (`CENTER`, `TINT`) | ✅ | ❌ |
 | Values that change every frame | ❌ | ✅ |
 | Values controlled by user interaction | ❌ | ✅ |
 | Performance-critical constants | ✅ (enables compiler optimization) | |
@@ -201,4 +208,5 @@ This means you see meaningful error locations even when your fragment expands to
 2. **Name includes clearly** — the key is used in error messages and diagnostics.
 3. **Use defines for branch elimination** — the WGSL compiler can optimize away dead branches when a bool constant is `false`.
 4. **Use typed defines for integer loops** — `{ type: 'i32', value: N }` avoids the default `f32` inference.
-5. **Avoid putting `fn frag(...)` inside includes** — the entrypoint should stay in the main fragment for clarity.
+5. **Use typed vector defines for static shader constants** — `{ type: 'vec2f', value: [x, y] }`, `{ type: 'vec3f', value: [r, g, b] }`, or `{ type: 'vec4f', value: [r, g, b, a] }`.
+6. **Avoid putting `fn frag(...)` inside includes** — the entrypoint should stay in the main fragment for clarity.

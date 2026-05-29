@@ -51,9 +51,12 @@ export type {
 	FragMaterial,
 	FragMaterialInput,
 	MaterialIncludes,
+	MaterialDefineVectorType,
+	MaterialDefineVectorValue,
 	MaterialDefineValue,
 	MaterialDefines,
-	TypedMaterialDefineValue
+	TypedMaterialDefineValue,
+	TypedMaterialVectorDefineValue
 } from '../core/material.js';
 export type { MotionGPUContext } from './motiongpu-context.js';
 export type { UseFrameOptions, UseFrameResult } from './frame-context.js';

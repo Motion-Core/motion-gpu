@@ -6,6 +6,8 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+
+## [0.10.0] - 2026-05-30
 ### Added
 - Support typed `vec2f`, `vec3f`, and `vec4f` material defines, emitted as WGSL `const` vector declarations with validation and defensive cloning.
 

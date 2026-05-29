@@ -273,7 +273,12 @@ async function get_bundle(
 			if (uid !== current_id) throw ABORT;
 
 			if (resolved.startsWith(VIRTUAL)) {
-				const file = virtual.get(resolved.slice(VIRTUAL.length + 1))!;
+				const url = new URL(resolved);
+				const lookupHref = url.href.slice(0, url.href.length - url.search.length - url.hash.length);
+				const file = virtual.get(lookupHref.slice(VIRTUAL.length + 1))!;
+				if (url.searchParams.has('raw')) {
+					return `export default ${JSON.stringify(file.contents)};`;
+				}
 				return file.contents;
 			}
 

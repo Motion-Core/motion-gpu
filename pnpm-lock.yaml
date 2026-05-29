@@ -41,6 +41,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.39.15
         version: 6.43.0
+      '@iizukak/codemirror-lang-wgsl':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
@@ -808,6 +811,9 @@ packages:
   '@humanwhocodes/retry@0.4.3':
     resolution: {integrity: sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==}
     engines: {node: '>=18.18'}
+
+  '@iizukak/codemirror-lang-wgsl@0.3.0':
+    resolution: {integrity: sha512-Hv957EXK8CzJvoAlKLtHBfC3BIiqFlTBu/0znBgSYhooDBZBpZQEKp1zgr3OYbg03CG1mRJmrypO/HQXB3xavA==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3707,6 +3713,13 @@ snapshots:
   '@humanwhocodes/module-importer@1.0.1': {}
 
   '@humanwhocodes/retry@0.4.3': {}
+
+  '@iizukak/codemirror-lang-wgsl@0.3.0':
+    dependencies:
+      '@codemirror/language': 6.12.3
+      '@lezer/highlight': 1.2.3
+      '@lezer/lr': 1.4.10
+      codemirror: 6.0.2
 
   '@img/colour@1.1.0': {}
 

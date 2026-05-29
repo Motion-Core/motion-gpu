@@ -4,6 +4,7 @@ import { css as cssLanguage } from '@codemirror/lang-css';
 import { html as htmlLanguage } from '@codemirror/lang-html';
 import { javascript } from '@codemirror/lang-javascript';
 import { json as jsonLanguage } from '@codemirror/lang-json';
+import { wgsl as wgslLanguage } from '@iizukak/codemirror-lang-wgsl';
 import { HighlightStyle, indentUnit, syntaxHighlighting } from '@codemirror/language';
 import {
 	EditorView,
@@ -119,7 +120,7 @@ const editorSyntaxTheme = syntaxHighlighting(
 			color: 'var(--playground-token-comment)'
 		},
 		{
-			tag: [t.typeName, t.className, t.namespace, t.macroName],
+			tag: [t.typeName, t.className, t.namespace],
 			color: 'var(--playground-token-type)'
 		},
 		{
@@ -131,6 +132,7 @@ const editorSyntaxTheme = syntaxHighlighting(
 			tag: [t.propertyName, t.attributeName, t.labelName],
 			color: 'var(--playground-token-property)'
 		},
+		{ tag: [t.macroName], color: 'var(--playground-token-variable)' },
 		{ tag: [t.variableName, t.name], color: 'var(--playground-token-variable)' },
 		{
 			tag: [t.regexp, t.escape, t.special(t.variableName), t.url],
@@ -218,6 +220,7 @@ const languageExtensionForPath = (filePath: string): Extension => {
 	if (filePath.endsWith('.json')) return jsonLanguage();
 	if (filePath.endsWith('.html')) return htmlLanguage();
 	if (filePath.endsWith('.css')) return cssLanguage();
+	if (filePath.endsWith('.wgsl')) return wgslLanguage();
 	return [];
 };
 

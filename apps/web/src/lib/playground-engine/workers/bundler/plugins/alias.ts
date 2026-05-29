@@ -50,6 +50,7 @@ function alias_plugin(aliases: Record<string, string> = {}, virtual: Map<string,
  */
 export function resolve(virtual: Map<string, File>, importee: string, importer: string): string {
 	const url = new URL(importee, importer);
+	const lookupHref = url.href.slice(0, url.href.length - url.search.length - url.hash.length);
 
 	for (const suffix of [
 		'',
@@ -59,17 +60,18 @@ export function resolve(virtual: Map<string, File>, importee: string, importer: 
 		'.ts',
 		'.tsx',
 		'.vue',
+		'.wgsl',
 		'/index.js',
 		'/index.jsx',
 		'/index.ts',
 		'/index.tsx',
 		'/index.vue'
 	]) {
-		const with_suffix = `${url.href.slice(VIRTUAL.length + 1)}${suffix}`;
+		const with_suffix = `${lookupHref.slice(VIRTUAL.length + 1)}${suffix}`;
 		const file = virtual.get(with_suffix);
 
 		if (file) {
-			return url.href + suffix;
+			return `${lookupHref}${suffix}${url.search}`;
 		}
 	}
 

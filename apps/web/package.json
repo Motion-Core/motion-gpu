@@ -63,6 +63,7 @@
 		"@codemirror/language": "^6.12.1",
 		"@codemirror/state": "^6.5.4",
 		"@codemirror/view": "^6.39.15",
+		"@iizukak/codemirror-lang-wgsl": "^0.3.0",
 		"@lezer/highlight": "^1.2.3",
 		"@motion-core/motion-gpu": "workspace:*",
 		"@replit/codemirror-lang-svelte": "^6.0.0",

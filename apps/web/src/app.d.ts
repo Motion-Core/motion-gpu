@@ -30,6 +30,11 @@ declare module '*.ts?raw' {
 	export default content;
 }
 
+declare module '*.wgsl?raw' {
+	const content: string;
+	export default content;
+}
+
 declare module '@babel/standalone';
 
 export {};

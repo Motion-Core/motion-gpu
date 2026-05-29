@@ -166,6 +166,48 @@ describe('texture-loader', () => {
 		await expect(promise).rejects.toSatisfy((error: unknown) => isAbortError(error));
 	});
 
+	it('keeps shared texture fetch alive when one of multiple consumers aborts', async () => {
+		const fetchControl: {
+			resolve?: (response: { ok: boolean; status: number; blob: () => Promise<Blob> }) => void;
+		} = {};
+		const fetchAbort = vi.fn();
+		const fetchMock = vi.fn((_: string, requestInit?: RequestInit) => {
+			const signal = requestInit?.signal as AbortSignal | undefined;
+			signal?.addEventListener('abort', fetchAbort, { once: true });
+			return new Promise((resolve) => {
+				fetchControl.resolve = resolve;
+			});
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const firstController = new AbortController();
+		const first = loadTextureFromUrl('/assets/shared-abort.png', {
+			signal: firstController.signal
+		});
+		const second = loadTextureFromUrl('/assets/shared-abort.png');
+
+		firstController.abort();
+		await expect(first).rejects.toSatisfy((error: unknown) => isAbortError(error));
+		expect(fetchAbort).not.toHaveBeenCalled();
+
+		if (!fetchControl.resolve) {
+			throw new Error('Fetch promise was not captured');
+		}
+		fetchControl.resolve({
+			ok: true,
+			status: 200,
+			blob: async () => createMockBlob()
+		});
+
+		await expect(second).resolves.toMatchObject({
+			url: '/assets/shared-abort.png',
+			width: 32,
+			height: 18
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(createImageBitmap).toHaveBeenCalledTimes(1);
+	});
+
 	it('throws when createImageBitmap is unavailable in runtime', async () => {
 		vi.unstubAllGlobals();
 		Reflect.deleteProperty(globalThis, 'createImageBitmap');

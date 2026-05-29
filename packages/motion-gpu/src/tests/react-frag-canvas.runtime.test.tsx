@@ -101,10 +101,16 @@ function MotionGPUProbe({ onProbe }: { onProbe: (value: MotionGPUContext) => voi
 
 function MotionGPUWithControlProbe({
 	onProbe,
-	renderMode = 'always'
+	renderMode = 'always',
+	autoRender = true,
+	dpr = 1,
+	maxDelta = 0.1
 }: {
 	onProbe: (value: MotionGPUContext) => void;
 	renderMode?: RenderMode;
+	autoRender?: boolean;
+	dpr?: number;
+	maxDelta?: number;
 }) {
 	const probeMaterial = defineMaterial({
 		fragment: `
@@ -115,7 +121,14 @@ fn frag(uv: vec2f) -> vec4f {
 	});
 
 	return (
-		<FragCanvas material={probeMaterial} renderMode={renderMode} showErrorOverlay={false}>
+		<FragCanvas
+			material={probeMaterial}
+			renderMode={renderMode}
+			autoRender={autoRender}
+			dpr={dpr}
+			maxDelta={maxDelta}
+			showErrorOverlay={false}
+		>
 			<MotionGPUProbe onProbe={onProbe} />
 		</FragCanvas>
 	);
@@ -278,6 +291,55 @@ describe('React FragCanvas runtime', () => {
 
 		expect(created[1]?.options.color).toEqual({ dynamicRange: 'hdr' });
 		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('updates runtime context when control props change after mount', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		const contexts: MotionGPUContext[] = [];
+
+		const view = render(
+			<MotionGPUWithControlProbe
+				onProbe={(value) => {
+					contexts[0] = value;
+				}}
+				autoRender={true}
+				dpr={1}
+				maxDelta={0.1}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(contexts[0]).toBeDefined();
+		});
+		const context = contexts[0];
+		if (!context) {
+			throw new Error('Missing MotionGPU context');
+		}
+		expect(context?.autoRender.current).toBe(true);
+		expect(context?.dpr.current).toBe(1);
+		expect(context?.maxDelta.current).toBe(0.1);
+
+		view.rerender(
+			<MotionGPUWithControlProbe
+				onProbe={(value) => {
+					contexts[0] = value;
+				}}
+				autoRender={false}
+				dpr={2}
+				maxDelta={0.25}
+			/>
+		);
+
+		await waitFor(() => {
+			expect(context?.autoRender.current).toBe(false);
+			expect(context?.dpr.current).toBe(2);
+			expect(context?.maxDelta.current).toBe(0.25);
+		});
+		expect(rafQueue.length).toBeGreaterThan(0);
 	});
 
 	it('applies retry backoff after renderer initialization failure and recovers', async () => {

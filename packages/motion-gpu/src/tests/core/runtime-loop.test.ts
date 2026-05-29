@@ -726,6 +726,51 @@ describe('runtime-loop resize behavior', () => {
 		loop.destroy();
 	});
 
+	it('uses ResizeObserver contentRect dimensions when contentBoxSize is unavailable', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 99, height: 99 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		mockROInstances[0]?.callback([
+			{
+				contentRect: { width: 256.9, height: 128.4 }
+			} as unknown as ResizeObserverEntry
+		]);
+
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		expect(getBoundingClientRectSpy).not.toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 256, height: 128 });
+
+		loop.destroy();
+	});
+
 	it('falls back to getBoundingClientRect when ResizeObserver has not yet fired', async () => {
 		const getBoundingClientRectSpy = vi.fn(() => ({ width: 64, height: 48 }));
 		const canvas = {

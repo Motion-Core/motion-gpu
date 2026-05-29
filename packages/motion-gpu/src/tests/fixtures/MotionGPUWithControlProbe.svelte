@@ -7,9 +7,18 @@
 	interface Props {
 		onProbe: (value: unknown) => void;
 		renderMode?: RenderMode;
+		autoRender?: boolean;
+		dpr?: number;
+		maxDelta?: number;
 	}
 
-	let { onProbe, renderMode = 'always' }: Props = $props();
+	let {
+		onProbe,
+		renderMode = 'always',
+		autoRender = true,
+		dpr = 1,
+		maxDelta = 0.1
+	}: Props = $props();
 
 	const material = defineMaterial({
 		fragment: `
@@ -20,6 +29,6 @@ fn frag(uv: vec2f) -> vec4f {
 	});
 </script>
 
-<FragCanvas {material} {renderMode} showErrorOverlay={false}>
+<FragCanvas {material} {renderMode} {autoRender} {dpr} {maxDelta} showErrorOverlay={false}>
 	<MotionGPUProbe {onProbe} />
 </FragCanvas>

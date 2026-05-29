@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as advanced from '../lib/advanced';
 import * as core from '../lib/core/index';
@@ -9,6 +12,26 @@ import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
 import * as vue from '../lib/vue/index';
 import * as vueAdvanced from '../lib/vue/advanced';
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+function readPackageJson(): {
+	exports: Record<string, { types: string; default: string; svelte?: string }>;
+} {
+	return JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8')) as {
+		exports: Record<string, { types: string; default: string; svelte?: string }>;
+	};
+}
+
+function sourceEntryForDistPath(distPath: string): string {
+	return path.join(
+		packageRoot,
+		distPath
+			.replace(/^\.\//, '')
+			.replace(/^dist\//, 'src/lib/')
+			.replace(/\.js$/, '.ts')
+	);
+}
 
 describe('public api contract', () => {
 	it('exports framework-agnostic runtime symbols from root and /core entrypoints', () => {
@@ -147,5 +170,37 @@ describe('public api contract', () => {
 			'usePointer',
 			'useTexture'
 		]);
+	});
+
+	it('keeps package export declarations aligned with source entrypoints', () => {
+		const packageJson = readPackageJson();
+		const exportEntries = Object.entries(packageJson.exports);
+		expect(exportEntries.map(([key]) => key).sort()).toEqual([
+			'.',
+			'./advanced',
+			'./core',
+			'./core/advanced',
+			'./react',
+			'./react/advanced',
+			'./svelte',
+			'./svelte/advanced',
+			'./vue',
+			'./vue/advanced'
+		]);
+
+		for (const [exportName, exportConfig] of exportEntries) {
+			expect(exportConfig.types, exportName).toMatch(/^\.\/dist\/.+\.d\.ts$/);
+			expect(exportConfig.default, exportName).toMatch(/^\.\/dist\/.+\.js$/);
+			expect(exportConfig.types, exportName).toBe(exportConfig.default.replace(/\.js$/, '.d.ts'));
+			expect(() =>
+				readFileSync(sourceEntryForDistPath(exportConfig.default), 'utf8')
+			).not.toThrow();
+
+			if (exportName.startsWith('./svelte')) {
+				expect(exportConfig.svelte, exportName).toBe(exportConfig.default);
+			} else {
+				expect(exportConfig.svelte, exportName).toBeUndefined();
+			}
+		}
 	});
 });

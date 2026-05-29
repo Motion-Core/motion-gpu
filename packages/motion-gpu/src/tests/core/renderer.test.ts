@@ -493,6 +493,183 @@ describe('createRenderer', () => {
 		);
 	});
 
+	it('reallocates scaled render targets when DPR-scaled canvas size changes', async () => {
+		const runtime = createWebGpuRuntime();
+		let dpr = 1;
+		const pass: RenderPass = {
+			needsSwap: false,
+			input: 'uHalf',
+			output: 'canvas',
+			render: vi.fn()
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getDpr: () => dpr,
+			renderTargets: {
+				uHalf: { scale: 0.5, format: 'rgba8unorm' }
+			},
+			passes: [
+				{
+					needsSwap: false,
+					output: 'uHalf',
+					render: vi.fn()
+				},
+				pass
+			]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {},
+			canvasSize: { width: 320, height: 240 }
+		});
+
+		expect(pass.render).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ width: 160, height: 120 }),
+				targets: expect.objectContaining({
+					uHalf: expect.objectContaining({ width: 160, height: 120 })
+				})
+			})
+		);
+		const firstTarget = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 160 && size.height === 120;
+		});
+		expect(firstTarget).toBeDefined();
+
+		dpr = 2;
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {},
+			canvasSize: { width: 320, height: 240 }
+		});
+
+		expect(firstTarget?.destroy).toHaveBeenCalledTimes(1);
+		expect(pass.render).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ width: 320, height: 240 }),
+				targets: expect.objectContaining({
+					uHalf: expect.objectContaining({ width: 320, height: 240 })
+				})
+			})
+		);
+
+		renderer.destroy();
+	});
+
+	it('keeps pass and target lifecycle correct across topology churn', async () => {
+		const runtime = createWebGpuRuntime();
+		const passA: RenderPass = {
+			needsSwap: false,
+			output: 'fxA',
+			render: vi.fn(),
+			setSize: vi.fn(),
+			dispose: vi.fn()
+		};
+		const passB: RenderPass = {
+			needsSwap: false,
+			input: 'fxA',
+			output: 'canvas',
+			render: vi.fn(),
+			setSize: vi.fn(),
+			dispose: vi.fn()
+		};
+		const passC: RenderPass = {
+			needsSwap: false,
+			output: 'fxB',
+			render: vi.fn(),
+			setSize: vi.fn(),
+			dispose: vi.fn()
+		};
+
+		let activePasses: RenderPass[] = [passA, passB];
+		let activeTargets: RenderTargetDefinitionMap = {
+			fxA: { width: 6, height: 6, format: 'rgba8unorm' }
+		};
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getPasses: () => activePasses,
+			getRenderTargets: () => activeTargets
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+		const fxATexture = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 6 && size.height === 6;
+		});
+		expect(fxATexture).toBeDefined();
+		expect(passA.setSize).toHaveBeenCalledTimes(1);
+		expect(passB.setSize).toHaveBeenCalledTimes(1);
+
+		activePasses = [passC];
+		activeTargets = {
+			fxB: { width: 12, height: 4, format: 'rgba8unorm' }
+		};
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(passA.dispose).toHaveBeenCalledTimes(1);
+		expect(passB.dispose).toHaveBeenCalledTimes(1);
+		expect(passC.setSize).toHaveBeenCalledTimes(1);
+		expect(fxATexture?.destroy).toHaveBeenCalledTimes(1);
+		expect(passC.render).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				targets: expect.not.objectContaining({
+					fxA: expect.anything()
+				})
+			})
+		);
+
+		activePasses = [passA, passC];
+		activeTargets = {
+			fxA: { width: 10, height: 10, format: 'rgba8unorm' },
+			fxB: { width: 12, height: 4, format: 'rgba8unorm' }
+		};
+		renderer.render({
+			time: 0.032,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(passA.setSize).toHaveBeenCalledTimes(2);
+		expect(passC.setSize).toHaveBeenCalledTimes(1);
+		expect(passA.render).toHaveBeenCalledTimes(2);
+		expect(passC.render).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				targets: expect.objectContaining({
+					fxA: expect.objectContaining({ width: 10, height: 10 }),
+					fxB: expect.objectContaining({ width: 12, height: 4 })
+				})
+			})
+		);
+
+		renderer.destroy();
+		expect(passA.dispose).toHaveBeenCalledTimes(2);
+		expect(passC.dispose).toHaveBeenCalledTimes(1);
+	});
+
 	it('does not register initialization cleanups after startup during runtime texture reallocations', async () => {
 		const runtime = createWebGpuRuntime();
 		const sourceA = document.createElement('canvas');

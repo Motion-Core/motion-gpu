@@ -118,6 +118,18 @@ const MotionGPUWithControlProbe = defineComponent({
 		renderMode: {
 			type: String as PropType<RenderMode>,
 			default: 'always'
+		},
+		autoRender: {
+			type: Boolean,
+			default: true
+		},
+		dpr: {
+			type: Number,
+			default: 1
+		},
+		maxDelta: {
+			type: Number,
+			default: 0.1
 		}
 	},
 	setup(props) {
@@ -135,6 +147,9 @@ fn frag(uv: vec2f) -> vec4f {
 				{
 					material: probeMaterial,
 					renderMode: props.renderMode,
+					autoRender: props.autoRender,
+					dpr: props.dpr,
+					maxDelta: props.maxDelta,
 					showErrorOverlay: false
 				},
 				{
@@ -343,6 +358,53 @@ describe('Vue FragCanvas runtime', () => {
 
 		expect(created[1]?.options.color).toEqual({ workingFormat: 'rgba16float' });
 		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('updates runtime context when control props change after mount', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		const contexts: MotionGPUContext[] = [];
+
+		const view = render(MotionGPUWithControlProbe, {
+			props: {
+				onProbe: (value: MotionGPUContext) => {
+					contexts[0] = value;
+				},
+				autoRender: true,
+				dpr: 1,
+				maxDelta: 0.1
+			}
+		});
+
+		await waitFor(() => {
+			expect(contexts[0]).toBeDefined();
+		});
+		const context = contexts[0];
+		if (!context) {
+			throw new Error('Missing MotionGPU context');
+		}
+		expect(context?.autoRender.current).toBe(true);
+		expect(context?.dpr.current).toBe(1);
+		expect(context?.maxDelta.current).toBe(0.1);
+
+		await view.rerender({
+			onProbe: (value: MotionGPUContext) => {
+				contexts[0] = value;
+			},
+			autoRender: false,
+			dpr: 2,
+			maxDelta: 0.25
+		});
+
+		await waitFor(() => {
+			expect(context?.autoRender.current).toBe(false);
+			expect(context?.dpr.current).toBe(2);
+			expect(context?.maxDelta.current).toBe(0.25);
+		});
+		expect(rafQueue.length).toBeGreaterThan(0);
 	});
 
 	it('applies retry backoff after renderer initialization failure and recovers', async () => {

@@ -189,6 +189,53 @@ describe('FragCanvas runtime', () => {
 		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);
 	});
 
+	it('updates runtime context when control props change after mount', async () => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		const contexts: MotionGPUContext[] = [];
+
+		const view = render(MotionGPUWithControlProbe, {
+			props: {
+				onProbe: (value: unknown) => {
+					contexts[0] = value as MotionGPUContext;
+				},
+				autoRender: true,
+				dpr: 1,
+				maxDelta: 0.1
+			}
+		});
+
+		await waitFor(() => {
+			expect(contexts[0]).toBeDefined();
+		});
+		const context = contexts[0];
+		if (!context) {
+			throw new Error('Missing MotionGPU context');
+		}
+		expect(context?.autoRender.current).toBe(true);
+		expect(context?.dpr.current).toBe(1);
+		expect(context?.maxDelta.current).toBe(0.1);
+
+		await view.rerender({
+			onProbe: (value: unknown) => {
+				contexts[0] = value as MotionGPUContext;
+			},
+			autoRender: false,
+			dpr: 2,
+			maxDelta: 0.25
+		});
+
+		await waitFor(() => {
+			expect(context?.autoRender.current).toBe(false);
+			expect(context?.dpr.current).toBe(2);
+			expect(context?.maxDelta.current).toBe(0.25);
+		});
+		expect(rafQueue.length).toBeGreaterThan(0);
+	});
+
 	it('applies retry backoff after renderer initialization failure and recovers', async () => {
 		let now = 0;
 		vi.spyOn(performance, 'now').mockImplementation(() => now);

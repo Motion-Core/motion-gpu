@@ -20,6 +20,11 @@
 	let expandedGroups = $state<Record<string, boolean>>({});
 
 	const docHref = (slug: string) => (slug ? `/docs/${slug}` : '/docs');
+	const getGroupSlideDuration = (node: Element) => {
+		const height = Math.max(0, node.scrollHeight);
+		return Math.min(420, Math.max(160, height / 1.2));
+	};
+	const groupSlide = (node: Element) => slide(node, { duration: getGroupSlideDuration(node) });
 
 	function toggleGroup(slug: string) {
 		expandedGroups[slug] = !expandedGroups[slug];
@@ -57,10 +62,10 @@
 
 	<ScrollArea
 		class="flex-1"
-		viewportClass="p-4"
+		viewportClass="p-4 [overflow-anchor:none]"
 		viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 16px, black calc(100% - 16px), transparent);"
 	>
-		<nav class="flex flex-col space-y-1">
+		<nav class="flex flex-col gap-1">
 			<h4 class="mb-2 ml-2 text-xs font-medium tracking-wide text-foreground-muted/70 uppercase">
 				{docsUiConfig.sidebar.navigationLabel}
 			</h4>
@@ -69,40 +74,43 @@
 					{@const isGroupActive =
 						expandedGroups[doc.slug] ??
 						doc.items.some((item) => docHref(item.slug) === currentPath)}
-					<button
-						onclick={() => toggleGroup(doc.slug)}
-						class={cn(
-							'flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out hover:bg-background-muted hover:text-foreground',
-							isGroupActive ? 'text-foreground' : 'text-foreground-muted'
-						)}
-					>
-						<span>{doc.name}</span>
-						<ChevronRight
-							class={cn('size-4 transition-transform duration-150', isGroupActive && 'rotate-90')}
-						/>
-					</button>
-					{#if isGroupActive}
-						<div
-							transition:slide={{ duration: 220 }}
-							class="relative flex flex-col gap-1 overflow-hidden pl-5 before:absolute before:top-1 before:bottom-1 before:left-3 before:w-px before:bg-border"
+					<div class="flex flex-col">
+						<button
+							onclick={() => toggleGroup(doc.slug)}
+							class={cn(
+								'flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out hover:bg-background-muted hover:text-foreground',
+								isGroupActive ? 'text-foreground' : 'text-foreground-muted'
+							)}
 						>
-							{#each doc.items as item (item.slug)}
-								{@const href = docHref(item.slug)}
-								{@const isActive = currentPath === href}
-								<a
-									{href}
-									class={cn(
-										'block rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out',
-										isActive
-											? 'bg-accent/10 text-accent'
-											: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
-									)}
+							<span>{doc.name}</span>
+							<ChevronRight
+								class={cn('size-4 transition-transform duration-150', isGroupActive && 'rotate-90')}
+							/>
+						</button>
+						{#if isGroupActive}
+							<div transition:groupSlide class="overflow-hidden">
+								<div
+									class="relative flex flex-col gap-1 pt-1 pl-5 before:absolute before:top-2 before:bottom-1 before:left-3 before:w-px before:bg-border"
 								>
-									{item.name}
-								</a>
-							{/each}
-						</div>
-					{/if}
+									{#each doc.items as item (item.slug)}
+										{@const href = docHref(item.slug)}
+										{@const isActive = currentPath === href}
+										<a
+											{href}
+											class={cn(
+												'block rounded-sm px-3 py-1.5 text-sm font-medium tracking-normal transition-all duration-150 ease-out',
+												isActive
+													? 'bg-accent/10 text-accent'
+													: 'text-foreground-muted hover:bg-background-muted hover:text-foreground'
+											)}
+										>
+											{item.name}
+										</a>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
 				{:else}
 					{@const href = docHref(doc.slug)}
 					{@const isActive = currentPath === href}

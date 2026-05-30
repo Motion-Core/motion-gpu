@@ -16,11 +16,13 @@
 				<GlassPane
 					image="/image.jpg"
 					class="mix-blend-lighten"
-					distortion={0.4}
-					chromaticAberration={0.005}
-					waviness={0.0}
-					rods={15}
-					aria-hidden="true"
+					rotation={50}
+					refraction={1}
+					chromaticAberration={1}
+					panelWidth={0.5}
+					waveFrequency={0.0}
+					waveAmplitude={0.0}
+					speed={1}
 				/>
 			</div>
 		</div>

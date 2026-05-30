@@ -86,6 +86,9 @@ importers:
       magic-string:
         specifier: ^0.30.21
         version: 0.30.21
+      ogl:
+        specifier: ^1.0.11
+        version: 1.0.11
       rehype-slug:
         specifier: ^6.0.0
         version: 6.0.0
@@ -2569,6 +2572,9 @@ packages:
 
   obug@2.1.1:
     resolution: {integrity: sha512-uTqF9MuPraAQ+IsnPf366RG4cP9RtUi7MLO1N3KEc+wb0a6yKpeL0lmk2IB1jY5KHPAlTc6T/JRdC/YqxHNwkQ==}
+
+  ogl@1.0.11:
+    resolution: {integrity: sha512-kUpC154AFfxi16pmZUK4jk3J+8zxwTWGPo03EoYA8QPbzikHoaC82n6pNTbd+oEaJonaE8aPWBlX7ad9zrqLsA==}
 
   oniguruma-parser@0.12.2:
     resolution: {integrity: sha512-6HVa5oIrgMC6aA6WF6XyyqbhRPJrKR02L20+2+zpDtO5QAzGHAUGw5TKQvwi5vctNnRHkJYmjAhRVQF2EKdTQw==}
@@ -5547,6 +5553,8 @@ snapshots:
       object-keys: 1.1.1
 
   obug@2.1.1: {}
+
+  ogl@1.0.11: {}
 
   oniguruma-parser@0.12.2: {}
 

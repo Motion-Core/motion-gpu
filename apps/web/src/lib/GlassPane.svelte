@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { FragCanvas } from '@motion-core/motion-gpu/svelte';
-	import GlassPaneScene, { glassPaneMaterial } from './GlassPaneScene.svelte';
-	import type { ComponentProps } from 'svelte';
+	import Scene from './GlassPaneScene.svelte';
 	import { cn } from './utils/cn';
+	import type { ComponentProps } from 'svelte';
 
-	type SceneProps = ComponentProps<typeof GlassPaneScene>;
+	type SceneProps = ComponentProps<typeof Scene>;
 
 	interface Props {
 		/**
@@ -16,65 +15,68 @@
 		 */
 		class?: string;
 		/**
-		 * Strength of the refraction/distortion effect.
-		 * @default 1.0
+		 * Glass field rotation in degrees.
+		 * @default 0
 		 */
-		distortion?: SceneProps['distortion'];
+		rotation?: SceneProps['rotation'];
+		/**
+		 * Strength of the glass refraction.
+		 * @default 1
+		 */
+		refraction?: SceneProps['refraction'];
 		/**
 		 * Amount of chromatic aberration (color splitting).
-		 * @default 0.005
+		 * @default 1
 		 */
 		chromaticAberration?: SceneProps['chromaticAberration'];
 		/**
-		 * Speed of the wave animation.
-		 * @default 1.0
+		 * Width of the diagonal glass panels.
+		 * @default 0.82
+		 */
+		panelWidth?: SceneProps['panelWidth'];
+		/**
+		 * Frequency of the panel wave.
+		 * @default 0.0
+		 */
+		waveFrequency?: SceneProps['waveFrequency'];
+		/**
+		 * Amplitude of the panel wave.
+		 * @default 0.0
+		 */
+		waveAmplitude?: SceneProps['waveAmplitude'];
+		/**
+		 * Animation speed multiplier.
+		 * @default 0.65
 		 */
 		speed?: SceneProps['speed'];
-		/**
-		 * Amplitude of the wave distortion.
-		 * @default 0.05
-		 */
-		waviness?: SceneProps['waviness'];
-		/**
-		 * Frequency of the wave distortion.
-		 * @default 6.0
-		 */
-		frequency?: SceneProps['frequency'];
-		/**
-		 * Number of rods in the glass pane.
-		 * @default 5.0
-		 */
-		rods?: SceneProps['rods'];
 		[key: string]: unknown;
 	}
 
 	let {
 		image,
 		class: className = '',
-		distortion = 1.0,
-		chromaticAberration = 0.005,
-		speed = 1.0,
-		waviness = 0.05,
-		frequency = 6.0,
-		rods = 5.0,
+		rotation = 0,
+		refraction = 1,
+		chromaticAberration = 1,
+		panelWidth = 0.82,
+		waveFrequency = 0.0,
+		waveAmplitude = 0.0,
+		speed = 0.65,
 		...rest
 	}: Props = $props();
-
-	const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
 </script>
 
 <div class={cn('relative h-full w-full overflow-hidden', className)} {...rest}>
 	<div class="absolute inset-0 z-0">
-		<FragCanvas material={glassPaneMaterial} {dpr} class="h-full w-full">
-			<GlassPaneScene
-				{image}
-				{distortion}
-				{chromaticAberration}
-				{speed}
-				{waviness}
-				{frequency}
-				{rods}
-			/>
-		</FragCanvas>
+		<Scene
+			{image}
+			{rotation}
+			{refraction}
+			{chromaticAberration}
+			{panelWidth}
+			{waveFrequency}
+			{waveAmplitude}
+			{speed}
+		/>
 	</div>
 </div>

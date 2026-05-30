@@ -29,13 +29,6 @@
 
 	let isReady = $state(false);
 
-	type HighlightedCode = { light: string; dark: string } | null;
-	let highlighted = $state<Record<Framework, HighlightedCode>>({
-		svelte: null,
-		react: null,
-		vue: null
-	});
-
 	const codeMap: Record<Framework, string> = $derived({
 		svelte: svelteCode,
 		react: reactCode,
@@ -43,22 +36,24 @@
 	});
 	const activeCode = $derived(codeMap[frameworkStore.active]);
 
-	$effect(() => {
+	const highlighted = $derived.by(() => {
 		const toHighlight: Record<Framework, { code: string; lang: string }> = {
 			svelte: { code: svelteCode, lang: svelteLang },
 			react: { code: reactCode, lang: reactLang },
 			vue: { code: vueCode, lang: vueLang }
 		};
+		const highlighter = getHighlighter();
+		const highlightedCode = {} as Record<Framework, { light: string; dark: string }>;
 
-		getHighlighter().then((highlighter) => {
-			for (const fw of frameworks) {
-				const { code, lang } = toHighlight[fw];
-				highlighted[fw] = {
-					light: highlighter.codeToHtml(code, { lang, theme: 'github-light' }),
-					dark: highlighter.codeToHtml(code, { lang, theme: 'github-dark' })
-				};
-			}
-		});
+		for (const fw of frameworks) {
+			const { code, lang } = toHighlight[fw];
+			highlightedCode[fw] = {
+				light: highlighter.codeToHtml(code, { lang, theme: 'github-light' }),
+				dark: highlighter.codeToHtml(code, { lang, theme: 'github-dark' })
+			};
+		}
+
+		return highlightedCode;
 	});
 
 	onMount(() => {
@@ -109,18 +104,12 @@
 		<div
 			class="min-h-12.5 p-4 [&>div]:mt-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&>div]:[box-shadow:none]!"
 		>
-			{#if highlighted[frameworkStore.active]}
-				<ShikiCodeBlock
-					code=""
-					htmlLight={highlighted[frameworkStore.active]!.light}
-					htmlDark={highlighted[frameworkStore.active]!.dark}
-					unstyled={true}
-				/>
-			{:else}
-				<code class="block font-mono text-sm leading-relaxed whitespace-pre text-foreground">
-					{activeCode}
-				</code>
-			{/if}
+			<ShikiCodeBlock
+				code=""
+				htmlLight={highlighted[frameworkStore.active].light}
+				htmlDark={highlighted[frameworkStore.active].dark}
+				unstyled={true}
+			/>
 		</div>
 	</div>
 </div>

@@ -210,7 +210,7 @@ const projectPointerToArcball = (
 	const width = Math.max(rect.width, 1);
 	const height = Math.max(rect.height, 1);
 	let x = ((clientX - rect.left) / width) * 2 - 1;
-	let y = ((clientY - rect.top) / height) * 2 - 1;
+	let y = 1 - ((clientY - rect.top) / height) * 2;
 
 	const radiusSq = x * x + y * y;
 	if (radiusSq > 1) {
@@ -304,19 +304,25 @@ const updateDrag = (
 	const rotateDeltaY = state.deltaPx[0] * DRAG_SENSITIVITY;
 	const rotateDeltaX = state.deltaPx[1] * DRAG_SENSITIVITY;
 
-	applyOrbitDelta(rotateDeltaY, rotateDeltaX);
+	const arcballVec = projectPointerToArcball(event.clientX, event.clientY, canvas);
+	if (lastArcballVec) {
+		const deltaQuat = quatFromUnitVectors(lastArcballVec, arcballVec);
+		sceneQuat = quatMultiply(deltaQuat, sceneQuat);
+
+		const angularAxisLength = Math.hypot(deltaQuat[0], deltaQuat[1], deltaQuat[2]);
+		if (angularAxisLength > 1e-5) {
+			dragAngularAxis = normalizeVec3([deltaQuat[0], deltaQuat[1], deltaQuat[2]]);
+			const angularDelta = 2 * Math.atan2(angularAxisLength, Math.abs(deltaQuat[3]));
+			const instantAngularSpeed = angularDelta / dt;
+			dragAngularSpeed += (instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
+		}
+	}
+	lastArcballVec = arcballVec;
 
 	const instantVelocityY = rotateDeltaY / dt;
 	const instantVelocityX = rotateDeltaX / dt;
 	dragVelocityY += (instantVelocityY - dragVelocityY) * DRAG_VELOCITY_SMOOTHING;
 	dragVelocityX += (instantVelocityX - dragVelocityX) * DRAG_VELOCITY_SMOOTHING;
-
-	const angle = Math.hypot(rotateDeltaY, rotateDeltaX);
-	if (angle > 1e-5) {
-		dragAngularAxis = normalizeVec3([rotateDeltaX / angle, rotateDeltaY / angle, 0]);
-		const instantAngularSpeed = angle / dt;
-		dragAngularSpeed += (instantAngularSpeed - dragAngularSpeed) * ANGULAR_VELOCITY_SMOOTHING;
-	}
 };
 
 const endDrag = (canvas: HTMLCanvasElement): void => {

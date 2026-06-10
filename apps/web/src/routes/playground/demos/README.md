@@ -9,8 +9,9 @@ Add a new demo by creating a folder in this directory:
 - `demos/<demo-id>/vue/App.vue` (required, Vue variant)
 - `demos/<demo-id>/vue/runtime.vue` (optional, Vue runtime helpers)
 - `demos/<demo-id>/<any-file>` (optional shared file; loaded as `src/<any-file>`)
+- `demos/<demo-id>/shaders/**/*.wgsl` (preferred shared WGSL shader/include files; import from every variant with `?raw`)
 - `demos/<demo-id>/<framework>/<any-file>` (optional framework-specific file; loaded as `src/<any-file>` for that framework)
-- `demos/<demo-id>/<framework>/shaders/**/*.wgsl` (optional WGSL shader/include files; import from the variant with `?raw`)
+- `demos/<demo-id>/<framework>/shaders/**/*.wgsl` (optional framework-specific WGSL shader/include files; use only when variants need different shader code)
 
 Rules:
 
@@ -30,10 +31,10 @@ demos/
     react/
       App.tsx
       runtime.tsx
-      shaders/
-        fragment.wgsl
     vue/
       App.vue
       runtime.vue
+    shaders/
+      fragment.wgsl
     shader.ts
 ```

@@ -14,6 +14,8 @@ The pass constructors are framework-agnostic and available from all entrypoints.
 
 The stable public compute API is intentionally narrow: provide WGSL source and a dispatch strategy through `ComputePass` or `PingPongComputePass`.
 
+If your simulation is a fullscreen texture update that only needs to read the previous pixel state and write the next color, prefer [`PingPongShaderPass`](/docs/api-passes-reference#pingpongshaderpass). Use compute passes when you need workgroup control, storage buffers, storage textures, or non-fragment data layouts.
+
 ## Overview
 
 Compute shaders operate on **storage buffers** and **storage textures** rather than rendering pixels. They execute a user-defined WGSL kernel across a configurable grid of workgroups.
@@ -35,14 +37,14 @@ A single-dispatch compute pass that runs a WGSL compute shader.
 import { ComputePass } from '@motion-core/motion-gpu';
 
 const computePass = new ComputePass({
-  compute: `
+	compute: `
 @compute @workgroup_size(64)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
   particles[i] = vec4f(f32(i) * 0.01, 0.0, 0.0, 1.0);
 }
 `,
-  dispatch: [16] // 16 workgroups × 64 threads = 1024 invocations
+	dispatch: [16] // 16 workgroups × 64 threads = 1024 invocations
 });
 ```
 
@@ -61,48 +63,48 @@ The library extracts the workgroup size from the attribute and validates the ent
 
 The `dispatch` option controls how many workgroups are launched:
 
-| Mode | Value | Behavior |
-| --- | --- | --- |
-| **Static** | `[x]`, `[x, y]`, or `[x, y, z]` | Fixed workgroup counts |
-| **Auto** | `'auto'` | Derived from `ceil(canvasSize / workgroupSize)` per axis |
-| **Dynamic** | `(ctx) => [x, y, z]` | Called each frame with `ComputeDispatchContext` |
+| Mode        | Value                           | Behavior                                                 |
+| ----------- | ------------------------------- | -------------------------------------------------------- |
+| **Static**  | `[x]`, `[x, y]`, or `[x, y, z]` | Fixed workgroup counts                                   |
+| **Auto**    | `'auto'`                        | Derived from `ceil(canvasSize / workgroupSize)` per axis |
+| **Dynamic** | `(ctx) => [x, y, z]`            | Called each frame with `ComputeDispatchContext`          |
 
 ```ts
 // Auto dispatch — scales with canvas resolution
 const autoPass = new ComputePass({
-  compute: myShader,
-  dispatch: 'auto'
+	compute: myShader,
+	dispatch: 'auto'
 });
 
 // Dynamic dispatch based on frame time
 const dynamicPass = new ComputePass({
-  compute: myShader,
-  dispatch: (ctx) => [
-    Math.ceil(ctx.width / ctx.workgroupSize[0]),
-    Math.ceil(ctx.height / ctx.workgroupSize[1]),
-    1
-  ]
+	compute: myShader,
+	dispatch: (ctx) => [
+		Math.ceil(ctx.width / ctx.workgroupSize[0]),
+		Math.ceil(ctx.height / ctx.workgroupSize[1]),
+		1
+	]
 });
 ```
 
 ### `ComputeDispatchContext`
 
-| Field | Type | Description |
-| --- | --- | --- |
-| `width` | `number` | Canvas width in pixels |
-| `height` | `number` | Canvas height in pixels |
-| `time` | `number` | Frame timestamp in seconds |
-| `delta` | `number` | Frame delta in seconds |
+| Field           | Type                       | Description                     |
+| --------------- | -------------------------- | ------------------------------- |
+| `width`         | `number`                   | Canvas width in pixels          |
+| `height`        | `number`                   | Canvas height in pixels         |
+| `time`          | `number`                   | Frame timestamp in seconds      |
+| `delta`         | `number`                   | Frame delta in seconds          |
 | `workgroupSize` | `[number, number, number]` | Parsed `@workgroup_size` values |
 
 ### Runtime API
 
-| Method | Description |
-| --- | --- |
-| `setCompute(source)` | Replace compute shader (triggers pipeline rebuild) |
-| `setDispatch(dispatch)` | Update dispatch strategy |
-| `getCompute()` | Get current shader source |
-| `getWorkgroupSize()` | Get parsed `[x, y, z]` workgroup size |
+| Method                  | Description                                        |
+| ----------------------- | -------------------------------------------------- |
+| `setCompute(source)`    | Replace compute shader (triggers pipeline rebuild) |
+| `setDispatch(dispatch)` | Update dispatch strategy                           |
+| `getCompute()`          | Get current shader source                          |
+| `getWorkgroupSize()`    | Get parsed `[x, y, z]` workgroup size              |
 
 ## PingPongComputePass
 
@@ -112,7 +114,7 @@ An iterative compute pass for simulations that require multiple compute iteratio
 import { PingPongComputePass } from '@motion-core/motion-gpu';
 
 const simulation = new PingPongComputePass({
-  compute: `
+	compute: `
 @compute @workgroup_size(8, 8)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
   // Read from buffer A, write to buffer B (alternates each iteration)
@@ -121,49 +123,49 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   textureStore(simB, id.xy, next);
 }
 `,
-  target: 'sim',       // Texture key — engine creates simA/simB bindings
-  iterations: 4,       // 4 compute iterations per frame
-  dispatch: 'auto'
+	target: 'sim', // Texture key — engine creates simA/simB bindings
+	iterations: 4, // 4 compute iterations per frame
+	dispatch: 'auto'
 });
 ```
 
 ### Options
 
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `compute` | `string` | **Required** | WGSL compute shader source |
-| `target` | `string` | **Required** | Storage texture key from `material.textures` (`storage: true`). Storage texture targets require explicit `width` and `height`. |
-| `iterations` | `number` | `1` | Iterations per frame (must be `>= 1`) |
-| `dispatch` | dispatch mode | `'auto'` | Workgroup dispatch strategy |
-| `enabled` | `boolean` | `true` | Whether pass is active |
+| Option       | Type          | Default      | Description                                                                                                                    |
+| ------------ | ------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `compute`    | `string`      | **Required** | WGSL compute shader source                                                                                                     |
+| `target`     | `string`      | **Required** | Storage texture key from `material.textures` (`storage: true`). Storage texture targets require explicit `width` and `height`. |
+| `iterations` | `number`      | `1`          | Iterations per frame (must be `>= 1`)                                                                                          |
+| `dispatch`   | dispatch mode | `'auto'`     | Workgroup dispatch strategy                                                                                                    |
+| `enabled`    | `boolean`     | `true`       | Whether pass is active                                                                                                         |
 
 ### Runtime API
 
-| Method | Description |
-| --- | --- |
-| `getCurrentOutput()` | Get texture key holding latest result (alternates A/B) |
-| `advanceFrame()` | Advance internal frame counter (called by renderer) |
-| `setIterations(count)` | Update iteration count (must be `>= 1`) |
-| `setCompute(source)` | Replace compute shader |
-| `setDispatch(dispatch)` | Update dispatch strategy |
+| Method                  | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `getCurrentOutput()`    | Get texture key holding latest result (alternates A/B) |
+| `advanceFrame()`        | Advance internal frame counter (called by renderer)    |
+| `setIterations(count)`  | Update iteration count (must be `>= 1`)                |
+| `setCompute(source)`    | Replace compute shader                                 |
+| `setDispatch(dispatch)` | Update dispatch strategy                               |
 
 ## Bind group layout
 
 `ComputePass` shaders use this bind group layout:
 
-| Group | Contents |
-| --- | --- |
+| Group      | Contents                                                                |
+| ---------- | ----------------------------------------------------------------------- |
 | `group(0)` | Frame uniforms (`motiongpuFrame`) + user uniforms (`motiongpuUniforms`) |
-| `group(1)` | Storage buffers (one binding per declared buffer) |
-| `group(2)` | Storage textures (one binding per declared storage texture) |
+| `group(1)` | Storage buffers (one binding per declared buffer)                       |
+| `group(2)` | Storage textures (one binding per declared storage texture)             |
 
 `fragmentVisible: false` affects only fragment-stage bindings (`group(0)` in the render pipeline). Compute storage bindings in `group(2)` are still generated and bound normally.
 
 `PingPongComputePass` uses generated A/B texture bindings at `group(2)`:
 
-| Binding | Contents |
-| --- | --- |
-| `@group(2) @binding(0)` | `${target}A` (read texture) |
+| Binding                 | Contents                             |
+| ----------------------- | ------------------------------------ |
+| `@group(2) @binding(0)` | `${target}A` (read texture)          |
 | `@group(2) @binding(1)` | `${target}B` (write storage texture) |
 
 Storage buffers are automatically bound in alphabetical order by name. You access them by their declared name directly in WGSL:
@@ -177,11 +179,11 @@ Storage buffers are automatically bound in alphabetical order by name. You acces
 
 ## Compute + fragment integration
 
-Compute passes and render passes coexist in the same `passes` array. All enabled compute passes dispatch **before** the scene render so that storage textures and buffers are up-to-date when the fragment shader reads them:
+Compute passes, fragment-feedback passes, and render passes coexist in the same `passes` array. All enabled compute passes dispatch **before** the scene render so that storage textures and buffers are up-to-date when the fragment shader reads them:
 
 ```ts
 const material = defineMaterial({
-  fragment: `
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   // Read particle data from storage buffer (read-only in fragment)
   let idx = u32(uv.x * 255.0);
@@ -189,17 +191,17 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(particle.rgb, 1.0);
 }
 `,
-  storageBuffers: {
-    particles: {
-      size: 1024 * 16, // 1024 vec4f particles
-      type: 'array<vec4f>',
-      access: 'read-write'
-    }
-  }
+	storageBuffers: {
+		particles: {
+			size: 1024 * 16, // 1024 vec4f particles
+			type: 'array<vec4f>',
+			access: 'read-write'
+		}
+	}
 });
 
 const simulate = new ComputePass({
-  compute: `
+	compute: `
 @compute @workgroup_size(64)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
   let i = id.x;
@@ -207,7 +209,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   particles[i] = pos + vec4f(0.0, -0.001, 0.0, 0.0);
 }
 `,
-  dispatch: [16]
+	dispatch: [16]
 });
 ```
 
@@ -222,7 +224,7 @@ Compute passes have `kind: 'compute'` in the render graph plan and behave differ
 - They do **not** participate in slot routing (`source`/`target`/`canvas`).
 - They do **not** swap ping-pong buffers.
 - They execute their compute pipeline before the base scene render.
-- Their relative order against other compute passes is preserved.
+- Their relative order against other pre-scene passes is preserved.
 - Interleaving a compute pass between two render passes in the array does **not** create a mid-post-process compute step.
 - They share the same command encoder and submit queue as render passes.
 - Compute-only pipelines render the base scene directly to `canvas`; they do not allocate post-process ping-pong textures or run a final blit.
@@ -234,6 +236,7 @@ Disabled compute passes (`enabled: false`) are fully skipped.
 Compute shader compilation errors are classified as `COMPUTE_COMPILATION_FAILED` with `severity: 'error'` and `recoverable: true`. They go through the same error normalization pipeline as fragment shader errors.
 
 Structured diagnostics for compute compilation failures include:
+
 - `shaderStage: 'compute'`
 - `computeSource` (original user source)
 - source mapping entries with `sourceLocation.kind = 'compute'`

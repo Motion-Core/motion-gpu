@@ -11,7 +11,7 @@ description: Creating immutable, validated materials with the defineMaterial API
 import { defineMaterial } from '@motion-core/motion-gpu';
 
 const material = defineMaterial({
-  fragment: `
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   return vec4f(uv.x, uv.y, 0.5, 1.0);
 }
@@ -21,14 +21,14 @@ fn frag(uv: vec2f) -> vec4f {
 
 ## Input fields
 
-| Field | Type | Required | Description |
-| --- | --- | --- | --- |
-| `fragment` | `string` | **Yes** | WGSL fragment source containing `fn frag(uv: vec2f) -> vec4f` |
-| `uniforms` | `UniformMap` | No | Named uniform declarations with initial values |
-| `textures` | `TextureDefinitionMap` | No | Named texture declarations with sampler/upload config |
-| `defines` | `MaterialDefines` | No | Compile-time constants injected as `const` |
-| `includes` | `MaterialIncludes` | No | Named WGSL source chunks for `#include` expansion |
-| `storageBuffers` | `StorageBufferDefinitionMap` | No | Named GPU storage buffer declarations for compute/fragment access |
+| Field            | Type                         | Required | Description                                                       |
+| ---------------- | ---------------------------- | -------- | ----------------------------------------------------------------- |
+| `fragment`       | `string`                     | **Yes**  | WGSL fragment source containing `fn frag(uv: vec2f) -> vec4f`     |
+| `uniforms`       | `UniformMap`                 | No       | Named uniform declarations with initial values                    |
+| `textures`       | `TextureDefinitionMap`       | No       | Named texture declarations with sampler/upload config             |
+| `defines`        | `MaterialDefines`            | No       | Compile-time constants injected as `const`                        |
+| `includes`       | `MaterialIncludes`           | No       | Named WGSL source chunks for `#include` expansion                 |
+| `storageBuffers` | `StorageBufferDefinitionMap` | No       | Named GPU storage buffer declarations for compute/fragment access |
 
 ## Fragment contract
 
@@ -78,26 +78,26 @@ This signature is combined with `FragCanvas` `color` pipeline options to form th
 
 ### What triggers rebuilds vs. buffer updates
 
-| Change | Triggers rebuild? |
-| --- | --- |
-| Fragment shader text change | **Yes** |
-| Adding/removing a uniform | **Yes** |
-| Adding/removing a texture | **Yes** |
-| Adding/removing a storage buffer | **Yes** |
-| Changing storage buffer size/type/access | **Yes** |
-| Changing texture sampler config | **Yes** |
-| Changing texture `fragmentVisible` | **Yes** |
-| Changing a define value | **Yes** |
-| Changing `color` pipeline options on `FragCanvas` | **Yes** |
-| Changing a uniform **value** at runtime | No — buffer update only |
-| Changing a texture **source** at runtime | No — upload only |
-| Writing to a storage buffer at runtime | No — pending write flushed next frame |
+| Change                                            | Triggers rebuild?                     |
+| ------------------------------------------------- | ------------------------------------- |
+| Fragment shader text change                       | **Yes**                               |
+| Adding/removing a uniform                         | **Yes**                               |
+| Adding/removing a texture                         | **Yes**                               |
+| Adding/removing a storage buffer                  | **Yes**                               |
+| Changing storage buffer size/type/access          | **Yes**                               |
+| Changing texture sampler config                   | **Yes**                               |
+| Changing texture `fragmentVisible`                | **Yes**                               |
+| Changing a define value                           | **Yes**                               |
+| Changing `color` pipeline options on `FragCanvas` | **Yes**                               |
+| Changing a uniform **value** at runtime           | No — buffer update only               |
+| Changing a texture **source** at runtime          | No — upload only                      |
+| Writing to a storage buffer at runtime            | No — pending write flushed next frame |
 
 ## Full example with all fields
 
 ```ts
 const material = defineMaterial({
-  fragment: `
+	fragment: `
 #include <sdf>
 
 fn frag(uv: vec2f) -> vec4f {
@@ -113,46 +113,46 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(finalColor, 1.0);
 }
 `,
-  uniforms: {
-    uTime: 0,
-    uColor: [0.2, 0.8, 1.0]
-  },
-  textures: {
-    uBackground: {
-      filter: 'linear',
-      addressModeU: 'repeat',
-      addressModeV: 'repeat'
-    }
-  },
-  defines: {
-    EDGE_WIDTH: 0.003
-  },
-  includes: {
-    sdf: `
+	uniforms: {
+		uTime: 0,
+		uColor: [0.2, 0.8, 1.0]
+	},
+	textures: {
+		uBackground: {
+			filter: 'linear',
+			addressModeU: 'repeat',
+			addressModeV: 'repeat'
+		}
+	},
+	defines: {
+		EDGE_WIDTH: 0.003
+	},
+	includes: {
+		sdf: `
 fn sdCircle(p: vec2f, r: f32) -> f32 {
   return length(p) - r;
 }
 `
-  }
+	}
 });
 ```
 
 ## Misuse guards
 
-| Invalid input | Result |
-| --- | --- |
-| Object not created with `defineMaterial` passed to renderer | Throws |
-| Invalid identifier in uniforms/textures/defines/includes | Throws |
-| Invalid uniform value shape (e.g., 5-element array) | Throws |
-| Missing fragment contract (`fn frag(...)`) | Throws |
-| Non-finite define number | Throws |
-| Fractional `i32` or `u32` define | Throws |
-| Negative `u32` define | Throws |
+| Invalid input                                                                   | Result |
+| ------------------------------------------------------------------------------- | ------ |
+| Object not created with `defineMaterial` passed to renderer                     | Throws |
+| Invalid identifier in uniforms/textures/defines/includes                        | Throws |
+| Invalid uniform value shape (e.g., 5-element array)                             | Throws |
+| Missing fragment contract (`fn frag(...)`)                                      | Throws |
+| Non-finite define number                                                        | Throws |
+| Fractional `i32` or `u32` define                                                | Throws |
+| Negative `u32` define                                                           | Throws |
 | Invalid `vec2f` / `vec3f` / `vec4f` define tuple length or non-finite component | Throws |
-| Empty include source | Throws |
-| Storage buffer `size <= 0` or not multiple of 4 | Throws |
-| Invalid storage buffer type or access mode | Throws |
-| Storage buffer `initialData` exceeds declared `size` | Throws |
+| Empty include source                                                            | Throws |
+| Storage buffer `size <= 0` or not multiple of 4                                 | Throws |
+| Invalid storage buffer type or access mode                                      | Throws |
+| Storage buffer `initialData` exceeds declared `size`                            | Throws |
 
 ## Practical guidance
 
@@ -161,3 +161,4 @@ fn sdCircle(p: vec2f, r: f32) -> f32 {
 3. **Put value changes in `useFrame`** — animation, interaction, and dynamic state go through `state.setUniform()` and `state.setTexture()`.
 4. **Use defines for compile-time branches and static constants** — the compiler can eliminate dead code paths, and typed vector defines can hold static centers, directions, and color constants.
 5. **Use includes for shared utility code** — noise functions, SDF helpers, color transforms.
+6. **Declare `PingPongShaderPass` targets as sampled textures** — add a normal fragment-visible texture slot in `textures`, then let the pass own dimensions, format, iterations, and reset behavior. Use `storage: true` only for compute-driven `PingPongComputePass` targets.

@@ -1,9 +1,9 @@
 ---
 title: Shader Includes & Defines
-description: "Using #include directives and compile-time defines for reusable and configurable shader code."
+description: 'Using #include directives and compile-time defines for reusable and configurable shader code.'
 ---
 
-Motion GPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics.
+Motion GPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics. The same preprocessing contract is used by material fragments and `PingPongShaderPass` fragments.
 
 ## Include system
 
@@ -13,7 +13,7 @@ Includes are named WGSL source chunks declared in the material definition:
 
 ```ts
 const material = defineMaterial({
-  fragment: `
+	fragment: `
 #include <noise>
 
 fn frag(uv: vec2f) -> vec4f {
@@ -21,8 +21,8 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(vec3f(n), 1.0);
 }
 `,
-  includes: {
-    noise: `
+	includes: {
+		noise: `
 fn hash(p: vec2f) -> f32 {
   let h = dot(p, vec2f(127.1, 311.7));
   return fract(sin(h) * 43758.5453);
@@ -51,7 +51,7 @@ fn fbm(p: vec2f) -> f32 {
   return value;
 }
 `
-  }
+	}
 });
 ```
 
@@ -96,12 +96,12 @@ fn contrastAdjust(color: vec3f, contrast: f32) -> vec3f {
 
 ### Validation rules
 
-| Rule | Behaviour |
-| --- | --- |
-| Unknown include key | Throws `Unknown include "name" referenced in fragment shader.` |
+| Rule                   | Behaviour                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| Unknown include key    | Throws `Unknown include "name" referenced in fragment shader.`                           |
 | Circular include chain | Throws with full stack: `Circular include detected for "X". Include stack: A -> B -> X.` |
-| Invalid identifier | Throws naming validation error |
-| Empty source string | Throws `Include source must be a non-empty WGSL string.` |
+| Invalid identifier     | Throws naming validation error                                                           |
+| Empty source string    | Throws `Include source must be a non-empty WGSL string.`                                 |
 
 ### Include expansion order
 
@@ -120,7 +120,7 @@ Defines are compile-time constants injected as top-level WGSL `const` declaratio
 
 ```ts
 const material = defineMaterial({
-  fragment: `
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   var color = vec3f(0.0);
   if (ENABLE_GLOW) {
@@ -134,40 +134,40 @@ fn frag(uv: vec2f) -> vec4f {
   return vec4f(color, 1.0);
 }
 `,
-  defines: {
-    ENABLE_GLOW: true,
-    GLOW_INTENSITY: 0.02,
-    ITERATIONS: { type: 'i32', value: 8 },
-    GLOW_CENTER: { type: 'vec2f', value: [0.5, 0.5] },
-    TINT: { type: 'vec3f', value: [1.0, 0.65, 0.35] }
-  }
+	defines: {
+		ENABLE_GLOW: true,
+		GLOW_INTENSITY: 0.02,
+		ITERATIONS: { type: 'i32', value: 8 },
+		GLOW_CENTER: { type: 'vec2f', value: [0.5, 0.5] },
+		TINT: { type: 'vec3f', value: [1.0, 0.65, 0.35] }
+	}
 });
 ```
 
 ### Value forms and emitted WGSL
 
-| Input form | Emitted WGSL |
-| --- | --- |
-| `true` / `false` | `const NAME: bool = true;` / `const NAME: bool = false;` |
-| `42` (number) | `const NAME: f32 = 42.0;` |
-| `3.14` (number) | `const NAME: f32 = 3.14;` |
-| `{ type: 'bool', value: true }` | `const NAME: bool = true;` |
-| `{ type: 'f32', value: 1.5 }` | `const NAME: f32 = 1.5;` |
-| `{ type: 'i32', value: 8 }` | `const NAME: i32 = 8;` |
-| `{ type: 'u32', value: 16 }` | `const NAME: u32 = 16u;` |
-| `{ type: 'vec2f', value: [0.5, 0.25] }` | `const NAME: vec2f = vec2f(0.5, 0.25);` |
-| `{ type: 'vec3f', value: [1, 0.5, 0] }` | `const NAME: vec3f = vec3f(1.0, 0.5, 0.0);` |
-| `{ type: 'vec4f', value: [0, 0.25, 0.5, 1] }` | `const NAME: vec4f = vec4f(0.0, 0.25, 0.5, 1.0);` |
+| Input form                                    | Emitted WGSL                                             |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `true` / `false`                              | `const NAME: bool = true;` / `const NAME: bool = false;` |
+| `42` (number)                                 | `const NAME: f32 = 42.0;`                                |
+| `3.14` (number)                               | `const NAME: f32 = 3.14;`                                |
+| `{ type: 'bool', value: true }`               | `const NAME: bool = true;`                               |
+| `{ type: 'f32', value: 1.5 }`                 | `const NAME: f32 = 1.5;`                                 |
+| `{ type: 'i32', value: 8 }`                   | `const NAME: i32 = 8;`                                   |
+| `{ type: 'u32', value: 16 }`                  | `const NAME: u32 = 16u;`                                 |
+| `{ type: 'vec2f', value: [0.5, 0.25] }`       | `const NAME: vec2f = vec2f(0.5, 0.25);`                  |
+| `{ type: 'vec3f', value: [1, 0.5, 0] }`       | `const NAME: vec3f = vec3f(1.0, 0.5, 0.0);`              |
+| `{ type: 'vec4f', value: [0, 0.25, 0.5, 1] }` | `const NAME: vec4f = vec4f(0.0, 0.25, 0.5, 1.0);`        |
 
 ### Validation rules for defines
 
-| Rule | Result |
-| --- | --- |
-| Numeric values must be finite | Throws if `NaN` or `Infinity` |
-| `i32` / `u32` values must be integers | Throws if fractional |
-| `u32` values must be `>= 0` | Throws if negative |
+| Rule                                                                                 | Result                                           |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| Numeric values must be finite                                                        | Throws if `NaN` or `Infinity`                    |
+| `i32` / `u32` values must be integers                                                | Throws if fractional                             |
+| `u32` values must be `>= 0`                                                          | Throws if negative                               |
 | `vec2f` / `vec3f` / `vec4f` values must be finite numeric tuples of length 2 / 3 / 4 | Throws if length or component values are invalid |
-| Invalid identifier name | Throws naming validation error |
+| Invalid identifier name                                                              | Throws naming validation error                   |
 
 ### Expansion order
 
@@ -177,18 +177,18 @@ Defines are sorted alphabetically by key and prepended **before** the expanded f
 2. An empty separator line follows.
 3. The expanded fragment (with includes resolved) comes next.
 
-This is deterministic and part of the material signature, meaning changing a define value **always triggers a renderer rebuild** (unlike uniforms, which only update a buffer).
+This is deterministic and part of the material signature, meaning changing a material define value **always triggers a renderer rebuild** (unlike uniforms, which only update a buffer). For `PingPongShaderPass`, changing defines/includes through `setFragment(fragment, { defines, includes })` invalidates that pass pipeline cache and recompiles the feedback pass on the next render.
 
 ## Defines vs. uniforms: when to use which
 
-| Use case | Use defines | Use uniforms |
-| --- | --- | --- |
-| Feature toggles (`ENABLE_X`) | ✅ | ❌ |
-| Loop iteration counts | ✅ | ❌ |
-| Static vector constants (`CENTER`, `TINT`) | ✅ | ❌ |
-| Values that change every frame | ❌ | ✅ |
-| Values controlled by user interaction | ❌ | ✅ |
-| Performance-critical constants | ✅ (enables compiler optimization) | |
+| Use case                                   | Use defines                        | Use uniforms |
+| ------------------------------------------ | ---------------------------------- | ------------ |
+| Feature toggles (`ENABLE_X`)               | ✅                                 | ❌           |
+| Loop iteration counts                      | ✅                                 | ❌           |
+| Static vector constants (`CENTER`, `TINT`) | ✅                                 | ❌           |
+| Values that change every frame             | ❌                                 | ✅           |
+| Values controlled by user interaction      | ❌                                 | ✅           |
+| Performance-critical constants             | ✅ (enables compiler optimization) |              |
 
 **Key difference**: Defines are baked into the shader source at material definition time. Changing a define requires creating a new material and triggers a full pipeline rebuild. Uniforms are updated per-frame via buffer writes with no recompilation cost.
 

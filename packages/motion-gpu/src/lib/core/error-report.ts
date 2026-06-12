@@ -462,7 +462,17 @@ function classifyErrorMessage(
 		};
 	}
 
-	if (message.includes('PingPongComputePass must provide a target texture key.')) {
+	if (message.includes('PingPongShaderPass')) {
+		return {
+			code: 'PINGPONG_CONFIGURATION_INVALID',
+			severity: 'error',
+			recoverable: true,
+			title: 'Ping-pong shader pass is misconfigured',
+			hint: 'Verify PingPongShaderPass target texture, dimensions, iterations, format and fragment contract.'
+		};
+	}
+
+	if (message.includes('PingPongComputePass')) {
 		return {
 			code: 'PINGPONG_CONFIGURATION_INVALID',
 			severity: 'error',

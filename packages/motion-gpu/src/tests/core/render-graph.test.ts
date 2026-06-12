@@ -13,6 +13,7 @@ describe('render graph planner', () => {
 	it('returns canvas output when no passes are enabled', () => {
 		const plan = planRenderGraph([], [0, 0, 0, 1]);
 		expect(plan.steps).toEqual([]);
+		expect(plan.preSceneSteps).toEqual([]);
 		expect(plan.computeSteps).toEqual([]);
 		expect(plan.renderSteps).toEqual([]);
 		expect(plan.finalOutput).toBe('canvas');
@@ -29,6 +30,7 @@ describe('render graph planner', () => {
 			preserve: true,
 			clearColor: [0.1, 0.2, 0.3, 1]
 		});
+		expect(plan.preSceneSteps).toEqual([]);
 		expect(plan.computeSteps).toEqual([]);
 		expect(plan.renderSteps).toEqual([plan.steps[0]]);
 		expect(plan.finalOutput).toBe('source');
@@ -168,6 +170,7 @@ describe('render graph planner', () => {
 		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(1);
 		expect(plan.steps[0]?.kind).toBe('compute');
+		expect(plan.preSceneSteps).toEqual([plan.steps[0]]);
 		expect(plan.computeSteps).toEqual([plan.steps[0]]);
 		expect(plan.renderSteps).toEqual([]);
 	});
@@ -197,6 +200,7 @@ describe('render graph planner', () => {
 			render: () => {}
 		};
 		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		expect(plan.preSceneSteps).toHaveLength(1);
 		expect(plan.computeSteps).toHaveLength(1);
 		expect(plan.renderSteps).toHaveLength(0);
 		expect(plan.finalOutput).toBe('canvas');
@@ -213,6 +217,7 @@ describe('render graph planner', () => {
 		expect(plan.steps).toHaveLength(2);
 		expect(plan.steps[0]?.kind).toBe('compute');
 		expect(plan.steps[1]?.kind).toBe('render');
+		expect(plan.preSceneSteps).toEqual([plan.steps[0]]);
 		expect(plan.computeSteps).toEqual([plan.steps[0]]);
 		expect(plan.renderSteps).toEqual([plan.steps[1]]);
 	});
@@ -225,6 +230,7 @@ describe('render graph planner', () => {
 		};
 		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(0);
+		expect(plan.preSceneSteps).toHaveLength(0);
 		expect(plan.computeSteps).toHaveLength(0);
 		expect(plan.renderSteps).toHaveLength(0);
 	});
@@ -241,8 +247,45 @@ describe('render graph planner', () => {
 		);
 
 		expect(plan.steps.map((s) => s.kind)).toEqual(['compute', 'render', 'compute', 'render']);
+		expect(plan.preSceneSteps).toEqual([plan.steps[0], plan.steps[2]]);
 		expect(plan.computeSteps).toEqual([plan.steps[0], plan.steps[2]]);
 		expect(plan.renderSteps).toEqual([plan.steps[1], plan.steps[3]]);
+	});
+
+	it('plans ping-pong shader pass as a pre-scene feedback step', () => {
+		const feedbackPass = {
+			isPingPongShader: true as const,
+			enabled: true
+		};
+		const plan = planRenderGraph([feedbackPass as unknown as RenderPass], [0, 0, 0, 1]);
+
+		expect(plan.steps).toHaveLength(1);
+		expect(plan.steps[0]?.kind).toBe('feedback');
+		expect(plan.preSceneSteps).toEqual([plan.steps[0]]);
+		expect(plan.computeSteps).toEqual([]);
+		expect(plan.renderSteps).toEqual([]);
+		expect(plan.finalOutput).toBe('canvas');
+	});
+
+	it('preserves declaration order for compute and ping-pong shader pre-scene passes', () => {
+		const computePass = {
+			isCompute: true as const,
+			enabled: true
+		};
+		const feedbackPass = {
+			isPingPongShader: true as const,
+			enabled: true
+		};
+		const renderPass = createPass({ needsSwap: false, output: 'canvas' });
+		const plan = planRenderGraph(
+			[feedbackPass as unknown as RenderPass, computePass as unknown as RenderPass, renderPass],
+			[0, 0, 0, 1]
+		);
+
+		expect(plan.steps.map((step) => step.kind)).toEqual(['feedback', 'compute', 'render']);
+		expect(plan.preSceneSteps).toEqual([plan.steps[0], plan.steps[1]]);
+		expect(plan.computeSteps).toEqual([plan.steps[1]]);
+		expect(plan.renderSteps).toEqual([plan.steps[2]]);
 	});
 
 	it('backward compat: existing render-only plans set kind to render', () => {
@@ -289,6 +332,7 @@ describe('render graph planner', () => {
 	it('handles undefined passes parameter like empty array', () => {
 		const plan = planRenderGraph(undefined, [0, 0, 0, 1]);
 		expect(plan.steps).toEqual([]);
+		expect(plan.preSceneSteps).toEqual([]);
 		expect(plan.computeSteps).toEqual([]);
 		expect(plan.renderSteps).toEqual([]);
 		expect(plan.finalOutput).toBe('canvas');

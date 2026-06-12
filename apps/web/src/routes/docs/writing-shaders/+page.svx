@@ -20,6 +20,31 @@ If this signature is missing, `defineMaterial` throws immediately.
 
 Shader output is treated as linear color. In the default SDR path values are presented with the configured `color.outputEncoding`. When `FragCanvas` enables `color.toneMapping`, `color.dynamicRange`, or a custom `color.workingFormat`, the scene and post-process graph run through an internal working format first. Khronos PBR Neutral expects non-negative linear Rec.709 HDR values and is applied by the private final presentation pass after all render passes.
 
+## Pass shader contracts
+
+Post-scene and pre-scene passes use their own WGSL entrypoints:
+
+| API                  | Required entrypoint                               | Purpose                                                       |
+| -------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| `ShaderPass`         | `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` | Post-process the current scene/pass color                     |
+| `PingPongShaderPass` | `fn frag(uv: vec2f) -> vec4f`                     | Write the next feedback texture state from the previous state |
+
+`PingPongShaderPass` is a fragment shader pass, but it is not the base material shader. It runs before the scene, renders into renderer-managed A/B textures, and exposes the previous state through generated bindings:
+
+```wgsl
+@group(1) @binding(0) var motiongpuPreviousSampler: sampler;
+@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
+```
+
+```wgsl
+fn frag(uv: vec2f) -> vec4f {
+  let previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);
+  return previous * 0.98;
+}
+```
+
+The feedback `uv` is aligned with the pass render texture so previous-state sampling and current writes hit the same texel rows across iterations. When the target texture is later sampled by the base material with its public Y-up `uv`, the visible result lines up with the material coordinate contract.
+
 ## Coordinate space
 
 ```
@@ -42,11 +67,11 @@ Motion GPU injects the frame uniforms plus any user uniforms/textures you declar
 
 These are injected by the renderer and updated every frame:
 
-| Name | Type | Description |
-| --- | --- | --- |
-| `motiongpuFrame.time` | `f32` | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
-| `motiongpuFrame.delta` | `f32` | Time since last frame in seconds (clamped by `maxDelta`) |
-| `motiongpuFrame.resolution` | `vec2f` | Canvas size in physical pixels `(width, height)` |
+| Name                        | Type    | Description                                                    |
+| --------------------------- | ------- | -------------------------------------------------------------- |
+| `motiongpuFrame.time`       | `f32`   | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
+| `motiongpuFrame.delta`      | `f32`   | Time since last frame in seconds (clamped by `maxDelta`)       |
+| `motiongpuFrame.resolution` | `vec2f` | Canvas size in physical pixels `(width, height)`               |
 
 ### User uniforms
 
@@ -54,16 +79,16 @@ Any uniform you declare in `defineMaterial({ uniforms: { ... } })` becomes a fie
 
 ```ts
 defineMaterial({
-  fragment: `
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   let t = sin(motiongpuUniforms.uTime * 3.0);
   return vec4f(t, uv.y, motiongpuUniforms.uIntensity, 1.0);
 }
 `,
-  uniforms: {
-    uTime: 0,
-    uIntensity: 0.8
-  }
+	uniforms: {
+		uTime: 0,
+		uIntensity: 0.8
+	}
 });
 ```
 
@@ -75,21 +100,24 @@ Textures declared in the material become `texture_2d<f32>` bindings with an asso
 
 ```ts
 defineMaterial({
-  fragment: `
+	fragment: `
 fn frag(uv: vec2f) -> vec4f {
   let color = textureSample(uAlbedo, uAlbedoSampler, uv);
   return color;
 }
 `,
-  textures: {
-    uAlbedo: { filter: 'linear' }
-  }
+	textures: {
+		uAlbedo: { filter: 'linear' }
+	}
 });
 ```
 
 For each texture named `uFoo`, the shader gets:
+
 - `uFoo: texture_2d<f32>` — the texture binding
 - `uFooSampler: sampler` — the associated sampler
+
+In a `PingPongShaderPass`, fragment-visible material textures are also available in `group(0)` except the feedback target texture itself. The target is excluded while the pass writes to it; sample the prior target contents via `motiongpuPrevious` instead.
 
 ## WGSL quick reference
 
@@ -97,37 +125,37 @@ If you are new to WGSL, here are the most common types and functions used in fra
 
 ### Scalar and vector types
 
-| Type | Description | Example |
-| --- | --- | --- |
-| `f32` | 32-bit float | `let x: f32 = 3.14;` |
-| `i32` | 32-bit signed integer | `let n: i32 = 42;` |
-| `u32` | 32-bit unsigned integer | `let n: u32 = 7u;` |
-| `bool` | Boolean | `let b: bool = true;` |
-| `vec2f` | 2-component float vector | `vec2f(1.0, 2.0)` |
+| Type    | Description              | Example                |
+| ------- | ------------------------ | ---------------------- |
+| `f32`   | 32-bit float             | `let x: f32 = 3.14;`   |
+| `i32`   | 32-bit signed integer    | `let n: i32 = 42;`     |
+| `u32`   | 32-bit unsigned integer  | `let n: u32 = 7u;`     |
+| `bool`  | Boolean                  | `let b: bool = true;`  |
+| `vec2f` | 2-component float vector | `vec2f(1.0, 2.0)`      |
 | `vec3f` | 3-component float vector | `vec3f(1.0, 0.5, 0.0)` |
-| `vec4f` | 4-component float vector | `vec4f(r, g, b, a)` |
+| `vec4f` | 4-component float vector | `vec4f(r, g, b, a)`    |
 
 ### Common math functions
 
-| Function | Description |
-| --- | --- |
-| `sin(x)`, `cos(x)`, `tan(x)` | Trigonometry |
-| `abs(x)` | Absolute value |
-| `min(a, b)`, `max(a, b)` | Min/max |
-| `clamp(x, lo, hi)` | Range clamping |
-| `mix(a, b, t)` | Linear interpolation |
-| `step(edge, x)` | Step function (0.0 or 1.0) |
-| `smoothstep(lo, hi, x)` | Hermite interpolation |
-| `length(v)` | Vector magnitude |
-| `distance(a, b)` | Distance between two points |
-| `normalize(v)` | Unit vector |
-| `dot(a, b)` | Dot product |
-| `cross(a, b)` | Cross product (vec3f only) |
-| `floor(x)`, `ceil(x)` | Rounding |
-| `fract(x)` | Fractional part (`x - floor(x)`) |
-| `pow(x, y)` | Power |
-| `exp(x)`, `log(x)` | Exp / natural log |
-| `sqrt(x)` | Square root |
+| Function                     | Description                      |
+| ---------------------------- | -------------------------------- |
+| `sin(x)`, `cos(x)`, `tan(x)` | Trigonometry                     |
+| `abs(x)`                     | Absolute value                   |
+| `min(a, b)`, `max(a, b)`     | Min/max                          |
+| `clamp(x, lo, hi)`           | Range clamping                   |
+| `mix(a, b, t)`               | Linear interpolation             |
+| `step(edge, x)`              | Step function (0.0 or 1.0)       |
+| `smoothstep(lo, hi, x)`      | Hermite interpolation            |
+| `length(v)`                  | Vector magnitude                 |
+| `distance(a, b)`             | Distance between two points      |
+| `normalize(v)`               | Unit vector                      |
+| `dot(a, b)`                  | Dot product                      |
+| `cross(a, b)`                | Cross product (vec3f only)       |
+| `floor(x)`, `ceil(x)`        | Rounding                         |
+| `fract(x)`                   | Fractional part (`x - floor(x)`) |
+| `pow(x, y)`                  | Power                            |
+| `exp(x)`, `log(x)`           | Exp / natural log                |
+| `sqrt(x)`                    | Square root                      |
 
 ## Common shader patterns
 

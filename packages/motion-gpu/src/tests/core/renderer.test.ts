@@ -2189,6 +2189,174 @@ describe('createRenderer', () => {
 		}
 	});
 
+	it('renders ping-pong shader iterations before scene and exposes output as material texture', async () => {
+		const runtime = createWebGpuRuntime();
+		const { PingPongShaderPass } = await import('../../lib/passes/PingPongShaderPass');
+		const pass = new PingPongShaderPass({
+			target: 'fluid',
+			width: 8,
+			height: 8,
+			format: 'rgba16float',
+			iterations: 2,
+			fragment: [
+				'fn frag(uv: vec2f) -> vec4f {',
+				'\tlet previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);',
+				'\treturn previous + vec4f(0.01, 0.0, 0.0, 0.0);',
+				'}'
+			].join('\n')
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['fluid'],
+			textureDefinitions: {
+				fluid: { filter: 'linear' }
+			},
+			passes: [pass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const encoder = runtime.commandEncoders[0];
+		expect(encoder).toBeDefined();
+		expect(encoder?.copyTextureToTexture).not.toHaveBeenCalled();
+		expect(encoder?.beginComputePass).not.toHaveBeenCalled();
+		expect(encoder?.beginRenderPass.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+		const renderPassDescriptors = encoder?.beginRenderPass.mock.calls.map(
+			(call) => call[0] as GPURenderPassDescriptor
+		);
+		const feedbackDescriptorIndex =
+			renderPassDescriptors?.findIndex((descriptor) => {
+				const attachment = Array.from(descriptor.colorAttachments ?? [])[0];
+				const size = (attachment?.view as unknown as { textureDescriptor?: GPUTextureDescriptor })
+					?.textureDescriptor?.size as { width?: number; height?: number } | undefined;
+				return size?.width === 8 && size.height === 8;
+			}) ?? -1;
+		const sceneDescriptorIndex =
+			renderPassDescriptors?.findIndex((descriptor) => {
+				const attachment = Array.from(descriptor.colorAttachments ?? [])[0];
+				const size = (attachment?.view as unknown as { textureDescriptor?: GPUTextureDescriptor })
+					?.textureDescriptor?.size as { width?: number; height?: number } | undefined;
+				return size?.width === 10 && size.height === 10;
+			}) ?? -1;
+
+		expect(feedbackDescriptorIndex).toBeGreaterThanOrEqual(0);
+		expect(sceneDescriptorIndex).toBeGreaterThan(feedbackDescriptorIndex);
+
+		const fragmentTextureBindGroups = runtime.device.createBindGroup.mock.calls
+			.map((call) => call[0] as { entries?: Array<{ resource?: unknown }> })
+			.filter((descriptor) => {
+				const entries = descriptor.entries ?? [];
+				return (
+					entries.length > 2 &&
+					entries.some((entry) => {
+						const size = (
+							entry.resource as { textureDescriptor?: GPUTextureDescriptor } | undefined
+						)?.textureDescriptor?.size as { width?: number; height?: number } | undefined;
+						return size?.width === 8 && size.height === 8;
+					})
+				);
+			});
+		expect(fragmentTextureBindGroups.length).toBeGreaterThan(0);
+
+		renderer.destroy();
+	});
+
+	it('excludes the ping-pong shader target from the feedback material bind group', async () => {
+		const runtime = createWebGpuRuntime();
+		const { PingPongShaderPass } = await import('../../lib/passes/PingPongShaderPass');
+		const pass = new PingPongShaderPass({
+			target: 'fluid',
+			width: 8,
+			height: 8,
+			format: 'rgba16float',
+			fragment: [
+				'fn frag(uv: vec2f) -> vec4f {',
+				'\tlet previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);',
+				'\tlet maskColor = textureSampleLevel(mask, maskSampler, uv, 0.0);',
+				'\treturn previous + maskColor;',
+				'}'
+			].join('\n')
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['fluid', 'mask'],
+			textureDefinitions: {
+				fluid: { filter: 'linear' },
+				mask: { filter: 'linear' }
+			},
+			passes: [pass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const bindGroupDescriptors = runtime.device.createBindGroup.mock.calls.map(
+			(call) => call[0] as { entries?: Array<{ binding: number }> }
+		);
+		const feedbackBindGroup = bindGroupDescriptors.find((descriptor) => {
+			const entries = descriptor.entries ?? [];
+			return entries.length === 4 && entries.some((entry) => entry.binding === 3);
+		});
+		expect(feedbackBindGroup?.entries?.map((entry) => entry.binding)).toEqual([0, 1, 2, 3]);
+		expect(
+			bindGroupDescriptors.some((descriptor) => {
+				const entries = descriptor.entries ?? [];
+				return entries.length === 6 && entries.some((entry) => entry.binding === 5);
+			})
+		).toBe(true);
+
+		renderer.destroy();
+	});
+
+	it('rejects storage textures as ping-pong shader targets', async () => {
+		const runtime = createWebGpuRuntime();
+		const { PingPongShaderPass } = await import('../../lib/passes/PingPongShaderPass');
+		const pass = new PingPongShaderPass({
+			target: 'fluid',
+			width: 8,
+			height: 8,
+			format: 'rgba16float',
+			fragment: [
+				'fn frag(uv: vec2f) -> vec4f {',
+				'\treturn textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);',
+				'}'
+			].join('\n')
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['fluid'],
+			textureDefinitions: {
+				fluid: { storage: true, format: 'rgba16float', width: 8, height: 8 }
+			},
+			storageTextureKeys: ['fluid'],
+			passes: [pass as unknown as RenderPass]
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(/sampled texture, not storage:true/);
+
+		renderer.destroy();
+	});
+
 	it('does not create compute pipeline when no compute passes exist', async () => {
 		const runtime = createWebGpuRuntime();
 		const renderer = await createRenderer(baseOptions(runtime));
@@ -2219,6 +2387,17 @@ describe('createRenderer', () => {
 				uPhoto: { colorSpace: 'linear', format: 'rgba16float' }
 			}
 		});
+
+		const fallbackAllocations = runtime.device.createTexture.mock.calls
+			.map(([descriptor]) => descriptor as GPUTextureDescriptor)
+			.filter((descriptor) => {
+				const size = descriptor.size as { width?: number; height?: number };
+				return size.width === 1 && size.height === 1;
+			});
+		expect(fallbackAllocations.some((descriptor) => descriptor.format === 'rgba8unorm')).toBe(true);
+		expect(fallbackAllocations.some((descriptor) => descriptor.format === 'rgba16float')).toBe(
+			false
+		);
 
 		runtime.device.createTexture.mockClear();
 

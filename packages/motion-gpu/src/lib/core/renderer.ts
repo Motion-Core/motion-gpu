@@ -1,10 +1,12 @@
 import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets.js';
 import { planRenderGraph, type RenderGraphPlan } from './render-graph.js';
 import {
+	buildPingPongShaderSourceWithMap,
 	buildShaderSourceWithMap,
 	formatShaderSourceLocation,
 	type ShaderLineMap
 } from './shader.js';
+import type { MaterialLineMap } from './material-preprocess.js';
 import {
 	attachShaderCompilationDiagnostics,
 	type ShaderCompilationDiagnostic,
@@ -94,6 +96,7 @@ interface RuntimeTextureBinding {
 	defaultUpdate?: TextureUpdateMode;
 	lastToken: TextureValue;
 	mipmapsDirty: boolean;
+	feedbackViewActive: boolean;
 }
 
 /**
@@ -122,6 +125,28 @@ interface PingPongTexturePair {
 	bindGroupLayout: GPUBindGroupLayout;
 	readAWriteBBindGroup: GPUBindGroup | null;
 	readBWriteABindGroup: GPUBindGroup | null;
+}
+
+/**
+ * Runtime fragment-feedback textures for a single pass instance.
+ */
+interface PingPongShaderTexturePair {
+	target: string;
+	format: GPUTextureFormat;
+	width: number;
+	height: number;
+	filter: GPUFilterMode;
+	addressModeU: GPUAddressMode;
+	addressModeV: GPUAddressMode;
+	textureA: GPUTexture;
+	viewA: GPUTextureView;
+	textureB: GPUTexture;
+	viewB: GPUTextureView;
+	sampler: GPUSampler;
+	previousBindGroupLayout: GPUBindGroupLayout | null;
+	readABindGroup: GPUBindGroup | null;
+	readBBindGroup: GPUBindGroup | null;
+	needsClear: boolean;
 }
 
 /**
@@ -161,6 +186,29 @@ interface RuntimeComputePass {
 	getCurrentOutput?: () => string;
 	getIterations?: () => number;
 	advanceFrame?: () => void;
+}
+
+/**
+ * Internal shape implemented by renderer-managed fragment feedback pass classes.
+ */
+interface RuntimePingPongShaderPass {
+	isPingPongShader?: boolean;
+	getTarget?: () => string;
+	getFragment?: () => string;
+	getFragmentLineMap?: () => MaterialLineMap;
+	resolveSize?: (canvasSize: { width: number; height: number }) => {
+		width: number;
+		height: number;
+	};
+	getIterations?: () => number;
+	getFormat?: () => GPUTextureFormat;
+	getFilter?: () => GPUFilterMode;
+	getAddressModeU?: () => GPUAddressMode;
+	getAddressModeV?: () => GPUAddressMode;
+	getClearColor?: () => [number, number, number, number];
+	getCurrentOutput?: () => string;
+	advanceFrame?: () => void;
+	consumeResetColor?: () => [number, number, number, number] | null;
 }
 
 const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
@@ -514,6 +562,12 @@ function buildPassGraphSnapshot(
 
 		enabledPassCount += 1;
 		if ('isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true) {
+			continue;
+		}
+		if (
+			'isPingPongShader' in pass &&
+			(pass as { isPingPongShader?: boolean }).isPingPongShader === true
+		) {
 			continue;
 		}
 		const rp = pass as RenderPass;
@@ -1135,10 +1189,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				addressModeV: config.addressModeV,
 				maxAnisotropy: config.filter === 'linear' ? config.anisotropy : 1
 			});
-			// Storage textures use a safe fallback format — the fallback is never
-			// sampled because storage textures are eagerly allocated with their
-			// real format/dimensions. Non-storage textures use their own format.
-			const fallbackFormat = config.storage ? 'rgba8unorm' : config.format;
+			const fallbackFormat: GPUTextureFormat =
+				config.format === 'rgba8unorm-srgb' ? 'rgba8unorm-srgb' : 'rgba8unorm';
 			const fallbackTexture = createFallbackTexture(device, fallbackFormat);
 			registerInitializationCleanup(() => {
 				fallbackTexture.destroy();
@@ -1170,7 +1222,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				defaultPremultipliedAlpha: config.premultipliedAlpha,
 				update: config.update ?? 'once',
 				lastToken: null,
-				mipmapsDirty: false
+				mipmapsDirty: false,
+				feedbackViewActive: false
 			};
 
 			if (config.update !== undefined) {
@@ -1367,6 +1420,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		// ── Storage buffer allocation ────────────────────────────────────────
 		const storageBufferMap = new Map<string, GPUBuffer>();
 		const pingPongTexturePairs = new Map<string, PingPongTexturePair>();
+		const pingPongShaderTexturePairs = new Map<
+			RuntimePingPongShaderPass,
+			PingPongShaderTexturePair
+		>();
 
 		for (const key of storageBufferKeys) {
 			const definition = storageBufferDefinitions[key];
@@ -1485,6 +1542,84 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				readBWriteABindGroup: null
 			};
 			pingPongTexturePairs.set(target, pair);
+			return pair;
+		};
+
+		const destroyPingPongShaderTexturePair = (pair: PingPongShaderTexturePair): void => {
+			pair.textureA.destroy();
+			pair.textureB.destroy();
+		};
+
+		const ensurePingPongShaderTexturePair = (
+			pass: RuntimePingPongShaderPass,
+			options: {
+				target: string;
+				width: number;
+				height: number;
+				format: GPUTextureFormat;
+				filter: GPUFilterMode;
+				addressModeU: GPUAddressMode;
+				addressModeV: GPUAddressMode;
+			}
+		): PingPongShaderTexturePair => {
+			const existing = pingPongShaderTexturePairs.get(pass);
+			if (
+				existing &&
+				existing.target === options.target &&
+				existing.width === options.width &&
+				existing.height === options.height &&
+				existing.format === options.format &&
+				existing.filter === options.filter &&
+				existing.addressModeU === options.addressModeU &&
+				existing.addressModeV === options.addressModeV
+			) {
+				return existing;
+			}
+
+			if (existing) {
+				destroyPingPongShaderTexturePair(existing);
+			}
+
+			const usage =
+				GPUTextureUsage.TEXTURE_BINDING |
+				GPUTextureUsage.RENDER_ATTACHMENT |
+				GPUTextureUsage.COPY_DST;
+			const textureA = device.createTexture({
+				size: { width: options.width, height: options.height, depthOrArrayLayers: 1 },
+				format: options.format,
+				usage
+			});
+			const textureB = device.createTexture({
+				size: { width: options.width, height: options.height, depthOrArrayLayers: 1 },
+				format: options.format,
+				usage
+			});
+			const sampler = device.createSampler({
+				magFilter: options.filter,
+				minFilter: options.filter,
+				addressModeU: options.addressModeU,
+				addressModeV: options.addressModeV
+			});
+
+			const pair: PingPongShaderTexturePair = {
+				target: options.target,
+				format: options.format,
+				width: options.width,
+				height: options.height,
+				filter: options.filter,
+				addressModeU: options.addressModeU,
+				addressModeV: options.addressModeV,
+				textureA,
+				viewA: textureA.createView(),
+				textureB,
+				viewB: textureB.createView(),
+				sampler,
+				previousBindGroupLayout: null,
+				readABindGroup: null,
+				readBBindGroup: null,
+				needsClear: true
+			};
+			pingPongShaderTexturePairs.set(pass, pair);
 			return pair;
 		};
 
@@ -1810,6 +1945,108 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			return state.entry;
 		};
 
+		interface PingPongShaderPipelineEntry {
+			pipeline: GPURenderPipeline;
+			bindGroupLayout: GPUBindGroupLayout;
+			previousBindGroupLayout: GPUBindGroupLayout;
+			textureKeys: string[];
+		}
+		const pingPongShaderPipelineCache = new Map<string, PingPongShaderPipelineEntry>();
+
+		const getFragmentTextureBindingsForKeys = (keys: string[]): RuntimeTextureBinding[] =>
+			keys.map((key, index) => {
+				const binding = textureBindingByKey.get(key);
+				if (!binding || !binding.fragmentVisible) {
+					throw new Error(`Missing fragment texture binding for "${key}".`);
+				}
+				return {
+					...binding,
+					...getTextureBindings(index)
+				};
+			});
+
+		const buildPingPongShaderPipelineEntry = (
+			pass: RuntimePingPongShaderPass,
+			format: GPUTextureFormat,
+			target: string
+		): PingPongShaderPipelineEntry => {
+			const fragment = pass.getFragment?.();
+			if (!fragment) {
+				throw new Error('PingPongShaderPass must provide a fragment shader.');
+			}
+
+			const feedbackTextureKeys = fragmentTextureKeys.filter((key) => key !== target);
+			const cacheKey = [
+				format,
+				target,
+				feedbackTextureKeys.join(','),
+				options.uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`).join(','),
+				fragment
+			].join('|');
+			const cached = pingPongShaderPipelineCache.get(cacheKey);
+			if (cached) {
+				return cached;
+			}
+
+			const fragmentLineMap = pass.getFragmentLineMap?.();
+			const builtShader = buildPingPongShaderSourceWithMap(
+				fragment,
+				options.uniformLayout,
+				feedbackTextureKeys,
+				fragmentLineMap ? { fragmentLineMap } : {}
+			);
+			const shaderModule = device.createShaderModule({ code: builtShader.code });
+			const feedbackBindGroupLayout = device.createBindGroupLayout({
+				entries: createBindGroupLayoutEntries(
+					getFragmentTextureBindingsForKeys(feedbackTextureKeys)
+				)
+			});
+			const previousBindGroupLayout = device.createBindGroupLayout({
+				entries: [
+					{
+						binding: 0,
+						visibility: GPUShaderStage.FRAGMENT,
+						sampler: { type: 'filtering' }
+					},
+					{
+						binding: 1,
+						visibility: GPUShaderStage.FRAGMENT,
+						texture: {
+							sampleType: 'float',
+							viewDimension: '2d',
+							multisampled: false
+						}
+					}
+				]
+			});
+			const pipelineLayout = device.createPipelineLayout({
+				bindGroupLayouts: [feedbackBindGroupLayout, previousBindGroupLayout]
+			});
+			const pipeline = device.createRenderPipeline({
+				layout: pipelineLayout,
+				vertex: {
+					module: shaderModule,
+					entryPoint: 'motiongpuPingPongVertex'
+				},
+				fragment: {
+					module: shaderModule,
+					entryPoint: 'motiongpuPingPongFragment',
+					targets: [{ format }]
+				},
+				primitive: {
+					topology: 'triangle-list'
+				}
+			});
+			const entry = {
+				pipeline,
+				bindGroupLayout: feedbackBindGroupLayout,
+				previousBindGroupLayout,
+				textureKeys: feedbackTextureKeys
+			};
+			pingPongShaderPipelineCache.set(cacheKey, entry);
+			return entry;
+		};
+
 		// Helper to get the storage bind group for dispatch
 		const getComputeStorageBindGroup = (): GPUBindGroup | null => {
 			if (computeStorageBufferLayoutEntries.length === 0) {
@@ -1887,6 +2124,42 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			return pair.readBWriteABindGroup;
 		};
 
+		const getPingPongShaderPreviousBindGroup = (
+			pair: PingPongShaderTexturePair,
+			layout: GPUBindGroupLayout,
+			readFromA: boolean
+		): GPUBindGroup => {
+			if (pair.previousBindGroupLayout !== layout) {
+				pair.previousBindGroupLayout = layout;
+				pair.readABindGroup = null;
+				pair.readBBindGroup = null;
+			}
+
+			if (readFromA) {
+				if (!pair.readABindGroup) {
+					pair.readABindGroup = device.createBindGroup({
+						layout,
+						entries: [
+							{ binding: 0, resource: pair.sampler },
+							{ binding: 1, resource: pair.viewA }
+						]
+					});
+				}
+				return pair.readABindGroup;
+			}
+
+			if (!pair.readBBindGroup) {
+				pair.readBBindGroup = device.createBindGroup({
+					layout,
+					entries: [
+						{ binding: 0, resource: pair.sampler },
+						{ binding: 1, resource: pair.viewB }
+					]
+				});
+			}
+			return pair.readBBindGroup;
+		};
+
 		const frameBuffer = device.createBuffer({
 			size: 16,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
@@ -1908,16 +2181,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let hasUniformSnapshot = false;
 		const mipmapGenerator = createGpuMipmapGenerator(device);
 
+		const writeFrameBuffer = (time: number, delta: number, width: number, height: number): void => {
+			frameScratch[0] = time;
+			frameScratch[1] = delta;
+			frameScratch[2] = width;
+			frameScratch[3] = height;
+			device.queue.writeBuffer(
+				frameBuffer,
+				0,
+				frameScratch.buffer as ArrayBuffer,
+				frameScratch.byteOffset,
+				frameScratch.byteLength
+			);
+		};
+
 		/**
-		 * Rebuilds bind group using current texture views.
+		 * Rebuilds a fragment bind group using current texture views.
 		 */
-		const createBindGroup = (): GPUBindGroup => {
+		const createTextureBindGroup = (
+			layout: GPUBindGroupLayout,
+			bindings: RuntimeTextureBinding[]
+		): GPUBindGroup => {
 			const entries: GPUBindGroupEntry[] = [
 				{ binding: FRAME_BINDING, resource: { buffer: frameBuffer } },
 				{ binding: UNIFORM_BINDING, resource: { buffer: uniformBuffer } }
 			];
 
-			for (const binding of fragmentTextureBindings) {
+			for (const binding of bindings) {
 				entries.push({
 					binding: binding.samplerBinding,
 					resource: binding.sampler
@@ -1929,9 +2219,35 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			return device.createBindGroup({
-				layout: bindGroupLayout,
+				layout,
 				entries
 			});
+		};
+
+		const createBindGroup = (): GPUBindGroup =>
+			createTextureBindGroup(bindGroupLayout, fragmentTextureBindings);
+
+		const createPingPongShaderBindGroup = (entry: PingPongShaderPipelineEntry): GPUBindGroup =>
+			createTextureBindGroup(
+				entry.bindGroupLayout,
+				getFragmentTextureBindingsForKeys(entry.textureKeys)
+			);
+
+		const attachFeedbackTextureBinding = (
+			binding: RuntimeTextureBinding,
+			view: GPUTextureView
+		): boolean => {
+			const changed = binding.view !== view || !binding.feedbackViewActive;
+			binding.texture?.destroy();
+			binding.texture = null;
+			binding.view = view;
+			binding.feedbackViewActive = true;
+			binding.source = null;
+			binding.width = undefined;
+			binding.height = undefined;
+			binding.lastToken = null;
+			binding.mipmapsDirty = false;
+			return changed;
 		};
 
 		/**
@@ -1947,13 +2263,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const nextData = toTextureData(value);
 
 			if (!nextData) {
-				if (binding.source === null && binding.texture === null) {
+				if (binding.source === null && binding.texture === null && !binding.feedbackViewActive) {
 					return false;
 				}
 
 				binding.texture?.destroy();
 				binding.texture = null;
 				binding.view = binding.fallbackView;
+				binding.feedbackViewActive = false;
 				binding.source = null;
 				binding.width = undefined;
 				binding.height = undefined;
@@ -1979,6 +2296,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const tokenChanged = binding.lastToken !== value;
 			const requiresReallocation =
 				binding.texture === null ||
+				binding.feedbackViewActive ||
 				binding.width !== width ||
 				binding.height !== height ||
 				binding.mipLevelCount !== mipLevelCount ||
@@ -2005,6 +2323,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				binding.mipLevelCount = mipLevelCount;
 				binding.update = update;
 				binding.lastToken = value;
+				binding.feedbackViewActive = false;
 				return false;
 			}
 
@@ -2036,6 +2355,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			binding.texture?.destroy();
 			binding.texture = texture;
 			binding.view = texture.createView();
+			binding.feedbackViewActive = false;
 			binding.source = source;
 			binding.width = width;
 			binding.height = height;
@@ -2319,6 +2639,26 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			passHeight = height;
 		};
 
+		const syncPingPongShaderTextureLifecycle = (passes: AnyPass[]): void => {
+			const activeFeedbackPasses = new Set<RuntimePingPongShaderPass>();
+			for (const pass of passes) {
+				if (
+					'isPingPongShader' in pass &&
+					(pass as { isPingPongShader?: boolean }).isPingPongShader === true
+				) {
+					activeFeedbackPasses.add(pass as RuntimePingPongShaderPass);
+				}
+			}
+
+			for (const [pass, pair] of pingPongShaderTexturePairs.entries()) {
+				if (activeFeedbackPasses.has(pass)) {
+					continue;
+				}
+				destroyPingPongShaderTexturePair(pair);
+				pingPongShaderTexturePairs.delete(pass);
+			}
+		};
+
 		/**
 		 * Ensures internal ping-pong slot texture matches current canvas size/format.
 		 */
@@ -2577,17 +2917,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				configuredDynamicRange = effectiveDynamicRange;
 			}
 
-			frameScratch[0] = time;
-			frameScratch[1] = delta;
-			frameScratch[2] = width;
-			frameScratch[3] = height;
-			device.queue.writeBuffer(
-				frameBuffer,
-				0,
-				frameScratch.buffer as ArrayBuffer,
-				frameScratch.byteOffset,
-				frameScratch.byteLength
-			);
+			writeFrameBuffer(time, delta, width, height);
 
 			packUniformsIntoFast(uniforms, options.uniformLayout, uniformScratch);
 			if (!hasUniformSnapshot) {
@@ -2619,11 +2949,29 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 			}
 
+			const passes = resolvePasses();
+			const activePingPongShaderTargets = new Set<string>();
+			for (const pass of passes) {
+				if (pass.enabled === false) {
+					continue;
+				}
+				if (
+					'isPingPongShader' in pass &&
+					(pass as { isPingPongShader?: boolean }).isPingPongShader === true
+				) {
+					const target = (pass as RuntimePingPongShaderPass).getTarget?.();
+					if (target) {
+						activePingPongShaderTargets.add(target);
+					}
+				}
+			}
+
 			const commandEncoder = device.createCommandEncoder();
 			let bindGroupDirty = false;
 			for (const binding of textureBindings) {
 				// Storage textures are managed by compute passes, skip source-driven updates
 				if (storageTextureKeySet.has(binding.key)) continue;
+				if (activePingPongShaderTargets.has(binding.key)) continue;
 				const nextTexture =
 					textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
 				if (updateTextureBinding(binding, nextTexture, renderMode) && binding.fragmentVisible) {
@@ -2641,9 +2989,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			generateDirtyTextureMipmaps(commandEncoder);
-			const passes = resolvePasses();
 			const clearColor = options.getClearColor();
 			syncPassLifecycle(passes, width, height);
+			syncPingPongShaderTextureLifecycle(passes);
 			const runtimeTargets = syncRenderTargets(width, height);
 			const graphPlan = isGraphPlanCacheValid(passes, clearColor)
 				? cachedGraphPlan!
@@ -2675,81 +3023,228 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const slots = frameSlotsActive ? frameSlots : null;
 			const sceneOutput = slots ? slots.source : (presentationSurface ?? canvasSurface);
 
-			// Dispatch compute passes BEFORE scene render so storage textures
-			// and buffers are up-to-date when the fragment shader samples them.
+			let activeFrameBufferWidth = width;
+			let activeFrameBufferHeight = height;
+			const ensureFrameBufferResolution = (nextWidth: number, nextHeight: number): void => {
+				if (activeFrameBufferWidth === nextWidth && activeFrameBufferHeight === nextHeight) {
+					return;
+				}
+				writeFrameBuffer(time, delta, nextWidth, nextHeight);
+				activeFrameBufferWidth = nextWidth;
+				activeFrameBufferHeight = nextHeight;
+			};
+			const clearFeedbackView = (
+				view: GPUTextureView,
+				clearColor: [number, number, number, number]
+			): void => {
+				const pass = commandEncoder.beginRenderPass({
+					colorAttachments: [
+						{
+							view,
+							clearValue: {
+								r: clearColor[0],
+								g: clearColor[1],
+								b: clearColor[2],
+								a: clearColor[3]
+							},
+							loadOp: 'clear',
+							storeOp: 'store'
+						}
+					]
+				});
+				pass.end();
+			};
+
+			// Execute pre-scene passes so storage textures, buffers and fragment
+			// feedback outputs are up-to-date when the scene shader samples them.
 			let computeStepIndex = 0;
-			for (const step of graphPlan.computeSteps) {
-				const computeStepLabel = `Compute pass #${computeStepIndex}`;
-				computeStepIndex += 1;
-				const computePass = step.pass as RuntimeComputePass;
-				if (computePass.getCompute && computePass.resolveDispatch && computePass.getWorkgroupSize) {
-					const computeSource = computePass.getCompute();
-					const pingPongTarget =
-						computePass.isPingPong && computePass.getTarget ? computePass.getTarget() : undefined;
-					if (computePass.isPingPong && !pingPongTarget) {
-						throw new Error('PingPongComputePass must provide a target texture key.');
-					}
-					const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
-					const pipelineEntry = buildComputePipelineEntry({
-						computeSource,
-						...(pingPongPair
-							? {
-									pingPongTarget: pingPongPair.target,
-									pingPongFormat: pingPongPair.format
-								}
-							: {})
-					});
-					const workgroupSize = computePass.getWorkgroupSize();
-					const storageBindGroup = getComputeStorageBindGroup();
-					const storageTextureBindGroup = getComputeStorageTextureBindGroup();
-					const iterations =
-						computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
-					const currentOutput =
-						computePass.isPingPong && computePass.getCurrentOutput
-							? computePass.getCurrentOutput()
-							: null;
-					const readFromAAtIterationZero =
-						pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
-
-					for (let iter = 0; iter < iterations; iter += 1) {
-						const dispatchLabel =
-							iterations > 1 ? `${computeStepLabel} iteration ${iter + 1}` : computeStepLabel;
-						const dispatch = validateComputeDispatch(
-							computePass.resolveDispatch({
-								width,
-								height,
-								time,
-								delta,
-								workgroupSize
-							}),
-							maxComputeWorkgroupsPerDimension,
-							dispatchLabel
-						);
-						const cPass = commandEncoder.beginComputePass();
-						cPass.setPipeline(pipelineEntry.pipeline);
-						cPass.setBindGroup(0, pipelineEntry.bindGroup);
-						if (storageBindGroup) {
-							cPass.setBindGroup(1, storageBindGroup);
+			let feedbackStepIndex = 0;
+			for (const step of graphPlan.preSceneSteps) {
+				if (step.kind === 'compute') {
+					ensureFrameBufferResolution(width, height);
+					const computeStepLabel = `Compute pass #${computeStepIndex}`;
+					computeStepIndex += 1;
+					const computePass = step.pass as RuntimeComputePass;
+					if (
+						computePass.getCompute &&
+						computePass.resolveDispatch &&
+						computePass.getWorkgroupSize
+					) {
+						const computeSource = computePass.getCompute();
+						const pingPongTarget =
+							computePass.isPingPong && computePass.getTarget ? computePass.getTarget() : undefined;
+						if (computePass.isPingPong && !pingPongTarget) {
+							throw new Error('PingPongComputePass must provide a target texture key.');
 						}
-						if (pingPongPair) {
-							const readFromA =
-								iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
-							cPass.setBindGroup(
-								2,
-								getPingPongStorageTextureBindGroup(pingPongPair.target, readFromA)
+						const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
+						const pipelineEntry = buildComputePipelineEntry({
+							computeSource,
+							...(pingPongPair
+								? {
+										pingPongTarget: pingPongPair.target,
+										pingPongFormat: pingPongPair.format
+									}
+								: {})
+						});
+						const workgroupSize = computePass.getWorkgroupSize();
+						const storageBindGroup = getComputeStorageBindGroup();
+						const storageTextureBindGroup = getComputeStorageTextureBindGroup();
+						const iterations =
+							computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
+						const currentOutput =
+							computePass.isPingPong && computePass.getCurrentOutput
+								? computePass.getCurrentOutput()
+								: null;
+						const readFromAAtIterationZero =
+							pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
+
+						for (let iter = 0; iter < iterations; iter += 1) {
+							const dispatchLabel =
+								iterations > 1 ? `${computeStepLabel} iteration ${iter + 1}` : computeStepLabel;
+							const dispatch = validateComputeDispatch(
+								computePass.resolveDispatch({
+									width,
+									height,
+									time,
+									delta,
+									workgroupSize
+								}),
+								maxComputeWorkgroupsPerDimension,
+								dispatchLabel
 							);
-						} else if (storageTextureBindGroup) {
-							cPass.setBindGroup(2, storageTextureBindGroup);
+							const cPass = commandEncoder.beginComputePass();
+							cPass.setPipeline(pipelineEntry.pipeline);
+							cPass.setBindGroup(0, pipelineEntry.bindGroup);
+							if (storageBindGroup) {
+								cPass.setBindGroup(1, storageBindGroup);
+							}
+							if (pingPongPair) {
+								const readFromA =
+									iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
+								cPass.setBindGroup(
+									2,
+									getPingPongStorageTextureBindGroup(pingPongPair.target, readFromA)
+								);
+							} else if (storageTextureBindGroup) {
+								cPass.setBindGroup(2, storageTextureBindGroup);
+							}
+							cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
+							cPass.end();
 						}
-						cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
-						cPass.end();
-					}
 
-					if (computePass.isPingPong && computePass.advanceFrame) {
-						computePass.advanceFrame();
+						if (computePass.isPingPong && computePass.advanceFrame) {
+							computePass.advanceFrame();
+						}
 					}
+					continue;
+				}
+
+				if (step.kind !== 'feedback') {
+					continue;
+				}
+
+				const feedbackStepLabel = `PingPongShaderPass #${feedbackStepIndex}`;
+				feedbackStepIndex += 1;
+				const feedbackPass = step.pass as RuntimePingPongShaderPass;
+				const target = feedbackPass.getTarget?.();
+				if (!target) {
+					throw new Error('PingPongShaderPass must provide a target texture key.');
+				}
+				if (
+					!feedbackPass.resolveSize ||
+					!feedbackPass.getIterations ||
+					!feedbackPass.getFormat ||
+					!feedbackPass.getFilter ||
+					!feedbackPass.getAddressModeU ||
+					!feedbackPass.getAddressModeV ||
+					!feedbackPass.getCurrentOutput ||
+					!feedbackPass.advanceFrame
+				) {
+					throw new Error('PingPongShaderPass is missing required runtime methods.');
+				}
+
+				const targetBinding = textureBindingByKey.get(target);
+				if (!targetBinding) {
+					throw new Error(
+						`PingPongShaderPass target "${target}" must reference a declared material texture.`
+					);
+				}
+				if (!targetBinding.fragmentVisible) {
+					throw new Error(
+						`PingPongShaderPass target "${target}" must be visible to the fragment shader.`
+					);
+				}
+				if (normalizedTextureDefinitions[target]?.storage) {
+					throw new Error(
+						`PingPongShaderPass target "${target}" must be declared as a sampled texture, not storage:true. Use PingPongComputePass for storage textures.`
+					);
+				}
+
+				const size = feedbackPass.resolveSize({ width, height });
+				const pair = ensurePingPongShaderTexturePair(feedbackPass, {
+					target,
+					width: size.width,
+					height: size.height,
+					format: feedbackPass.getFormat(),
+					filter: feedbackPass.getFilter(),
+					addressModeU: feedbackPass.getAddressModeU(),
+					addressModeV: feedbackPass.getAddressModeV()
+				});
+				const pipelineEntry = buildPingPongShaderPipelineEntry(feedbackPass, pair.format, target);
+				const feedbackBindGroup = createPingPongShaderBindGroup(pipelineEntry);
+				const resetColor = feedbackPass.consumeResetColor?.();
+				const initializationColor =
+					resetColor ?? (pair.needsClear ? (feedbackPass.getClearColor?.() ?? [0, 0, 0, 0]) : null);
+				if (initializationColor) {
+					clearFeedbackView(pair.viewA, initializationColor);
+					clearFeedbackView(pair.viewB, initializationColor);
+					pair.needsClear = false;
+				}
+
+				const iterations = feedbackPass.getIterations();
+				if (!Number.isInteger(iterations) || iterations < 1) {
+					throw new Error(
+						`${feedbackStepLabel} iterations must be a positive integer >= 1, got ${iterations}.`
+					);
+				}
+
+				ensureFrameBufferResolution(pair.width, pair.height);
+				const currentOutput = feedbackPass.getCurrentOutput();
+				const readFromAAtIterationZero = currentOutput !== `${pair.target}B`;
+
+				for (let iter = 0; iter < iterations; iter += 1) {
+					const readFromA = iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
+					const outputView = readFromA ? pair.viewB : pair.viewA;
+					const previousBindGroup = getPingPongShaderPreviousBindGroup(
+						pair,
+						pipelineEntry.previousBindGroupLayout,
+						readFromA
+					);
+					const pass = commandEncoder.beginRenderPass({
+						colorAttachments: [
+							{
+								view: outputView,
+								clearValue: { r: 0, g: 0, b: 0, a: 0 },
+								loadOp: 'load',
+								storeOp: 'store'
+							}
+						]
+					});
+					pass.setPipeline(pipelineEntry.pipeline);
+					pass.setBindGroup(0, feedbackBindGroup);
+					pass.setBindGroup(1, previousBindGroup);
+					pass.draw(3);
+					pass.end();
+				}
+
+				feedbackPass.advanceFrame();
+				const latestOutput = feedbackPass.getCurrentOutput();
+				const latestView = latestOutput === `${pair.target}B` ? pair.viewB : pair.viewA;
+				if (attachFeedbackTextureBinding(targetBinding, latestView)) {
+					bindGroup = createBindGroup();
 				}
 			}
+			ensureFrameBufferResolution(width, height);
 
 			const scenePass = commandEncoder.beginRenderPass({
 				colorAttachments: [
@@ -2905,7 +3400,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					pair.textureB.destroy();
 				}
 				pingPongTexturePairs.clear();
+				for (const pair of pingPongShaderTexturePairs.values()) {
+					destroyPingPongShaderTexturePair(pair);
+				}
+				pingPongShaderTexturePairs.clear();
 				computePipelineCache.clear();
+				pingPongShaderPipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
 				destroyRenderTexture(targetSlotTarget);
 				destroyRenderTexture(presentationSlotTarget);

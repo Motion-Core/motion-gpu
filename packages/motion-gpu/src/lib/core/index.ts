@@ -14,7 +14,8 @@ export {
 	CopyPass,
 	ShaderPass,
 	ComputePass,
-	PingPongComputePass
+	PingPongComputePass,
+	PingPongShaderPass
 } from '../passes/index.js';
 export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
 export type {
@@ -66,6 +67,7 @@ export type {
 	ColorPipelineOptions,
 	AnyPass,
 	ComputePassLike,
+	PingPongShaderPassLike,
 	RenderPass,
 	RenderPassContext,
 	RenderPassFlags,
@@ -99,3 +101,4 @@ export type {
 } from './types.js';
 export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
 export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';
+export type { PingPongShaderPassOptions } from '../passes/PingPongShaderPass.js';

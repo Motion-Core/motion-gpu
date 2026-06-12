@@ -21,6 +21,7 @@ This guide walks you through installing Motion GPU and building your first fulls
 <InstallationTabs />
 
 Adapter peer dependencies are optional and only required for the adapter you use:
+
 - `svelte ^5` for `@motion-core/motion-gpu/svelte`
 - `react ^18 || ^19` + `react-dom ^18 || ^19` for `@motion-core/motion-gpu/react`
 - `vue ^3.5` for `@motion-core/motion-gpu/vue`
@@ -56,13 +57,14 @@ To animate your shader, you need a `uniform` and a `useFrame` callback. Because 
 ## Step 3: Run this baseline in your app
 
 At this point you have the minimal production baseline:
+
 1. strict `frag(...)` contract,
 2. validated immutable material,
 3. runtime updates via `useFrame` in canvas subtree.
 
 ## Recommended first-production checklist
 
-1. Keep shader contracts strict (`frag` for material, `shade` for passes).
+1. Keep shader contracts strict (`frag` for material and `PingPongShaderPass`, `shade` for post-process `ShaderPass`).
 2. Predeclare every runtime-updated uniform/texture in `defineMaterial`.
 3. Select render mode intentionally (`always`, `on-demand`, `manual`) for your workload.
 4. Wire `onError` and decide overlay strategy (`showErrorOverlay`/custom renderer).

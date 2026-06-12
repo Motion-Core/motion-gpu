@@ -3,6 +3,15 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Added `PingPongShaderPass`, a pre-scene fragment-feedback pass for iterative fullscreen simulations using renderer-managed A/B render textures, previous-state sampling, configurable dimensions/format/filter/address modes, reset colors, includes, and defines.
+
+### Changed
+- Extended render-graph planning with pre-scene fragment-feedback steps alongside compute steps, while keeping post-scene render-pass slot routing unchanged.
+
+### Fixed
+- Reject `storage: true` textures as `PingPongShaderPass` targets with a deterministic configuration error instead of allowing a sampled-feedback pass to share a compute storage texture contract.
+- Use a safe sampled fallback texture format for explicit float texture formats before runtime sources or feedback outputs are attached, avoiding transient `bytesPerRow` validation failures.
 
 ## [0.10.0] - 2026-05-30
 ### Added

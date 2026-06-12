@@ -7,3 +7,4 @@ export {
 	type ComputeDispatchContext
 } from './ComputePass.js';
 export { PingPongComputePass, type PingPongComputePassOptions } from './PingPongComputePass.js';
+export { PingPongShaderPass, type PingPongShaderPassOptions } from './PingPongShaderPass.js';

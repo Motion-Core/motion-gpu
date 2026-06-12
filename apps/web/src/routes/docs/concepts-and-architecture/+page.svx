@@ -9,12 +9,12 @@ This page explains the architectural decisions behind Motion GPU, how the runtim
 
 Motion GPU is intentionally strict in input contracts and explicit in scheduling. These four goals drive every design decision:
 
-| Goal | What it means in practice |
-| --- | --- |
-| **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, texture bindings/config (including `fragmentVisible`), and storage resources — not from live values. This makes rebuild triggers predictable. |
-| **Predictable frame flow** | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behavior except what you explicitly opt into via `useFrame` invalidation policies. |
-| **Minimal hidden magic** | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop. |
-| **Recoverable failure UX** | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with stable code/severity/recoverability metadata, user hint, and optional source/context snippets. The default overlay is opt-out and can be replaced with a custom renderer. |
+| Goal                                | What it means in practice                                                                                                                                                                                                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Deterministic pipeline rebuilds** | Renderer recreation is keyed off a stable signature derived from compiled shader source, uniform layout, texture bindings/config (including `fragmentVisible`), and storage resources — not from live values. This makes rebuild triggers predictable.                                    |
+| **Predictable frame flow**          | The scheduler owns all invalidation and render-mode gating. There is no hidden "auto-render on change" behavior except what you explicitly opt into via `useFrame` invalidation policies.                                                                                                 |
+| **Minimal hidden magic**            | Runtime state changes go through explicit calls (`setUniform`, `setTexture`, `invalidate`). No proxy traps, no implicit reactivity inside the render loop.                                                                                                                                |
+| **Recoverable failure UX**          | Every error — from missing WebGPU support to WGSL syntax mistakes — is normalized into a structured report with stable code/severity/recoverability metadata, user hint, and optional source/context snippets. The default overlay is opt-out and can be replaced with a custom renderer. |
 
 ## Package layout
 
@@ -55,6 +55,13 @@ packages/motion-gpu/src/lib/
 │   ├── use-motiongpu-user-context.ts # Vue advanced user-context composable
 │   ├── Portal.vue                  # DOM portal utility for overlay rendering
 │   └── MotionGPUErrorOverlay.vue   # Default error-overlay UI component
+├── passes/
+│   ├── ShaderPass.ts               # Programmable post-scene fragment pass
+│   ├── BlitPass.ts                 # Fullscreen texture copy/sample pass
+│   ├── CopyPass.ts                 # Direct-copy pass with blit fallback
+│   ├── ComputePass.ts              # Single-dispatch compute pass
+│   ├── PingPongComputePass.ts      # Iterative compute A/B storage-texture pass
+│   └── PingPongShaderPass.ts       # Fragment-feedback A/B render-texture pass
 └── core/
     ├── index.ts                    # Framework-agnostic core entrypoint
     ├── advanced.ts                 # Framework-agnostic advanced core entrypoint
@@ -104,7 +111,7 @@ Each frame follows this exact sequence:
    - Flushes pending storage buffer writes to GPU,
    - Uploads changed textures,
    - Writes dirty uniform ranges to GPU buffer,
-   - Dispatches all enabled compute passes in declaration order (pre-scene workgroup execution on storage buffers/textures),
+   - Executes all enabled pre-scene compute and fragment-feedback passes in declaration order,
    - Executes the base fullscreen pass,
    - Executes post-process render passes through the slot graph,
    - Presents the final output to the canvas.
@@ -120,17 +127,17 @@ Each frame follows this exact sequence:
 
 Not every change triggers a full renderer rebuild. This table clarifies what does and what does not:
 
-| Change | Triggers rebuild? | What happens instead |
-| --- | --- | --- |
-| Material signature change (shader, uniform layout, texture bindings, storage buffers) | **Yes** | Full renderer recreation |
-| Color pipeline change (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`) | **Yes** | Full renderer recreation |
-| Runtime uniform value change | No | Dirty-range buffer write only |
-| Runtime texture source change | No | Texture re-upload only |
-| Runtime texture `fragmentVisible` change | **Yes** | Full renderer recreation |
-| Storage buffer `writeStorageBuffer` | No | Pending write flushed next frame |
-| Storage buffer `readStorageBuffer` | No | Async staging buffer copy |
-| Canvas resize | No | Render target resize, re-render |
-| Clear color change | No | Applied next frame |
+| Change                                                                                                       | Triggers rebuild? | What happens instead             |
+| ------------------------------------------------------------------------------------------------------------ | ----------------- | -------------------------------- |
+| Material signature change (shader, uniform layout, texture bindings, storage buffers)                        | **Yes**           | Full renderer recreation         |
+| Color pipeline change (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`) | **Yes**           | Full renderer recreation         |
+| Runtime uniform value change                                                                                 | No                | Dirty-range buffer write only    |
+| Runtime texture source change                                                                                | No                | Texture re-upload only           |
+| Runtime texture `fragmentVisible` change                                                                     | **Yes**           | Full renderer recreation         |
+| Storage buffer `writeStorageBuffer`                                                                          | No                | Pending write flushed next frame |
+| Storage buffer `readStorageBuffer`                                                                           | No                | Async staging buffer copy        |
+| Canvas resize                                                                                                | No                | Render target resize, re-render  |
+| Clear color change                                                                                           | No                | Applied next frame               |
 
 When renderer creation fails, `FragCanvas` retries with **exponential backoff** (`250ms` → `500ms` → `1000ms` → … → `8000ms` cap). The backoff resets when the pipeline signature changes.
 
@@ -138,11 +145,11 @@ When renderer creation fails, `FragCanvas` retries with **exponential backoff** 
 
 Data flows through three layers, from compile-time defaults to per-frame overrides:
 
-| Stage | Uniforms | Textures |
-| --- | --- | --- |
-| **Material definition** | Static defaults in `defineMaterial({ uniforms })` | Static `TextureDefinition` map in `defineMaterial({ textures })`. Storage buffers declared in `defineMaterial({ storageBuffers })`. |
-| **Frame runtime** | `state.setUniform(name, value)` in `useFrame` callbacks | `state.setTexture(name, value)` in `useFrame` callbacks. `state.writeStorageBuffer(name, data)` / `state.readStorageBuffer(name)` for storage buffers. |
-| **Render submit** | Effective values are resolved from defaults + runtime overrides into a reusable frame payload map (runtime wins on conflicts). | Material definitions + runtime source overrides resolved into reusable texture payloads (runtime wins on conflicts). |
+| Stage                   | Uniforms                                                                                                                       | Textures                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Material definition** | Static defaults in `defineMaterial({ uniforms })`                                                                              | Static `TextureDefinition` map in `defineMaterial({ textures })`. Storage buffers declared in `defineMaterial({ storageBuffers })`.                    |
+| **Frame runtime**       | `state.setUniform(name, value)` in `useFrame` callbacks                                                                        | `state.setTexture(name, value)` in `useFrame` callbacks. `state.writeStorageBuffer(name, data)` / `state.readStorageBuffer(name)` for storage buffers. |
+| **Render submit**       | Effective values are resolved from defaults + runtime overrides into a reusable frame payload map (runtime wins on conflicts). | Material definitions + runtime source overrides resolved into reusable texture payloads (runtime wins on conflicts).                                   |
 
 Setting an unknown uniform or texture name throws immediately — there is no silent fallback.
 
@@ -150,12 +157,12 @@ Setting an unknown uniform or texture name throws immediately — there is no si
 
 The scheduler is a DAG-based execution engine:
 
-| Concept | Description |
-| --- | --- |
-| **Task** | A `useFrame` callback with a key, stage assignment, invalidation policy, and dependency edges. |
-| **Stage** | An ordered group of tasks. Stages can have their own `before` / `after` dependencies and optional wrapper callbacks. |
-| **Dependencies** | `before` / `after` on both tasks and stages. Resolved via topological sort — cycles and missing references throw. |
-| **Render modes** | `always` (continuous), `on-demand` (invalidation-driven), `manual` (explicit `advance()` only). |
+| Concept          | Description                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Task**         | A `useFrame` callback with a key, stage assignment, invalidation policy, and dependency edges.                       |
+| **Stage**        | An ordered group of tasks. Stages can have their own `before` / `after` dependencies and optional wrapper callbacks. |
+| **Dependencies** | `before` / `after` on both tasks and stages. Resolved via topological sort — cycles and missing references throw.    |
+| **Render modes** | `always` (continuous), `on-demand` (invalidation-driven), `manual` (explicit `advance()` only).                      |
 
 The scheduler exposes its resolved execution order via `getSchedule()` for debugging. The advanced entrypoint helper `captureSchedulerDebugSnapshot(...)` bundles schedule, last-run timings, and profiling snapshot into one payload for debug tooling.
 
@@ -163,22 +170,23 @@ The scheduler exposes its resolved execution order via `getSchedule()` for debug
 
 Post-processing uses a **slot graph** with built-in ping-pong slots plus optional named render-target slots:
 
-| Slot | Purpose |
-| --- | --- |
-| `source` | Current scene/result surface |
-| `target` | Ping-pong companion surface (allocated when needed) |
-| `canvas` | Final output slot. Usually the visible canvas; with a final color pipeline it is a logical internal target presented to the physical canvas afterwards. |
-| `<targetName>` | Named off-screen surface resolved from `renderTargets[targetName]` |
+| Slot           | Purpose                                                                                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`       | Current scene/result surface                                                                                                                            |
+| `target`       | Ping-pong companion surface (allocated when needed)                                                                                                     |
+| `canvas`       | Final output slot. Usually the visible canvas; with a final color pipeline it is a logical internal target presented to the physical canvas afterwards. |
+| `<targetName>` | Named off-screen surface resolved from `renderTargets[targetName]`                                                                                      |
 
-Without post-process render passes and without a final color pipeline, the base shader renders directly to `canvas`. Compute-only pipelines keep that direct path: compute dispatches happen before the scene, then the scene renders straight to `canvas` with no `source`/`target` ping-pong allocation and no final presentation pass.
+Without post-process render passes and without a final color pipeline, the base shader renders directly to `canvas`. Compute-only and fragment-feedback-only pipelines keep that direct path: pre-scene work happens first, then the scene renders straight to `canvas` with no post-process `source`/`target` ping-pong allocation and no final presentation pass.
 
 When `FragCanvas` receives `color.toneMapping`, `color.dynamicRange`, or `color.workingFormat`, the renderer separates the internal working format from the canvas format. `auto` working format selects `rgba16float` for HDR/tone-mapped pipelines, render passes operate before presentation, and the private final presentation pass applies Khronos PBR Neutral, SDR encoding, or HDR canvas output as the last step.
 
 The presentation pass is also where Motion GPU bridges coordinate systems: material shaders keep the documented Y-up `uv` convention, while internal render-target textures are sampled in framebuffer coordinates before presentation.
 
-When render passes are added, `planRenderGraph(...)` validates their slot sequence, resolves clear/preserve flags, and produces an immutable execution plan. The plan also records compute steps for diagnostics and pre-scene dispatch, but compute steps do not make render slots available.
+When render passes are added, `planRenderGraph(...)` validates their slot sequence, resolves clear/preserve flags, and produces an immutable execution plan. The plan also records pre-scene compute and fragment-feedback steps for diagnostics and ordering, but those steps do not make render slots available.
 
 Validation includes:
+
 - `needsSwap: true` is only valid for `source -> target`.
 - `canvas` is output-only.
 - Named slot reads/writes must reference declared `renderTargets`.
@@ -186,15 +194,19 @@ Validation includes:
 
 After all post-scene render passes execute, the renderer presents the resolved final surface. In the default path this is a simple blit when final output is offscreen. In HDR/tone-mapped paths it is a color presentation pass into the physical swapchain.
 
-### Compute passes in the render graph
+### Pre-scene passes in the render graph
 
-Compute passes (`ComputePass`, `PingPongComputePass`) coexist in the same pass array as render passes. They have `kind: 'compute'` and:
+Compute passes (`ComputePass`, `PingPongComputePass`) and fragment-feedback passes (`PingPongShaderPass`) coexist in the same pass array as render passes. They are extracted into `preSceneSteps` and:
+
 - Do **not** participate in slot routing (`source`/`target`/`canvas`).
-- Execute before the base scene render, preserving declaration order relative to other compute passes.
+- Execute before the base scene render, preserving declaration order relative to other pre-scene passes.
 - Do not execute between post-process render passes, even if interleaved with render passes in the array.
+- Use `kind: 'compute'` for compute work and `kind: 'feedback'` for fragment feedback work.
 - Execute compute pipelines with configurable workgroup dispatch.
+- Execute fragment feedback pipelines by rendering fullscreen triangles into renderer-owned A/B textures.
 - Share the same command encoder and submit queue as render passes.
 - `PingPongComputePass` runs multiple iterations per frame, alternating read/write bindings.
+- `PingPongShaderPass` runs multiple fragment iterations per frame, sampling previous state through `motiongpuPrevious` and exposing the latest view through its material texture target.
 - Reuse cached compute storage bind-group layouts/bind groups for stable resource topology.
 - Reuse ping-pong A→B / B→A bind groups across iterations.
 
@@ -237,6 +249,7 @@ All initialization and render failures are normalized into a stable `MotionGPUEr
 ```
 
 The default overlay displays this information automatically. You can:
+
 - disable all error UI with `showErrorOverlay={false}`,
 - keep UI off-canvas and handle reports only via `onError`,
 - provide `errorRenderer` to replace the default `MotionGPUErrorOverlay` while preserving the same report payload,

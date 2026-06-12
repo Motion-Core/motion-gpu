@@ -297,6 +297,111 @@ export function buildShaderSourceWithMap(
 }
 
 /**
+ * Assembles WGSL shader source used by renderer-managed fragment ping-pong passes.
+ *
+ * The shader exposes the same group(0) frame/uniform/texture bindings as the
+ * material fragment shader and adds group(1) bindings for the previous
+ * ping-pong texture.
+ */
+export function buildPingPongShaderSource(
+	fragmentWgsl: string,
+	uniformLayout: UniformLayout,
+	textureKeys: string[] = []
+): string {
+	const uniformFields = buildUniformStruct(uniformLayout);
+	const keepAliveExpression = getKeepAliveExpression(uniformLayout);
+	const textureBindings = buildTextureBindings(textureKeys);
+
+	return `
+struct MotionGPUFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct MotionGPUUniforms {
+	${uniformFields}
+};
+
+@group(0) @binding(0) var<uniform> motiongpuFrame: MotionGPUFrame;
+@group(0) @binding(1) var<uniform> motiongpuUniforms: MotionGPUUniforms;
+${textureBindings}
+
+@group(1) @binding(0) var motiongpuPreviousSampler: sampler;
+@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
+
+struct MotionGPUPingPongVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn motiongpuPingPongVertex(@builtin(vertex_index) index: u32) -> MotionGPUPingPongVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: MotionGPUPingPongVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);
+	return out;
+}
+
+${fragmentWgsl}
+
+@fragment
+fn motiongpuPingPongFragment(in: MotionGPUPingPongVertexOut) -> @location(0) vec4f {
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = ${keepAliveExpression};
+	return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+}
+`;
+}
+
+/**
+ * Assembles ping-pong fragment WGSL with material-source line mapping metadata.
+ */
+export function buildPingPongShaderSourceWithMap(
+	fragmentWgsl: string,
+	uniformLayout: UniformLayout,
+	textureKeys: string[] = [],
+	options?: {
+		fragmentLineMap?: MaterialLineMap;
+	}
+): BuiltShaderSource {
+	const code = buildPingPongShaderSource(fragmentWgsl, uniformLayout, textureKeys);
+	const fragmentStartIndex = code.indexOf(fragmentWgsl);
+	const lineCount = countLines(code);
+	const lineMap: ShaderLineMap = new Array(lineCount + 1).fill(null);
+
+	if (fragmentStartIndex === -1) {
+		return {
+			code,
+			lineMap
+		};
+	}
+
+	const fragmentStartLine = countLines(code, fragmentStartIndex);
+	const fragmentLineCount = countLines(fragmentWgsl);
+
+	for (let line = 0; line < fragmentLineCount; line += 1) {
+		const generatedLine = fragmentStartLine + line;
+		lineMap[generatedLine] = options?.fragmentLineMap?.[line + 1] ?? {
+			kind: 'fragment',
+			line: line + 1
+		};
+	}
+
+	return {
+		code,
+		lineMap
+	};
+}
+
+/**
  * Converts source location metadata to user-facing diagnostics label.
  */
 export function formatShaderSourceLocation(

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	buildPingPongShaderSource,
+	buildPingPongShaderSourceWithMap,
 	buildShaderSource,
 	buildShaderSourceWithMap,
 	formatShaderSourceLocation
@@ -186,5 +188,60 @@ describe('buildShaderSource', () => {
 		);
 
 		expect(shader).toMatchSnapshot();
+	});
+
+	it('builds ping-pong fragment shaders with previous texture bindings', () => {
+		const shader = buildPingPongShaderSource(
+			[
+				'fn frag(uv: vec2f) -> vec4f {',
+				'\tlet previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);',
+				'\tlet image = textureSample(uImage, uImageSampler, uv);',
+				'\treturn mix(previous, image, motiongpuUniforms.uBlend);',
+				'}'
+			].join('\n'),
+			resolveUniformLayout({ uBlend: { type: 'f32', value: 0.5 } }),
+			['uImage']
+		);
+
+		expect(shader).toContain('@group(0) @binding(0) var<uniform> motiongpuFrame');
+		expect(shader).toContain('@group(0) @binding(1) var<uniform> motiongpuUniforms');
+		expect(shader).toContain('@group(0) @binding(2) var uImageSampler: sampler;');
+		expect(shader).toContain('@group(0) @binding(3) var uImage: texture_2d<f32>;');
+		expect(shader).toContain('@group(1) @binding(0) var motiongpuPreviousSampler: sampler;');
+		expect(shader).toContain('@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;');
+		expect(shader).toContain('fn motiongpuPingPongFragment');
+		expect(shader).toContain('out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);');
+		expect(shader).toContain('let fragColor = frag(in.uv);');
+		expect(shader).toContain('let motiongpuKeepAlive = motiongpuUniforms.uBlend;');
+	});
+
+	it('maps ping-pong generated shader lines back to fragment source locations', () => {
+		const fragment = [
+			'const GAIN: f32 = 1.0;',
+			'',
+			'fn frag(uv: vec2f) -> vec4f {',
+			'\treturn textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0) * GAIN;',
+			'}'
+		].join('\n');
+		const built = buildPingPongShaderSourceWithMap(fragment, resolveUniformLayout({}), [], {
+			fragmentLineMap: [
+				null,
+				{ kind: 'define', line: 1, define: 'GAIN' },
+				null,
+				{ kind: 'fragment', line: 1 },
+				{ kind: 'fragment', line: 2 },
+				{ kind: 'fragment', line: 3 }
+			]
+		});
+
+		const mappedLines = built.lineMap
+			.map((location, index) => ({ index, location }))
+			.filter((entry) => entry.location !== null);
+
+		expect(mappedLines.length).toBe(5);
+		expect(formatShaderSourceLocation(mappedLines[0]?.location ?? null)).toContain('define "GAIN"');
+		expect(
+			formatShaderSourceLocation(mappedLines[mappedLines.length - 1]?.location ?? null)
+		).toContain('fragment line 3');
 	});
 });

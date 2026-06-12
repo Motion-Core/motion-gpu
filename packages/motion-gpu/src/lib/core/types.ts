@@ -571,9 +571,21 @@ export interface ComputePassLike {
 }
 
 /**
+ * Minimal marker interface for renderer-managed pre-scene fragment feedback passes.
+ * These passes render into private ping-pong textures and do not participate in
+ * post-scene render-pass slot routing.
+ */
+export interface PingPongShaderPassLike {
+	readonly isPingPongShader: true;
+	enabled?: boolean;
+	setSize?: (width: number, height: number) => void;
+	dispose?: () => void;
+}
+
+/**
  * Union type for all pass types accepted by the render graph.
  */
-export type AnyPass = RenderPass | ComputePassLike;
+export type AnyPass = RenderPass | ComputePassLike | PingPongShaderPassLike;
 
 /**
  * Frame submission strategy for the scheduler.
@@ -723,7 +735,7 @@ export interface RendererOptions {
 	 */
 	renderTargets?: RenderTargetDefinitionMap;
 	/**
-	 * Static render and compute passes.
+	 * Static render, compute, and fragment-feedback passes.
 	 */
 	passes?: AnyPass[];
 	/**
@@ -731,7 +743,7 @@ export interface RendererOptions {
 	 */
 	getRenderTargets?: () => RenderTargetDefinitionMap | undefined;
 	/**
-	 * Dynamic render and compute passes provider.
+	 * Dynamic render, compute, and fragment-feedback passes provider.
 	 */
 	getPasses?: () => AnyPass[] | undefined;
 	/**

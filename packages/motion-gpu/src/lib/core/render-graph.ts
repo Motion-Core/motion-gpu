@@ -5,9 +5,10 @@ import type { AnyPass, RenderPass, RenderPassInputSlot, RenderPassOutputSlot } f
  */
 export interface RenderGraphStep {
 	/**
-	 * Step kind. 'render' for post-scene render passes, 'compute' for pre-scene compute passes.
+	 * Step kind. 'render' for post-scene render passes, 'compute' for pre-scene
+	 * compute passes, 'feedback' for pre-scene fragment ping-pong passes.
 	 */
-	kind: 'render' | 'compute';
+	kind: 'render' | 'compute' | 'feedback';
 	/**
 	 * User pass instance.
 	 */
@@ -47,6 +48,10 @@ export interface RenderGraphPlan {
 	 */
 	steps: RenderGraphStep[];
 	/**
+	 * Enabled pre-scene steps in declaration order.
+	 */
+	preSceneSteps: RenderGraphStep[];
+	/**
 	 * Enabled compute steps. These always execute before the base scene render.
 	 */
 	computeSteps: RenderGraphStep[];
@@ -83,6 +88,7 @@ export function planRenderGraph(
 	renderTargetSlots?: Iterable<string>
 ): RenderGraphPlan {
 	const steps: RenderGraphStep[] = [];
+	const preSceneSteps: RenderGraphStep[] = [];
 	const computeSteps: RenderGraphStep[] = [];
 	const renderSteps: RenderGraphStep[] = [];
 	const declaredTargets = new Set(renderTargetSlots ?? []);
@@ -109,7 +115,27 @@ export function planRenderGraph(
 				preserve: true
 			};
 			steps.push(step);
+			preSceneSteps.push(step);
 			computeSteps.push(step);
+			continue;
+		}
+
+		const isFeedback =
+			'isPingPongShader' in pass &&
+			(pass as { isPingPongShader?: boolean }).isPingPongShader === true;
+		if (isFeedback) {
+			const step: RenderGraphStep = {
+				kind: 'feedback',
+				pass,
+				input: 'source',
+				output: 'source',
+				needsSwap: false,
+				clear: false,
+				clearColor: cloneClearColor(defaultClearColor),
+				preserve: true
+			};
+			steps.push(step);
+			preSceneSteps.push(step);
 			continue;
 		}
 
@@ -176,6 +202,7 @@ export function planRenderGraph(
 
 	return {
 		steps,
+		preSceneSteps,
 		computeSteps,
 		renderSteps,
 		finalOutput

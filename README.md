@@ -81,6 +81,9 @@ Motion GPU follows a simple three-step flow:
   - `BlitPass`
   - `CopyPass`
 
+- Fragment feedback passes:
+  - `PingPongShaderPass` — iterative fullscreen fragment simulations with render-texture A/B alternation
+
 - GPU compute passes:
   - `ComputePass` — single-dispatch GPU compute workloads
   - `PingPongComputePass` — iterative multi-step simulations with texture A/B alternation
@@ -293,6 +296,89 @@ export function App() {
 
 ---
 
+## 4. Add a fragment feedback pass
+
+Use `PingPongShaderPass` when the simulation is naturally expressed as a fullscreen fragment shader that reads the previous texture state and writes the next one.
+
+```svelte
+<!-- App.svelte -->
+<script lang="ts">
+	import { FragCanvas, PingPongShaderPass, defineMaterial } from '@motion-core/motion-gpu/svelte';
+
+	const feedbackShader = `
+fn frag(uv: vec2f) -> vec4f {
+  let previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);
+  let pulse = smoothstep(0.04, 0.0, distance(uv, vec2f(0.5)));
+  return max(previous * 0.96, vec4f(pulse, pulse * 0.4, 0.0, 1.0));
+}
+`;
+
+	const material = defineMaterial({
+		fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  return textureSample(uTrail, uTrailSampler, uv);
+}
+`,
+		textures: {
+			uTrail: { format: 'rgba16float', filter: 'linear' }
+		}
+	});
+
+	const trail = new PingPongShaderPass({
+		fragment: feedbackShader,
+		target: 'uTrail',
+		width: 512,
+		height: 512,
+		format: 'rgba16float',
+		iterations: 4
+	});
+</script>
+
+<FragCanvas {material} passes={[trail]} />
+```
+
+```tsx
+import { FragCanvas, PingPongShaderPass, defineMaterial } from '@motion-core/motion-gpu/react';
+
+const feedbackShader = `
+fn frag(uv: vec2f) -> vec4f {
+  let previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);
+  let pulse = smoothstep(0.04, 0.0, distance(uv, vec2f(0.5)));
+  return max(previous * 0.96, vec4f(pulse, pulse * 0.4, 0.0, 1.0));
+}
+`;
+
+const material = defineMaterial({
+	fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  return textureSample(uTrail, uTrailSampler, uv);
+}
+`,
+	textures: {
+		uTrail: { format: 'rgba16float', filter: 'linear' }
+	}
+});
+
+const trail = new PingPongShaderPass({
+	fragment: feedbackShader,
+	target: 'uTrail',
+	width: 512,
+	height: 512,
+	format: 'rgba16float',
+	iterations: 4
+});
+
+export function App() {
+	return (
+		<div style={{ width: '100vw', height: '100vh' }}>
+			<FragCanvas material={material} passes={[trail]} />
+		</div>
+	);
+}
+```
+
+---
+
 # Core Runtime Model
 
 ## Material Phase (compile-time contract)
@@ -349,29 +435,37 @@ fn frag(uv: vec2f) -> vec4f
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ```
 
-3. `useFrame()` and `useMotionGPU()` must be called inside `<FragCanvas>` subtree.
+3. `PingPongShaderPass` fragment entrypoint must be:
 
-4. You can only set uniforms/textures that were declared in `defineMaterial(...)`.
+```
+fn frag(uv: vec2f) -> vec4f
+```
 
-5. Uniform/texture/include/define names must match WGSL-safe identifiers:
+4. `PingPongShaderPass` `iterations` must be `>= 1`. Its `target` must reference a fragment-visible texture declared in `defineMaterial({ textures })` and must not be declared as a compute storage target.
+
+5. `useFrame()` and `useMotionGPU()` must be called inside `<FragCanvas>` subtree.
+
+6. You can only set uniforms/textures that were declared in `defineMaterial(...)`.
+
+7. Uniform/texture/include/define names must match WGSL-safe identifiers:
 
 ```
 [A-Za-z_][A-Za-z0-9_]*
 ```
 
-6. `needsSwap: true` is valid only for `input: 'source'` and `output: 'target'`.
+8. `needsSwap: true` is valid only for `input: 'source'` and `output: 'target'`.
 
-7. Render passes cannot read from `input: 'canvas'`.
+9. Render passes cannot read from `input: 'canvas'`.
 
-8. `maxDelta` and profiling window must be finite and greater than `0`.
+10. `maxDelta` and profiling window must be finite and greater than `0`.
 
-9. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
+11. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
 
-10. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
+12. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
 
-11. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+13. Compute and fragment feedback passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
 
-12. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
+14. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
 
 ---
 
@@ -380,7 +474,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ## Rebuilds renderer
 
 - Material signature changes (shader/layout/bindings)
-- `outputColorSpace` changes
+- `FragCanvas` `color` pipeline option changes
 
 ---
 
@@ -388,6 +482,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 
 - Runtime uniform value changes
 - Runtime texture source changes
+- `PingPongShaderPass.setFragment(...)` changes (only that pass pipeline is rebuilt on next render)
 - Clear color changes
 - Canvas resize (resources are resized/reallocated as needed)
 

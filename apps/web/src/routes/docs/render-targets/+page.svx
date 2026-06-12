@@ -3,7 +3,9 @@ title: Render Targets
 description: Creating off-screen textures for multi-pass rendering and intermediate computation.
 ---
 
-Render targets are named off-screen textures that passes can read from and write to. They allow techniques like downsampled blur pyramids, multi-resolution effects, and intermediate computation buffers.
+Render targets are named off-screen textures that post-scene render passes can read from and write to. They allow techniques like downsampled blur pyramids, multi-resolution effects, and intermediate computation buffers.
+
+For persistent pre-scene fragment feedback, use `PingPongShaderPass` with a sampled material texture target instead of `renderTargets`. The feedback pass owns its A/B render textures and exposes the latest result through the material texture slot before the scene renders.
 
 ## Declaring render targets
 
@@ -11,12 +13,12 @@ Render targets are declared as a `renderTargets` prop on `FragCanvas`:
 
 ```svelte
 <FragCanvas
-  {material}
-  renderTargets={{
-    half: { scale: 0.5 },
-    bloom: { width: 640, height: 360, format: 'rgba16float' }
-  }}
-  passes={passes}
+	{material}
+	renderTargets={{
+		half: { scale: 0.5 },
+		bloom: { width: 640, height: 360, format: 'rgba16float' }
+	}}
+	{passes}
 />
 ```
 
@@ -28,31 +30,32 @@ Named target keys can be used directly in `RenderPass.input` and `RenderPass.out
 
 ```ts
 const passes = [
-  new ShaderPass({
-    needsSwap: false,
-    output: 'bloom'
-  }),
-  new ShaderPass({
-    needsSwap: false,
-    input: 'bloom',
-    output: 'canvas'
-  })
+	new ShaderPass({
+		needsSwap: false,
+		output: 'bloom'
+	}),
+	new ShaderPass({
+		needsSwap: false,
+		input: 'bloom',
+		output: 'canvas'
+	})
 ];
 ```
 
 Rules:
+
 - Named slots must exist in `renderTargets`.
 - Named outputs are only valid with `needsSwap: false`.
 - `needsSwap: true` is reserved for `source -> target`.
 
 ## RenderTargetDefinition fields
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `width` | `number` | `undefined` | Explicit width in pixels (floored, minimum 1) |
-| `height` | `number` | `undefined` | Explicit height in pixels (floored, minimum 1) |
-| `scale` | `number` | `1` | Scale factor relative to canvas size |
-| `format` | `GPUTextureFormat` | Current working format | Texture format |
+| Field    | Type               | Default                | Description                                    |
+| -------- | ------------------ | ---------------------- | ---------------------------------------------- |
+| `width`  | `number`           | `undefined`            | Explicit width in pixels (floored, minimum 1)  |
+| `height` | `number`           | `undefined`            | Explicit height in pixels (floored, minimum 1) |
+| `scale`  | `number`           | `1`                    | Scale factor relative to canvas size           |
+| `format` | `GPUTextureFormat` | Current working format | Texture format                                 |
 
 The default working format is the preferred canvas format in the standard SDR path. When `FragCanvas` enables Khronos PBR Neutral, HDR presentation, or a custom `color.workingFormat`, the default working format can be `rgba16float`. Explicit `renderTargets.foo.format` always wins.
 
@@ -66,13 +69,13 @@ Each dimension is resolved independently:
 
 ### Examples
 
-| Definition | Canvas 1920×1080 | Result |
-| --- | --- | --- |
-| `{ scale: 0.5 }` | 1920×1080 | 960×540 |
-| `{ scale: 0.25 }` | 1920×1080 | 480×270 |
-| `{ width: 256, height: 256 }` | any | 256×256 |
-| `{ width: 512 }` | 1920×1080 | 512×1080 |
-| `{}` | 1920×1080 | 1920×1080 |
+| Definition                    | Canvas 1920×1080 | Result    |
+| ----------------------------- | ---------------- | --------- |
+| `{ scale: 0.5 }`              | 1920×1080        | 960×540   |
+| `{ scale: 0.25 }`             | 1920×1080        | 480×270   |
+| `{ width: 256, height: 256 }` | any              | 256×256   |
+| `{ width: 512 }`              | 1920×1080        | 512×1080  |
+| `{}`                          | 1920×1080        | 1920×1080 |
 
 ## Naming rules
 
@@ -80,16 +83,16 @@ Target keys must be WGSL-safe identifiers: `[A-Za-z_][A-Za-z0-9_]*`. Invalid nam
 
 ## Validation
 
-| Condition | Result |
-| --- | --- |
-| `scale <= 0` | Throws |
-| `scale` is `NaN` or `Infinity` | Throws |
-| `width <= 0` or `height <= 0` | Throws |
-| `width` / `height` is `NaN` or `Infinity` | Throws |
-| Invalid key identifier | Throws |
-| Pass writes undeclared named slot | Throws during render-graph planning |
-| Pass reads undeclared named slot | Throws during render-graph planning |
-| Pass reads named slot before first write | Throws during render-graph planning |
+| Condition                                 | Result                              |
+| ----------------------------------------- | ----------------------------------- |
+| `scale <= 0`                              | Throws                              |
+| `scale` is `NaN` or `Infinity`            | Throws                              |
+| `width <= 0` or `height <= 0`             | Throws                              |
+| `width` / `height` is `NaN` or `Infinity` | Throws                              |
+| Invalid key identifier                    | Throws                              |
+| Pass writes undeclared named slot         | Throws during render-graph planning |
+| Pass reads undeclared named slot          | Throws during render-graph planning |
+| Pass reads named slot before first write  | Throws during render-graph planning |
 
 ## Accessing targets in passes
 
@@ -110,13 +113,13 @@ Named targets are accessed through `context.targets` inside custom passes.
 
 The renderer manages render target textures automatically:
 
-| Event | Action |
-| --- | --- |
-| New target added | GPU texture allocated |
+| Event                               | Action                                |
+| ----------------------------------- | ------------------------------------- |
+| New target added                    | GPU texture allocated                 |
 | Canvas resizes (for scaled targets) | Texture reallocated at new resolution |
-| Target definition changes | Texture reallocated |
-| Target removed from map | GPU texture destroyed |
-| Renderer destroyed | All target textures destroyed |
+| Target definition changes           | Texture reallocated                   |
+| Target removed from map             | GPU texture destroyed                 |
+| Renderer destroyed                  | All target textures destroyed         |
 
 ### Signature-based change detection
 
@@ -128,7 +131,7 @@ Render target definitions are compared each frame using a **deterministic signat
 
 ```ts
 const renderTargets = {
-  halfRes: { scale: 0.5 }
+	halfRes: { scale: 0.5 }
 };
 
 // Use halfRes as an intermediate for blur passes
@@ -138,7 +141,7 @@ const renderTargets = {
 
 ```ts
 const renderTargets = {
-  compute: { width: 256, height: 256, format: 'rgba16float' }
+	compute: { width: 256, height: 256, format: 'rgba16float' }
 };
 ```
 
@@ -146,7 +149,7 @@ const renderTargets = {
 
 ```ts
 const renderTargets = {
-  hdr: { format: 'rgba16float' }
+	hdr: { format: 'rgba16float' }
 };
 
 // Full canvas resolution but in 16-bit float for high dynamic range

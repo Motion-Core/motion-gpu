@@ -9,49 +9,50 @@ This page documents the test coverage, enforced runtime contracts, key implement
 
 Tests live in `packages/motion-gpu/src/tests/`:
 
-| Area | What is tested |
-| --- | --- |
-| **Public API** | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape. |
-| **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output. |
-| **FragCanvas** | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, error-history ring buffer behavior, prop validation. |
-| **Context hooks** | `useMotionGPU`, `useFrame`, and `usePointer` throw when called outside `FragCanvas`. Context shape and exposed controls plus normalized pointer/click state behavior. |
-| **Scheduler** | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes, duplicate-key replacement safety, `clear()` behavior. |
-| **Material** | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching. |
-| **Uniforms** | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection. |
-| **Textures** | Defaults (`flipY: true`, `filter: 'linear'`, `fragmentVisible: true`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics. |
-| **Texture loader** | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal (including idempotent `dispose()`). |
-| **Render graph** | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), plan generation for various pass configurations, disabled pass skipping. |
-| **Renderer graph execution** | Pre-scene compute dispatch, post-scene render-pass execution, compute-only direct-to-canvas rendering without ping-pong target allocation, HDR working-format routing, logical `canvas` presentation targets, and final presentation pass behavior. |
-| **Color pipeline** | SDR defaults, `rgba16float` internal working format for Khronos PBR Neutral/HDR, HDR canvas configuration, auto HDR fallback, explicit HDR unsupported errors, and generated presentation WGSL. |
-| **Passes** | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), shader hot-swap support, and state-stable rejection for invalid `setFragment(...)` updates. |
-| **Compute passes** | `ComputePass` contract enforcement (`@compute @workgroup_size(...)` + `fn compute(...)` required), dispatch resolution (static/auto/dynamic), `PingPongComputePass` iteration count, ping-pong A/B alternation, workgroup size extraction. |
-| **Compute shader** | Compute shader WGSL generation, storage buffer/texture binding generation, strict contract assertion (`global_invocation_id` in `compute` signature), workgroup size parsing with bounds validation, access-mode validation. |
-| **Storage buffers** | Definition validation (size/type/access), key resolution, normalization with defaults, storage texture format validation. |
-| **Storage runtime** | `FrameState` storage operations (`writeStorageBuffer`/`readStorageBuffer`), `StorageBufferDefinitionMap` type contracts, `initialData` support, frame callback context integration. |
-| **Renderer (compute)** | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, compute storage bind-group/cache reuse, storage buffer cleanup on destroy, ping-pong texture pair cleanup on destroy. |
-| **Error report** | Classification pattern matching (WebGPU init/runtime, material preprocess, runtime binding/storage/render-graph/ping-pong/compute-contract, texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, overlay metadata visibility, hint generation. |
-| **Recompile policy** | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates. |
-| **Performance baselines** | Core/runtime benchmark scripts, JSON baseline comparison, regression threshold checks, and runtime metric assertions (including compute storage bind-group creation pressure). |
+| Area                           | What is tested                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Public API**                 | Root/Svelte/Core export contracts — every public symbol is verified to exist and have the expected runtime shape.                                                                                                                                                                                                                                          |
+| **Advanced scheduler helpers** | Preset application (`performance`/`balanced`/`debug`), override validation, and aggregate debug snapshot output.                                                                                                                                                                                                                                           |
+| **FragCanvas**                 | WebGPU-unavailable behavior, error callback invocation, default overlay toggling, custom `errorRenderer` precedence, error-history ring buffer behavior, prop validation.                                                                                                                                                                                  |
+| **Context hooks**              | `useMotionGPU`, `useFrame`, and `usePointer` throw when called outside `FragCanvas`. Context shape and exposed controls plus normalized pointer/click state behavior.                                                                                                                                                                                      |
+| **Scheduler**                  | Task ordering, topological sort, cycle/missing-dependency validation, invalidation modes (`always`, `never`, `on-change`), stage callbacks, diagnostics/profiling data shapes, duplicate-key replacement safety, `clear()` behavior.                                                                                                                       |
+| **Material**                   | Contract validation (`fn frag(...)` required), includes/defines expansion, signature determinism, immutability/freeze behavior, caching.                                                                                                                                                                                                                   |
+| **Uniforms**                   | Type inference from value shapes, layout alignment (`std140`-style), buffer packing, sorted order, invalid input rejection.                                                                                                                                                                                                                                |
+| **Textures**                   | Defaults (`flipY: true`, `filter: 'linear'`, `fragmentVisible: true`), size helpers, update mode resolution (video → `perFrame`), mipmap level calculation, video detection heuristics.                                                                                                                                                                    |
+| **Texture loader**             | URL loading, cache key computation, reference counting, cancellation/abort semantics, retry behavior, `ImageBitmap` disposal (including idempotent `dispose()`).                                                                                                                                                                                           |
+| **Render graph**               | Slot validation rules (`needsSwap`, `canvas` input rejection, unknown named targets, read-before-write), pre-scene compute/feedback planning, plan generation for various pass configurations, disabled pass skipping.                                                                                                                                     |
+| **Renderer graph execution**   | Pre-scene compute dispatch, pre-scene fragment-feedback execution, post-scene render-pass execution, compute/feedback-only direct-to-canvas rendering without post-process ping-pong target allocation, HDR working-format routing, logical `canvas` presentation targets, and final presentation pass behavior.                                           |
+| **Color pipeline**             | SDR defaults, `rgba16float` internal working format for Khronos PBR Neutral/HDR, HDR canvas configuration, auto HDR fallback, explicit HDR unsupported errors, and generated presentation WGSL.                                                                                                                                                            |
+| **Passes**                     | Default option values, `ShaderPass` contract enforcement (`fn shade(...)` required), `PingPongShaderPass` fragment contract/format/iteration validation, shader hot-swap support, and state-stable rejection for invalid `setFragment(...)` updates.                                                                                                       |
+| **Compute passes**             | `ComputePass` contract enforcement (`@compute @workgroup_size(...)` + `fn compute(...)` required), dispatch resolution (static/auto/dynamic), `PingPongComputePass` iteration count, ping-pong A/B alternation, workgroup size extraction.                                                                                                                 |
+| **Compute shader**             | Compute shader WGSL generation, storage buffer/texture binding generation, strict contract assertion (`global_invocation_id` in `compute` signature), workgroup size parsing with bounds validation, access-mode validation.                                                                                                                               |
+| **Storage buffers**            | Definition validation (size/type/access), key resolution, normalization with defaults, storage texture format validation.                                                                                                                                                                                                                                  |
+| **Storage runtime**            | `FrameState` storage operations (`writeStorageBuffer`/`readStorageBuffer`), `StorageBufferDefinitionMap` type contracts, `initialData` support, frame callback context integration.                                                                                                                                                                        |
+| **Renderer (compute)**         | Storage buffer GPU allocation with correct usage flags (`STORAGE \| COPY_DST \| COPY_SRC`), `initialData` upload, `getStorageBuffer`/`getDevice` accessors, pending write processing, compute pipeline dispatch, compute storage bind-group/cache reuse, storage buffer cleanup on destroy, ping-pong texture pair cleanup on destroy.                     |
+| **Error report**               | Classification pattern matching (WebGPU init/runtime, material preprocess, runtime binding/storage/render-graph/ping-pong/compute-contract, texture request/decode/abort), normalized output shape (`code`/`severity`/`recoverable`), source block extraction for WGSL errors, runtime context pass-through, overlay metadata visibility, hint generation. |
+| **Recompile policy**           | Pipeline signature changes from shader/layout/texture changes, non-changes from uniform value updates.                                                                                                                                                                                                                                                     |
+| **Performance baselines**      | Core/runtime benchmark scripts, JSON baseline comparison, regression threshold checks, and runtime metric assertions (including compute storage bind-group creation pressure).                                                                                                                                                                             |
 
 ## Key runtime guarantees verified by tests
 
-| Guarantee | Why it matters |
-| --- | --- |
-| `useMotionGPU`, `useFrame`, and `usePointer` require `FragCanvas` ancestor | Prevents undefined runtime context usage outside the component tree. |
-| `defineMaterial` freezes output | Material snapshots are cache-safe and deterministic — no accidental mutation. |
-| Pipeline signature ignores pure uniform value changes | Avoids expensive recompiles when only animation values change. |
-| Color pipeline options participate in pipeline signature | Ensures renderer pipelines rebuild when tone mapping, dynamic range, canvas color space, or working format changes. |
-| `useTexture` abort/reload semantics are race-safe | Prevents stale async results from overwriting fresh texture data. |
-| `useTexture` exposes both raw and normalized errors | Enables app-level UX and telemetry off one loading failure path. |
-| FragCanvas error history stays bounded and deduplicated | Prevents unbounded memory growth and callback spam from repeated identical failures. |
-| `ShaderPass` contract enforcement | Keeps the `fn shade(inputColor, uv)` interface stable and validated upfront. |
-| `ShaderPass` failed updates are atomic | Invalid `setFragment(...)` calls do not corrupt the currently active shader state. |
-| `ComputePass` contract enforcement | Keeps the `@compute @workgroup_size(...)` + `fn compute(...)` interface validated upfront, including required `global_invocation_id` in the `compute` function signature and valid workgroup dimension bounds. |
-| Storage buffer definition validation | Catches invalid size, type, access, and identifier issues at material creation time. |
-| Uniform layout follows consistent sorted order | Ensures buffer packing is deterministic across material instances with the same shape. |
-| Render graph validates slot usage | Prevents nonsensical pass configurations (e.g., reading `target` or named targets before write, using undeclared named targets, or reading from `canvas`). |
-| Define and include name validation | Catches invalid WGSL identifiers at definition time, not at shader compile time. |
-| Duplicate frame-task keys are safe to replace | Stale `unsubscribe()` handlers from older registrations cannot remove newer task registrations with the same key. |
+| Guarantee                                                                  | Why it matters                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useMotionGPU`, `useFrame`, and `usePointer` require `FragCanvas` ancestor | Prevents undefined runtime context usage outside the component tree.                                                                                                                                           |
+| `defineMaterial` freezes output                                            | Material snapshots are cache-safe and deterministic — no accidental mutation.                                                                                                                                  |
+| Pipeline signature ignores pure uniform value changes                      | Avoids expensive recompiles when only animation values change.                                                                                                                                                 |
+| Color pipeline options participate in pipeline signature                   | Ensures renderer pipelines rebuild when tone mapping, dynamic range, canvas color space, or working format changes.                                                                                            |
+| `useTexture` abort/reload semantics are race-safe                          | Prevents stale async results from overwriting fresh texture data.                                                                                                                                              |
+| `useTexture` exposes both raw and normalized errors                        | Enables app-level UX and telemetry off one loading failure path.                                                                                                                                               |
+| FragCanvas error history stays bounded and deduplicated                    | Prevents unbounded memory growth and callback spam from repeated identical failures.                                                                                                                           |
+| `ShaderPass` contract enforcement                                          | Keeps the `fn shade(inputColor, uv)` interface stable and validated upfront.                                                                                                                                   |
+| `ShaderPass` failed updates are atomic                                     | Invalid `setFragment(...)` calls do not corrupt the currently active shader state.                                                                                                                             |
+| `PingPongShaderPass` contract enforcement                                  | Keeps feedback shaders on `fn frag(uv)` and prevents storage textures from being used as fragment-feedback targets.                                                                                            |
+| `ComputePass` contract enforcement                                         | Keeps the `@compute @workgroup_size(...)` + `fn compute(...)` interface validated upfront, including required `global_invocation_id` in the `compute` function signature and valid workgroup dimension bounds. |
+| Storage buffer definition validation                                       | Catches invalid size, type, access, and identifier issues at material creation time.                                                                                                                           |
+| Uniform layout follows consistent sorted order                             | Ensures buffer packing is deterministic across material instances with the same shape.                                                                                                                         |
+| Render graph validates slot usage                                          | Prevents nonsensical pass configurations (e.g., reading `target` or named targets before write, using undeclared named targets, or reading from `canvas`).                                                     |
+| Define and include name validation                                         | Catches invalid WGSL identifiers at definition time, not at shader compile time.                                                                                                                               |
+| Duplicate frame-task keys are safe to replace                              | Stale `unsubscribe()` handlers from older registrations cannot remove newer task registrations with the same key.                                                                                              |
 
 ## Internal implementation details
 
@@ -74,7 +75,7 @@ These notes are for maintainers working on the library internals:
 ### Pass lifecycle
 
 - Pass instances are **identity-tracked** by the renderer (tracked by object reference).
-- `setSize(width, height)` is called when a pass first appears in the array or when the canvas/target resolution changes.
+- `setSize(width, height)` is called when implemented and when a pass first appears in the array or when the canvas/target resolution changes.
 - `dispose()` is called when a pass is removed from the array or when the renderer is destroyed.
 
 ### Render target lifecycle
@@ -112,6 +113,14 @@ These notes are for maintainers working on the library internals:
 - Compute-only frames render the scene directly to `canvas` and skip post-process ping-pong texture allocation.
 - Ping-pong A/B textures are explicitly destroyed during renderer teardown.
 
+### Fragment feedback lifecycle
+
+- `PingPongShaderPass` instances are planned as `kind: 'feedback'` pre-scene steps.
+- The renderer allocates two render textures per active pass instance and alternates read/write direction across iterations.
+- The feedback target is excluded from the feedback shader's regular material texture bind group while the pass writes.
+- The latest A/B texture view is attached to the declared material texture target before the base scene render.
+- Changing dimensions, scale, format, sampler options, target, or removing the pass destroys stale feedback textures.
+
 ### Diagnostics and profiling
 
 - The scheduler stores last-run timings and an optional rolling window of frame times.
@@ -145,14 +154,14 @@ pnpm run lint      # ESLint
 
 ## Practical caveats
 
-| Caveat | Guidance |
-| --- | --- |
-| WebGPU availability varies by browser/platform | Always handle initialization failures. Test with `onError`. |
-| `autoRender = false` overrides all render modes | The RAF loop still runs, but no GPU work happens. |
-| `onInvalidate` texture mode is context-sensitive | Pair with an explicit invalidation token for predictable behavior. |
-| Handcrafted material objects are unsupported | Always use `defineMaterial(...)` — the renderer checks for the internal frozen structure. |
-| Changing defines or includes requires a new material | These are baked into the shader source and trigger full pipeline rebuilds. |
-| `mat4x4f` uniform type must use explicit form | Cannot be inferred from a 16-element array — use `{ type: 'mat4x4f', value: [...] }`. |
+| Caveat                                               | Guidance                                                                                  |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| WebGPU availability varies by browser/platform       | Always handle initialization failures. Test with `onError`.                               |
+| `autoRender = false` overrides all render modes      | The RAF loop still runs, but no GPU work happens.                                         |
+| `onInvalidate` texture mode is context-sensitive     | Pair with an explicit invalidation token for predictable behavior.                        |
+| Handcrafted material objects are unsupported         | Always use `defineMaterial(...)` — the renderer checks for the internal frozen structure. |
+| Changing defines or includes requires a new material | These are baked into the shader source and trigger full pipeline rebuilds.                |
+| `mat4x4f` uniform type must use explicit form        | Cannot be inferred from a 16-element array — use `{ type: 'mat4x4f', value: [...] }`.     |
 
 ## Suggested future hardening areas
 

@@ -8,33 +8,33 @@ description: Building post-processing pipelines with the render graph and built-
 	import * as ex from './examples';
 </script>
 
-Motion GPU supports post-processing through a **post-scene render graph** that sequences render passes over ping-pong buffers and optional named render targets. The same `passes` array also accepts compute passes, but compute passes are extracted into a separate **pre-scene compute phase** and never participate in slot routing.
+Motion GPU supports post-processing through a **post-scene render graph** that sequences render passes over ping-pong buffers and optional named render targets. The same `passes` array also accepts compute passes and fragment-feedback passes, but those pre-scene passes are extracted before slot routing and run before the base material shader.
 
-For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders).
+For named render targets, see [Render Targets](/docs/render-targets). For detailed compute shader documentation, see [Compute Shaders](/docs/compute-shaders). For the full pass API, see [Passes API](/docs/api-passes-reference).
 
 Pass constructors are framework-agnostic and can be imported from root/core entrypoints.
 
 ## Render graph model
 
-When you add passes to `FragCanvas`, the renderer builds an execution plan with two execution groups:
+When you add passes to `FragCanvas`, the renderer builds an execution plan with three public execution groups plus final presentation:
 
-1. All enabled **compute passes** dispatch first, in declaration order. They update storage buffers/textures before the scene shader samples them.
+1. All enabled **pre-scene passes** run first. `ComputePass` / `PingPongComputePass` dispatch compute work, and `PingPongShaderPass` renders fullscreen feedback iterations into renderer-owned A/B textures. Their declaration order relative to each other is preserved.
 2. The **base shader** renders your material's `fn frag(...)`. If post-process render passes or a final color pipeline are enabled, it renders into an internal surface; otherwise it renders directly to `canvas`.
 3. Enabled **render passes** execute after the base shader, in declaration order. Each render pass reads from an input slot, processes the image, and writes to an output slot.
 4. The renderer presents the resolved final surface to the physical canvas. With `color.toneMapping`, `color.dynamicRange`, or `color.workingFormat`, this final step is a private presentation pass that applies color transforms after all render passes.
 
 <FrameworkBlock svelteCode={`<FragCanvas {material} passes={[passA, passB, passC]} />`} reactCode={`<FragCanvas material={material} passes={[passA, passB, passC]} />`} vueCode={`<FragCanvas :material="material" :passes="[passA, passB, passC]" />`} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-Without render passes and without a `color` presentation pipeline, the base shader renders directly to the canvas. Compute-only pipelines keep that direct path. Enabling Khronos PBR Neutral, HDR presentation, or a custom `workingFormat` allocates an internal presentation surface so the final color transform can remain last.
+Without render passes and without a `color` presentation pipeline, the base shader renders directly to the canvas. Compute-only and feedback-only pipelines keep that direct path. Enabling Khronos PBR Neutral, HDR presentation, or a custom `workingFormat` allocates an internal presentation surface so the final color transform can remain last.
 
 ## Slot semantics
 
-| Slot | Purpose |
-| --- | --- |
-| `source` | Current scene/result surface |
-| `target` | Ping-pong companion (allocated when needed) |
-| `canvas` | Final output slot. Usually the user-visible canvas; in HDR/tone-mapped presentation it is a logical internal target that is presented to the physical canvas after all passes. |
-| `<targetName>` | Named off-screen surface declared in `renderTargets` |
+| Slot           | Purpose                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source`       | Current scene/result surface                                                                                                                                                   |
+| `target`       | Ping-pong companion (allocated when needed)                                                                                                                                    |
+| `canvas`       | Final output slot. Usually the user-visible canvas; in HDR/tone-mapped presentation it is a logical internal target that is presented to the physical canvas after all passes. |
+| `<targetName>` | Named off-screen surface declared in `renderTargets`                                                                                                                           |
 
 `canvas` is **output-only** (cannot be used as a pass input).
 
@@ -55,10 +55,10 @@ If `needsSwap: false`, the pass writes to its output slot without swapping. This
 
 ```ts
 const finalPass = new ShaderPass({
-  needsSwap: false,
-  input: 'source',
-  output: 'canvas',
-  fragment: `
+	needsSwap: false,
+	input: 'source',
+	output: 'canvas',
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   return vec4f(pow(inputColor.rgb, vec3f(1.0 / 2.2)), inputColor.a);
 }
@@ -70,9 +70,9 @@ You can also route through named targets:
 
 ```ts
 const pre = new ShaderPass({
-  needsSwap: false,
-  output: 'fxMain',
-  fragment: `
+	needsSwap: false,
+	output: 'fxMain',
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   return vec4f(inputColor.rgb * vec3f(uv, 1.0), inputColor.a);
 }
@@ -80,10 +80,10 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 });
 
 const composite = new ShaderPass({
-  needsSwap: false,
-  input: 'fxMain',
-  output: 'canvas',
-  fragment: `
+	needsSwap: false,
+	input: 'fxMain',
+	output: 'canvas',
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   return vec4f(inputColor.bgr, inputColor.a);
 }
@@ -93,17 +93,17 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 ## Validation rules
 
-`planRenderGraph(...)` validates render-pass slot usage before execution. Compute passes are kept in the plan for diagnostics and pre-scene dispatch ordering, but they do not make slots available and cannot satisfy render-pass read dependencies.
+`planRenderGraph(...)` validates render-pass slot usage before execution. Compute and fragment-feedback passes are kept in the plan for diagnostics and pre-scene ordering, but they do not make slots available and cannot satisfy render-pass read dependencies.
 
-| Rule | Error condition |
-| --- | --- |
-| `needsSwap: true` must use `source → target` | Any other slot pairing with swap enabled |
-| Input slot must be available | Reading `target` before any pass has written to it |
-| `canvas` cannot be input | Any pass with `input: 'canvas'` |
-| Named input must exist | Reading undeclared target name |
-| Named output must exist | Writing undeclared target name |
-| Named input must be available | Reading declared named target before first write in frame |
-| Disabled passes (`enabled: false`) | Fully skipped from the plan |
+| Rule                                         | Error condition                                           |
+| -------------------------------------------- | --------------------------------------------------------- |
+| `needsSwap: true` must use `source → target` | Any other slot pairing with swap enabled                  |
+| Input slot must be available                 | Reading `target` before any pass has written to it        |
+| `canvas` cannot be input                     | Any pass with `input: 'canvas'`                           |
+| Named input must exist                       | Reading undeclared target name                            |
+| Named output must exist                      | Writing undeclared target name                            |
+| Named input must be available                | Reading declared named target before first write in frame |
+| Disabled passes (`enabled: false`)           | Fully skipped from the plan                               |
 
 ## Built-in render passes
 
@@ -115,20 +115,20 @@ Fullscreen texture sample pass. Copies `input` to `output` using a fragment shad
 import { BlitPass } from '@motion-core/motion-gpu';
 
 const blit = new BlitPass({
-  filter: 'nearest' // Default: 'linear'
+	filter: 'nearest' // Default: 'linear'
 });
 ```
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `enabled` | `true` | Whether this pass is active |
-| `needsSwap` | `true` | Whether to swap source/target after render |
-| `input` | `'source'` | Input slot (`source`, `target`, or named target key) |
-| `output` | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, or named target key) |
-| `clear` | `false` | Clear output before drawing |
-| `clearColor` | `[0,0,0,1]` | RGBA clear color |
-| `preserve` | `true` | Preserve output after pass ends |
-| `filter` | `'linear'` | Texture sampling filter |
+| Option       | Default              | Description                                                     |
+| ------------ | -------------------- | --------------------------------------------------------------- |
+| `enabled`    | `true`               | Whether this pass is active                                     |
+| `needsSwap`  | `true`               | Whether to swap source/target after render                      |
+| `input`      | `'source'`           | Input slot (`source`, `target`, or named target key)            |
+| `output`     | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, or named target key) |
+| `clear`      | `false`              | Clear output before drawing                                     |
+| `clearColor` | `[0,0,0,1]`          | RGBA clear color                                                |
+| `preserve`   | `true`               | Preserve output after pass ends                                 |
+| `filter`     | `'linear'`           | Texture sampling filter                                         |
 
 ### CopyPass
 
@@ -141,6 +141,7 @@ const copy = new CopyPass();
 ```
 
 **Direct copy conditions** (all must be true):
+
 - `clear === false`
 - `preserve === true`
 - Source and target are different textures
@@ -159,7 +160,7 @@ Programmable post-process pass with custom WGSL fragment shader:
 import { ShaderPass } from '@motion-core/motion-gpu';
 
 const vignette = new ShaderPass({
-  fragment: `
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   let dist = distance(uv, vec2f(0.5, 0.5));
   let v = smoothstep(0.9, 0.35, dist);
@@ -197,21 +198,21 @@ This invalidates the pipeline cache and recompiles the shader module on next ren
 
 Same as `BlitPass`, plus:
 
-| Option | Type | Description |
-| --- | --- | --- |
-| `fragment` | `string` | **Required.** WGSL shader with `fn shade(...)` |
-| `filter` | `GPUFilterMode` | Sampling filter for the input texture |
+| Option     | Type            | Description                                    |
+| ---------- | --------------- | ---------------------------------------------- |
+| `fragment` | `string`        | **Required.** WGSL shader with `fn shade(...)` |
+| `filter`   | `GPUFilterMode` | Sampling filter for the input texture          |
 
 ## Pass lifecycle
 
 The renderer tracks each pass by object identity:
 
-| Event | Action |
-| --- | --- |
-| Pass is new (first appearance in `passes` array) | `setSize(width, height)` is called |
-| Canvas or render target resizes | `setSize(width, height)` is called again |
-| Pass is removed from array | `dispose()` is called |
-| Renderer is destroyed | `dispose()` is called on all active passes |
+| Event                                            | Action                                                               |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
+| Pass is new (first appearance in `passes` array) | `setSize(width, height)` is called when the pass implements it       |
+| Canvas or render target resizes                  | `setSize(width, height)` is called again when the pass implements it |
+| Pass is removed from array                       | `dispose()` is called                                                |
+| Renderer is destroyed                            | `dispose()` is called on all active passes                           |
 
 ## Multi-pass example
 
@@ -220,7 +221,7 @@ import { ShaderPass } from '@motion-core/motion-gpu';
 
 // Pass 1: Threshold bright pixels
 const bloomPrefilter = new ShaderPass({
-  fragment: `
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   let luma = dot(inputColor.rgb, vec3f(0.2126, 0.7152, 0.0722));
   let threshold = step(0.8, luma);
@@ -231,10 +232,10 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 // Pass 2: final composite to canvas
 const composite = new ShaderPass({
-  needsSwap: false,
-  input: 'source',
-  output: 'canvas',
-  fragment: `
+	needsSwap: false,
+	input: 'source',
+	output: 'canvas',
+	fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
   return inputColor;
 }
@@ -248,17 +249,48 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 When implementing custom passes, the `render(context)` method receives:
 
-| Field | Description |
-| --- | --- |
-| `device` | `GPUDevice` instance |
-| `commandEncoder` | Current frame's `GPUCommandEncoder` |
-| `source`, `target`, `canvas` | Slot surfaces (texture + view + dimensions + format). `canvas` is logical when a final color pipeline is active. |
-| `input`, `output` | Resolved surfaces for this pass |
-| `targets` | Named render targets map |
-| `time`, `delta` | Frame timing |
-| `width`, `height` | Canvas dimensions |
-| `clear`, `clearColor`, `preserve` | Resolved flags |
-| `beginRenderPass(options?)` | Helper that creates a `GPURenderPassEncoder` with correct load/store ops |
+| Field                             | Description                                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `device`                          | `GPUDevice` instance                                                                                             |
+| `commandEncoder`                  | Current frame's `GPUCommandEncoder`                                                                              |
+| `source`, `target`, `canvas`      | Slot surfaces (texture + view + dimensions + format). `canvas` is logical when a final color pipeline is active. |
+| `input`, `output`                 | Resolved surfaces for this pass                                                                                  |
+| `targets`                         | Named render targets map                                                                                         |
+| `time`, `delta`                   | Frame timing                                                                                                     |
+| `width`, `height`                 | Canvas dimensions                                                                                                |
+| `clear`, `clearColor`, `preserve` | Resolved flags                                                                                                   |
+| `beginRenderPass(options?)`       | Helper that creates a `GPURenderPassEncoder` with correct load/store ops                                         |
+
+## Fragment feedback passes
+
+`PingPongShaderPass` runs fullscreen fragment shaders in the pre-scene phase. It is useful for feedback effects where every pixel of a state texture is updated from the previous state: trails, reaction-diffusion, simple fluid buffers, temporal masks, and iterative displacement fields.
+
+```ts
+import { PingPongShaderPass } from '@motion-core/motion-gpu';
+
+const trail = new PingPongShaderPass({
+	fragment: `
+fn frag(uv: vec2f) -> vec4f {
+  let previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);
+  return previous * 0.98;
+}
+`,
+	target: 'trail',
+	width: 512,
+	height: 512,
+	format: 'rgba16float',
+	iterations: 4
+});
+```
+
+The `target` is a normal fragment-visible sampled texture declared in `defineMaterial({ textures })`. Do not declare it with `storage: true`; storage textures are for compute workflows. During feedback execution the target texture is excluded from the feedback shader's regular material texture bind group, and the previous state is exposed through:
+
+```wgsl
+@group(1) @binding(0) var motiongpuPreviousSampler: sampler;
+@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
+```
+
+`PingPongShaderPass` has no `input`, `output`, or `needsSwap` options. It does not read from the post-process `source` slot and does not write render-graph slots; after its iterations finish, the renderer attaches the latest A/B texture view to the material target so the base scene can sample it.
 
 ## Compute passes
 
@@ -272,13 +304,13 @@ Single-dispatch compute pass:
 import { ComputePass } from '@motion-core/motion-gpu';
 
 const simulate = new ComputePass({
-  compute: `
+	compute: `
 @compute @workgroup_size(64)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
   particles[id.x] = vec4f(f32(id.x) * 0.01, 0.0, 0.0, 1.0);
 }
 `,
-  dispatch: [16]
+	dispatch: [16]
 });
 ```
 
@@ -290,19 +322,19 @@ Iterative compute pass for multi-step simulations:
 import { PingPongComputePass } from '@motion-core/motion-gpu';
 
 const diffuse = new PingPongComputePass({
-  compute: myDiffuseShader,
-  target: 'sim',
-  iterations: 8,
-  dispatch: 'auto'
+	compute: myDiffuseShader,
+	target: 'sim',
+	iterations: 8,
+	dispatch: 'auto'
 });
 ```
 
 ### Compute in the frame
 
-Compute and render passes coexist in the `passes` array:
+Compute, fragment-feedback, and render passes coexist in the `passes` array:
 
 <FrameworkBlock svelteCode={ex.computePassSvelte} reactCode={ex.computePassReact} vueCode={ex.computePassVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
 
-All enabled compute passes dispatch **before** the scene render, regardless of where render passes appear in the array. Their relative order against other compute passes is preserved. Enabled render passes then execute **after** the scene as post-processing steps, preserving their relative order against other render passes. All passes share the same command encoder and one queue submit.
+All enabled compute and fragment-feedback passes execute **before** the scene render, regardless of where render passes appear in the array. Their relative order against other pre-scene passes is preserved. Enabled render passes then execute **after** the scene as post-processing steps, preserving their relative order against other render passes. All passes share the same command encoder and one queue submit.
 
 For full compute shader documentation, see [Compute Shaders](/docs/compute-shaders) and [Storage Buffers](/docs/storage-buffers).

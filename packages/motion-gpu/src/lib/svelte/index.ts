@@ -8,7 +8,8 @@ export {
 	CopyPass,
 	ShaderPass,
 	ComputePass,
-	PingPongComputePass
+	PingPongComputePass,
+	PingPongShaderPass
 } from '../passes/index.js';
 export { useMotionGPU } from './motiongpu-context.js';
 export { useFrame } from './frame-context.js';
@@ -20,6 +21,7 @@ export type {
 	OutputEncoding,
 	AnyPass,
 	ComputePassLike,
+	PingPongShaderPassLike,
 	RenderPass,
 	RenderPassContext,
 	RenderPassFlags,
@@ -79,3 +81,4 @@ export type {
 } from '../core/types.js';
 export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
 export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';
+export type { PingPongShaderPassOptions } from '../passes/PingPongShaderPass.js';

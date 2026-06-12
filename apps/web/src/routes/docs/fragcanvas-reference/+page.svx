@@ -17,12 +17,12 @@ This is the complete prop reference for `FragCanvas` — the main adapter entryp
 ## Usage
 
 <FrameworkBlock
-  svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
-  reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
-  vueCode={`<FragCanvas\n  :material="myMaterial"\n  :clear-color="[0, 0, 0, 1]"\n  :color="{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }"\n  render-mode="always"\n  :passes="[vignettePass]"\n  :on-error="handleError"\n>\n  <Runtime />\n</FragCanvas>`}
-  svelteLang="svelte"
-  reactLang="tsx"
-  vueLang="vue"
+svelteCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+reactCode={`<FragCanvas\n  material={myMaterial}\n  clearColor={[0, 0, 0, 1]}\n  color={{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }}\n  renderMode="always"\n  passes={[vignettePass]}\n  onError={handleError}\n>\n  <Runtime />\n</FragCanvas>`}
+vueCode={`<FragCanvas\n  :material="myMaterial"\n  :clear-color="[0, 0, 0, 1]"\n  :color="{ outputEncoding: 'srgb', toneMapping: 'khronos-pbr-neutral' }"\n  render-mode="always"\n  :passes="[vignettePass]"\n  :on-error="handleError"\n>\n  <Runtime />\n</FragCanvas>`}
+svelteLang="svelte"
+reactLang="tsx"
+vueLang="vue"
 />
 
 Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `style` type, `children`/slots) are listed below.
@@ -31,20 +31,20 @@ Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `s
 
 ### Required
 
-| Prop | Type | Description |
-| --- | --- | --- |
+| Prop       | Type           | Description                                                      |
+| ---------- | -------------- | ---------------------------------------------------------------- |
 | `material` | `FragMaterial` | The material to render. Must be created with `defineMaterial()`. |
 
 ### Rendering
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `clearColor` | `[number, number, number, number]` | `[0, 0, 0, 1]` | RGBA clear color applied before the base pass. |
-| `color` | `ColorPipelineOptions` | `undefined` | Output encoding, HDR working format, canvas dynamic range, canvas color space, and final tone-mapping options. **Changing triggers renderer rebuild.** |
-| `renderMode` | `'always'` \| `'on-demand'` \| `'manual'` | `'always'` | Controls frame rendering frequency. |
-| `autoRender` | `boolean` | `true` | Hard gate — when `false`, no rendering occurs regardless of render mode. |
-| `maxDelta` | `number` | `0.1` | Maximum frame delta in seconds (clamps `state.delta`). Must be `> 0`. |
-| `dpr` | `number` | `devicePixelRatio` (or `1` during SSR) | Device pixel ratio for resolution scaling. |
+| Prop         | Type                                      | Default                                | Description                                                                                                                                            |
+| ------------ | ----------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `clearColor` | `[number, number, number, number]`        | `[0, 0, 0, 1]`                         | RGBA clear color applied before the base pass.                                                                                                         |
+| `color`      | `ColorPipelineOptions`                    | `undefined`                            | Output encoding, HDR working format, canvas dynamic range, canvas color space, and final tone-mapping options. **Changing triggers renderer rebuild.** |
+| `renderMode` | `'always'` \| `'on-demand'` \| `'manual'` | `'always'`                             | Controls frame rendering frequency.                                                                                                                    |
+| `autoRender` | `boolean`                                 | `true`                                 | Hard gate — when `false`, no rendering occurs regardless of render mode.                                                                               |
+| `maxDelta`   | `number`                                  | `0.1`                                  | Maximum frame delta in seconds (clamps `state.delta`). Must be `> 0`.                                                                                  |
+| `dpr`        | `number`                                  | `devicePixelRatio` (or `1` during SSR) | Device pixel ratio for resolution scaling.                                                                                                             |
 
 ### Color pipeline
 
@@ -52,61 +52,55 @@ Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `s
 
 ```ts
 type ColorPipelineOptions = {
-  outputEncoding?: 'srgb' | 'linear';
-  toneMapping?: 'none' | 'khronos-pbr-neutral';
-  dynamicRange?: 'sdr' | 'hdr' | 'auto';
-  canvasColorSpace?: 'srgb' | 'display-p3';
-  workingFormat?: 'auto' | GPUTextureFormat;
+	outputEncoding?: 'srgb' | 'linear';
+	toneMapping?: 'none' | 'khronos-pbr-neutral';
+	dynamicRange?: 'sdr' | 'hdr' | 'auto';
+	canvasColorSpace?: 'srgb' | 'display-p3';
+	workingFormat?: 'auto' | GPUTextureFormat;
 };
 ```
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `outputEncoding` | `'srgb'` | Final value encoding. `'srgb'` applies linear-to-sRGB encoding before SDR presentation; `'linear'` leaves values unchanged. |
-| `toneMapping` | `'none'` | `'khronos-pbr-neutral'` applies Khronos PBR Neutral to linear HDR input before SDR presentation. |
-| `dynamicRange` | `'sdr'` | `'hdr'` requests `rgba16float` canvas output with WebGPU `toneMapping: { mode: 'extended' }`; `'auto'` tries HDR and falls back to SDR. |
+| Option             | Default  | Description                                                                                                                                                     |
+| ------------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outputEncoding`   | `'srgb'` | Final value encoding. `'srgb'` applies linear-to-sRGB encoding before SDR presentation; `'linear'` leaves values unchanged.                                     |
+| `toneMapping`      | `'none'` | `'khronos-pbr-neutral'` applies Khronos PBR Neutral to linear HDR input before SDR presentation.                                                                |
+| `dynamicRange`     | `'sdr'`  | `'hdr'` requests `rgba16float` canvas output with WebGPU `toneMapping: { mode: 'extended' }`; `'auto'` tries HDR and falls back to SDR.                         |
 | `canvasColorSpace` | `'srgb'` | Canvas presentation color space passed to WebGPU context configuration. This selects the canvas gamut/presentation space; it is separate from `outputEncoding`. |
-| `workingFormat` | `'auto'` | Internal scene/pass target format. `auto` selects `rgba16float` for HDR or tone-mapped pipelines, otherwise the preferred canvas format. |
+| `workingFormat`    | `'auto'` | Internal scene/pass target format. `auto` selects `rgba16float` for HDR or tone-mapped pipelines, otherwise the preferred canvas format.                        |
 
 Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.709 HDR color and returns linear Rec.709 in `[0, 1]`. Explicit `dynamicRange: 'hdr'` with `toneMapping: 'khronos-pbr-neutral'` is rejected because that combination asks for HDR presentation after an SDR tone mapper.
 
 ```svelte
-<FragCanvas
-  {material}
-  color={{ toneMapping: 'khronos-pbr-neutral' }}
-/>
+<FragCanvas {material} color={{ toneMapping: 'khronos-pbr-neutral' }} />
 ```
 
 ```tsx
-<FragCanvas
-  material={material}
-  color={{ dynamicRange: 'hdr', canvasColorSpace: 'display-p3' }}
-/>
+<FragCanvas material={material} color={{ dynamicRange: 'hdr', canvasColorSpace: 'display-p3' }} />
 ```
 
 ### Post-processing
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `passes` | `AnyPass[]` | `[]` | Array of compute and render passes. Compute passes dispatch pre-scene in declaration order; render passes execute post-scene in declaration order. See [Render Passes](/docs/render-passes) and [Compute Shaders](/docs/compute-shaders). |
-| `renderTargets` | `RenderTargetDefinitionMap` | `{}` | Named off-screen render targets. See [Render Targets](/docs/render-targets). |
+| Prop            | Type                        | Default | Description                                                                                                                                                                                                                                                                                                          |
+| --------------- | --------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `passes`        | `AnyPass[]`                 | `[]`    | Array of compute, fragment-feedback, and render passes. Compute and feedback passes execute pre-scene in declaration order; render passes execute post-scene in declaration order. See [Render Passes](/docs/render-passes), [Passes API](/docs/api-passes-reference), and [Compute Shaders](/docs/compute-shaders). |
+| `renderTargets` | `RenderTargetDefinitionMap` | `{}`    | Named off-screen render targets. See [Render Targets](/docs/render-targets).                                                                                                                                                                                                                                         |
 
 ### WebGPU configuration
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `adapterOptions` | `GPURequestAdapterOptions` | `undefined` | Forwarded to `navigator.gpu.requestAdapter()`. Can specify `powerPreference`, `forceFallbackAdapter`, etc. |
-| `deviceDescriptor` | `GPUDeviceDescriptor` | `undefined` | Forwarded to `adapter.requestDevice()`. Can request specific features or limits. |
+| Prop               | Type                       | Default     | Description                                                                                                |
+| ------------------ | -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
+| `adapterOptions`   | `GPURequestAdapterOptions` | `undefined` | Forwarded to `navigator.gpu.requestAdapter()`. Can specify `powerPreference`, `forceFallbackAdapter`, etc. |
+| `deviceDescriptor` | `GPUDeviceDescriptor`      | `undefined` | Forwarded to `adapter.requestDevice()`. Can request specific features or limits.                           |
 
 ### Error handling
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `showErrorOverlay` | `boolean` | `true` | Enables error UI rendering (`errorRenderer` or default overlay). |
-| `errorRenderer` | `Snippet<[MotionGPUErrorReport]>` (Svelte) / `(report: MotionGPUErrorReport) => ReactNode` (React) / scoped slot `#errorRenderer="{ report }"` (Vue) | `undefined` | Custom error renderer. When set, replaces the default `MotionGPUErrorOverlay`. |
-| `onError` | `(report: MotionGPUErrorReport) => void` | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
-| `errorHistoryLimit` | `number` | `0` | Enables bounded error history when `> 0`; values are normalized with `Math.floor`. |
-| `onErrorHistory` | `(history: MotionGPUErrorReport[]) => void` | `undefined` | Callback with deduplicated ring-buffer history snapshots. |
+| Prop                | Type                                                                                                                                                 | Default     | Description                                                                                                      |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `showErrorOverlay`  | `boolean`                                                                                                                                            | `true`      | Enables error UI rendering (`errorRenderer` or default overlay).                                                 |
+| `errorRenderer`     | `Snippet<[MotionGPUErrorReport]>` (Svelte) / `(report: MotionGPUErrorReport) => ReactNode` (React) / scoped slot `#errorRenderer="{ report }"` (Vue) | `undefined` | Custom error renderer. When set, replaces the default `MotionGPUErrorOverlay`.                                   |
+| `onError`           | `(report: MotionGPUErrorReport) => void`                                                                                                             | `undefined` | Error callback. Called regardless of overlay state. See [Error Handling](/docs/error-handling) for report shape. |
+| `errorHistoryLimit` | `number`                                                                                                                                             | `0`         | Enables bounded error history when `> 0`; values are normalized with `Math.floor`.                               |
+| `onErrorHistory`    | `(history: MotionGPUErrorReport[]) => void`                                                                                                          | `undefined` | Callback with deduplicated ring-buffer history snapshots.                                                        |
 
 ### Error history behavior
 
@@ -117,20 +111,20 @@ Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.7
 
 ### Styling and children
 
-| Prop | Type | Default | Description |
-| --- | --- | --- | --- |
-| `class` (Svelte) / `className` (React) / `canvasClass` (Vue) | `string` | `''` | CSS class applied directly to the `<canvas>`. |
-| `style` (Svelte/React) / `canvasStyle` (Vue) | `string` (Svelte) / `React.CSSProperties` (React) / `string \| Record<string, string \| number>` (Vue) | `''` (Svelte) / `undefined` (React/Vue) | Inline styles applied directly to the `<canvas>`. |
-| `children` (Svelte/React) / default slot (Vue) | `Snippet` (Svelte) / `ReactNode` (React) / slot (Vue) | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
+| Prop                                                         | Type                                                                                                   | Default                                 | Description                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `class` (Svelte) / `className` (React) / `canvasClass` (Vue) | `string`                                                                                               | `''`                                    | CSS class applied directly to the `<canvas>`.                                                                          |
+| `style` (Svelte/React) / `canvasStyle` (Vue)                 | `string` (Svelte) / `React.CSSProperties` (React) / `string \| Record<string, string \| number>` (Vue) | `''` (Svelte) / `undefined` (React/Vue) | Inline styles applied directly to the `<canvas>`.                                                                      |
+| `children` (Svelte/React) / default slot (Vue)               | `Snippet` (Svelte) / `ReactNode` (React) / slot (Vue)                                                  | `undefined`                             | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
 
 ## Lifecycle
 
-| Phase | What happens |
-| --- | --- |
-| **Mount** | Frame registry and context created. Material resolved. Pipeline signature computed. Renderer created (async). RAF loop started. |
-| **Frame** | Timing computed. Size updated. Scheduler tasks run. Render gate evaluated. If open: uniforms merged, textures uploaded, passes executed, frame presented. |
-| **Signature change** | Old renderer destroyed. New renderer created with updated signature. Exponential backoff on failure. |
-| **Destroy** | RAF cancelled. Renderer destroyed (GPU resources freed). Scheduler cleared. |
+| Phase                | What happens                                                                                                                                                                                                         |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mount**            | Frame registry and context created. Material resolved. Pipeline signature computed. Renderer created (async). RAF loop started.                                                                                      |
+| **Frame**            | Timing computed. Size updated. Scheduler tasks run. Render gate evaluated. If open: uniforms merged, textures uploaded, pre-scene passes executed, base scene rendered, post-scene passes executed, frame presented. |
+| **Signature change** | Old renderer destroyed. New renderer created with updated signature. Exponential backoff on failure.                                                                                                                 |
+| **Destroy**          | RAF cancelled. Renderer destroyed (GPU resources freed). Scheduler cleared.                                                                                                                                          |
 
 ## Canvas sizing
 

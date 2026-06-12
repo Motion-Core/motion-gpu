@@ -451,6 +451,18 @@ describe('error report', () => {
 		expect(report.recoverable).toBe(true);
 	});
 
+	it('classifies ping-pong shader pass misconfiguration', () => {
+		const report = toMotionGPUErrorReport(
+			new Error('PingPongShaderPass target "fluid" must reference a declared material texture.'),
+			'render'
+		);
+
+		expect(report.title).toBe('Ping-pong shader pass is misconfigured');
+		expect(report.code).toBe('PINGPONG_CONFIGURATION_INVALID');
+		expect(report.severity).toBe('error');
+		expect(report.recoverable).toBe(true);
+	});
+
 	it('classifies compute contract errors from invalid WGSL entrypoint requirements', () => {
 		const report = toMotionGPUErrorReport(
 			new Error('Compute shader must include a `@builtin(global_invocation_id)` parameter.'),

@@ -3,7 +3,7 @@ title: Motion GPU Documentation
 description: Framework-agnostic WebGPU core with Svelte 5, React 18/19, and Vue 3 adapters for fullscreen WGSL rendering.
 ---
 
-`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 18/19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
+`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 18/19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, **fragment feedback passes**, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 
@@ -22,7 +22,7 @@ Understanding the frame-by-frame flow is the single most useful thing you can le
    - **Scheduler tasks** run in topological order (your `useFrame` callbacks).
    - Runtime **uniforms and textures** are merged with material defaults.
    - **Pending storage buffer writes** are flushed to the GPU.
-   - **Compute passes** dispatch in declaration order as a pre-scene phase.
+   - **Compute and fragment feedback passes** execute in declaration order as a pre-scene phase.
    - The **base fullscreen pass** renders your fragment shader.
    - Optional **post-process render passes** execute through the slot graph.
    - The **final result** is presented to the canvas, optionally through a private final color pipeline for Khronos PBR Neutral or HDR canvas output.
@@ -31,35 +31,36 @@ Understanding the frame-by-frame flow is the single most useful thing you can le
 
 These are enforced at runtime and will throw immediately if violated:
 
-| Contract | Enforced by |
-| --- | --- |
-| Fragment function must be `fn frag(uv: vec2f) -> vec4f` | `defineMaterial` validation |
-| `ShaderPass` fragment must define `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` | `ShaderPass` constructor |
-| `ComputePass` shader must contain `@compute @workgroup_size(...)` and `fn compute(...)` | `ComputePass` constructor |
-| Storage buffer `size` must be `> 0` and a multiple of 4 | `defineMaterial` validation |
-| Uniform / texture / define / include / storage buffer keys must be WGSL-safe identifiers (`[A-Za-z_][A-Za-z0-9_]*`) | Validators in `uniforms.ts`, `textures.ts`, `material-preprocess.ts`, `storage-buffers.ts` |
-| `renderMode` API contract is `'always'`, `'on-demand'`, or `'manual'` | Scheduler types/runtime |
-| `maxDelta > 0` and `profilingWindow > 0` | Scheduler assertions |
-| Render target `scale`, `width`, `height` must be finite and `> 0` | Render-target resolver |
-| Pass slots must reference valid surfaces (`canvas` output-only, named slots must exist in `renderTargets`) | Render graph planner |
-| `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'` | Color pipeline resolver |
+| Contract                                                                                                              | Enforced by                                                                                |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Fragment function must be `fn frag(uv: vec2f) -> vec4f`                                                               | `defineMaterial` validation                                                                |
+| `ShaderPass` fragment must define `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`                                   | `ShaderPass` constructor                                                                   |
+| `PingPongShaderPass` fragment must define `fn frag(uv: vec2f) -> vec4f` and target a fragment-visible sampled texture | `PingPongShaderPass` constructor + renderer validation                                     |
+| `ComputePass` shader must contain `@compute @workgroup_size(...)` and `fn compute(...)`                               | `ComputePass` constructor                                                                  |
+| Storage buffer `size` must be `> 0` and a multiple of 4                                                               | `defineMaterial` validation                                                                |
+| Uniform / texture / define / include / storage buffer keys must be WGSL-safe identifiers (`[A-Za-z_][A-Za-z0-9_]*`)   | Validators in `uniforms.ts`, `textures.ts`, `material-preprocess.ts`, `storage-buffers.ts` |
+| `renderMode` API contract is `'always'`, `'on-demand'`, or `'manual'`                                                 | Scheduler types/runtime                                                                    |
+| `maxDelta > 0` and `profilingWindow > 0`                                                                              | Scheduler assertions                                                                       |
+| Render target `scale`, `width`, `height` must be finite and `> 0`                                                     | Render-target resolver                                                                     |
+| Pass slots must reference valid surfaces (`canvas` output-only, named slots must exist in `renderTargets`)            | Render graph planner                                                                       |
+| `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`                        | Color pipeline resolver                                                                    |
 
 ## Defaults worth knowing
 
-| Setting | Default value |
-| --- | --- |
-| `FragCanvas.clearColor` | `[0, 0, 0, 1]` (opaque black) |
-| `FragCanvas.color.outputEncoding` | `'srgb'` |
-| `FragCanvas.color` | `undefined` (standard SDR canvas path with default sRGB output encoding) |
-| `FragCanvas.renderMode` | `'always'` |
-| `FragCanvas.autoRender` | `true` |
-| `FragCanvas.maxDelta` | `0.1` (seconds) |
-| `FragCanvas.dpr` | `window.devicePixelRatio` (or `1` during SSR) |
-| Texture filter | `'linear'` |
-| Texture address mode | `'clamp-to-edge'` |
-| Texture update mode | Source-dependent: `HTMLVideoElement` → `perFrame`, everything else → `once` |
-| Texture `flipY` | `true` |
-| Texture `generateMipmaps` | `false` |
+| Setting                           | Default value                                                               |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `FragCanvas.clearColor`           | `[0, 0, 0, 1]` (opaque black)                                               |
+| `FragCanvas.color.outputEncoding` | `'srgb'`                                                                    |
+| `FragCanvas.color`                | `undefined` (standard SDR canvas path with default sRGB output encoding)    |
+| `FragCanvas.renderMode`           | `'always'`                                                                  |
+| `FragCanvas.autoRender`           | `true`                                                                      |
+| `FragCanvas.maxDelta`             | `0.1` (seconds)                                                             |
+| `FragCanvas.dpr`                  | `window.devicePixelRatio` (or `1` during SSR)                               |
+| Texture filter                    | `'linear'`                                                                  |
+| Texture address mode              | `'clamp-to-edge'`                                                           |
+| Texture update mode               | Source-dependent: `HTMLVideoElement` → `perFrame`, everything else → `once` |
+| Texture `flipY`                   | `true`                                                                      |
+| Texture `generateMipmaps`         | `false`                                                                     |
 
 ## Scope and boundaries
 

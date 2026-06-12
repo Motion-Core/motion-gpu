@@ -6,9 +6,10 @@ description: All notable changes to Motion Core will be documented in this file.
 > This page is auto-generated from `CHANGELOG.md` in the repository root.
 
 ## [Unreleased]
+
+## [0.11.0] - 2026-06-12
 ### Added
 - Added `PingPongShaderPass`, a pre-scene fragment-feedback pass for iterative fullscreen simulations using renderer-managed A/B render textures, previous-state sampling, configurable dimensions/format/filter/address modes, reset colors, includes, and defines.
-- Added the `ping-pong-fluid` playground demo showing `PingPongShaderPass` driving a persistent fluid-style distortion texture sampled by the base fragment shader.
 
 ### Changed
 - Extended render-graph planning with pre-scene fragment-feedback steps alongside compute steps, while keeping post-scene render-pass slot routing unchanged.

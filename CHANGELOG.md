@@ -3,6 +3,8 @@ All notable changes to Motion Core will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.11.0] - 2026-06-12
 ### Added
 - Added `PingPongShaderPass`, a pre-scene fragment-feedback pass for iterative fullscreen simulations using renderer-managed A/B render textures, previous-state sampling, configurable dimensions/format/filter/address modes, reset colors, includes, and defines.
 

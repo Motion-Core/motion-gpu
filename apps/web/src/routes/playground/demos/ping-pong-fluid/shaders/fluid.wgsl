@@ -23,9 +23,9 @@ fn readFluid(uv: vec2f) -> vec4f {
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-fn lineDistance(p: vec2f, a: vec2f, b: vec2f) -> f32 {
-    let pa = p - a;
-    let ba = b - a;
+fn lineDistance(p: vec2f, a: vec2f, b: vec2f, aspect: f32) -> f32 {
+    let pa = vec2f(p.x - a.x, (p.y - a.y) * aspect);
+    let ba = vec2f(b.x - a.x, (b.y - a.y) * aspect);
     let h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.00001), 0.0, 1.0);
     return length(pa - ba * h);
 }
@@ -51,7 +51,8 @@ fn frag(uv: vec2f) -> vec4f {
     let previousPointer = motiongpuUniforms.uPointer.zw;
     let pointerVector = pointer - previousPointer;
     let pointerSpeed = length(pointerVector);
-    let pointerDistance = lineDistance(uv, pointer, previousPointer);
+    let aspect = dims.x / max(dims.y, 1.0);
+    let pointerDistance = lineDistance(uv, pointer, previousPointer, 1 / aspect);
     let falloff = exp(-pointerDistance * pointerDistance / (BRUSH_RADIUS * BRUSH_RADIUS));
     let pointerActive = motiongpuUniforms.uPointerActive;
 

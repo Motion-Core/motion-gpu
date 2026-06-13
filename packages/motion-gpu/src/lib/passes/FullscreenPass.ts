@@ -5,6 +5,7 @@ import type {
 	RenderPassInputSlot,
 	RenderPassOutputSlot
 } from '../core/types.js';
+import { resolveTextureSamplingLayout } from '../core/textures.js';
 
 export interface FullscreenPassOptions extends RenderPassFlags {
 	enabled?: boolean;
@@ -27,10 +28,10 @@ export abstract class FullscreenPass implements RenderPass {
 	preserve: boolean;
 	private readonly filter: GPUFilterMode;
 	private device: GPUDevice | null = null;
-	private sampler: GPUSampler | null = null;
-	private bindGroupLayout: GPUBindGroupLayout | null = null;
+	private readonly samplerBySamplingLayout = new Map<string, GPUSampler>();
+	private readonly bindGroupLayoutBySamplingLayout = new Map<string, GPUBindGroupLayout>();
 	private shaderModule: GPUShaderModule | null = null;
-	private readonly pipelineByFormat = new Map<GPUTextureFormat, GPURenderPipeline>();
+	private readonly pipelineByFormat = new Map<string, GPURenderPipeline>();
 	private bindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 	protected constructor(options: FullscreenPassOptions = {}) {
@@ -51,12 +52,15 @@ export abstract class FullscreenPass implements RenderPass {
 	protected invalidateFullscreenCache(): void {
 		this.shaderModule = null;
 		this.pipelineByFormat.clear();
+		this.samplerBySamplingLayout.clear();
+		this.bindGroupLayoutBySamplingLayout.clear();
 		this.bindGroupByView = new WeakMap();
 	}
 
 	private ensureResources(
 		device: GPUDevice,
-		format: GPUTextureFormat
+		inputFormat: GPUTextureFormat,
+		outputFormat: GPUTextureFormat
 	): {
 		sampler: GPUSampler;
 		bindGroupLayout: GPUBindGroupLayout;
@@ -64,49 +68,64 @@ export abstract class FullscreenPass implements RenderPass {
 	} {
 		if (this.device !== device) {
 			this.device = device;
-			this.sampler = null;
-			this.bindGroupLayout = null;
 			this.invalidateFullscreenCache();
 		}
 
-		if (!this.sampler) {
-			this.sampler = device.createSampler({
-				magFilter: this.filter,
-				minFilter: this.filter,
+		const samplingLayout = resolveTextureSamplingLayout({
+			format: inputFormat,
+			filter: this.filter,
+			deviceFeatures: device.features
+		});
+		const samplingLayoutKey = [
+			inputFormat,
+			samplingLayout.sampleType,
+			samplingLayout.samplerType,
+			samplingLayout.effectiveFilter
+		].join('|');
+
+		let sampler = this.samplerBySamplingLayout.get(samplingLayoutKey);
+		if (!sampler) {
+			sampler = device.createSampler({
+				magFilter: samplingLayout.effectiveFilter,
+				minFilter: samplingLayout.effectiveFilter,
 				addressModeU: 'clamp-to-edge',
 				addressModeV: 'clamp-to-edge'
 			});
+			this.samplerBySamplingLayout.set(samplingLayoutKey, sampler);
 		}
 
-		if (!this.bindGroupLayout) {
-			this.bindGroupLayout = device.createBindGroupLayout({
+		let bindGroupLayout = this.bindGroupLayoutBySamplingLayout.get(samplingLayoutKey);
+		if (!bindGroupLayout) {
+			bindGroupLayout = device.createBindGroupLayout({
 				entries: [
 					{
 						binding: 0,
 						visibility: GPUShaderStage.FRAGMENT,
-						sampler: { type: 'filtering' }
+						sampler: { type: samplingLayout.samplerType }
 					},
 					{
 						binding: 1,
 						visibility: GPUShaderStage.FRAGMENT,
 						texture: {
-							sampleType: 'float',
+							sampleType: samplingLayout.sampleType,
 							viewDimension: '2d',
 							multisampled: false
 						}
 					}
 				]
 			});
+			this.bindGroupLayoutBySamplingLayout.set(samplingLayoutKey, bindGroupLayout);
 		}
 
 		if (!this.shaderModule) {
 			this.shaderModule = device.createShaderModule({ code: this.getProgram() });
 		}
 
-		let pipeline = this.pipelineByFormat.get(format);
+		const pipelineKey = `${outputFormat}|${samplingLayoutKey}`;
+		let pipeline = this.pipelineByFormat.get(pipelineKey);
 		if (!pipeline) {
 			const pipelineLayout = device.createPipelineLayout({
-				bindGroupLayouts: [this.bindGroupLayout]
+				bindGroupLayouts: [bindGroupLayout]
 			});
 			pipeline = device.createRenderPipeline({
 				layout: pipelineLayout,
@@ -117,16 +136,16 @@ export abstract class FullscreenPass implements RenderPass {
 				fragment: {
 					module: this.shaderModule,
 					entryPoint: this.getFragmentEntryPoint(),
-					targets: [{ format }]
+					targets: [{ format: outputFormat }]
 				},
 				primitive: { topology: 'triangle-list' }
 			});
-			this.pipelineByFormat.set(format, pipeline);
+			this.pipelineByFormat.set(pipelineKey, pipeline);
 		}
 
 		return {
-			sampler: this.sampler,
-			bindGroupLayout: this.bindGroupLayout,
+			sampler,
+			bindGroupLayout,
 			pipeline
 		};
 	}
@@ -139,6 +158,7 @@ export abstract class FullscreenPass implements RenderPass {
 	protected renderFullscreen(context: RenderPassContext): void {
 		const { sampler, bindGroupLayout, pipeline } = this.ensureResources(
 			context.device,
+			context.input.format,
 			context.output.format
 		);
 		const inputView = context.input.view;
@@ -166,8 +186,6 @@ export abstract class FullscreenPass implements RenderPass {
 
 	dispose(): void {
 		this.device = null;
-		this.sampler = null;
-		this.bindGroupLayout = null;
 		this.invalidateFullscreenCache();
 	}
 }

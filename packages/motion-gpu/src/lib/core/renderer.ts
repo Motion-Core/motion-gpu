@@ -15,6 +15,7 @@ import {
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
+	resolveTextureSamplingLayout,
 	resolveTextureUpdateMode,
 	resolveTextureSize,
 	toTextureData
@@ -84,6 +85,9 @@ interface RuntimeTextureBinding {
 	height: number | undefined;
 	mipLevelCount: number;
 	format: GPUTextureFormat;
+	sampleType: GPUTextureSampleType;
+	samplerType: GPUSamplerBindingType;
+	effectiveFilter: GPUFilterMode;
 	colorSpace: 'srgb' | 'linear';
 	defaultColorSpace: 'srgb' | 'linear';
 	flipY: boolean;
@@ -138,6 +142,9 @@ interface PingPongShaderTexturePair {
 	filter: GPUFilterMode;
 	addressModeU: GPUAddressMode;
 	addressModeV: GPUAddressMode;
+	sampleType: GPUTextureSampleType;
+	samplerType: GPUSamplerBindingType;
+	effectiveFilter: GPUFilterMode;
 	textureA: GPUTexture;
 	viewA: GPUTextureView;
 	textureB: GPUTexture;
@@ -836,14 +843,14 @@ function createBindGroupLayoutEntries(
 		entries.push({
 			binding: binding.samplerBinding,
 			visibility: GPUShaderStage.FRAGMENT,
-			sampler: { type: 'filtering' }
+			sampler: { type: binding.samplerType }
 		});
 
 		entries.push({
 			binding: binding.textureBinding,
 			visibility: GPUShaderStage.FRAGMENT,
 			texture: {
-				sampleType: 'float',
+				sampleType: binding.sampleType,
 				viewDimension: '2d',
 				multisampled: false
 			}
@@ -1212,13 +1219,26 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const fragmentTextureIndex = fragmentTextureIndexByKey.get(key);
 			const fragmentVisible = fragmentTextureIndex !== undefined;
 			const { samplerBinding, textureBinding } = getTextureBindings(fragmentTextureIndex ?? 0);
+			const samplingLayout = resolveTextureSamplingLayout({
+				format: config.format,
+				filter: config.filter,
+				deviceFeatures: device.features
+			});
+			if (config.generateMipmaps && samplingLayout.sampleType !== 'float') {
+				throw new Error(
+					`Texture "${key}" with format "${config.format}" cannot generate mipmaps because it is not filterable on this device.`
+				);
+			}
 			const sampler = device.createSampler({
-				magFilter: config.filter,
-				minFilter: config.filter,
-				mipmapFilter: config.generateMipmaps ? config.filter : 'nearest',
+				magFilter: samplingLayout.effectiveFilter,
+				minFilter: samplingLayout.effectiveFilter,
+				mipmapFilter: config.generateMipmaps ? samplingLayout.effectiveFilter : 'nearest',
 				addressModeU: config.addressModeU,
 				addressModeV: config.addressModeV,
-				maxAnisotropy: config.filter === 'linear' ? config.anisotropy : 1
+				maxAnisotropy:
+					samplingLayout.samplerType === 'filtering' && samplingLayout.effectiveFilter === 'linear'
+						? config.anisotropy
+						: 1
 			});
 			const fallbackFormat: GPUTextureFormat =
 				config.format === 'rgba8unorm-srgb' ? 'rgba8unorm-srgb' : 'rgba8unorm';
@@ -1243,6 +1263,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				height: undefined,
 				mipLevelCount: 1,
 				format: config.format,
+				sampleType: samplingLayout.sampleType,
+				samplerType: samplingLayout.samplerType,
+				effectiveFilter: samplingLayout.effectiveFilter,
 				colorSpace: config.colorSpace,
 				defaultColorSpace: config.colorSpace,
 				flipY: config.flipY,
@@ -1652,9 +1675,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				format: options.format,
 				usage
 			});
+			const samplingLayout = resolveTextureSamplingLayout({
+				format: options.format,
+				filter: options.filter,
+				deviceFeatures: device.features
+			});
 			const sampler = device.createSampler({
-				magFilter: options.filter,
-				minFilter: options.filter,
+				magFilter: samplingLayout.effectiveFilter,
+				minFilter: samplingLayout.effectiveFilter,
 				addressModeU: options.addressModeU,
 				addressModeV: options.addressModeV
 			});
@@ -1667,6 +1695,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				filter: options.filter,
 				addressModeU: options.addressModeU,
 				addressModeV: options.addressModeV,
+				sampleType: samplingLayout.sampleType,
+				samplerType: samplingLayout.samplerType,
+				effectiveFilter: samplingLayout.effectiveFilter,
 				textureA,
 				viewA: textureA.createView(),
 				textureB,
@@ -2034,9 +2065,17 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			const feedbackTextureKeys = fragmentTextureKeys.filter((key) => key !== target);
+			const previousSamplingLayout = resolveTextureSamplingLayout({
+				format,
+				filter: pass.getFilter?.() ?? 'linear',
+				deviceFeatures: device.features
+			});
 			const cacheKey = [
 				format,
 				target,
+				previousSamplingLayout.sampleType,
+				previousSamplingLayout.samplerType,
+				previousSamplingLayout.effectiveFilter,
 				feedbackTextureKeys.join(','),
 				options.uniformLayout.entries.map((entry) => `${entry.name}:${entry.type}`).join(','),
 				fragment
@@ -2064,13 +2103,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					{
 						binding: 0,
 						visibility: GPUShaderStage.FRAGMENT,
-						sampler: { type: 'filtering' }
+						sampler: { type: previousSamplingLayout.samplerType }
 					},
 					{
 						binding: 1,
 						visibility: GPUShaderStage.FRAGMENT,
 						texture: {
-							sampleType: 'float',
+							sampleType: previousSamplingLayout.sampleType,
 							viewDimension: '2d',
 							multisampled: false
 						}

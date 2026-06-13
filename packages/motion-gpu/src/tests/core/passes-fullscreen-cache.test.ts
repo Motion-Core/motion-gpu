@@ -25,6 +25,7 @@ function createTarget(key: string, format: GPUTextureFormat = 'rgba8unorm'): Ren
 
 function createFakeDevice() {
 	return {
+		features: new Set() as unknown as GPUSupportedFeatures,
 		createSampler: vi.fn(() => ({ type: 'sampler' }) as unknown as GPUSampler),
 		createBindGroupLayout: vi.fn(
 			() => ({ type: 'bind-group-layout' }) as unknown as GPUBindGroupLayout
@@ -184,6 +185,49 @@ describe('FullscreenPass resource caching', () => {
 		expect(device.createSampler).toHaveBeenCalledWith(
 			expect.objectContaining({ magFilter: 'nearest', minFilter: 'nearest' })
 		);
+	});
+
+	it('uses non-filtering layout for unfilterable float32 input textures', () => {
+		const pass = new BlitPass();
+		const context = createPassContext({
+			input: createTarget('source-r32', 'r32float')
+		});
+		const device = context.device as unknown as FakeDevice;
+
+		pass.render(context);
+
+		expect(device.createSampler).toHaveBeenCalledWith(
+			expect.objectContaining({ magFilter: 'nearest', minFilter: 'nearest' })
+		);
+		expect(device.createBindGroupLayout).toHaveBeenCalledWith({
+			entries: expect.arrayContaining([
+				expect.objectContaining({ sampler: { type: 'non-filtering' } }),
+				expect.objectContaining({
+					texture: expect.objectContaining({ sampleType: 'unfilterable-float' })
+				})
+			])
+		});
+	});
+
+	it('caches separate bind group layouts for different input sampling layouts', () => {
+		const pass = new BlitPass();
+		const sharedDevice = createFakeDevice() as unknown as GPUDevice;
+		const deviceMock = sharedDevice as unknown as FakeDevice;
+		const ctxRgba8 = createPassContext({
+			device: sharedDevice,
+			input: createTarget('source-rgba8', 'rgba8unorm')
+		});
+		const ctxR32 = createPassContext({
+			device: sharedDevice,
+			input: createTarget('source-r32', 'r32float')
+		});
+
+		pass.render(ctxRgba8);
+		pass.render(ctxR32);
+		pass.render(ctxRgba8);
+		pass.render(ctxR32);
+
+		expect(deviceMock.createBindGroupLayout).toHaveBeenCalledTimes(2);
 	});
 
 	// --- Sampler / bindGroupLayout / shaderModule reuse ----------------------

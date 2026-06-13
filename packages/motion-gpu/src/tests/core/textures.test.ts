@@ -4,6 +4,7 @@ import {
 	isVideoTextureSource,
 	normalizeTextureDefinition,
 	normalizeTextureDefinitions,
+	resolveTextureSamplingLayout,
 	resolveTextureUpdateMode,
 	resolveTextureKeys,
 	resolveTextureSize,
@@ -198,6 +199,47 @@ describe('textures', () => {
 		);
 		expect(resolveTextureUpdateMode({ source: canvas, override: 'perFrame' })).toBe('perFrame');
 		expect(resolveTextureUpdateMode({ source: video })).toBe('perFrame');
+	});
+
+	it('maps float32 texture formats to unfilterable sampling without feature support', () => {
+		expect(resolveTextureSamplingLayout({ format: 'r32float', filter: 'linear' })).toEqual({
+			sampleType: 'unfilterable-float',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: true
+		});
+	});
+
+	it('allows float32 texture filtering when the device supports float32-filterable', () => {
+		const features = new Set(['float32-filterable']) as unknown as GPUSupportedFeatures;
+
+		expect(
+			resolveTextureSamplingLayout({
+				format: 'rgba32float',
+				filter: 'linear',
+				deviceFeatures: features
+			})
+		).toEqual({
+			sampleType: 'float',
+			samplerType: 'filtering',
+			effectiveFilter: 'linear',
+			filterWasCoerced: false
+		});
+	});
+
+	it('maps integer texture formats to non-filtering integer sample types', () => {
+		expect(resolveTextureSamplingLayout({ format: 'r32uint', filter: 'linear' })).toEqual({
+			sampleType: 'uint',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: true
+		});
+		expect(resolveTextureSamplingLayout({ format: 'rgba32sint', filter: 'nearest' })).toEqual({
+			sampleType: 'sint',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: false
+		});
 	});
 
 	it('clamps anisotropy at lower bound to 1', () => {

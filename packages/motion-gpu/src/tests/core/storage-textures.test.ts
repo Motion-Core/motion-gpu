@@ -38,6 +38,7 @@ function createWebGpuRuntime() {
 			writeBuffer: vi.fn(),
 			submit: vi.fn()
 		},
+		features: new Set() as unknown as GPUSupportedFeatures,
 		createShaderModule: vi.fn(
 			() =>
 				({

@@ -24,6 +24,7 @@ interface MockWebGpuRuntime {
 			writeBuffer: ReturnType<typeof vi.fn>;
 			submit: ReturnType<typeof vi.fn>;
 		};
+		features: GPUSupportedFeatures;
 		createShaderModule: ReturnType<typeof vi.fn>;
 		createSampler: ReturnType<typeof vi.fn>;
 		createTexture: ReturnType<typeof vi.fn>;
@@ -101,6 +102,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 			writeBuffer: vi.fn(),
 			submit: vi.fn()
 		},
+		features: new Set() as unknown as GPUSupportedFeatures,
 		createShaderModule: vi.fn(
 			(descriptor: GPUShaderModuleDescriptor) =>
 				({
@@ -1874,6 +1876,76 @@ describe('createRenderer', () => {
 		const textureEntries = entries.filter((entry) => entry.texture !== undefined);
 		expect(samplerEntries).toHaveLength(1);
 		expect(textureEntries).toHaveLength(1);
+	});
+
+	it('uses unfilterable fragment texture layout for r32float textures without feature support', async () => {
+		const runtime = createWebGpuRuntime();
+
+		await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uFloat'],
+			textureDefinitions: {
+				uFloat: { format: 'r32float', filter: 'linear' }
+			}
+		});
+
+		const sceneBindGroupLayout = runtime.device.createBindGroupLayout.mock.calls
+			.map((call) => call[0] as GPUBindGroupLayoutDescriptor)
+			.find((descriptor) => {
+				const entries = Array.from(descriptor.entries);
+				return (
+					entries.some((entry) => entry.binding === 2 && entry.sampler !== undefined) &&
+					entries.some((entry) => entry.binding === 3 && entry.texture !== undefined)
+				);
+			});
+		expect(sceneBindGroupLayout).toBeDefined();
+		const entries = Array.from(sceneBindGroupLayout?.entries ?? []);
+		expect(entries.find((entry) => entry.binding === 2)?.sampler).toEqual({
+			type: 'non-filtering'
+		});
+		expect(entries.find((entry) => entry.binding === 3)?.texture).toMatchObject({
+			sampleType: 'unfilterable-float'
+		});
+		expect(runtime.device.createSampler).toHaveBeenCalledWith(
+			expect.objectContaining({ magFilter: 'nearest', minFilter: 'nearest' })
+		);
+	});
+
+	it('uses unfilterable fragment texture layout for fragment-visible rgba32float storage textures', async () => {
+		const runtime = createWebGpuRuntime();
+
+		await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['sim'],
+			textureDefinitions: {
+				sim: {
+					storage: true,
+					format: 'rgba32float',
+					width: 8,
+					height: 8,
+					fragmentVisible: true
+				}
+			},
+			storageTextureKeys: ['sim']
+		});
+
+		const sceneBindGroupLayout = runtime.device.createBindGroupLayout.mock.calls
+			.map((call) => call[0] as GPUBindGroupLayoutDescriptor)
+			.find((descriptor) => {
+				const entries = Array.from(descriptor.entries);
+				return (
+					entries.some((entry) => entry.binding === 2 && entry.sampler !== undefined) &&
+					entries.some((entry) => entry.binding === 3 && entry.texture !== undefined)
+				);
+			});
+		expect(sceneBindGroupLayout).toBeDefined();
+		const entries = Array.from(sceneBindGroupLayout?.entries ?? []);
+		expect(entries.find((entry) => entry.binding === 2)?.sampler).toEqual({
+			type: 'non-filtering'
+		});
+		expect(entries.find((entry) => entry.binding === 3)?.texture).toMatchObject({
+			sampleType: 'unfilterable-float'
+		});
 	});
 
 	it('reuses compute storage buffer bind group layout and bind group across stable frames', async () => {

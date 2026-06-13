@@ -74,6 +74,13 @@ export interface NormalizedTextureDefinition {
 	height?: number;
 }
 
+export interface TextureSamplingLayout {
+	sampleType: GPUTextureSampleType;
+	samplerType: GPUSamplerBindingType;
+	effectiveFilter: GPUFilterMode;
+	filterWasCoerced: boolean;
+}
+
 /**
  * Default sampling filter for textures when no explicit value is provided.
  */
@@ -83,6 +90,54 @@ const DEFAULT_TEXTURE_FILTER: GPUFilterMode = 'linear';
  * Default addressing mode for textures when no explicit value is provided.
  */
 const DEFAULT_TEXTURE_ADDRESS_MODE: GPUAddressMode = 'clamp-to-edge';
+
+export function isFloat32TextureFormat(format: GPUTextureFormat): boolean {
+	return format === 'r32float' || format === 'rg32float' || format === 'rgba32float';
+}
+
+function hasFloat32FilterableFeature(features: GPUSupportedFeatures | undefined): boolean {
+	return features?.has?.('float32-filterable' as GPUFeatureName) === true;
+}
+
+export function resolveTextureSamplingLayout(input: {
+	format: GPUTextureFormat;
+	filter: GPUFilterMode;
+	deviceFeatures?: GPUSupportedFeatures;
+}): TextureSamplingLayout {
+	if (input.format.endsWith('uint')) {
+		return {
+			sampleType: 'uint',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: input.filter !== 'nearest'
+		};
+	}
+
+	if (input.format.endsWith('sint')) {
+		return {
+			sampleType: 'sint',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: input.filter !== 'nearest'
+		};
+	}
+
+	if (isFloat32TextureFormat(input.format) && !hasFloat32FilterableFeature(input.deviceFeatures)) {
+		return {
+			sampleType: 'unfilterable-float',
+			samplerType: 'non-filtering',
+			effectiveFilter: 'nearest',
+			filterWasCoerced: input.filter !== 'nearest'
+		};
+	}
+
+	return {
+		sampleType: 'float',
+		samplerType: input.filter === 'linear' ? 'filtering' : 'non-filtering',
+		effectiveFilter: input.filter,
+		filterWasCoerced: false
+	};
+}
 
 /**
  * Validates and returns sorted texture keys.

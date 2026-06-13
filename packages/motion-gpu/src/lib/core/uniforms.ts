@@ -227,14 +227,14 @@ function writeUniformValueFast(
 			return;
 		}
 
-		const arr = matrix as number[];
+		const arr = matrix as readonly number[];
 		for (let index = 0; index < 16; index += 1) {
 			data[base + index] = arr[index] ?? 0;
 		}
 		return;
 	}
 
-	const tuple = input as number[];
+	const tuple = input as readonly number[];
 	const length = type === 'vec2f' ? 2 : type === 'vec3f' ? 3 : 4;
 	for (let index = 0; index < length; index += 1) {
 		data[base + index] = tuple[index] ?? 0;

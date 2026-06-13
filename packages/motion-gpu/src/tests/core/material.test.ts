@@ -5,6 +5,7 @@ import {
 	defineMaterial,
 	resolveMaterial
 } from '../../lib/core/material';
+import type { TypedUniform } from '../../lib/core/types';
 
 function assertType<T>(value: T): void {
 	void value;
@@ -142,6 +143,31 @@ describe('material', () => {
 			true
 		);
 		expect((material.textures.uMain?.source as { update?: string }).update).toBe('onInvalidate');
+	});
+
+	it('normalizes Float32Array mat4x4f material defaults into frozen snapshots', () => {
+		const matrix = new Float32Array(16);
+		matrix[0] = 1;
+		matrix[5] = 1;
+		matrix[10] = 1;
+		matrix[15] = 1;
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			uniforms: {
+				uTransform: { type: 'mat4x4f', value: matrix }
+			}
+		});
+		const stored = material.uniforms.uTransform as TypedUniform<'mat4x4f'>;
+
+		expect(Array.isArray(stored.value)).toBe(true);
+		expect(Object.isFrozen(stored.value)).toBe(true);
+		expect(stored.value[0]).toBe(1);
+
+		expect(() => {
+			(stored.value as number[])[0] = 9;
+		}).toThrow();
+		expect(stored.value[0]).toBe(1);
 	});
 
 	it('builds and applies define blocks', () => {

@@ -193,6 +193,25 @@ describe('uniform helpers', () => {
 		expect(packed[1]).toBeCloseTo(0);
 	});
 
+	it('packs mat4x4f from frozen readonly material snapshots', () => {
+		const matrix = Object.freeze(
+			Array.from({ length: 16 }, (_, index) => (index === 0 ? 2 : index === 15 ? 1 : 0))
+		);
+		const layout = resolveUniformLayout({
+			uMatrix: { type: 'mat4x4f', value: new Float32Array(16) }
+		});
+
+		const packed = packUniforms(
+			{
+				uMatrix: { type: 'mat4x4f', value: matrix }
+			},
+			layout
+		);
+
+		expect(packed[0]).toBeCloseTo(2);
+		expect(packed[15]).toBeCloseTo(1);
+	});
+
 	it('rejects non-number non-array non-typed values in inferUniformType', () => {
 		expect(() => inferUniformType('hello' as unknown as UniformValue)).toThrow(
 			/Uniform value must resolve/

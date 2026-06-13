@@ -404,7 +404,9 @@ function cloneUniformValue(value: UniformValue): UniformValue {
 		const typedValue = typed.value as unknown;
 
 		let clonedTypedValue = typedValue;
-		if (typedValue instanceof Float32Array) {
+		if (typed.type === 'mat4x4f' && typedValue instanceof Float32Array) {
+			clonedTypedValue = Object.freeze(Array.from(typedValue));
+		} else if (typedValue instanceof Float32Array) {
 			clonedTypedValue = new Float32Array(typedValue);
 		} else if (Array.isArray(typedValue)) {
 			clonedTypedValue = Object.freeze([...typedValue]);

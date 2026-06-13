@@ -16,7 +16,7 @@ export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
 /**
  * Accepted matrix value formats for `mat4x4f` uniforms.
  */
-export type UniformMat4Value = number[] | Float32Array;
+export type UniformMat4Value = readonly number[] | Float32Array;
 
 /**
  * Runtime value shape by WGSL uniform type tag.

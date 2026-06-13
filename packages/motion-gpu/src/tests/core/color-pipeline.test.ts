@@ -75,6 +75,40 @@ describe('color pipeline', () => {
 		);
 	});
 
+	it('can premultiply final presentation alpha for canvas compositing', () => {
+		const shader = buildPresentationShader({
+			toneMapping: 'none',
+			convertLinearToSrgb: false,
+			dynamicRange: 'sdr',
+			premultiplyAlpha: true
+		});
+
+		expect(shader).toContain('fn motiongpuPremultiplyForCanvas(color: vec4f) -> vec4f');
+		expect(shader).toContain('let motiongpuAlpha = clamp(color.a, 0.0, 1.0);');
+		expect(shader).toContain('return motiongpuPremultiplyForCanvas(motiongpuLinear);');
+	});
+
+	it('premultiplies final presentation alpha after tone mapping and sRGB encoding', () => {
+		const shader = buildPresentationShader({
+			toneMapping: 'khronos-pbr-neutral',
+			convertLinearToSrgb: true,
+			dynamicRange: 'sdr',
+			premultiplyAlpha: true
+		});
+
+		expect(shader).toContain(
+			'let motiongpuPresented = motiongpuLinearToSrgb(motiongpuToneMapped);'
+		);
+		expect(shader).toContain('let motiongpuOutput = vec4f(motiongpuPresented, motiongpuLinear.a);');
+		expect(shader).toContain('return motiongpuPremultiplyForCanvas(motiongpuOutput);');
+		expect(shader.indexOf('motiongpuKhronosPbrNeutral')).toBeLessThan(
+			shader.indexOf('motiongpuLinearToSrgb(motiongpuToneMapped)')
+		);
+		expect(shader.indexOf('motiongpuLinearToSrgb(motiongpuToneMapped)')).toBeLessThan(
+			shader.indexOf('motiongpuPremultiplyForCanvas(motiongpuOutput)')
+		);
+	});
+
 	it('samples presentation textures in framebuffer coordinates instead of material uv coordinates', () => {
 		const shader = buildPresentationShader({
 			toneMapping: 'none',

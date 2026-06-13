@@ -71,12 +71,6 @@
 		])
 	);
 
-	const storageReadCases = particleShards
-		.map((shard, shardIndex) => {
-			return `    case ${shardIndex}u: { return ${shard.name}[base]; }`;
-		})
-		.join('\n');
-
 	const material = defineMaterial({
 		fragment: fragmentShader,
 		textures: {

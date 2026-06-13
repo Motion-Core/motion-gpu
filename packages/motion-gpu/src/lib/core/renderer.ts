@@ -967,6 +967,25 @@ function destroyRenderTexture(target: RuntimeRenderTarget | null): void {
 	target?.texture.destroy();
 }
 
+function toClearValue(color: [number, number, number, number]): GPUColorDict {
+	return {
+		r: color[0],
+		g: color[1],
+		b: color[2],
+		a: color[3]
+	};
+}
+
+function toPremultipliedCanvasClearValue(color: [number, number, number, number]): GPUColorDict {
+	const alpha = Math.min(Math.max(color[3], 0), 1);
+	return {
+		r: color[0] * alpha,
+		g: color[1] * alpha,
+		b: color[2] * alpha,
+		a: alpha
+	};
+}
+
 /**
  * Creates the WebGPU renderer used by `FragCanvas`.
  *
@@ -1134,12 +1153,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const fragmentTextureKeys = options.textureKeys.filter(
 			(key) => options.textureDefinitions[key]?.fragmentVisible !== false
 		);
-		const builtShader = buildShaderSourceWithMap(
-			options.fragmentWgsl,
-			options.uniformLayout,
-			fragmentTextureKeys,
-			{
+		const buildSceneShader = (premultiplyOutputAlpha: boolean) =>
+			buildShaderSourceWithMap(options.fragmentWgsl, options.uniformLayout, fragmentTextureKeys, {
 				convertLinearToSrgb,
+				premultiplyOutputAlpha,
 				fragmentLineMap: options.fragmentLineMap,
 				...(options.storageBufferKeys !== undefined
 					? { storageBufferKeys: options.storageBufferKeys }
@@ -1147,19 +1164,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				...(options.storageBufferDefinitions !== undefined
 					? { storageBufferDefinitions: options.storageBufferDefinitions }
 					: {})
-			}
-		);
+			});
+		const builtShader = buildSceneShader(false);
 		const shaderModule = device.createShaderModule({ code: builtShader.code });
-		await assertCompilation(shaderModule, {
-			lineMap: builtShader.lineMap,
-			fragmentSource: options.fragmentSource,
-			includeSources: options.includeSources,
-			...(options.defineBlockSource !== undefined
-				? { defineBlockSource: options.defineBlockSource }
-				: {}),
-			materialSource: options.materialSource ?? null,
-			runtimeContext
-		});
+		const assertSceneShaderCompilation = (
+			module: GPUShaderModule,
+			builtSource: typeof builtShader
+		) =>
+			assertCompilation(module, {
+				lineMap: builtSource.lineMap,
+				fragmentSource: options.fragmentSource,
+				includeSources: options.includeSources,
+				...(options.defineBlockSource !== undefined
+					? { defineBlockSource: options.defineBlockSource }
+					: {}),
+				materialSource: options.materialSource ?? null,
+				runtimeContext
+			});
+		await assertSceneShaderCompilation(shaderModule, builtShader);
+		const builtDirectCanvasShader = !colorPipeline.requiresPresentationPass
+			? buildSceneShader(true)
+			: null;
+		const directCanvasShaderModule = builtDirectCanvasShader
+			? device.createShaderModule({ code: builtDirectCanvasShader.code })
+			: null;
+		if (directCanvasShaderModule && builtDirectCanvasShader) {
+			await assertSceneShaderCompilation(directCanvasShaderModule, builtDirectCanvasShader);
+		}
 
 		const normalizedTextureDefinitions = normalizeTextureDefinitions(
 			options.textureDefinitions,
@@ -1327,6 +1358,23 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				topology: 'triangle-list'
 			}
 		});
+		const directCanvasPipeline = directCanvasShaderModule
+			? device.createRenderPipeline({
+					layout: pipelineLayout,
+					vertex: {
+						module: directCanvasShaderModule,
+						entryPoint: 'motiongpuVertex'
+					},
+					fragment: {
+						module: directCanvasShaderModule,
+						entryPoint: 'motiongpuFragment',
+						targets: [{ format: colorPipeline.canvasFormat }]
+					},
+					primitive: {
+						topology: 'triangle-list'
+					}
+				})
+			: null;
 
 		const presentationBindGroupLayout = device.createBindGroupLayout({
 			entries: [
@@ -1353,16 +1401,23 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const buildPresentationPipelineKey = (
 			canvasFormat: GPUTextureFormat,
 			dynamicRange: EffectiveDynamicRange,
-			applyFinalTransform: boolean
+			applyFinalTransform: boolean,
+			premultiplyAlpha: boolean
 		): string => {
-			return `${canvasFormat}|${dynamicRange}|${applyFinalTransform}`;
+			return `${canvasFormat}|${dynamicRange}|${applyFinalTransform}|${premultiplyAlpha}`;
 		};
 		const createPresentationPipeline = async (
 			canvasFormat: GPUTextureFormat,
 			dynamicRange: EffectiveDynamicRange,
-			applyFinalTransform: boolean
+			applyFinalTransform: boolean,
+			premultiplyAlpha: boolean
 		): Promise<void> => {
-			const key = buildPresentationPipelineKey(canvasFormat, dynamicRange, applyFinalTransform);
+			const key = buildPresentationPipelineKey(
+				canvasFormat,
+				dynamicRange,
+				applyFinalTransform,
+				premultiplyAlpha
+			);
 			if (presentationPipelines.has(key)) {
 				return;
 			}
@@ -1374,7 +1429,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				code: buildPresentationShader({
 					toneMapping: applyFinalTransform ? colorPipeline.toneMapping : 'none',
 					convertLinearToSrgb: convertPresentationLinearToSrgb,
-					dynamicRange
+					dynamicRange,
+					premultiplyAlpha
 				})
 			});
 			await assertCompilation(presentationShaderModule);
@@ -1400,13 +1456,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		await createPresentationPipeline(
 			colorPipeline.canvasFormat,
 			colorPipeline.dynamicRange === 'auto' ? 'hdr' : colorPipeline.dynamicRange,
-			colorPipeline.requiresPresentationPass
+			colorPipeline.requiresPresentationPass,
+			true
 		);
 		if (colorPipeline.dynamicRange === 'auto') {
 			await createPresentationPipeline(
 				colorPipeline.fallbackCanvasFormat,
 				'sdr',
-				colorPipeline.requiresPresentationPass
+				colorPipeline.requiresPresentationPass,
+				true
 			);
 		}
 		const presentationSampler = device.createSampler({
@@ -2801,12 +2859,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				colorAttachments: [
 					{
 						view: canvasView,
-						clearValue: {
-							r: clearColor[0],
-							g: clearColor[1],
-							b: clearColor[2],
-							a: clearColor[3]
-						},
+						clearValue: toPremultipliedCanvasClearValue(clearColor),
 						loadOp: 'clear',
 						storeOp: 'store'
 					}
@@ -2817,7 +2870,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				buildPresentationPipelineKey(
 					effectiveCanvasFormat,
 					effectiveDynamicRange,
-					applyFinalTransform
+					applyFinalTransform,
+					true
 				)
 			);
 			if (!pipeline) {
@@ -3009,13 +3063,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			canvasSurface.format = effectiveCanvasFormat;
 
 			const presentationRequired = colorPipeline.requiresPresentationPass;
-			const presentationSurface = presentationRequired
-				? ensurePresentationTarget(width, height)
-				: null;
-			if (graphPlan.renderSteps.length > 0) {
+			const graphHasRenderSteps = graphPlan.renderSteps.length > 0;
+			const presentationSurface =
+				presentationRequired || graphHasRenderSteps
+					? ensurePresentationTarget(width, height)
+					: null;
+			if (graphHasRenderSteps) {
 				frameSlots.source = ensureSlotTarget('source', width, height);
 				frameSlots.target = ensureSlotTarget('target', width, height);
-				frameSlots.canvas = presentationSurface ?? canvasSurface;
+				frameSlots.canvas = presentationSurface!;
 				frameSlotsActive = true;
 			} else {
 				frameSlotsActive = false;
@@ -3041,12 +3097,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					colorAttachments: [
 						{
 							view,
-							clearValue: {
-								r: clearColor[0],
-								g: clearColor[1],
-								b: clearColor[2],
-								a: clearColor[3]
-							},
+							clearValue: toClearValue(clearColor),
 							loadOp: 'clear',
 							storeOp: 'store'
 						}
@@ -3250,19 +3301,19 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				colorAttachments: [
 					{
 						view: sceneOutput.view,
-						clearValue: {
-							r: clearColor[0],
-							g: clearColor[1],
-							b: clearColor[2],
-							a: clearColor[3]
-						},
+						clearValue:
+							sceneOutput === canvasSurface
+								? toPremultipliedCanvasClearValue(clearColor)
+								: toClearValue(clearColor),
 						loadOp: 'clear',
 						storeOp: 'store'
 					}
 				]
 			});
 
-			scenePass.setPipeline(pipeline);
+			scenePass.setPipeline(
+				!slots && !presentationRequired && directCanvasPipeline ? directCanvasPipeline : pipeline
+			);
 			scenePass.setBindGroup(0, bindGroup);
 			if (fragmentStorageBindGroup) {
 				scenePass.setBindGroup(1, fragmentStorageBindGroup);
@@ -3329,12 +3380,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 								colorAttachments: [
 									{
 										view: passOptions?.view ?? output.view,
-										clearValue: {
-											r: clearColor[0],
-											g: clearColor[1],
-											b: clearColor[2],
-											a: clearColor[3]
-										},
+										clearValue: toClearValue(clearColor),
 										loadOp: clear ? 'clear' : 'load',
 										storeOp: preserve ? 'store' : 'discard'
 									}
@@ -3351,7 +3397,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 
 				finalPresentationSurface = resolveStepSurface(graphPlan.finalOutput);
-				if (!presentationRequired && graphPlan.finalOutput !== 'canvas') {
+				if (!presentationRequired) {
 					presentToCanvas(
 						commandEncoder,
 						finalPresentationSurface.view,

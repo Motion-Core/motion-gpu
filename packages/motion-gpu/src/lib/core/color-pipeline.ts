@@ -29,6 +29,7 @@ export interface PresentationShaderOptions {
 	toneMapping: ToneMapping;
 	convertLinearToSrgb: boolean;
 	dynamicRange: EffectiveDynamicRange;
+	premultiplyAlpha?: boolean;
 }
 
 export interface CanvasConfigurationOptions {
@@ -156,9 +157,34 @@ fn motiongpuKhronosPbrNeutral(colorInput: vec3f) -> vec3f {
 `;
 }
 
+function buildCanvasPremultiplyHelper(enabled: boolean): string {
+	if (!enabled) {
+		return '';
+	}
+
+	return `
+fn motiongpuPremultiplyForCanvas(color: vec4f) -> vec4f {
+	let motiongpuAlpha = clamp(color.a, 0.0, 1.0);
+	return vec4f(color.rgb * motiongpuAlpha, motiongpuAlpha);
+}
+`;
+}
+
+function buildPresentationFinalReturn(colorExpression: string, premultiplyAlpha: boolean): string {
+	if (premultiplyAlpha) {
+		return `let motiongpuOutput = ${colorExpression};
+	return motiongpuPremultiplyForCanvas(motiongpuOutput);`;
+	}
+
+	return `return ${colorExpression};`;
+}
+
 function buildPresentationReturn(options: PresentationShaderOptions): string {
+	const premultiplyAlpha = options.premultiplyAlpha ?? false;
 	if (options.toneMapping === 'none' && !options.convertLinearToSrgb) {
-		return 'return motiongpuLinear;';
+		return premultiplyAlpha
+			? 'return motiongpuPremultiplyForCanvas(motiongpuLinear);'
+			: 'return motiongpuLinear;';
 	}
 
 	const lines: string[] = [];
@@ -176,9 +202,13 @@ function buildPresentationReturn(options: PresentationShaderOptions): string {
 
 	if (options.convertLinearToSrgb) {
 		lines.push(`let motiongpuPresented = motiongpuLinearToSrgb(${colorExpression});`);
-		lines.push('return vec4f(motiongpuPresented, motiongpuLinear.a);');
+		lines.push(
+			buildPresentationFinalReturn('vec4f(motiongpuPresented, motiongpuLinear.a)', premultiplyAlpha)
+		);
 	} else {
-		lines.push(`return vec4f(${colorExpression}, motiongpuLinear.a);`);
+		lines.push(
+			buildPresentationFinalReturn(`vec4f(${colorExpression}, motiongpuLinear.a)`, premultiplyAlpha)
+		);
 	}
 
 	return lines.join('\n\t');
@@ -187,6 +217,7 @@ function buildPresentationReturn(options: PresentationShaderOptions): string {
 export function buildPresentationShader(options: PresentationShaderOptions): string {
 	const includeToneMapping = options.toneMapping === 'khronos-pbr-neutral';
 	const includeSrgb = options.convertLinearToSrgb;
+	const includePremultiply = options.premultiplyAlpha ?? false;
 	const presentationReturn = buildPresentationReturn(options);
 
 	return `
@@ -199,6 +230,7 @@ struct MotionGPUVertexOut {
 @group(0) @binding(1) var motiongpuPresentationTexture: texture_2d<f32>;
 ${buildKhronosPbrNeutralHelper(includeToneMapping)}
 ${buildLinearToSrgbHelper(includeSrgb)}
+${buildCanvasPremultiplyHelper(includePremultiply)}
 @vertex
 fn motiongpuPresentationVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
 	var positions = array<vec2f, 3>(

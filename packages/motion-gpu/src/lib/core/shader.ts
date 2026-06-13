@@ -127,17 +127,54 @@ fn motiongpuLinearToSrgb(linearColor: vec3f) -> vec3f {
 `;
 }
 
+function buildCanvasPremultiplyHelper(enabled: boolean): string {
+	if (!enabled) {
+		return '';
+	}
+
+	return `
+fn motiongpuPremultiplyForCanvas(color: vec4f) -> vec4f {
+	let motiongpuAlpha = clamp(color.a, 0.0, 1.0);
+	return vec4f(color.rgb * motiongpuAlpha, motiongpuAlpha);
+}
+`;
+}
+
 /**
  * Builds fragment output code with optional color-space conversion.
  */
-function buildFragmentOutput(keepAliveExpression: string, enableSrgbTransform: boolean): string {
+function buildFragmentOutput(
+	keepAliveExpression: string,
+	enableSrgbTransform: boolean,
+	premultiplyOutputAlpha: boolean
+): string {
 	if (enableSrgbTransform) {
+		if (premultiplyOutputAlpha) {
+			return `
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = ${keepAliveExpression};
+	let motiongpuLinear = vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+	let motiongpuSrgb = motiongpuLinearToSrgb(max(motiongpuLinear.rgb, vec3f(0.0)));
+	let motiongpuOutput = vec4f(motiongpuSrgb, motiongpuLinear.a);
+	return motiongpuPremultiplyForCanvas(motiongpuOutput);
+`;
+		}
+
 		return `
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = ${keepAliveExpression};
 	let motiongpuLinear = vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
 	let motiongpuSrgb = motiongpuLinearToSrgb(max(motiongpuLinear.rgb, vec3f(0.0)));
 	return vec4f(motiongpuSrgb, motiongpuLinear.a);
+`;
+	}
+
+	if (premultiplyOutputAlpha) {
+		return `
+	let fragColor = frag(in.uv);
+	let motiongpuKeepAlive = ${keepAliveExpression};
+	let motiongpuOutput = vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);
+	return motiongpuPremultiplyForCanvas(motiongpuOutput);
 `;
 	}
 
@@ -192,6 +229,7 @@ export function buildShaderSource(
 	textureKeys: string[] = [],
 	options?: {
 		convertLinearToSrgb?: boolean;
+		premultiplyOutputAlpha?: boolean;
 		storageBufferKeys?: string[];
 		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;
 	}
@@ -200,8 +238,18 @@ export function buildShaderSource(
 	const keepAliveExpression = getKeepAliveExpression(uniformLayout);
 	const textureBindings = buildTextureBindings(textureKeys);
 	const enableSrgbTransform = options?.convertLinearToSrgb ?? false;
-	const colorTransformHelpers = buildColorTransformHelpers(enableSrgbTransform);
-	const fragmentOutput = buildFragmentOutput(keepAliveExpression, enableSrgbTransform);
+	const premultiplyOutputAlpha = options?.premultiplyOutputAlpha ?? false;
+	const colorTransformHelpers = [
+		buildColorTransformHelpers(enableSrgbTransform),
+		buildCanvasPremultiplyHelper(premultiplyOutputAlpha)
+	]
+		.filter(Boolean)
+		.join('\n');
+	const fragmentOutput = buildFragmentOutput(
+		keepAliveExpression,
+		enableSrgbTransform,
+		premultiplyOutputAlpha
+	);
 	const storageBufferBindings = buildFragmentStorageBufferBindings(
 		options?.storageBufferKeys ?? [],
 		options?.storageBufferDefinitions ?? {}
@@ -262,6 +310,7 @@ export function buildShaderSourceWithMap(
 	textureKeys: string[] = [],
 	options?: {
 		convertLinearToSrgb?: boolean;
+		premultiplyOutputAlpha?: boolean;
 		fragmentLineMap?: MaterialLineMap;
 		storageBufferKeys?: string[];
 		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;

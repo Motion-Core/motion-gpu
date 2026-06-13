@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Premultiply final canvas presentation output for WebGPU canvases configured with `alphaMode: 'premultiplied'`, while keeping material and render-pass shader contracts authored in straight alpha.
+
 ## [0.11.0] - 2026-06-12
 ### Added
 - Added `PingPongShaderPass`, a pre-scene fragment-feedback pass for iterative fullscreen simulations using renderer-managed A/B render textures, previous-state sampling, configurable dimensions/format/filter/address modes, reset colors, includes, and defines.

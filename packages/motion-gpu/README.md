@@ -424,43 +424,45 @@ These are enforced by runtime validation.
 fn frag(uv: vec2f) -> vec4f
 ```
 
-2. `ShaderPass` fragment entrypoint must be:
+2. Fragment and `ShaderPass` colors are authored as straight alpha. Motion GPU premultiplies only at final canvas presentation so internal render targets and pass inputs remain straight-alpha.
+
+3. `ShaderPass` fragment entrypoint must be:
 
 ```
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ```
 
-3. `PingPongShaderPass` fragment entrypoint must be:
+4. `PingPongShaderPass` fragment entrypoint must be:
 
 ```
 fn frag(uv: vec2f) -> vec4f
 ```
 
-4. `PingPongShaderPass` `iterations` must be `>= 1`. Its `target` must reference a fragment-visible texture declared in `defineMaterial({ textures })` and must not be declared as a compute storage target.
+5. `PingPongShaderPass` `iterations` must be `>= 1`. Its `target` must reference a fragment-visible texture declared in `defineMaterial({ textures })` and must not be declared as a compute storage target.
 
-5. `useFrame()` and `useMotionGPU()` must be called inside `<FragCanvas>` subtree.
+6. `useFrame()` and `useMotionGPU()` must be called inside `<FragCanvas>` subtree.
 
-6. You can only set uniforms/textures that were declared in `defineMaterial(...)`.
+7. You can only set uniforms/textures that were declared in `defineMaterial(...)`.
 
-7. Uniform/texture/include/define names must match WGSL-safe identifiers:
+8. Uniform/texture/include/define names must match WGSL-safe identifiers:
 
 ```
 [A-Za-z_][A-Za-z0-9_]*
 ```
 
-8. `needsSwap: true` is valid only for `input: 'source'` and `output: 'target'`.
+9. `needsSwap: true` is valid only for `input: 'source'` and `output: 'target'`.
 
-9. Render passes cannot read from `input: 'canvas'`.
+10. Render passes cannot read from `input: 'canvas'`.
 
-10. `maxDelta` and profiling window must be finite and greater than `0`.
+11. `maxDelta` and profiling window must be finite and greater than `0`.
 
-11. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
+12. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
 
-12. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
+13. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
 
-13. Compute and fragment feedback passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+14. Compute and fragment feedback passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
 
-14. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
+15. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
 
 ---
 

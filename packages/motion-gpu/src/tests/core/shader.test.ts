@@ -72,6 +72,40 @@ describe('buildShaderSource', () => {
 		expect(shader).toMatchSnapshot();
 	});
 
+	it('can premultiply output alpha for direct canvas writes', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 0.5); }',
+			resolveUniformLayout({ uMix: { type: 'f32', value: 1 } }),
+			[],
+			{ premultiplyOutputAlpha: true }
+		);
+
+		expect(shader).toContain('fn motiongpuPremultiplyForCanvas(color: vec4f) -> vec4f');
+		expect(shader).toContain('let motiongpuAlpha = clamp(color.a, 0.0, 1.0);');
+		expect(shader).toContain(
+			'let motiongpuOutput = vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);'
+		);
+		expect(shader).toContain('return motiongpuPremultiplyForCanvas(motiongpuOutput);');
+	});
+
+	it('premultiplies after linear to sRGB conversion for direct canvas writes', () => {
+		const shader = buildShaderSource(
+			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 0.5); }',
+			resolveUniformLayout({ uMix: { type: 'f32', value: 1 } }),
+			[],
+			{ convertLinearToSrgb: true, premultiplyOutputAlpha: true }
+		);
+
+		expect(shader).toContain(
+			'let motiongpuSrgb = motiongpuLinearToSrgb(max(motiongpuLinear.rgb, vec3f(0.0)));'
+		);
+		expect(shader).toContain('let motiongpuOutput = vec4f(motiongpuSrgb, motiongpuLinear.a);');
+		expect(shader).toContain('return motiongpuPremultiplyForCanvas(motiongpuOutput);');
+		expect(shader.indexOf('motiongpuLinearToSrgb(max')).toBeLessThan(
+			shader.indexOf('motiongpuPremultiplyForCanvas(motiongpuOutput)')
+		);
+	});
+
 	it('supports mat4 and scalar keep-alive access patterns', () => {
 		const mat4 = new Array(16).fill(0);
 		mat4[0] = 1;

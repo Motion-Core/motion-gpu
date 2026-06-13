@@ -60,6 +60,7 @@ Use this in adapter implementations or low-level tooling.
 | Contract                                                                         | Behavior                          |
 | -------------------------------------------------------------------------------- | --------------------------------- |
 | Fragment entrypoint must be `fn frag(uv: vec2f) -> vec4f`                        | Throws during validation          |
+| Fragment output colors use straight alpha; Motion GPU premultiplies at canvas presentation | Preserves shader/pass targets while matching premultiplied canvas compositing |
 | Uniform/texture/define/include/storage buffer keys must be WGSL-safe identifiers | Throws during validation          |
 | Storage buffer `size` must be `> 0` and a multiple of 4                          | Throws during validation          |
 | Matrix uniforms should use typed form `{ type: 'mat4x4f', value: [...] }`        | Ensures stable layout and packing |

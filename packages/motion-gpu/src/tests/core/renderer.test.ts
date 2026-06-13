@@ -42,6 +42,12 @@ interface MockWebGpuRuntime {
 	};
 	textures: MockTexture[];
 	buffers: Array<{ destroy: ReturnType<typeof vi.fn>; descriptor: GPUBufferDescriptor }>;
+	renderPasses: Array<{
+		setPipeline: ReturnType<typeof vi.fn>;
+		setBindGroup: ReturnType<typeof vi.fn>;
+		draw: ReturnType<typeof vi.fn>;
+		end: ReturnType<typeof vi.fn>;
+	}>;
 	computePasses: Array<{
 		setPipeline: ReturnType<typeof vi.fn>;
 		setBindGroup: ReturnType<typeof vi.fn>;
@@ -82,6 +88,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 	});
 	const textures: MockTexture[] = [];
 	const buffers: Array<{ destroy: ReturnType<typeof vi.fn>; descriptor: GPUBufferDescriptor }> = [];
+	const renderPasses: MockWebGpuRuntime['renderPasses'] = [];
 	const computePasses: MockWebGpuRuntime['computePasses'] = [];
 	const commandEncoders: MockWebGpuRuntime['commandEncoders'] = [];
 	let uncapturedErrorHandler: ((event: { error: Error }) => void) | null = null;
@@ -95,8 +102,9 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 			submit: vi.fn()
 		},
 		createShaderModule: vi.fn(
-			() =>
+			(descriptor: GPUShaderModuleDescriptor) =>
 				({
+					code: descriptor.code,
 					getCompilationInfo: vi.fn(async () => ({ messages: [] }))
 				}) as unknown as GPUShaderModule
 		),
@@ -108,7 +116,12 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		}),
 		createBindGroupLayout: vi.fn(() => ({}) as unknown as GPUBindGroupLayout),
 		createPipelineLayout: vi.fn(() => ({}) as unknown as GPUPipelineLayout),
-		createRenderPipeline: vi.fn(() => ({}) as unknown as GPURenderPipeline),
+		createRenderPipeline: vi.fn(
+			(descriptor: GPURenderPipelineDescriptor) =>
+				({
+					descriptor
+				}) as unknown as GPURenderPipeline
+		),
 		createBuffer: vi.fn((descriptor: GPUBufferDescriptor) => {
 			const buffer = { destroy: vi.fn(), descriptor };
 			buffers.push(buffer);
@@ -117,12 +130,6 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		createBindGroup: vi.fn(() => ({}) as unknown as GPUBindGroup),
 		createComputePipeline: vi.fn(() => ({}) as unknown as GPUComputePipeline),
 		createCommandEncoder: vi.fn(() => {
-			const pass = {
-				setPipeline: vi.fn(),
-				setBindGroup: vi.fn(),
-				draw: vi.fn(),
-				end: vi.fn()
-			};
 			const computePass = {
 				setPipeline: vi.fn(),
 				setBindGroup: vi.fn(),
@@ -133,7 +140,16 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 			const encoder = {
 				copyTextureToTexture: vi.fn(),
 				copyBufferToBuffer: vi.fn(),
-				beginRenderPass: vi.fn(() => pass as unknown as GPURenderPassEncoder),
+				beginRenderPass: vi.fn(() => {
+					const pass = {
+						setPipeline: vi.fn(),
+						setBindGroup: vi.fn(),
+						draw: vi.fn(),
+						end: vi.fn()
+					};
+					renderPasses.push(pass);
+					return pass as unknown as GPURenderPassEncoder;
+				}),
 				beginComputePass: vi.fn(() => computePass as unknown as GPUComputePassEncoder),
 				finish: vi.fn(() => ({}) as unknown as GPUCommandBuffer)
 			};
@@ -203,6 +219,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		device,
 		textures,
 		buffers,
+		renderPasses,
 		computePasses,
 		commandEncoders,
 		adapterRequest,
@@ -228,6 +245,26 @@ function baseOptions(runtime: MockWebGpuRuntime) {
 		includeSources: {},
 		fragmentLineMap: [null]
 	};
+}
+
+function getShaderCodes(runtime: MockWebGpuRuntime): string[] {
+	return runtime.device.createShaderModule.mock.calls.map(
+		(call) => (call[0] as { code?: string }).code ?? ''
+	);
+}
+
+function getCreatedPipelines(runtime: MockWebGpuRuntime): GPURenderPipeline[] {
+	return runtime.device.createRenderPipeline.mock.results
+		.map((result) => result.value as GPURenderPipeline | undefined)
+		.filter((pipeline): pipeline is GPURenderPipeline => pipeline !== undefined);
+}
+
+function getPipelineShaderCode(pipeline: GPURenderPipeline | undefined): string {
+	const descriptor = (
+		pipeline as unknown as { descriptor?: GPURenderPipelineDescriptor } | undefined
+	)?.descriptor;
+	const module = descriptor?.fragment?.module as { code?: string } | undefined;
+	return module?.code ?? '';
 }
 
 describe('createRenderer', () => {
@@ -766,7 +803,7 @@ describe('createRenderer', () => {
 		});
 
 		const firstPassAttachment = Array.from(beginDescriptors[1]?.colorAttachments ?? [])[0];
-		const secondPassAttachment = Array.from(beginDescriptors[3]?.colorAttachments ?? [])[0];
+		const secondPassAttachment = Array.from(beginDescriptors[4]?.colorAttachments ?? [])[0];
 		expect(firstPassAttachment?.loadOp).toBe('load');
 		expect(secondPassAttachment?.loadOp).toBe('clear');
 	});
@@ -1135,6 +1172,45 @@ describe('createRenderer', () => {
 		expect(runtime.commandEncoders[1]?.beginRenderPass).toHaveBeenCalledTimes(4);
 	});
 
+	it('uses a premultiplied direct canvas scene pipeline when no render passes are active', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getClearColor: () => [1, 0, 0, 0.25] as [number, number, number, number]
+		});
+
+		const sceneShaders = getShaderCodes(runtime).filter((code) =>
+			code.includes('fn motiongpuFragment')
+		);
+		expect(sceneShaders.some((code) => !code.includes('motiongpuPremultiplyForCanvas'))).toBe(true);
+		expect(sceneShaders.some((code) => code.includes('motiongpuPremultiplyForCanvas'))).toBe(true);
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const directCanvasPipeline = getCreatedPipelines(runtime).find((pipeline) => {
+			const shaderCode = getPipelineShaderCode(pipeline);
+			return (
+				shaderCode.includes('fn motiongpuFragment') &&
+				shaderCode.includes('return motiongpuPremultiplyForCanvas(motiongpuOutput);')
+			);
+		});
+		expect(directCanvasPipeline).toBeDefined();
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(1);
+		expect(runtime.renderPasses[0]?.setPipeline).toHaveBeenCalledWith(directCanvasPipeline);
+
+		const descriptor = runtime.commandEncoders[0]?.beginRenderPass.mock.calls[0]?.[0] as
+			| GPURenderPassDescriptor
+			| undefined;
+		const attachment = Array.from(descriptor?.colorAttachments ?? [])[0];
+		expect(attachment?.clearValue).toEqual({ r: 0.25, g: 0, b: 0, a: 0.25 });
+	});
+
 	it('blits final source slot to canvas when pass graph ends offscreen', async () => {
 		const runtime = createWebGpuRuntime();
 		const pass: RenderPass = {
@@ -1192,9 +1268,7 @@ describe('createRenderer', () => {
 
 		const encoder = runtime.commandEncoders[0];
 		expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(2);
-		const shaderCodes = runtime.device.createShaderModule.mock.calls.map(
-			(call) => (call[0] as { code?: string }).code ?? ''
-		);
+		const shaderCodes = getShaderCodes(runtime);
 		expect(shaderCodes.some((code) => code.includes('motiongpuKhronosPbrNeutral'))).toBe(true);
 		const sceneShader = shaderCodes.find((code) => code.includes('fn motiongpuFragment'));
 		const presentationShader = shaderCodes.find((code) =>
@@ -1204,6 +1278,7 @@ describe('createRenderer', () => {
 		expect(presentationShader).toContain(
 			'out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);'
 		);
+		expect(presentationShader).toContain('return motiongpuPremultiplyForCanvas(motiongpuOutput);');
 		expect(presentationShader).not.toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
 	});
 
@@ -1230,6 +1305,10 @@ describe('createRenderer', () => {
 			})
 		);
 		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(2);
+		const presentationShader = getShaderCodes(runtime).find((code) =>
+			code.includes('fn motiongpuPresentationFragment')
+		);
+		expect(presentationShader).toContain('return motiongpuPremultiplyForCanvas(motiongpuLinear);');
 	});
 
 	it('falls back from auto HDR presentation to SDR canvas configuration', async () => {
@@ -1290,6 +1369,58 @@ describe('createRenderer', () => {
 				textures: {}
 			})
 		).toThrow(/HDR canvas presentation is not supported.*unsupported format/i);
+	});
+
+	it('maps render-pass canvas output to an internal SDR final target before presentation', async () => {
+		const runtime = createWebGpuRuntime();
+		const pass: RenderPass = {
+			needsSwap: false,
+			input: 'source',
+			output: 'canvas',
+			render: vi.fn((context) => {
+				const renderPass = context.beginRenderPass();
+				renderPass.end();
+			})
+		};
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass]
+		});
+		const bindGroupCallsBeforeRender = runtime.device.createBindGroup.mock.calls.length;
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const canvasTexture = runtime.context.getCurrentTexture.mock.results[0]?.value;
+		const passRender = pass.render as ReturnType<typeof vi.fn>;
+		const passContext = passRender.mock.calls[0]?.[0] as
+			| Parameters<NonNullable<RenderPass['render']>>[0]
+			| undefined;
+		expect(passContext).toEqual(
+			expect.objectContaining({
+				output: expect.objectContaining({ width: 10, height: 10, format: 'rgba8unorm' }),
+				canvas: expect.objectContaining({ width: 10, height: 10, format: 'rgba8unorm' })
+			})
+		);
+		expect(passContext?.canvas.texture).not.toBe(canvasTexture);
+		expect(passContext?.output.texture).toBe(passContext?.canvas.texture);
+		expect(runtime.commandEncoders[0]?.beginRenderPass).toHaveBeenCalledTimes(3);
+		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
+
+		const presentationPipeline = getCreatedPipelines(runtime).find((pipeline) => {
+			const shaderCode = getPipelineShaderCode(pipeline);
+			return (
+				shaderCode.includes('fn motiongpuPresentationFragment') &&
+				shaderCode.includes('return motiongpuPremultiplyForCanvas(motiongpuLinear);')
+			);
+		});
+		expect(presentationPipeline).toBeDefined();
+		expect(runtime.renderPasses[2]?.setPipeline).toHaveBeenCalledWith(presentationPipeline);
 	});
 
 	it('maps render-pass canvas output to an internal HDR final target before presentation', async () => {
@@ -1368,7 +1499,7 @@ describe('createRenderer', () => {
 				})
 			})
 		);
-		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender);
+		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
 	});
 
 	it('throws when render graph references unknown runtime target slot', async () => {

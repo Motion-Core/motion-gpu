@@ -591,6 +591,70 @@ describe('runtime-loop edge cases', () => {
 		loop.destroy();
 	});
 
+	it('passes snapshots to onErrorHistory so user mutation cannot corrupt internal history', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const observedLengths: number[] = [];
+		const onErrorHistory = vi.fn((history: unknown[]) => {
+			observedLengths.push(history.length);
+			history.length = 0;
+		});
+		let errorIndex = 0;
+		registry.register('mutable-history-errors', (state) => {
+			state.writeStorageBuffer(`history${errorIndex++}`, new Uint8Array(4));
+		});
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, undefined, {
+				reportError,
+				getErrorHistoryLimit: () => 3,
+				getOnErrorHistory: () => onErrorHistory
+			})
+		);
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(observedLengths).toEqual([1, 2]);
+
+		loop.destroy();
+	});
+
+	it('passes fresh arrays to reportErrorHistory on consecutive publishes', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const historyRefs: unknown[] = [];
+		let errorIndex = 0;
+		registry.register('history-reference-errors', (state) => {
+			state.writeStorageBuffer(`historyRef${errorIndex++}`, new Uint8Array(4));
+		});
+		const reportErrorHistory = vi.fn((history: unknown[]) => {
+			historyRefs.push(history);
+		});
+		createRendererMock.mockResolvedValue(createRenderer());
+
+		const loop = createMotionGPURuntimeLoop(
+			baseOptions(registry, undefined, {
+				reportError,
+				reportErrorHistory,
+				getErrorHistoryLimit: () => 3
+			})
+		);
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(historyRefs).toHaveLength(2);
+		expect(historyRefs[0]).not.toBe(historyRefs[1]);
+
+		loop.destroy();
+	});
+
 	// -------------------------------------------------------------------------
 	// Delta clamping
 	// -------------------------------------------------------------------------

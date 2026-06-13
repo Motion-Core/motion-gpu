@@ -173,14 +173,14 @@ export function createMotionGPURuntimeLoop(
 	};
 
 	const publishErrorHistory = (): void => {
-		options.reportErrorHistory?.(errorHistory);
+		options.reportErrorHistory?.(errorHistory.slice());
 		const onErrorHistory = options.getOnErrorHistory?.();
 		if (!onErrorHistory) {
 			return;
 		}
 
 		try {
-			onErrorHistory(errorHistory);
+			onErrorHistory(errorHistory.slice());
 		} catch {
 			// User-provided error history handlers must not break runtime error recovery.
 		}

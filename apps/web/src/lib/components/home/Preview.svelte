@@ -14,12 +14,12 @@
 		<div class="h-full rounded-lg bg-background card">
 			<div class="h-full w-full overflow-hidden rounded-lg bg-foreground dark:bg-background">
 				<GlassPane
-					image="/image.jpg"
-					class="mix-blend-lighten"
+					image="/sample-image-6.webp"
+					class="mix-blend-screen dark:mix-blend-lighten"
 					rotation={50}
-					refraction={1}
-					chromaticAberration={1}
-					panelWidth={0.5}
+					refraction={1.0}
+					chromaticAberration={0}
+					panelWidth={0.4}
 					waveFrequency={0.0}
 					waveAmplitude={0.0}
 					speed={1}

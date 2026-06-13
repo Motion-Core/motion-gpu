@@ -290,15 +290,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/162c156...HEAD
-[0.8.4]: https://github.com/Motion-Core/motion-gpu/compare/a342072...162c156
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/0481829...HEAD
+[0.11.0]: https://github.com/Motion-Core/motion-gpu/compare/7376a48...0481829
+[0.10.0]: https://github.com/Motion-Core/motion-gpu/compare/1e4e41b...7376a48
+[0.9.2]: https://github.com/Motion-Core/motion-gpu/compare/9819601...1e4e41b
+[0.9.1]: https://github.com/Motion-Core/motion-gpu/compare/f3b2816...9819601
+[0.9.0]: https://github.com/Motion-Core/motion-gpu/compare/bfe2cce...f3b2816
+[0.8.4]: https://github.com/Motion-Core/motion-gpu/compare/a342072...bfe2cce
 [0.8.3]: https://github.com/Motion-Core/motion-gpu/compare/5fd4d9e...a342072
 [0.8.2]: https://github.com/Motion-Core/motion-gpu/compare/d12dc79...5fd4d9e
-[0.8.1]: https://github.com/Motion-Core/motion-gpu/compare/f0fde6f...d12dc79
-[0.8.0]: https://github.com/Motion-Core/motion-gpu/compare/1379dbd...f0fde6f
-[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
-[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
-[0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...1379dbd
+[0.8.1]: https://github.com/Motion-Core/motion-gpu/compare/d29a905...d12dc79
+[0.8.0]: https://github.com/Motion-Core/motion-gpu/compare/5ae7524...d29a905
+[0.7.0]: https://github.com/Motion-Core/motion-gpu/compare/6d8e284...5ae7524
+[0.6.0]: https://github.com/Motion-Core/motion-gpu/compare/712cbf3...6d8e284
+[0.5.0]: https://github.com/Motion-Core/motion-gpu/compare/3955915...712cbf3
 [0.4.2]: https://github.com/Motion-Core/motion-gpu/compare/148c1e4...3955915
 [0.4.1]: https://github.com/Motion-Core/motion-gpu/compare/889adfc...148c1e4
 [0.4.0]: https://github.com/Motion-Core/motion-gpu/compare/758b6d7...889adfc

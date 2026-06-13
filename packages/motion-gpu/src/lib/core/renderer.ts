@@ -1496,7 +1496,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			registerInitializationCleanup(() => {
 				buffer.destroy();
 			});
-			if (definition.initialData) {
+			if (definition.initialData !== undefined && definition.initialData.byteLength > 0) {
 				const data = definition.initialData;
 				device.queue.writeBuffer(
 					buffer,

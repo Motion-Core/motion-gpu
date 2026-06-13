@@ -412,6 +412,68 @@ describe('runtime-loop', () => {
 		loop.destroy();
 	});
 
+	it('rebuilds renderer when storage buffer initialData changes with the same layout', async () => {
+		const registry = createFrameRegistry();
+		const firstRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		const secondRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValueOnce(firstRenderer).mockResolvedValueOnce(secondRenderer);
+		const fragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const materialA = defineMaterial({
+			fragment,
+			storageBuffers: {
+				particles: { size: 16, type: 'array<f32>', initialData: new Float32Array([1, 0, 0, 0]) }
+			}
+		});
+		const materialB = defineMaterial({
+			fragment,
+			storageBuffers: {
+				particles: { size: 16, type: 'array<f32>', initialData: new Float32Array([2, 0, 0, 0]) }
+			}
+		});
+		let material = materialA;
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		material = materialB;
+		loop.invalidate();
+		await flushFrame(32);
+
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+		expect(firstRenderer.destroy).toHaveBeenCalledTimes(1);
+		expect(createRendererMock.mock.calls[1]?.[0]).toMatchObject({
+			storageBufferDefinitions: {
+				particles: expect.objectContaining({
+					initialData: expect.any(Float32Array)
+				})
+			}
+		});
+
+		loop.destroy();
+	});
+
 	// -------------------------------------------------------------------------
 	// pendingStorageWrites flush correctness (Fix A scope)
 	// -------------------------------------------------------------------------

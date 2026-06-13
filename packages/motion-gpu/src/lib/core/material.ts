@@ -587,6 +587,24 @@ function buildTextureConfigSignature<TTextureKey extends string>(
 	return signature;
 }
 
+function hashArrayBufferViewBytes(view: ArrayBufferView): string {
+	const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+	let hash = 0x811c9dc5;
+	for (const byte of bytes) {
+		hash ^= byte;
+		hash = Math.imul(hash, 0x01000193) >>> 0;
+	}
+	return hash.toString(16).padStart(8, '0');
+}
+
+function buildInitialDataSignature(data: StorageBufferDefinition['initialData']): string {
+	if (data === undefined) {
+		return 'undefined';
+	}
+
+	return `${data.constructor.name}:${data.byteLength}:${hashArrayBufferViewBytes(data)}`;
+}
+
 function assertStorageTextureDimension(
 	name: string,
 	field: 'width' | 'height',
@@ -790,7 +808,7 @@ export function resolveMaterial<
 		textureConfig,
 		storageBufferKeys: storageBufferKeys.map((key) => {
 			const def = (material.storageBuffers as StorageBufferDefinitionMap)[key];
-			return `${key}:${def?.type ?? '?'}:${def?.size ?? 0}:${def?.access ?? 'read-write'}`;
+			return `${key}:${def?.type ?? '?'}:${def?.size ?? 0}:${def?.access ?? 'read-write'}:${buildInitialDataSignature(def?.initialData)}`;
 		}),
 		storageTextureKeys
 	});

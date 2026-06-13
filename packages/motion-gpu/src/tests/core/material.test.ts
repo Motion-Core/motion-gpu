@@ -612,6 +612,88 @@ fn colorize(uv: vec2f) -> vec4f {
 		expect(readOnly.signature).not.toEqual(readWrite.signature);
 	});
 
+	it('changes signature when storage buffer initialData bytes change', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const a = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: {
+					buf: { size: 16, type: 'array<f32>', initialData: new Float32Array([1]) }
+				}
+			})
+		);
+		const b = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: {
+					buf: { size: 16, type: 'array<f32>', initialData: new Float32Array([2]) }
+				}
+			})
+		);
+
+		expect(a.signature).not.toEqual(b.signature);
+	});
+
+	it('keeps storage buffer initialData signatures deterministic for identical content', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const a = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: {
+					buf: { size: 16, type: 'array<f32>', initialData: new Float32Array([1, 2, 3, 4]) }
+				}
+			})
+		);
+		const b = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: {
+					buf: { size: 16, type: 'array<f32>', initialData: new Float32Array([1, 2, 3, 4]) }
+				}
+			})
+		);
+
+		expect(a.signature).toEqual(b.signature);
+	});
+
+	it('distinguishes storage buffer initialData typed array constructors', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const floats = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: {
+					buf: { size: 16, type: 'array<f32>', initialData: new Float32Array([1]) }
+				}
+			})
+		);
+		const uints = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 16, type: 'array<u32>', initialData: new Uint32Array([1]) } }
+			})
+		);
+
+		expect(floats.signature).not.toEqual(uints.signature);
+	});
+
+	it('distinguishes missing initialData from explicit zero-length initialData', () => {
+		const base = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const missing = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 16, type: 'array<f32>' } }
+			})
+		);
+		const empty = resolveMaterial(
+			defineMaterial({
+				fragment: base,
+				storageBuffers: { buf: { size: 16, type: 'array<f32>', initialData: new Float32Array(0) } }
+			})
+		);
+
+		expect(missing.signature).not.toEqual(empty.signature);
+	});
+
 	it('accepts texture with storage:true and valid format', () => {
 		expect(() =>
 			defineMaterial({

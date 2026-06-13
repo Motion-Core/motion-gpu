@@ -460,9 +460,13 @@ export function createMotionGPURuntimeLoop(
 		shouldContinueAfterFrame = false;
 
 		const color = options.getColor?.();
+		const adapterOptions = options.getAdapterOptions();
+		const deviceDescriptor = options.getDeviceDescriptor();
 		const rendererSignature = buildRendererPipelineSignature({
 			materialSignature: materialState.signature,
-			...(color !== undefined ? { color } : {})
+			...(color !== undefined ? { color } : {}),
+			...(adapterOptions !== undefined ? { adapterOptions } : {}),
+			...(deviceDescriptor !== undefined ? { deviceDescriptor } : {})
 		});
 		syncMaterialRuntimeState(materialState);
 
@@ -503,8 +507,8 @@ export function createMotionGPURuntimeLoop(
 							...(color !== undefined ? { color } : {}),
 							getClearColor: options.getClearColor,
 							getDpr: () => options.dpr.current,
-							adapterOptions: options.getAdapterOptions(),
-							deviceDescriptor: options.getDeviceDescriptor(),
+							adapterOptions,
+							deviceDescriptor,
 							requestRender: scheduleFrame
 						});
 

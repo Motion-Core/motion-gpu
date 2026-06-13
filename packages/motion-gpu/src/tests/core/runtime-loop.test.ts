@@ -355,6 +355,63 @@ describe('runtime-loop', () => {
 		expect(lateRenderer.destroy).toHaveBeenCalledTimes(1);
 	});
 
+	it('rebuilds renderer when adapterOptions or deviceDescriptor change', async () => {
+		const registry = createFrameRegistry();
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+		const firstRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		const secondRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValueOnce(firstRenderer).mockResolvedValueOnce(secondRenderer);
+		let adapterOptions: GPURequestAdapterOptions = { powerPreference: 'low-power' };
+		let deviceDescriptor: GPUDeviceDescriptor = { label: 'device-a' };
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => adapterOptions,
+			getDeviceDescriptor: () => deviceDescriptor,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		adapterOptions = { powerPreference: 'high-performance' };
+		deviceDescriptor = { label: 'device-b' };
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+		expect(firstRenderer.destroy).toHaveBeenCalledTimes(1);
+		expect(createRendererMock.mock.calls[0]?.[0]).toMatchObject({
+			adapterOptions: { powerPreference: 'low-power' },
+			deviceDescriptor: { label: 'device-a' }
+		});
+		expect(createRendererMock.mock.calls[1]?.[0]).toMatchObject({
+			adapterOptions: { powerPreference: 'high-performance' },
+			deviceDescriptor: { label: 'device-b' }
+		});
+
+		loop.destroy();
+	});
+
 	// -------------------------------------------------------------------------
 	// pendingStorageWrites flush correctness (Fix A scope)
 	// -------------------------------------------------------------------------

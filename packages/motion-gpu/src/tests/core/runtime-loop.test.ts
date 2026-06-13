@@ -478,7 +478,7 @@ describe('runtime-loop', () => {
 	// pendingStorageWrites flush correctness (Fix A scope)
 	// -------------------------------------------------------------------------
 
-	it('passes queued storage writes to renderer and does not re-send them next frame', async () => {
+	it('flushes queued storage writes before render and does not re-send them next frame', async () => {
 		const registry = createFrameRegistry();
 		let writeSent = false;
 
@@ -495,20 +495,16 @@ describe('runtime-loop', () => {
 			}
 		});
 
-		// Capture write snapshots during each render call. The implementation
-		// passes the live array reference and clears it with `length = 0` after
-		// render() returns, so we must snapshot inside the call — not after.
-		const writesPerRenderCall: Array<Array<{ name: string }>> = [];
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
 
 		const renderer: MockRenderer = {
-			render: vi
-				.fn()
-				.mockImplementation((input: { pendingStorageWrites?: Array<{ name: string }> }) => {
-					writesPerRenderCall.push([...(input.pendingStorageWrites ?? [])]);
-				}),
+			render: vi.fn(),
 			destroy: vi.fn(),
 			getStorageBuffer: vi.fn(() => undefined),
-			getDevice: vi.fn(() => undefined)
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
 		};
 		createRendererMock.mockResolvedValue(renderer);
 
@@ -529,24 +525,22 @@ describe('runtime-loop', () => {
 		});
 
 		await flushFrame(16); // renderer init
-		await flushFrame(32); // first render — write must be present
+		await flushFrame(32); // first render — write must be flushed before render
 
-		expect(writesPerRenderCall[0]).toBeDefined();
-		expect(writesPerRenderCall[0]).toHaveLength(1);
-		expect(writesPerRenderCall[0]?.[0]?.name).toBe('particles');
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
 
-		// Kick a second frame — no new write was queued, so renderer must receive
-		// an empty snapshot (array was cleared with length = 0 after first render).
+		// Kick a second frame — no new write was queued, so no second flush happens.
 		loop.invalidate();
 		await flushFrame(48);
 
-		expect(writesPerRenderCall[1]).toBeDefined();
-		expect(writesPerRenderCall[1]).toHaveLength(0);
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+		expect(renderer.render).toHaveBeenCalledTimes(2);
 
 		loop.destroy();
 	});
 
-	it('passes undefined for pendingStorageWrites when no writes are queued', async () => {
+	it('does not flush storage writes when no writes are queued', async () => {
 		const registry = createFrameRegistry();
 
 		const material = defineMaterial({
@@ -561,7 +555,8 @@ describe('runtime-loop', () => {
 			render: vi.fn(),
 			destroy: vi.fn(),
 			getStorageBuffer: vi.fn(() => undefined),
-			getDevice: vi.fn(() => undefined)
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn()
 		};
 		createRendererMock.mockResolvedValue(renderer);
 
@@ -584,13 +579,115 @@ describe('runtime-loop', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		const renderArgs = renderer.render.mock.calls[0]?.[0] as {
-			pendingStorageWrites?: unknown[];
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(renderer.flushStorageWrites).not.toHaveBeenCalled();
+
+		loop.destroy();
+	});
+
+	it('does not replay queued storage writes after renderer.render throws', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		let queued = false;
+		registry.register('writer', (state) => {
+			if (!queued) {
+				state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+				queued = true;
+			}
+		});
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+		const renderer: MockRenderer = {
+			render: vi.fn(() => {
+				throw new Error('render failed');
+			}),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
 		};
-		expect(renderArgs).toBeDefined();
-		// When no writes queued, the field must be absent or undefined.
-		const writes = renderArgs.pendingStorageWrites;
-		expect(writes === undefined || writes.length === 0).toBe(true);
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+
+		loop.destroy();
+	});
+
+	it('does not replay queued storage writes after renderer.flushStorageWrites throws', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		let queued = false;
+		registry.register('writer', (state) => {
+			if (!queued) {
+				state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+				queued = true;
+			}
+		});
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn(() => {
+				throw new Error('flush failed');
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
 
 		loop.destroy();
 	});
@@ -647,7 +744,7 @@ describe('runtime-loop', () => {
 
 	it('does not replay storage writes accumulated while autoRender was disabled', async () => {
 		const registry = createFrameRegistry({ autoRender: false });
-		const writesPerRenderCall: Array<Array<{ name: string }>> = [];
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
 
 		const material = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
@@ -659,13 +756,13 @@ describe('runtime-loop', () => {
 		});
 
 		const renderer: MockRenderer = {
-			render: vi.fn((input: { pendingStorageWrites?: Array<{ name: string }> }) => {
-				writesPerRenderCall.push((input.pendingStorageWrites ?? []).map(({ name }) => ({ name })));
-			}),
+			render: vi.fn(),
 			destroy: vi.fn(),
 			getStorageBuffer: vi.fn(() => undefined),
 			getDevice: vi.fn(() => undefined),
-			flushStorageWrites: vi.fn()
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
 		};
 		createRendererMock.mockResolvedValue(renderer);
 
@@ -691,7 +788,12 @@ describe('runtime-loop', () => {
 		registry.setAutoRender(true);
 		await flushFrame(64);
 
-		expect(writesPerRenderCall).toEqual([[{ name: 'particles' }]]);
+		expect(flushedWritesPerFrame).toEqual([
+			[{ name: 'particles' }],
+			[{ name: 'particles' }],
+			[{ name: 'particles' }]
+		]);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
 
 		loop.destroy();
 	});

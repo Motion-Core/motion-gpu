@@ -56,6 +56,27 @@ function getRendererRetryDelayMs(attempt: number): number {
 
 const ERROR_CLEAR_GRACE_MS = 750;
 
+function assertStorageWriteAlignment(name: string, data: ArrayBufferView, offset: number): void {
+	if (!ArrayBuffer.isView(data)) {
+		throw new Error(`Storage buffer "${name}" write data must be an ArrayBufferView.`);
+	}
+	if (!Number.isFinite(offset) || !Number.isInteger(offset) || offset < 0) {
+		throw new Error(
+			`Storage buffer "${name}" write offset must be a finite integer >= 0, got ${offset}.`
+		);
+	}
+	if (offset % 4 !== 0) {
+		throw new Error(
+			`Storage buffer "${name}" write offset must be a multiple of 4 bytes for WebGPU writeBuffer, got offset=${offset}.`
+		);
+	}
+	if (data.byteLength % 4 !== 0) {
+		throw new Error(
+			`Storage buffer "${name}" write data byteLength must be a multiple of 4 bytes for WebGPU writeBuffer, got dataSize=${data.byteLength}.`
+		);
+	}
+}
+
 export function createMotionGPURuntimeLoop(
 	options: MotionGPURuntimeLoopOptions
 ): MotionGPURuntimeLoop {
@@ -384,6 +405,7 @@ export function createMotionGPURuntimeLoop(
 			throw new Error(`Missing definition for storage buffer "${name}".`);
 		}
 		const offset = writeOptions?.offset ?? 0;
+		assertStorageWriteAlignment(name, data, offset);
 		if (offset < 0 || offset + data.byteLength > definition.size) {
 			throw new Error(
 				`Storage buffer "${name}" write out of bounds: offset=${offset}, dataSize=${data.byteLength}, bufferSize=${definition.size}.`
@@ -603,23 +625,27 @@ export function createMotionGPURuntimeLoop(
 
 				canvasSize.width = width;
 				canvasSize.height = height;
+				if (pendingStorageWrites.length > 0) {
+					try {
+						renderer.flushStorageWrites(pendingStorageWrites);
+					} finally {
+						pendingStorageWrites.length = 0;
+					}
+				}
 				renderer.render({
 					time,
 					delta,
 					renderMode: registry.getRenderMode(),
 					uniforms: renderUniforms,
 					textures: renderTextures,
-					canvasSize,
-					pendingStorageWrites: pendingStorageWrites.length > 0 ? pendingStorageWrites : undefined
+					canvasSize
 				});
-				// Clear in-place after synchronous render() completes — avoids
-				// the splice(0) copy and eliminates the conditional spread object.
-				if (pendingStorageWrites.length > 0) {
+			} else if (pendingStorageWrites.length > 0) {
+				try {
+					renderer.flushStorageWrites(pendingStorageWrites);
+				} finally {
 					pendingStorageWrites.length = 0;
 				}
-			} else if (pendingStorageWrites.length > 0) {
-				renderer.flushStorageWrites(pendingStorageWrites);
-				pendingStorageWrites.length = 0;
 			}
 
 			maybeClearError(timestamp);

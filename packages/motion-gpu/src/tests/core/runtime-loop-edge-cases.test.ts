@@ -42,6 +42,7 @@ interface MockRenderer {
 	destroy: ReturnType<typeof vi.fn>;
 	getStorageBuffer?: ReturnType<typeof vi.fn>;
 	getDevice?: ReturnType<typeof vi.fn>;
+	flushStorageWrites?: ReturnType<typeof vi.fn>;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +80,8 @@ function createRenderer(): MockRenderer {
 		render: vi.fn(),
 		destroy: vi.fn(),
 		getStorageBuffer: vi.fn(() => undefined),
-		getDevice: vi.fn(() => undefined)
+		getDevice: vi.fn(() => undefined),
+		flushStorageWrites: vi.fn()
 	};
 }
 
@@ -214,6 +216,76 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(32);
 
 		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+
+		loop.destroy();
+	});
+
+	it.each([
+		['non-4-byte offset', new Uint8Array(4), { offset: 2 }],
+		['fractional offset', new Uint8Array(4), { offset: 1.5 }],
+		['NaN offset', new Uint8Array(4), { offset: Number.NaN }],
+		['non-4-byte data length', new Uint8Array(2), { offset: 0 }]
+	])(
+		'reports render error when writeStorageBuffer receives %s',
+		async (_label, data, writeOptions) => {
+			const registry = createFrameRegistry();
+			const reportError = vi.fn();
+			const material = defineMaterial({
+				fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+				storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+			});
+
+			registry.register('bad-alignment', (state) => {
+				state.writeStorageBuffer('particles', data, writeOptions);
+			});
+
+			createRendererMock.mockResolvedValue(createRenderer());
+
+			const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
+
+			await flushFrame(16);
+			await flushFrame(32);
+
+			const report = reportError.mock.calls.find((args) => args[0] !== null)?.[0];
+			expect(report).toMatchObject({ phase: 'render' });
+			expect(`${report?.message ?? ''} ${report?.rawMessage ?? ''}`).toMatch(
+				/multiple of 4|finite integer/
+			);
+
+			loop.destroy();
+		}
+	);
+
+	it('accepts aligned writeStorageBuffer writes at aligned offsets', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		let queued = false;
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		registry.register('aligned-write', (state) => {
+			if (!queued) {
+				state.writeStorageBuffer('particles', new Uint8Array(4), { offset: 4 });
+				queued = true;
+			}
+		});
+		const renderer = createRenderer();
+		const flushedWritesPerFrame: Array<Array<{ name: string; offset: number }>> = [];
+		renderer.flushStorageWrites?.mockImplementation(
+			(writes: Array<{ name: string; offset: number }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name, offset }) => ({ name, offset })));
+			}
+		);
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		expect(reportError).not.toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles', offset: 4 }]]);
 
 		loop.destroy();
 	});

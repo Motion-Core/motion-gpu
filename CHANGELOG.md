@@ -4,6 +4,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-13
 ### Added
 - Forward native canvas attributes from Svelte, React, and Vue `FragCanvas` adapters to the internal `<canvas>`, including `id`, `data-*`, `aria-*`, event handlers, `class`/`className`, and `style`.
 - Expose the internal `FragCanvas` canvas consistently through `bind:canvas` in Svelte, the React 19 `ref` prop, and `canvas` / `getCanvas()` on the Vue component public instance.

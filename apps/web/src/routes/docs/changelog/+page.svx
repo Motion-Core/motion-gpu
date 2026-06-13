@@ -7,6 +7,7 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-06-13
 ### Added
 - Forward native canvas attributes from Svelte, React, and Vue `FragCanvas` adapters to the internal `<canvas>`, including `id`, `data-*`, `aria-*`, event handlers, `class`/`className`, and `style`.
 - Expose the internal `FragCanvas` canvas consistently through `bind:canvas` in Svelte, the React 19 `ref` prop, and `canvas` / `getCanvas()` on the Vue component public instance.

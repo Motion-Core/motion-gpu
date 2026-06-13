@@ -86,6 +86,7 @@ function createWebGpuRuntime() {
 		removeEventListener: vi.fn(),
 		pushErrorScope: vi.fn(),
 		popErrorScope: vi.fn(async () => null),
+		destroy: vi.fn(),
 		lost
 	};
 

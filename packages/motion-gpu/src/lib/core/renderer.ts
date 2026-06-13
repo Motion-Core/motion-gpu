@@ -1035,6 +1035,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	const initializationCleanups: Array<() => void> = [];
 	let acceptInitializationCleanups = true;
 	const MAX_UNCAPTURED_ERROR_MESSAGES = 12;
+	const destroyDevice = (): void => {
+		try {
+			device.destroy();
+		} catch {
+			// Best-effort GPUDevice teardown.
+		}
+	};
 
 	const isDerivativeUncapturedMessage = (message: string): boolean => {
 		const normalized = message.toLowerCase();
@@ -3472,6 +3479,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				return device;
 			},
 			destroy: () => {
+				if (isDestroyed) {
+					return;
+				}
 				isDestroyed = true;
 				device.removeEventListener('uncapturederror', handleUncapturedError);
 				frameBuffer.destroy();
@@ -3512,6 +3522,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				cachedGraphPasses.length = 0;
 				renderTargetSnapshot = {};
 				renderTargetKeys = [];
+				destroyDevice();
 			}
 		};
 	} catch (error) {
@@ -3519,6 +3530,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		acceptInitializationCleanups = false;
 		device.removeEventListener('uncapturederror', handleUncapturedError);
 		runInitializationCleanups();
+		destroyDevice();
 		throw error;
 	}
 }

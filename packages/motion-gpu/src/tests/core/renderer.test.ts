@@ -39,6 +39,7 @@ interface MockWebGpuRuntime {
 		removeEventListener: ReturnType<typeof vi.fn>;
 		pushErrorScope: ReturnType<typeof vi.fn>;
 		popErrorScope: ReturnType<typeof vi.fn>;
+		destroy: ReturnType<typeof vi.fn>;
 		lost: Promise<{ reason?: string; message?: string }>;
 	};
 	textures: MockTexture[];
@@ -166,6 +167,7 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 		removeEventListener: vi.fn(),
 		pushErrorScope: vi.fn(),
 		popErrorScope: vi.fn(async () => null),
+		destroy: vi.fn(),
 		lost
 	};
 
@@ -1599,6 +1601,37 @@ describe('createRenderer', () => {
 		expect(uploadedTexture?.destroy).toHaveBeenCalledTimes(1);
 		expect(runtimeTargetTexture?.destroy).toHaveBeenCalledTimes(1);
 		expect(fallbackTexture?.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('destroys the owned GPUDevice once when renderer.destroy() is called repeatedly', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer(baseOptions(runtime));
+
+		renderer.destroy();
+		renderer.destroy();
+
+		expect(runtime.device.destroy).toHaveBeenCalledTimes(1);
+		expect(runtime.device.removeEventListener).toHaveBeenCalledTimes(1);
+	});
+
+	it('destroys the owned GPUDevice when initialization fails after device creation', async () => {
+		const runtime = createWebGpuRuntime();
+		runtime.device.createShaderModule.mockReturnValueOnce({
+			getCompilationInfo: vi.fn(async () => ({
+				messages: [
+					{
+						type: 'error',
+						message: 'shader failed',
+						lineNum: 1,
+						linePos: 1,
+						length: 1
+					}
+				]
+			}))
+		} as unknown as GPUShaderModule);
+
+		await expect(createRenderer(baseOptions(runtime))).rejects.toThrow(/WGSL compilation failed/);
+		expect(runtime.device.destroy).toHaveBeenCalledTimes(1);
 	});
 
 	it('allocates GPU buffer with STORAGE usage for each storage buffer definition', async () => {

@@ -650,15 +650,15 @@ function createExternalCopySource(
 function uploadTextureBaseLevel(
 	device: GPUDevice,
 	texture: GPUTexture,
-	binding: Pick<RuntimeTextureBinding, 'flipY' | 'premultipliedAlpha'>,
+	uploadOptions: { flipY: boolean; premultipliedAlpha: boolean },
 	source: TextureSource,
 	width: number,
 	height: number
 ): void {
 	device.queue.copyExternalImageToTexture(
 		createExternalCopySource(source, {
-			flipY: binding.flipY,
-			premultipliedAlpha: binding.premultipliedAlpha
+			flipY: uploadOptions.flipY,
+			premultipliedAlpha: uploadOptions.premultipliedAlpha
 		}),
 		{ texture, mipLevel: 0 },
 		{ width, height, depthOrArrayLayers: 1 }
@@ -2413,11 +2413,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					(update === 'onInvalidate' && (renderMode !== 'always' || tokenChanged));
 
 				if (shouldUpload && binding.texture) {
+					uploadTextureBaseLevel(
+						device,
+						binding.texture,
+						{ flipY, premultipliedAlpha },
+						source,
+						width,
+						height
+					);
 					binding.flipY = flipY;
 					binding.generateMipmaps = generateMipmaps;
 					binding.premultipliedAlpha = premultipliedAlpha;
 					binding.colorSpace = colorSpace;
-					uploadTextureBaseLevel(device, binding.texture, binding, source, width, height);
 					markTextureMipmapsDirty(binding, mipLevelCount);
 				}
 
@@ -2444,28 +2451,41 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				mipLevelCount,
 				usage: textureUsage
 			});
+			let view: GPUTextureView;
+			try {
+				uploadTextureBaseLevel(
+					device,
+					texture,
+					{ flipY, premultipliedAlpha },
+					source,
+					width,
+					height
+				);
+				view = texture.createView();
+			} catch (error) {
+				texture.destroy();
+				throw error;
+			}
 			registerInitializationCleanup(() => {
 				texture.destroy();
 			});
 
-			binding.flipY = flipY;
-			binding.generateMipmaps = generateMipmaps;
-			binding.premultipliedAlpha = premultipliedAlpha;
-			binding.colorSpace = colorSpace;
-			binding.format = format;
-			uploadTextureBaseLevel(device, texture, binding, source, width, height);
-			markTextureMipmapsDirty(binding, mipLevelCount);
-
 			binding.texture?.destroy();
 			binding.texture = texture;
-			binding.view = texture.createView();
+			binding.view = view;
 			binding.feedbackViewActive = false;
 			binding.source = source;
 			binding.width = width;
 			binding.height = height;
 			binding.mipLevelCount = mipLevelCount;
 			binding.update = update;
+			binding.flipY = flipY;
+			binding.generateMipmaps = generateMipmaps;
+			binding.premultipliedAlpha = premultipliedAlpha;
+			binding.colorSpace = colorSpace;
+			binding.format = format;
 			binding.lastToken = value;
+			markTextureMipmapsDirty(binding, mipLevelCount);
 			return true;
 		};
 

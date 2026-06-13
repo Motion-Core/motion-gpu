@@ -751,6 +751,58 @@ describe('createRenderer', () => {
 		expect(cleanupRegistrations).toBe(registrationsDuringStartup);
 	});
 
+	it('destroys newly allocated runtime texture when upload fails during reallocation', async () => {
+		const runtime = createWebGpuRuntime();
+		const sourceA = document.createElement('canvas');
+		sourceA.width = 4;
+		sourceA.height = 4;
+		const sourceB = document.createElement('canvas');
+		sourceB.width = 8;
+		sourceB.height = 8;
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: { uTex: {} }
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceA }
+		});
+		const previousTexture = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 4 && size.height === 4;
+		});
+		expect(previousTexture).toBeDefined();
+
+		runtime.device.queue.copyExternalImageToTexture.mockImplementationOnce(() => {
+			throw new Error('upload failed');
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0.016,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: { uTex: sourceB }
+			})
+		).toThrow(/upload failed/);
+
+		const failedTexture = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 8 && size.height === 8;
+		});
+		expect(failedTexture).toBeDefined();
+		expect(failedTexture?.destroy).toHaveBeenCalledTimes(1);
+		expect(previousTexture?.destroy).not.toHaveBeenCalled();
+
+		renderer.destroy();
+	});
+
 	it('invalidates cached graph plan when pass clear semantics change between frames', async () => {
 		const runtime = createWebGpuRuntime();
 		const beginDescriptors: GPURenderPassDescriptor[] = [];
@@ -1001,6 +1053,79 @@ describe('createRenderer', () => {
 		});
 		expect(allocatedTextures).toHaveLength(1);
 		expect(allocatedTexture?.destroy).toHaveBeenCalledTimes(0);
+	});
+
+	it('keeps existing runtime texture usable when same-sized upload fails', async () => {
+		const runtime = createWebGpuRuntime();
+		const sourceA = document.createElement('canvas');
+		sourceA.width = 4;
+		sourceA.height = 4;
+		const sourceB = document.createElement('canvas');
+		sourceB.width = 4;
+		sourceB.height = 4;
+		const sourceC = document.createElement('canvas');
+		sourceC.width = 4;
+		sourceC.height = 4;
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: {
+				uTex: {
+					update: 'once'
+				}
+			}
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceA }
+		});
+
+		const textureAllocationsAfterFirstRender = runtime.device.createTexture.mock.calls.length;
+		const uploadsAfterFirstRender =
+			runtime.device.queue.copyExternalImageToTexture.mock.calls.length;
+		const allocatedTexture = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 4 && size.height === 4;
+		});
+		expect(allocatedTexture).toBeDefined();
+
+		runtime.device.queue.copyExternalImageToTexture.mockImplementationOnce(() => {
+			throw new Error('same-size upload failed');
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0.016,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: { uTex: { source: sourceB, flipY: true, premultipliedAlpha: true } }
+			})
+		).toThrow(/same-size upload failed/);
+
+		expect(runtime.device.createTexture.mock.calls.length).toBe(textureAllocationsAfterFirstRender);
+		expect(allocatedTexture?.destroy).not.toHaveBeenCalled();
+
+		renderer.render({
+			time: 0.032,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceC }
+		});
+
+		expect(runtime.device.createTexture.mock.calls.length).toBe(textureAllocationsAfterFirstRender);
+		expect(runtime.device.queue.copyExternalImageToTexture.mock.calls.length).toBe(
+			uploadsAfterFirstRender + 2
+		);
+		expect(runtime.device.queue.copyExternalImageToTexture.mock.calls.at(-1)?.[0]).toMatchObject({
+			source: sourceC
+		});
 	});
 
 	it('destroys runtime textures and restores fallback when texture is cleared', async () => {

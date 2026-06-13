@@ -160,16 +160,29 @@ const material = defineMaterial({
 
 The `initialData` must fit within the declared `size`. Supported typed arrays: `Float32Array`, `Uint32Array`, `Int32Array`.
 
+`initialData` is part of the material signature. Creating a new material with the same storage buffer layout but different initial data recreates the renderer and uploads the new buffer contents. Runtime writes still use `writeStorageBuffer` and do not rebuild the renderer.
+
 ## Pipeline signature
 
-Adding, removing, or changing storage buffer definitions (name, size, type, access) changes the material signature and triggers a **full renderer rebuild**. Writing data to an existing buffer at runtime does not trigger a rebuild.
+Adding, removing, or changing storage buffer definitions (name, size, type, access, initial data) changes the material signature and triggers a **full renderer rebuild**. Writing data to an existing buffer at runtime does not trigger a rebuild.
 
 | Change | Triggers rebuild? |
 | --- | --- |
 | Adding/removing a storage buffer | **Yes** |
-| Changing buffer size, type, or access | **Yes** |
+| Changing buffer size, type, access, or `initialData` | **Yes** |
 | `writeStorageBuffer` at runtime | No |
 | `readStorageBuffer` at runtime | No |
+
+## Runtime write alignment
+
+`writeStorageBuffer(name, data, { offset })` validates WebGPU `queue.writeBuffer` alignment before enqueueing a write:
+
+- `offset` must be a finite integer `>= 0`.
+- `offset` must be a multiple of 4 bytes.
+- `data.byteLength` must be a multiple of 4 bytes.
+- `offset + data.byteLength` must fit within the declared buffer `size`.
+
+Queued writes are flushed before the next render or compute dispatch. If a flush or render fails, the attempted writes are not replayed automatically on later frames.
 
 ## Related docs
 

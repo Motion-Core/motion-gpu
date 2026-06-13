@@ -60,6 +60,7 @@ The returned `FragMaterial` is frozen with `Object.freeze`. This means:
 
 - You **cannot** modify the material after creation.
 - The `uniforms`, `textures`, `defines`, `includes`, and `storageBuffers` sub-objects are also frozen.
+- `Float32Array` matrix defaults are cloned into immutable material snapshots; use runtime `setUniform` for hot-path mutable matrix updates.
 - To change a material, create a new one with `defineMaterial(...)`.
 
 This immutability is critical for Motion GPU's caching: the material signature is computed once and used to detect when the renderer needs rebuilding.
@@ -72,9 +73,9 @@ When `FragCanvas` resolves a material, it computes a **deterministic signature**
 2. The **uniform layout** (sorted name/type sequence).
 3. The **texture key list** (sorted).
 4. The **normalized texture sampling/upload config** for each texture (including `fragmentVisible`).
-5. The **storage buffer key list** (sorted) with size, type, and access mode.
+5. The **storage buffer key list** (sorted) with size, type, access mode, and `initialData` content signature.
 
-This signature is combined with `FragCanvas` `color` pipeline options to form the final **pipeline signature**. Only changes in this combined signature trigger a renderer rebuild.
+This signature is combined with `FragCanvas` `color`, `adapterOptions`, and `deviceDescriptor` values to form the final **pipeline signature**. Only changes in this combined signature trigger a renderer rebuild.
 
 ### What triggers rebuilds vs. buffer updates
 
@@ -84,11 +85,12 @@ This signature is combined with `FragCanvas` `color` pipeline options to form th
 | Adding/removing a uniform                         | **Yes**                               |
 | Adding/removing a texture                         | **Yes**                               |
 | Adding/removing a storage buffer                  | **Yes**                               |
-| Changing storage buffer size/type/access          | **Yes**                               |
+| Changing storage buffer size/type/access/initial data | **Yes**                          |
 | Changing texture sampler config                   | **Yes**                               |
 | Changing texture `fragmentVisible`                | **Yes**                               |
 | Changing a define value                           | **Yes**                               |
 | Changing `color` pipeline options on `FragCanvas` | **Yes**                               |
+| Changing `adapterOptions` or `deviceDescriptor`   | **Yes**                               |
 | Changing a uniform **value** at runtime           | No — buffer update only               |
 | Changing a texture **source** at runtime          | No — upload only                      |
 | Writing to a storage buffer at runtime            | No — pending write flushed next frame |

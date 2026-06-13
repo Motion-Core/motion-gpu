@@ -89,8 +89,8 @@ Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.7
 
 | Prop               | Type                       | Default     | Description                                                                                                |
 | ------------------ | -------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------- |
-| `adapterOptions`   | `GPURequestAdapterOptions` | `undefined` | Forwarded to `navigator.gpu.requestAdapter()`. Can specify `powerPreference`, `forceFallbackAdapter`, etc. |
-| `deviceDescriptor` | `GPUDeviceDescriptor`      | `undefined` | Forwarded to `adapter.requestDevice()`. Can request specific features or limits.                           |
+| `adapterOptions`   | `GPURequestAdapterOptions` | `undefined` | Forwarded to `navigator.gpu.requestAdapter()`. Value changes trigger renderer/device recreation.           |
+| `deviceDescriptor` | `GPUDeviceDescriptor`      | `undefined` | Forwarded to `adapter.requestDevice()`. Value changes trigger renderer/device recreation.                  |
 
 ### Error handling
 
@@ -108,6 +108,7 @@ Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.7
 - History stores the latest `N` reports when `errorHistoryLimit > 0`.
 - Consecutive identical reports are deduplicated (`phase/title/message/rawMessage` key).
 - Reducing `errorHistoryLimit` trims existing history immediately.
+- `onErrorHistory` receives a fresh snapshot array; mutating it cannot change internal runtime history.
 
 ### Styling and children
 

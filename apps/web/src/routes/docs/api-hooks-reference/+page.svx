@@ -57,6 +57,8 @@ Dependency validation is strict: cyclic graphs and missing `before`/`after` refe
 | `invalidate` | `(token?: FrameInvalidationToken) => void` |
 | `advance` | `() => void` |
 
+`writeStorageBuffer` requires WebGPU-compatible writes: `offset` and `data.byteLength` must be multiples of 4 bytes, and the write must fit inside the declared buffer size.
+
 ## `useMotionGPU`
 
 Returns runtime context controls:

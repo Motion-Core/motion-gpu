@@ -130,6 +130,7 @@ By default, `FragCanvas` displays runtime errors through the adapter overlay com
 - When `errorHistoryLimit <= 0`, history collection is disabled and `onErrorHistory` receives `[]` after resets.
 - When `errorHistoryLimit > 0`, history behaves as a ring buffer containing only the latest `N` unique reports.
 - Consecutive identical reports (`phase/title/message/rawMessage`) are deduplicated and do not append history.
+- `onErrorHistory` and adapter state receive fresh snapshot arrays; mutating a received array does not alter internal runtime history.
 - The default overlay renders above canvas content using a DOM portal.
 - Multiple errors display the most recent one.
 

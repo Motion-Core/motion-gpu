@@ -3,6 +3,17 @@ All notable changes to Motion GPU will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Changed
+- Renderer pipeline signatures now include `adapterOptions`, `deviceDescriptor`, and storage buffer `initialData` content, so declarative WebGPU configuration and initial buffer changes recreate the renderer/device instead of reusing stale GPU resources.
+- `defineMaterial` now normalizes `Float32Array` `mat4x4f` defaults into immutable material snapshots while preserving `Float32Array` support for runtime `setUniform` updates.
+- Fragment texture and fullscreen pass bind group layouts now resolve sampler/sample types from texture formats, using non-filtering sampling for float32 formats unless `float32-filterable` is available.
+
+### Fixed
+- Validate `writeStorageBuffer` offsets and data byte lengths against WebGPU 4-byte alignment requirements before enqueueing writes.
+- Clear attempted storage buffer writes after flush/render failures so old writes are not replayed on later frames.
+- Destroy the owned `GPUDevice` during renderer teardown and failed initialization, with idempotent renderer destruction.
+- Destroy newly allocated runtime textures when upload or view creation fails, leaving the previous binding intact.
+- Pass fresh error history snapshot arrays to callbacks and adapter state so consumer mutation cannot corrupt internal history.
 
 ## [0.12.0] - 2026-06-13
 ### Added

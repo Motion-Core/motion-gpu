@@ -88,6 +88,8 @@ uniforms: {
 
 The `mat4x4f` type **must** use explicit form — it cannot be inferred from an array length of 16.
 
+When a material default uses a `Float32Array` matrix, `defineMaterial` clones it into an immutable snapshot. For per-frame matrix updates, keep using `state.setUniform('uModelMatrix', { type: 'mat4x4f', value: float32Array })`; runtime values still accept `Float32Array` for efficient packing.
+
 ## Naming rules
 
 All uniform identifiers must be WGSL-safe: `[A-Za-z_][A-Za-z0-9_]*`.

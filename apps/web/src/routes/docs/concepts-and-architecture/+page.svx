@@ -129,12 +129,13 @@ Not every change triggers a full renderer rebuild. This table clarifies what doe
 
 | Change                                                                                                       | Triggers rebuild? | What happens instead             |
 | ------------------------------------------------------------------------------------------------------------ | ----------------- | -------------------------------- |
-| Material signature change (shader, uniform layout, texture bindings, storage buffers)                        | **Yes**           | Full renderer recreation         |
+| Material signature change (shader, uniform layout, texture bindings, storage buffers, storage `initialData`) | **Yes**           | Full renderer recreation         |
 | Color pipeline change (`outputEncoding`, `toneMapping`, `dynamicRange`, `canvasColorSpace`, `workingFormat`) | **Yes**           | Full renderer recreation         |
+| `adapterOptions` or `deviceDescriptor` value change                                                          | **Yes**           | Full renderer/device recreation  |
 | Runtime uniform value change                                                                                 | No                | Dirty-range buffer write only    |
 | Runtime texture source change                                                                                | No                | Texture re-upload only           |
 | Runtime texture `fragmentVisible` change                                                                     | **Yes**           | Full renderer recreation         |
-| Storage buffer `writeStorageBuffer`                                                                          | No                | Pending write flushed next frame |
+| Storage buffer `writeStorageBuffer`                                                                          | No                | Write flushed before next render |
 | Storage buffer `readStorageBuffer`                                                                           | No                | Async staging buffer copy        |
 | Canvas resize                                                                                                | No                | Render target resize, re-render  |
 | Clear color change                                                                                           | No                | Applied next frame               |

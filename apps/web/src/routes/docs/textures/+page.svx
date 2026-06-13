@@ -43,6 +43,8 @@ When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL d
 
 `fragmentVisible` defaults to `true` for non-storage textures and float-sampled storage formats (e.g. `rgba8unorm`, `rgba16float`). For integer storage formats (`*uint`, `*sint`) it defaults to `false` because the fragment shader binding is typed `texture_2d<f32>` and cannot sample integer textures. Setting `fragmentVisible: true` explicitly on an integer storage format throws at material-definition time.
 
+Float32 formats (`r32float`, `rg32float`, `rgba32float`) are sampled as unfilterable textures unless the device supports `float32-filterable`. When filtering is unavailable, Motion GPU uses a non-filtering sampler and coerces `filter: 'linear'` to nearest sampling to avoid WebGPU validation errors.
+
 ## TextureDefinition fields
 
 | Field                | Type                                         | Default                     | Description                                                                                                                                                                                                                                                     |
@@ -54,7 +56,7 @@ When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL d
 | `premultipliedAlpha` | `boolean`                                    | `false`                     | Upload premultiplication behavior                                                                                                                                                                                                                               |
 | `update`             | `'once'` \| `'onInvalidate'` \| `'perFrame'` | Inferred from source        | Runtime refresh policy                                                                                                                                                                                                                                          |
 | `anisotropy`         | `number`                                     | `1`                         | Anisotropic filtering level (clamped to `1..16`)                                                                                                                                                                                                                |
-| `filter`             | `GPUFilterMode`                              | `'linear'`                  | Min/mag filter mode (`'nearest'` or `'linear'`)                                                                                                                                                                                                                 |
+| `filter`             | `GPUFilterMode`                              | `'linear'`                  | Min/mag filter mode (`'nearest'` or `'linear'`). Float32 formats may be coerced to nearest when the device does not support `float32-filterable`.                                                                                                               |
 | `addressModeU`       | `GPUAddressMode`                             | `'clamp-to-edge'`           | Horizontal wrap mode                                                                                                                                                                                                                                            |
 | `addressModeV`       | `GPUAddressMode`                             | `'clamp-to-edge'`           | Vertical wrap mode                                                                                                                                                                                                                                              |
 | `storage`            | `boolean`                                    | `false`                     | Marks texture as compute-writable storage texture                                                                                                                                                                                                               |
@@ -105,7 +107,7 @@ When `storage: true` is enabled, the texture participates in compute bindings (`
 - `format` must be a storage-compatible format.
 - Storage texture targets must have explicit `width` and `height`.
 - Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
-- For compute-only storage textures, `fragmentVisible` defaults based on the format (integer formats default to `false`, float formats to `true`). Set `fragmentVisible: false` explicitly on float formats when the slot should not consume fragment sampler/texture bindings.
+- For compute-only storage textures, `fragmentVisible` defaults based on the format (integer formats default to `false`, float formats to `true`). Set `fragmentVisible: false` explicitly on float formats when the slot should not consume fragment sampler/texture bindings. Float32 storage formats visible to the fragment stage use non-filtering sampling unless `float32-filterable` is available.
 
 ```ts
 const material = defineMaterial({

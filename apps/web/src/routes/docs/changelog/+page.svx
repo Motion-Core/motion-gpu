@@ -7,6 +7,18 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ## [Unreleased]
 
+### Added
+- Forward native canvas attributes from Svelte, React, and Vue `FragCanvas` adapters to the internal `<canvas>`, including `id`, `data-*`, `aria-*`, event handlers, `class`/`className`, and `style`.
+- Expose the internal `FragCanvas` canvas consistently through `bind:canvas` in Svelte, the React 19 `ref` prop, and `canvas` / `getCanvas()` on the Vue component public instance.
+
+### Changed
+- Make `FragCanvas` canvas-facing across all framework adapters: DOM props passed to the component now target the internal `<canvas>`, while the wrapper remains a private layout, clipping, context, and error-UI implementation detail.
+- Require React 19+ for the React adapter and use `ref` as a regular component prop instead of `forwardRef`.
+- Ignore native canvas `width` and `height` attributes on `FragCanvas`; backing-store sizing remains controlled by measured CSS/container size and `dpr`.
+
+### Removed
+- Removed Vue-only `canvasClass` and `canvasStyle` props; use `class` and `style` directly on `FragCanvas` to target the internal canvas.
+
 ### Fixed
 - Premultiply final canvas presentation output for WebGPU canvases configured with `alphaMode: 'premultiplied'`, while keeping material and render-pass shader contracts authored in straight alpha.
 

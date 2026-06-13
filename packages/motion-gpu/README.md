@@ -92,7 +92,7 @@ Motion GPU follows a simple three-step flow:
 # Requirements
 
 - Svelte 5 is required only for the Svelte adapter entrypoints (`/svelte`, `/svelte/advanced`)
-- React 18+ is required only for the React adapter entrypoints (`/react`, `/react/advanced`)
+- React 19+ is required only for the React adapter entrypoints (`/react`, `/react/advanced`)
 - Vue 3.5+ is required only for the Vue adapter entrypoints (`/vue`, `/vue/advanced`)
 - A browser/runtime with WebGPU support
 - Secure context (`https://` or `localhost`)

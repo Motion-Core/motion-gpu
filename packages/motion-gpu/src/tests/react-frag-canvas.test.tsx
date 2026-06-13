@@ -1,7 +1,8 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineMaterial } from '../lib/core/material.js';
-import { FragCanvas } from '../lib/react/FragCanvas.js';
+import { FragCanvas, type FragCanvasProps } from '../lib/react/FragCanvas.js';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -150,5 +151,67 @@ describe('React FragCanvas', () => {
 		});
 		expect(screen.queryByTestId('custom-error-renderer')).toBeNull();
 		expect(screen.queryByTestId('motiongpu-error')).toBeNull();
+	});
+
+	it('forwards native canvas props to the internal canvas', () => {
+		const onClick = vi.fn();
+		const view = render(
+			<FragCanvas
+				material={material}
+				showErrorOverlay={false}
+				className="gpu-canvas"
+				style={{ opacity: 0.5 }}
+				id="gpu-canvas"
+				data-testid="gpu-canvas"
+				aria-label="GPU canvas"
+				tabIndex={0}
+				onClick={onClick}
+			/>
+		);
+
+		const wrapper = view.container.querySelector<HTMLElement>('.motiongpu-canvas-wrap');
+		const canvas = screen.getByTestId('gpu-canvas') as HTMLCanvasElement;
+
+		expect(wrapper).toBeTruthy();
+		expect(wrapper?.id).toBe('');
+		expect(wrapper?.classList.contains('gpu-canvas')).toBe(false);
+		expect(canvas).toBeInstanceOf(HTMLCanvasElement);
+		expect(canvas.id).toBe('gpu-canvas');
+		expect(canvas.classList.contains('gpu-canvas')).toBe(true);
+		expect(canvas.style.opacity).toBe('0.5');
+		expect(canvas.getAttribute('aria-label')).toBe('GPU canvas');
+		expect(canvas.tabIndex).toBe(0);
+
+		canvas.click();
+		expect(onClick).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not forward native canvas width and height attributes', () => {
+		const blockedProps = {
+			material,
+			showErrorOverlay: false,
+			width: 640,
+			height: 480
+		} as unknown as FragCanvasProps;
+		const view = render(<FragCanvas {...blockedProps} />);
+		const canvas = view.container.querySelector<HTMLCanvasElement>('canvas');
+
+		expect(canvas).toBeTruthy();
+		expect(canvas?.hasAttribute('width')).toBe(false);
+		expect(canvas?.hasAttribute('height')).toBe(false);
+	});
+
+	it('exposes the internal canvas through the React 19 ref prop', () => {
+		const canvasRef = createRef<HTMLCanvasElement>();
+		const view = render(
+			<FragCanvas ref={canvasRef} material={material} showErrorOverlay={false} />
+		);
+		const canvas = view.container.querySelector<HTMLCanvasElement>('canvas');
+
+		expect(canvas).toBeTruthy();
+		expect(canvasRef.current).toBe(canvas);
+
+		view.unmount();
+		expect(canvasRef.current).toBeNull();
 	});
 });

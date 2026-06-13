@@ -9,12 +9,21 @@ import type {
 	RenderMode,
 	RenderTargetDefinitionMap
 } from '../core/types.js';
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	type ComponentPropsWithoutRef,
+	type CSSProperties,
+	type ReactNode,
+	type Ref
+} from 'react';
 import { FrameRegistryReactContext } from './frame-context.js';
 import { MotionGPUErrorOverlay } from './MotionGPUErrorOverlay.js';
 import { MotionGPUReactContext, type MotionGPUContext } from './motiongpu-context.js';
 
-export interface FragCanvasProps {
+interface FragCanvasOwnProps {
 	material: FragMaterial;
 	renderTargets?: RenderTargetDefinitionMap;
 	passes?: AnyPass[];
@@ -31,10 +40,21 @@ export interface FragCanvasProps {
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
 	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
-	className?: string;
-	style?: CSSProperties;
 	children?: ReactNode;
+	ref?: Ref<HTMLCanvasElement>;
 }
+
+type BlockedCanvasProps = {
+	height?: undefined;
+	width?: undefined;
+};
+
+type CanvasDOMProps = Omit<
+	ComponentPropsWithoutRef<'canvas'>,
+	keyof FragCanvasOwnProps | keyof BlockedCanvasProps | 'color' | 'children'
+>;
+
+export type FragCanvasProps = FragCanvasOwnProps & CanvasDOMProps & BlockedCanvasProps;
 
 interface RuntimePropsSnapshot {
 	material: FragMaterial;
@@ -156,6 +176,26 @@ function getNormalizedErrorHistoryLimit(value: number): number {
 	return Math.floor(value);
 }
 
+function setExternalRef<T>(ref: Ref<T> | undefined, value: T | null): (() => void) | undefined {
+	if (!ref) {
+		return undefined;
+	}
+
+	if (typeof ref === 'function') {
+		const cleanup = ref(value);
+		return typeof cleanup === 'function'
+			? cleanup
+			: () => {
+					ref(null);
+				};
+	}
+
+	ref.current = value;
+	return () => {
+		ref.current = null;
+	};
+}
+
 export function FragCanvas({
 	material,
 	renderTargets = {},
@@ -173,10 +213,17 @@ export function FragCanvas({
 	onError = undefined,
 	errorHistoryLimit = 0,
 	onErrorHistory = undefined,
+	ref = undefined,
 	className = '',
 	style,
-	children
+	children,
+	height: blockedHeight = undefined,
+	width: blockedWidth = undefined,
+	...canvasProps
 }: FragCanvasProps) {
+	void blockedHeight;
+	void blockedWidth;
+
 	const runtimeRef = useRef<FragCanvasRuntimeState | null>(null);
 	if (!runtimeRef.current) {
 		runtimeRef.current = createRuntimeState(getInitialDpr());
@@ -313,7 +360,7 @@ export function FragCanvas({
 		runtime
 	]);
 
-	const canvasStyle: CSSProperties = {
+	const resolvedCanvasStyle: CSSProperties = {
 		position: 'absolute',
 		inset: 0,
 		display: 'block',
@@ -321,6 +368,19 @@ export function FragCanvas({
 		height: '100%',
 		...style
 	};
+
+	const bindCanvasRef = useCallback(
+		(node: HTMLCanvasElement | null) => {
+			runtime.canvasRef.current = node ?? undefined;
+			const cleanupExternalRef = setExternalRef(ref, node);
+
+			return () => {
+				runtime.canvasRef.current = undefined;
+				cleanupExternalRef?.();
+			};
+		},
+		[ref, runtime]
+	);
 
 	return (
 		<FrameRegistryReactContext.Provider value={runtime.registry}>
@@ -337,11 +397,10 @@ export function FragCanvas({
 					}}
 				>
 					<canvas
+						{...canvasProps}
 						className={className}
-						style={canvasStyle}
-						ref={(node) => {
-							runtime.canvasRef.current = node ?? undefined;
-						}}
+						style={resolvedCanvasStyle}
+						ref={bindCanvasRef}
 					/>
 					{showErrorOverlay && errorReport ? (
 						errorRenderer ? (

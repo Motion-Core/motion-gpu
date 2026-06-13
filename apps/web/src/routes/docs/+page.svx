@@ -1,9 +1,9 @@
 ---
 title: Motion GPU Documentation
-description: Framework-agnostic WebGPU core with Svelte 5, React 18/19, and Vue 3 adapters for fullscreen WGSL rendering.
+description: Framework-agnostic WebGPU core with Svelte 5, React 19, and Vue 3 adapters for fullscreen WGSL rendering.
 ---
 
-`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 18/19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, **fragment feedback passes**, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
+`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, **fragment feedback passes**, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
 
 This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
 

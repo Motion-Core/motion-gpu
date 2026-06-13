@@ -24,15 +24,22 @@ export interface FragCanvasProps {
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
 	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
-	canvasClass?: string;
-	canvasStyle?: string | Record<string, string | number>;
 }
 
 const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio ?? 1);
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
+import {
+	computed,
+	onBeforeUnmount,
+	onMounted,
+	shallowRef,
+	useAttrs,
+	useTemplateRef,
+	watch,
+	type StyleValue
+} from 'vue';
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport } from '../core/error-report.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
@@ -40,6 +47,10 @@ import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import { provideFrameRegistry } from './frame-context.js';
 import { provideMotionGPUContext } from './motiongpu-context.js';
 import MotionGPUErrorOverlay from './MotionGPUErrorOverlay.vue';
+
+defineOptions({
+	inheritAttrs: false
+});
 
 const props = withDefaults(defineProps<FragCanvasProps>(), {
 	renderTargets: () => ({}),
@@ -50,8 +61,7 @@ const props = withDefaults(defineProps<FragCanvasProps>(), {
 	maxDelta: 0.1,
 	dpr: () => initialDpr,
 	showErrorOverlay: true,
-	errorHistoryLimit: 0,
-	canvasClass: ''
+	errorHistoryLimit: 0
 });
 
 const wrapperStyle = Object.freeze({
@@ -71,7 +81,18 @@ const baseCanvasStyle = Object.freeze({
 	height: '100%'
 });
 
-const resolvedCanvasStyle = computed(() => [baseCanvasStyle, props.canvasStyle]);
+const attrs = useAttrs();
+const canvasAttrs = computed(() => {
+	const { height, style, width, ...rest } = attrs;
+	void height;
+	void style;
+	void width;
+	return rest;
+});
+const resolvedCanvasStyle = computed<StyleValue>(() => [
+	baseCanvasStyle,
+	attrs.style as StyleValue
+]);
 
 defineSlots<{
 	default(): unknown;
@@ -81,6 +102,14 @@ defineSlots<{
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasEl');
 const errorReport = shallowRef<MotionGPUErrorReport | null>(null);
 const errorHistory = shallowRef<MotionGPUErrorReport[]>([]);
+const getCanvas = (): HTMLCanvasElement | undefined => canvasRef.value ?? undefined;
+
+defineExpose({
+	get canvas() {
+		return getCanvas();
+	},
+	getCanvas
+});
 
 const registry = createFrameRegistry({ maxDelta: 0.1 });
 provideFrameRegistry(registry);
@@ -278,7 +307,7 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="motiongpu-canvas-wrap" :style="wrapperStyle">
-		<canvas ref="canvasEl" :class="canvasClass" :style="resolvedCanvasStyle"></canvas>
+		<canvas v-bind="canvasAttrs" ref="canvasEl" :style="resolvedCanvasStyle"></canvas>
 		<template v-if="showErrorOverlay && errorReport">
 			<slot name="errorRenderer" :report="errorReport">
 				<MotionGPUErrorOverlay :report="errorReport" />

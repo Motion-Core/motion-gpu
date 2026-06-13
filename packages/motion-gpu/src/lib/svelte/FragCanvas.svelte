@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
+	import type { HTMLCanvasAttributes } from 'svelte/elements';
 	import type { FragMaterial } from '../core/material';
 	import { createCurrentWritable as currentWritable } from '../core/current-value';
 	import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report';
@@ -16,7 +17,7 @@
 	import { provideMotionGPUContext } from './motiongpu-context';
 	import { createFrameRegistry, provideFrameRegistry } from './frame-context';
 
-	interface Props {
+	interface FragCanvasOwnProps {
 		material: FragMaterial;
 		renderTargets?: RenderTargetDefinitionMap;
 		passes?: AnyPass[];
@@ -33,10 +34,18 @@
 		onError?: (report: MotionGPUErrorReport) => void;
 		errorHistoryLimit?: number;
 		onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
-		class?: string;
-		style?: string;
+		canvas?: HTMLCanvasElement | undefined;
 		children?: Snippet;
 	}
+
+	type BlockedCanvasProps = {
+		height?: undefined;
+		width?: undefined;
+	};
+
+	type Props = FragCanvasOwnProps &
+		Omit<HTMLCanvasAttributes, keyof FragCanvasOwnProps | keyof BlockedCanvasProps | 'color'> &
+		BlockedCanvasProps;
 
 	const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio ?? 1);
 
@@ -59,12 +68,21 @@
 		onErrorHistory = undefined,
 		class: className = '',
 		style = '',
-		children
+		canvas = $bindable(),
+		height: blockedHeight = undefined,
+		width: blockedWidth = undefined,
+		children,
+		...canvasProps
 	}: Props = $props();
 
-	let canvas: HTMLCanvasElement | undefined;
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
 	let errorHistory = $state<MotionGPUErrorReport[]>([]);
+
+	let forwardedCanvasProps = $derived.by(() => {
+		void blockedHeight;
+		void blockedWidth;
+		return canvasProps;
+	});
 
 	let normalizedErrorHistoryLimit = $derived.by(() => {
 		if (!Number.isFinite(errorHistoryLimit) || errorHistoryLimit <= 0) {
@@ -234,7 +252,7 @@
 </script>
 
 <div class="motiongpu-canvas-wrap">
-	<canvas {@attach bindCanvas} class={className} {style}></canvas>
+	<canvas {...forwardedCanvasProps} {@attach bindCanvas} class={className} {style}></canvas>
 	{#if showErrorOverlay && errorReport}
 		{#if errorRenderer}
 			{@render errorRenderer(errorReport)}

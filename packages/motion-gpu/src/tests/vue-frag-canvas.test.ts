@@ -1,5 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/vue';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, onMounted, ref, type PropType } from 'vue';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defineMaterial } from '../lib/core/material.js';
 import FragCanvas from '../lib/vue/FragCanvas.vue';
@@ -64,6 +64,36 @@ const CustomErrorRendererHarness = defineComponent({
 						)
 				}
 			);
+	}
+});
+
+const CanvasExposeHarness = defineComponent({
+	name: 'VueFragCanvasExposeHarness',
+	props: {
+		onExpose: {
+			type: Function as PropType<
+				(canvas: HTMLCanvasElement | undefined, getCanvas: HTMLCanvasElement | undefined) => void
+			>,
+			required: true
+		}
+	},
+	setup(props) {
+		const fragCanvas = ref<{
+			readonly canvas?: HTMLCanvasElement;
+			getCanvas(): HTMLCanvasElement | undefined;
+		} | null>(null);
+
+		onMounted(() => {
+			props.onExpose(fragCanvas.value?.canvas, fragCanvas.value?.getCanvas());
+		});
+
+		return () =>
+			h(FragCanvas, {
+				ref: fragCanvas,
+				material,
+				showErrorOverlay: false,
+				'data-testid': 'exposed-canvas'
+			});
 	}
 });
 
@@ -186,20 +216,31 @@ describe('Vue FragCanvas', () => {
 		expect(screen.queryByTestId('motiongpu-error')).toBeNull();
 	});
 
-	it('applies layout-safe inline styles to wrapper and canvas', () => {
+	it('forwards native canvas attrs to the internal canvas', () => {
+		const onClick = vi.fn();
 		const view = render(FragCanvas, {
 			props: {
 				material,
-				showErrorOverlay: false,
-				canvasStyle: { opacity: 0.5 }
+				showErrorOverlay: false
+			},
+			attrs: {
+				class: 'gpu-canvas',
+				style: { opacity: 0.5 },
+				id: 'gpu-canvas',
+				'data-testid': 'gpu-canvas',
+				'aria-label': 'GPU canvas',
+				tabindex: 0,
+				onClick
 			}
 		});
 
 		const wrapper = view.container.querySelector<HTMLElement>('.motiongpu-canvas-wrap');
-		const canvas = view.container.querySelector<HTMLCanvasElement>('canvas');
+		const canvas = screen.getByTestId('gpu-canvas') as HTMLCanvasElement;
 
 		expect(wrapper).toBeTruthy();
 		expect(canvas).toBeTruthy();
+		expect(wrapper?.id).toBe('');
+		expect(wrapper?.classList.contains('gpu-canvas')).toBe(false);
 		expect(wrapper?.style.position).toBe('relative');
 		expect(wrapper?.style.width).toBe('100%');
 		expect(wrapper?.style.height).toBe('100%');
@@ -210,5 +251,45 @@ describe('Vue FragCanvas', () => {
 		expect(canvas?.style.height).toBe('100%');
 		expect(canvas?.style.display).toBe('block');
 		expect(canvas?.style.opacity).toBe('0.5');
+		expect(canvas.id).toBe('gpu-canvas');
+		expect(canvas.classList.contains('gpu-canvas')).toBe(true);
+		expect(canvas.getAttribute('aria-label')).toBe('GPU canvas');
+		expect(canvas.tabIndex).toBe(0);
+
+		canvas.click();
+		expect(onClick).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not forward native canvas width and height attributes', () => {
+		const view = render(FragCanvas, {
+			props: {
+				material,
+				showErrorOverlay: false
+			},
+			attrs: {
+				width: 640,
+				height: 480
+			}
+		});
+
+		const canvas = view.container.querySelector<HTMLCanvasElement>('canvas');
+
+		expect(canvas).toBeTruthy();
+		expect(canvas?.hasAttribute('width')).toBe(false);
+		expect(canvas?.hasAttribute('height')).toBe(false);
+	});
+
+	it('exposes the internal canvas through the component public instance', async () => {
+		const onExpose = vi.fn();
+		render(CanvasExposeHarness, {
+			props: {
+				onExpose
+			}
+		});
+
+		const canvas = await screen.findByTestId('exposed-canvas');
+		await waitFor(() => {
+			expect(onExpose).toHaveBeenCalledWith(canvas, canvas);
+		});
 	});
 });

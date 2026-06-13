@@ -25,7 +25,7 @@ reactLang="tsx"
 vueLang="vue"
 />
 
-Adapter-specific naming differences (`class` vs `className` vs `canvasClass`, `style` type, `children`/slots) are listed below.
+Adapter-specific naming differences (`class` vs `className`, `style` type, `children`/slots, and canvas handle access) are listed below.
 
 ## Props
 
@@ -111,11 +111,17 @@ Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.7
 
 ### Styling and children
 
-| Prop                                                         | Type                                                                                                   | Default                                 | Description                                                                                                            |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `class` (Svelte) / `className` (React) / `canvasClass` (Vue) | `string`                                                                                               | `''`                                    | CSS class applied directly to the `<canvas>`.                                                                          |
-| `style` (Svelte/React) / `canvasStyle` (Vue)                 | `string` (Svelte) / `React.CSSProperties` (React) / `string \| Record<string, string \| number>` (Vue) | `''` (Svelte) / `undefined` (React/Vue) | Inline styles applied directly to the `<canvas>`.                                                                      |
-| `children` (Svelte/React) / default slot (Vue)               | `Snippet` (Svelte) / `ReactNode` (React) / slot (Vue)                                                  | `undefined`                             | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
+| Prop                                           | Type                                                                  | Default     | Description                                                                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Native canvas attrs                            | Canvas attributes except `width`, `height`, and Motion GPU prop names | `undefined` | Attributes such as `id`, `data-*`, `aria-*`, `tabindex`, events, `class`/`className`, and `style` are applied to the internal `<canvas>`. |
+| `class` (Svelte/Vue) / `className` (React)     | Framework-native class value                                          | `undefined` | CSS class applied directly to the internal `<canvas>`.                                                                 |
+| `style`                                        | `string` (Svelte) / framework-native style object/string             | `undefined` | Inline styles applied directly to the internal `<canvas>`.                                                            |
+| `bind:canvas` (Svelte) / `ref` (React) / Vue component ref expose | `HTMLCanvasElement` access                                  | `undefined` | Parent-level access to the internal canvas. Vue refs expose `canvas` and `getCanvas()` on the component public instance. |
+| `children` (Svelte/React) / default slot (Vue) | `Snippet` (Svelte) / `ReactNode` (React) / slot (Vue)                 | `undefined` | Children rendered inside the `FragCanvas` context — this is where `useFrame`, `useMotionGPU`, `usePointer`, etc. work. |
+
+`FragCanvas` is canvas-facing: DOM attributes passed to the component target the internal `<canvas>`, not the implementation wrapper. Wrap `FragCanvas` in your own element when you need container-level layout classes or styles.
+
+`width` and `height` canvas attributes are intentionally not forwarded. Motion GPU controls the backing-store size from CSS size × `dpr`; use CSS/container sizing plus the `dpr` prop instead.
 
 ## Lifecycle
 
@@ -128,7 +134,7 @@ Khronos PBR Neutral is an SDR tone mapper: it consumes non-negative linear Rec.7
 
 ## Canvas sizing
 
-`FragCanvas` renders a `<canvas>` inside a container `<div>`. The canvas fills its container using `width: 100%; height: 100%` CSS. The container determines the effective canvas dimensions.
+`FragCanvas` renders a `<canvas>` inside an implementation wrapper `<div>`. Native DOM props passed to `FragCanvas` are applied to the canvas, while the wrapper remains private to provide stable layout, clipping, context children, and error UI. The canvas fills its container using `width: 100%; height: 100%` CSS. The container determines the effective canvas dimensions.
 
 The physical size (GPU resolution) is `containerSize × dpr`.
 

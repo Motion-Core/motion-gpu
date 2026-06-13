@@ -21,8 +21,9 @@ export const fullConfigSvelte = `\
   onError={(report) => sendToTelemetry(report)}
   errorHistoryLimit={20}
   onErrorHistory={(history) => sendErrorHistory(history)}
-  class="my-canvas-container"
-  style="border-radius: 12px; overflow: hidden;"
+  class="my-canvas"
+  style="border-radius: 12px;"
+  data-testid="shader-canvas"
 >
   <Runtime />
 </FragCanvas>`;
@@ -49,8 +50,9 @@ export const fullConfigReact = `\
   onError={(report) => sendToTelemetry(report)}
   errorHistoryLimit={20}
   onErrorHistory={(history) => sendErrorHistory(history)}
-  className="my-canvas-container"
-  style={{ borderRadius: '12px', overflow: 'hidden' }}
+  className="my-canvas"
+  style={{ borderRadius: '12px' }}
+  data-testid="shader-canvas"
 >
   <Runtime />
 </FragCanvas>`;
@@ -71,8 +73,9 @@ export const fullConfigVue = `\
   :on-error="(report) => sendToTelemetry(report)"
   :error-history-limit="20"
   :on-error-history="(history) => sendErrorHistory(history)"
-  canvas-class="my-canvas-container"
-  canvas-style="border-radius: 12px; overflow: hidden"
+  class="my-canvas"
+  style="border-radius: 12px"
+  data-testid="shader-canvas"
 >
   <template #errorRenderer="{ report }">
     <aside class="my-error-banner">

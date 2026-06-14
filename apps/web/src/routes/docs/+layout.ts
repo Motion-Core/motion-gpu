@@ -1,5 +1,5 @@
 import type { LayoutLoad } from './$types';
-import { getAdjacentDocs, getDocBySlug } from '$lib/docs/manifest';
+import { getAdjacentDocs, getDocBySlug, getDocTocHeadings } from '$lib/docs/manifest';
 import { getDocMetadata } from '$lib/docs/metadata';
 
 function pathToSlug(pathname: string): string {
@@ -13,6 +13,7 @@ export const load: LayoutLoad = ({ url }) => {
 	const currentDoc = getDocBySlug(slug);
 	const { previous, next } = getAdjacentDocs(slug);
 	const metadata = getDocMetadata(url.pathname);
+	const tocHeadings = getDocTocHeadings(slug);
 
 	return {
 		slug,
@@ -24,6 +25,7 @@ export const load: LayoutLoad = ({ url }) => {
 		},
 		previousDoc: previous,
 		nextDoc: next,
+		tocHeadings,
 		docOrigin: url.origin
 	};
 };

@@ -22,7 +22,14 @@ export {
 	type PackageManagerOption
 } from './config/docs-ui';
 
-export { docsManifest, getAdjacentDocs, getDocBySlug, getDocHref } from './docs/manifest';
+export {
+	docsManifest,
+	getAdjacentDocs,
+	getDocBySlug,
+	getDocHref,
+	getDocTocHeadings,
+	type DocTocHeading
+} from './docs/manifest';
 export { getDocMetadata, type DocMetadata } from './docs/metadata';
 
 export { default as brandLogoRaw } from './assets/motiongpu-logo.svg?raw';

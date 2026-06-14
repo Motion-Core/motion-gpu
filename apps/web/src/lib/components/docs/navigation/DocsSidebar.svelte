@@ -18,7 +18,7 @@
 	const currentHash = $derived(page.url.hash);
 	const githubUrl = siteConfig.links.github;
 
-	let expandedGroups = $state<Record<string, boolean>>({});
+	let expandedGroups = $state<Partial<Record<string, boolean>>>({});
 	let navElement = $state<HTMLElement | null>(null);
 	let hoverIndicatorTop = $state(0);
 	let hoverIndicatorHeight = $state(0);
@@ -33,6 +33,7 @@
 	let pendingHoverRestoreFrame: number | null = null;
 	let pendingActiveIndicatorFrame: number | null = null;
 	let activeIndicatorFollowFrame: number | null = null;
+	let activeIndicatorRevealFrame: number | null = null;
 	let lastAutoExpandedPath = '';
 
 	const docHref = (slug: string) => (slug ? `/docs/${slug}` : '/docs');
@@ -72,7 +73,9 @@
 				? document.activeElement
 				: null;
 		const hoveredTarget =
-			hoveredElement?.isConnected && navElement.contains(hoveredElement) && hoveredElement.matches(':hover')
+			hoveredElement?.isConnected &&
+			navElement.contains(hoveredElement) &&
+			hoveredElement.matches(':hover')
 				? hoveredElement
 				: Array.from(navElement.querySelectorAll<HTMLElement>('a[href], button')).find((node) =>
 						node.matches(':hover')
@@ -173,17 +176,63 @@
 		activeIndicatorFollowFrame = window.requestAnimationFrame(follow);
 	}
 
+	function revealActiveIndicatorWithoutMotion() {
+		if (typeof window === 'undefined') {
+			updateActiveIndicator();
+			return;
+		}
+
+		if (activeIndicatorFollowFrame !== null) {
+			scheduleActiveIndicatorUpdate();
+			return;
+		}
+
+		if (activeIndicatorRevealFrame !== null) {
+			window.cancelAnimationFrame(activeIndicatorRevealFrame);
+		}
+
+		activeIndicatorFollowsLayout = true;
+		updateActiveIndicator();
+
+		activeIndicatorRevealFrame = window.requestAnimationFrame(() => {
+			activeIndicatorRevealFrame = window.requestAnimationFrame(() => {
+				activeIndicatorRevealFrame = null;
+				if (activeIndicatorFollowFrame === null) {
+					activeIndicatorFollowsLayout = false;
+				}
+			});
+		});
+	}
+
+	function activateChildIndicator(node: HTMLElement) {
+		const shouldRevealWithoutMotion = !activeIndicatorVisible;
+		activeChildElement = node;
+
+		if (shouldRevealWithoutMotion) {
+			revealActiveIndicatorWithoutMotion();
+			return;
+		}
+
+		if (typeof window !== 'undefined' && activeIndicatorRevealFrame !== null) {
+			window.cancelAnimationFrame(activeIndicatorRevealFrame);
+			activeIndicatorRevealFrame = null;
+			if (activeIndicatorFollowFrame === null) {
+				activeIndicatorFollowsLayout = false;
+			}
+		}
+
+		scheduleActiveIndicatorUpdate();
+	}
+
 	function registerActiveChild(node: HTMLElement, isActive: boolean) {
 		if (isActive) {
-			activeChildElement = node;
-			scheduleActiveIndicatorUpdate();
+			activateChildIndicator(node);
 		}
 
 		return {
 			update(nextIsActive: boolean) {
 				if (nextIsActive) {
-					activeChildElement = node;
-					scheduleActiveIndicatorUpdate();
+					activateChildIndicator(node);
 				} else if (activeChildElement === node) {
 					activeChildElement = null;
 					scheduleActiveIndicatorUpdate();
@@ -240,6 +289,11 @@
 			if (pendingHoverRestoreFrame !== null) {
 				window.cancelAnimationFrame(pendingHoverRestoreFrame);
 				pendingHoverRestoreFrame = null;
+			}
+			if (activeIndicatorFollowFrame !== null) {
+				window.cancelAnimationFrame(activeIndicatorFollowFrame);
+				activeIndicatorFollowFrame = null;
+				activeIndicatorFollowsLayout = false;
 			}
 		};
 	});

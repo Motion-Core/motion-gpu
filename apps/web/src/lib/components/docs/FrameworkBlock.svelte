@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
 	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
 	import LogoVue from 'carbon-icons-svelte/lib/LogoVue.svelte';
@@ -28,6 +29,12 @@
 	}: Props = $props();
 
 	let isReady = $state(false);
+	let tabList = $state<HTMLDivElement | null>(null);
+	let activeIndicatorLeft = $state(0);
+	let activeIndicatorWidth = $state(0);
+	let pendingIndicatorFrame: number | null = null;
+
+	const tabRefs = new SvelteMap<Framework, HTMLButtonElement>();
 
 	const codeMap: Record<Framework, string> = $derived({
 		svelte: svelteCode,
@@ -35,6 +42,51 @@
 		vue: vueCode
 	});
 	const activeCode = $derived(codeMap[frameworkStore.active]);
+
+	function registerTab(node: HTMLElement, fw: Framework) {
+		tabRefs.set(fw, node as HTMLButtonElement);
+
+		return {
+			update(nextFw: Framework) {
+				if (nextFw === fw) return;
+				tabRefs.delete(fw);
+				fw = nextFw;
+				tabRefs.set(fw, node as HTMLButtonElement);
+			},
+			destroy() {
+				tabRefs.delete(fw);
+			}
+		};
+	}
+
+	function updateActiveIndicator() {
+		const activeTab = tabRefs.get(frameworkStore.active);
+
+		if (!tabList || !activeTab) {
+			activeIndicatorLeft = 0;
+			activeIndicatorWidth = 0;
+			return;
+		}
+
+		activeIndicatorLeft = activeTab.offsetLeft;
+		activeIndicatorWidth = activeTab.offsetWidth;
+	}
+
+	function scheduleActiveIndicatorUpdate() {
+		if (typeof window === 'undefined') {
+			updateActiveIndicator();
+			return;
+		}
+
+		if (pendingIndicatorFrame !== null) {
+			window.cancelAnimationFrame(pendingIndicatorFrame);
+		}
+
+		pendingIndicatorFrame = window.requestAnimationFrame(() => {
+			pendingIndicatorFrame = null;
+			updateActiveIndicator();
+		});
+	}
 
 	const highlighted = $derived.by(() => {
 		const toHighlight: Record<Framework, { code: string; lang: string }> = {
@@ -59,6 +111,27 @@
 	onMount(() => {
 		isReady = true;
 	});
+
+	$effect(() => {
+		const activeFramework = frameworkStore.active;
+		const currentTabList = tabList;
+		void activeFramework;
+		void currentTabList;
+
+		scheduleActiveIndicatorUpdate();
+
+		if (typeof window === 'undefined') return;
+
+		window.addEventListener('resize', scheduleActiveIndicatorUpdate);
+
+		return () => {
+			window.removeEventListener('resize', scheduleActiveIndicatorUpdate);
+			if (pendingIndicatorFrame !== null) {
+				window.cancelAnimationFrame(pendingIndicatorFrame);
+				pendingIndicatorFrame = null;
+			}
+		};
+	});
 </script>
 
 <div
@@ -70,16 +143,27 @@
 		<div
 			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border"
 		>
-			<div class="flex items-center">
+			<div class="relative flex items-center" bind:this={tabList}>
+				{#if activeIndicatorWidth > 0}
+					<div
+						class="tab-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
+						style={`
+								width: ${activeIndicatorWidth}px;
+								transform: translateX(${activeIndicatorLeft}px);
+							`}
+					></div>
+				{/if}
+
 				{#each frameworks as fw (fw)}
 					<button
 						onclick={() => (frameworkStore.active = fw)}
 						class={cn(
-							'relative px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
+							'relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
 							frameworkStore.active === fw
-								? 'text-foreground'
+								? 'text-accent'
 								: 'text-foreground-muted hover:text-foreground'
 						)}
+						use:registerTab={fw}
 					>
 						<span class="inline-flex items-center gap-1.5">
 							{#if fw === 'svelte'}
@@ -93,9 +177,6 @@
 								<span>Vue</span>
 							{/if}
 						</span>
-						{#if frameworkStore.active === fw}
-							<div class="absolute bottom-0 left-0 h-0.5 w-full bg-accent"></div>
-						{/if}
 					</button>
 				{/each}
 			</div>
@@ -117,5 +198,17 @@
 <style>
 	:global(.js [data-framework-block]:not([data-ready='true'])) {
 		visibility: hidden;
+	}
+
+	.tab-active-line {
+		background-image: linear-gradient(
+			to right,
+			transparent,
+			oklch(from var(--color-accent) l c h / 0.68) 18%,
+			var(--color-accent) 50%,
+			oklch(from var(--color-accent) l c h / 0.68) 82%,
+			transparent
+		);
+		filter: drop-shadow(0 0 6px oklch(from var(--color-accent) l c h / 0.38));
 	}
 </style>

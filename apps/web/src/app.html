@@ -3,42 +3,80 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		%sveltekit.head%
+		<style>
+			html[data-motiongpu-package-manager] .package-manager-command {
+				display: none !important;
+			}
+
+			html[data-motiongpu-package-manager='npm']
+				.package-manager-command[data-package-manager='npm'],
+			html[data-motiongpu-package-manager='pnpm']
+				.package-manager-command[data-package-manager='pnpm'],
+			html[data-motiongpu-package-manager='bun']
+				.package-manager-command[data-package-manager='bun'],
+			html[data-motiongpu-package-manager='yarn']
+				.package-manager-command[data-package-manager='yarn'] {
+				display: block !important;
+			}
+
+			html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready])
+				.tab-active-line {
+				opacity: 0 !important;
+			}
+
+			html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab {
+				color: var(--color-foreground-muted);
+			}
+
+			html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='npm'],
+			html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='pnpm'],
+			html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='bun'],
+			html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='yarn'] {
+				color: var(--color-accent);
+			}
+
+			html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='npm']::after,
+			html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='pnpm']::after,
+			html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='bun']::after,
+			html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready])
+				.package-manager-tab[data-package-manager='yarn']::after {
+				opacity: 1;
+			}
+		</style>
 		<script>
 			(() => {
 				document.documentElement.classList.add('js');
 
-				const readMetaContent = (name) =>
-					document.querySelector(`meta[name="${name}"]`)?.getAttribute('content')?.trim() || null;
-
-				const storageKeyMeta = document.querySelector('meta[name="motiongpu-theme-storage-key"]');
-				const storageKey = storageKeyMeta?.getAttribute('content')?.trim() || null;
-				const storedTheme = storageKey ? localStorage.getItem(storageKey) : null;
+				const storageKey = 'docs-theme';
+				const storedTheme = localStorage.getItem(storageKey);
 				const isDark =
 					storedTheme === 'dark' ||
 					(storedTheme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 				document.documentElement.classList.toggle('dark', isDark);
 				document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
 
-				const packageManagerStorageKey = readMetaContent('motiongpu-package-manager-storage-key');
-				const packageManagerDefault = readMetaContent('motiongpu-package-manager-default');
-				const enabledPackageManagers = (readMetaContent('motiongpu-package-manager-enabled') || '')
-					.split(',')
-					.map((item) => item.trim())
-					.filter(Boolean);
-				const storedPackageManager = packageManagerStorageKey
-					? localStorage.getItem(packageManagerStorageKey)
-					: null;
-				const activePackageManager =
-					storedPackageManager && enabledPackageManagers.includes(storedPackageManager)
-						? storedPackageManager
-						: packageManagerDefault;
+				const packageManagerStorageKey = 'docs-package-manager';
+				const packageManagerDefault = 'npm';
+				const enabledPackageManagers = ['npm', 'pnpm', 'bun', 'yarn'];
+				const storedPackageManager = localStorage.getItem(packageManagerStorageKey);
+				const activePackageManager = enabledPackageManagers.includes(storedPackageManager)
+					? storedPackageManager
+					: packageManagerDefault;
 
 				if (activePackageManager) {
 					document.documentElement.dataset.motiongpuPackageManager = activePackageManager;
 				}
 			})();
 		</script>
+		%sveltekit.head%
 		<link
 			rel="preload"
 			href="/fonts/BerkeleyMono-Regular.woff2"

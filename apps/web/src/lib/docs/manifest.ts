@@ -58,8 +58,9 @@ export const getAdjacentDocs = (slug: string) => {
 };
 
 export function getDocTocHeadings(slug: string): DocTocHeading[] {
-	const normalizedSlug = slug || 'index';
-	const rawSource = docRawModules[`/src/routes/docs/${normalizedSlug}/+page.svx`];
+	const rawSource = slug
+		? docRawModules[`/src/routes/docs/${slug}/+page.svx`]
+		: docRawModules['/src/routes/docs/+page.svx'];
 	if (!rawSource) return [];
 
 	return extractTocHeadings(stripFrontmatter(rawSource), resolveTocSelector(slug));

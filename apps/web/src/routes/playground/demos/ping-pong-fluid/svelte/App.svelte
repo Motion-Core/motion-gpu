@@ -4,8 +4,6 @@
 	import fluidShader from './shaders/fluid.wgsl?raw';
 	import fragmentShader from './shaders/fragment.wgsl?raw';
 
-	const SIM_SIZE = 512;
-
 	const material = defineMaterial({
 		fragment: fragmentShader,
 		textures: {
@@ -31,8 +29,6 @@
 	const simulateFluid = new PingPongShaderPass({
 		fragment: fluidShader,
 		target: 'fluid',
-		width: SIM_SIZE,
-		height: SIM_SIZE,
 		format: 'rgba16float',
 		filter: 'linear',
 		iterations: 4
@@ -44,5 +40,5 @@
 	passes={[simulateFluid]}
 	color={{ outputEncoding: 'srgb', dynamicRange: 'sdr', canvasColorSpace: 'srgb' }}
 >
-	<Runtime />
+	<Runtime {simulateFluid} />
 </FragCanvas>

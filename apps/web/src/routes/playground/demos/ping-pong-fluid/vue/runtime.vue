@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { useFrame, usePointer, useTexture } from '@motion-core/motion-gpu/vue';
+import {
+	PingPongShaderPass,
+	useFrame,
+	useMotionGPU,
+	usePointer,
+	useTexture
+} from '@motion-core/motion-gpu/vue';
+import { onUnmounted } from 'vue';
+
+const props = defineProps<{ simulateFluid: PingPongShaderPass }>();
 
 const pointer = usePointer({ requestFrame: 'auto' });
 const image = useTexture(['/sample-image-17.webp'], {
@@ -9,6 +18,25 @@ const image = useTexture(['/sample-image-17.webp'], {
 let previousUv: [number, number] = [0.5, 0.5];
 let smoothUv: [number, number] = [0.5, 0.5];
 let wasInside = false;
+
+function constrainResolution(w: number, h: number, max: number): [number, number] {
+	const longest = Math.max(w, h);
+	if (longest <= max) return [w, h];
+
+	const ratio = max / longest;
+	return [Math.round(w * ratio), Math.round(h * ratio)];
+}
+
+const motiongpu = useMotionGPU();
+
+const unsubscribeSize = motiongpu.size.subscribe(({ width, height }) => {
+	if (!width || !height) return;
+
+	const [w, h] = constrainResolution(width, height, 512);
+	props.simulateFluid.setDimensions(w, h);
+});
+
+onUnmounted(unsubscribeSize);
 
 useFrame((frame) => {
 	const texture = image.textures.current?.[0];

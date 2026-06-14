@@ -1,5 +1,10 @@
 declare module 'react' {
 	export function useEffect(effect: () => void | (() => void), deps?: readonly unknown[]): void;
+	export function useState<T>(
+		initialState: T | (() => T)
+	): [T, (value: T | ((prev: T) => T)) => void];
+	export function useRef<T>(initialValue: T | null): { current: T | null };
+	export function useRef<T = undefined>(): { current: T | undefined };
 }
 
 declare module 'react/jsx-runtime' {

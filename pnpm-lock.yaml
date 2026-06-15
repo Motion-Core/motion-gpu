@@ -41,6 +41,9 @@ importers:
       '@codemirror/view':
         specifier: ^6.39.15
         version: 6.43.0
+      '@hugeicons/core-free-icons':
+        specifier: ^4.2.0
+        version: 4.2.0
       '@iizukak/codemirror-lang-wgsl':
         specifier: ^0.3.0
         version: 0.3.0
@@ -65,9 +68,6 @@ importers:
       acorn:
         specifier: ^8.16.0
         version: 8.16.0
-      carbon-icons-svelte:
-        specifier: ^13.9.0
-        version: 13.11.0
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -156,6 +156,9 @@ importers:
       eslint-plugin-svelte:
         specifier: ^3.15.0
         version: 3.17.1(eslint@10.4.0(jiti@2.7.0))(svelte@5.55.7(@typescript-eslint/types@8.59.3))
+      github-slugger:
+        specifier: ^2.0.0
+        version: 2.0.0
       globals:
         specifier: ^17.4.0
         version: 17.6.0
@@ -253,9 +256,6 @@ importers:
       eslint-plugin-svelte:
         specifier: ^3.14.0
         version: 3.17.1(eslint@10.4.0(jiti@2.7.0))(svelte@5.55.7(@typescript-eslint/types@8.59.3))
-      github-slugger:
-        specifier: ^2.0.0
-        version: 2.0.0
       globals:
         specifier: ^17.3.0
         version: 17.6.0
@@ -797,6 +797,9 @@ packages:
   '@eslint/plugin-kit@0.7.1':
     resolution: {integrity: sha512-rZAP3aVgB9ds9KOeUSL+zZ21hPmo8dh6fnIFwRQj5EAZl9gzR7wxYbYXYysAM8CTqGmUGyp2S4kUdV17MnGuWQ==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@hugeicons/core-free-icons@4.2.0':
+    resolution: {integrity: sha512-V1G/Ph9TbmEow+pKnupZRWQjdORR/TGGr3JVRZOWkomdJ/5N6GgLuKPgBDs7G0kZ0//9LL34AGOUzWe3K+umNA==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -1782,9 +1785,6 @@ packages:
   call-bound@1.0.4:
     resolution: {integrity: sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg==}
     engines: {node: '>= 0.4'}
-
-  carbon-icons-svelte@13.11.0:
-    resolution: {integrity: sha512-4G+5PjpmNkGfNhXccVc1w4igNeY4NpR0Iomg4vBq6BN08teLp4nEuK7/e2Blpy2cK/O6LAsTH6CVqTvVMYqH7w==}
 
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
@@ -3707,6 +3707,8 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
+  '@hugeicons/core-free-icons@4.2.0': {}
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -4691,8 +4693,6 @@ snapshots:
     dependencies:
       call-bind-apply-helpers: 1.0.2
       get-intrinsic: 1.3.0
-
-  carbon-icons-svelte@13.11.0: {}
 
   ccount@2.0.1: {}
 

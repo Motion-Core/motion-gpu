@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import ArrowLeft from 'carbon-icons-svelte/lib/ArrowLeft.svelte';
-	import ArrowRight from 'carbon-icons-svelte/lib/ArrowRight.svelte';
+	import { AppArrowLeftIcon, AppArrowRightIcon } from '$lib/components/icons';
 	import Select from '$lib/components/ui/Select.svelte';
 	import ThemeToggle from '$lib/components/ui/ThemeToggle.svelte';
 	import { brandingConfig } from '$lib/config/branding';
@@ -60,7 +59,7 @@
 				onclick={() => cycleDemo(-1)}
 				disabled={demoOptions.length < 2}
 			>
-				<ArrowLeft size={16} />
+				<AppArrowLeftIcon size={16} />
 			</button>
 
 			<label class="sr-only" for="playground-header-demo-select">Choose demo</label>
@@ -82,7 +81,7 @@
 				onclick={() => cycleDemo(1)}
 				disabled={demoOptions.length < 2}
 			>
-				<ArrowRight size={16} />
+				<AppArrowRightIcon size={16} />
 			</button>
 		</div>
 	</div>

@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { tick } from 'svelte';
-	import Close from 'carbon-icons-svelte/lib/Close.svelte';
-	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
-	import Menu from 'carbon-icons-svelte/lib/Menu.svelte';
+	import { Cancel01Icon, Github01Icon, Menu01Icon } from '@hugeicons/core-free-icons';
+	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
 	import Button from '../ui/Button.svelte';
 	import ThemeToggle from '../ui/ThemeToggle.svelte';
 	import { brandingConfig } from '$lib/config/branding';
@@ -154,7 +153,7 @@
 					variant="secondary"
 					size="md"
 				>
-					<LogoGithub size={16} />
+					<AppHugeIcon icon={Github01Icon} size={16} />
 					<span>GitHub</span>
 				</Button>
 			</div>
@@ -169,9 +168,9 @@
 				onclick={toggleMobileMenu}
 			>
 				{#if mobileOpen}
-					<Close size={20} />
+					<AppHugeIcon icon={Cancel01Icon} size={20} />
 				{:else}
-					<Menu size={20} />
+					<AppHugeIcon icon={Menu01Icon} size={20} />
 				{/if}
 			</button>
 		</div>
@@ -252,7 +251,7 @@
 			variant="secondary"
 			class="col-span-2 justify-center"
 		>
-			<LogoGithub size={16} />
+			<AppHugeIcon icon={Github01Icon} size={16} />
 			<span>GitHub</span>
 		</Button>
 		<ThemeToggle class="col-span-2 ml-auto size-8 sm:hidden" />

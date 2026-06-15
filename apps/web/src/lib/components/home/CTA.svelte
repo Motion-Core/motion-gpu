@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Section from './Section.svelte';
 	import { resolve } from '$app/paths';
-	import Book from 'carbon-icons-svelte/lib/Book.svelte';
-	import WatsonHealth3DPrintMesh from 'carbon-icons-svelte/lib/WatsonHealth3DPrintMesh.svelte';
+	import { BookOpen01Icon, ThreeDViewIcon } from '@hugeicons/core-free-icons';
+	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
 	const docsRoute = '/docs' as const;
 	const playgroundRoute = '/playground' as const;
 	import Button from '../ui/Button.svelte';
@@ -32,11 +32,11 @@
 				data-sveltekit-preload-data="off"
 				data-sveltekit-preload-code="off"
 			>
-				<WatsonHealth3DPrintMesh size={16} />
+				<AppHugeIcon icon={ThreeDViewIcon} size={16} />
 				<span>Playground</span>
 			</Button>
 			<Button href={resolve(docsRoute as '/')} size="md" variant="secondary">
-				<Book size={16} />
+				<AppHugeIcon icon={BookOpen01Icon} size={16} />
 				<span>Documentation</span>
 			</Button>
 		</div>

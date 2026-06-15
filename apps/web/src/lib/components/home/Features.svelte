@@ -2,11 +2,14 @@
 	import Section from './Section.svelte';
 	import Card from './Card.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
-	import Layers from 'carbon-icons-svelte/lib/Layers.svelte';
-	import DataViewAlt from 'carbon-icons-svelte/lib/DataViewAlt.svelte';
-	import Blockchain from 'carbon-icons-svelte/lib/Blockchain.svelte';
-	import Chart_3D from 'carbon-icons-svelte/lib/Chart_3D.svelte';
-	import WarningAlt from 'carbon-icons-svelte/lib/WarningAlt.svelte';
+	import {
+		Alert01Icon,
+		ThreeDMoveIcon,
+		Blockchain01Icon,
+		GridViewIcon,
+		Layers01Icon
+	} from '@hugeicons/core-free-icons';
+	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
 	import Badge from '../ui/Badge.svelte';
 
 	type FeatureCard = {
@@ -46,7 +49,7 @@
 <Section variant="muted" id="features" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<DataViewAlt class="text-accent" size={16} />
+			<AppHugeIcon icon={GridViewIcon} class="text-accent" size={16} />
 			<span>Features</span>
 		</span>
 	</Badge>
@@ -66,13 +69,13 @@
 			<Card title={card.title} description={card.description}>
 				{#snippet icon()}
 					{#if card.icon === 'chart'}
-						<Blockchain size={32} />
+						<AppHugeIcon icon={Blockchain01Icon} size={32} />
 					{:else if card.icon === 'stack'}
-						<Layers size={32} />
+						<AppHugeIcon icon={Layers01Icon} size={32} />
 					{:else if card.icon === 'pulse'}
-						<Chart_3D size={32} />
+						<AppHugeIcon icon={ThreeDMoveIcon} size={32} />
 					{:else}
-						<WarningAlt size={32} />
+						<AppHugeIcon icon={Alert01Icon} size={32} />
 					{/if}
 				{/snippet}
 			</Card>

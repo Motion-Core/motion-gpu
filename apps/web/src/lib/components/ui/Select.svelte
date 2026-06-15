@@ -2,7 +2,7 @@
 	import { tick } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { scale } from 'svelte/transition';
-	import ChevronDown from 'carbon-icons-svelte/lib/ChevronDown.svelte';
+	import { AppChevronDownIcon } from '$lib/components/icons';
 	import { cn } from '$lib/utils/cn';
 
 	export type SelectOption = {
@@ -202,7 +202,7 @@
 		<span class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 truncate"
 			>{selectedLabel}</span
 		>
-		<ChevronDown
+		<AppChevronDownIcon
 			size={16}
 			class={cn(
 				'shrink-0 text-foreground-muted transition-transform duration-150',

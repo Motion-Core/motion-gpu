@@ -1,10 +1,13 @@
 <script lang="ts">
-	import Code from 'carbon-icons-svelte/lib/Code.svelte';
-	import DataEnrichment from 'carbon-icons-svelte/lib/DataEnrichment.svelte';
-	import Flow from 'carbon-icons-svelte/lib/Flow.svelte';
-	import ModelAlt from 'carbon-icons-svelte/lib/ModelAlt.svelte';
-	import Touch_1Down from 'carbon-icons-svelte/lib/Touch_1Down.svelte';
-	import WarningAlt from 'carbon-icons-svelte/lib/WarningAlt.svelte';
+	import {
+		Alert01Icon,
+		CodeIcon,
+		DatabaseZapIcon,
+		FlowConnectionIcon,
+		ThreeDViewIcon,
+		TouchInteraction01Icon
+	} from '@hugeicons/core-free-icons';
+	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
 	import Section from './Section.svelte';
 	import Card from './Card.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
@@ -66,7 +69,7 @@
 >
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<Flow class="text-accent" size={16} />
+			<AppHugeIcon icon={FlowConnectionIcon} class="text-accent" size={16} />
 			<span>How It Works</span>
 		</span>
 	</Badge>
@@ -87,15 +90,15 @@
 			<Card number={step.number} title={step.title} description={step.description}>
 				{#snippet icon()}
 					{#if step.icon === 'material'}
-						<Code size={32} />
+						<AppHugeIcon icon={CodeIcon} size={32} />
 					{:else if step.icon === 'inputs'}
-						<DataEnrichment size={32} />
+						<AppHugeIcon icon={DatabaseZapIcon} size={32} />
 					{:else if step.icon === 'runtime'}
-						<Touch_1Down size={32} />
+						<AppHugeIcon icon={TouchInteraction01Icon} size={32} />
 					{:else if step.icon === 'passes'}
-						<ModelAlt size={32} />
+						<AppHugeIcon icon={ThreeDViewIcon} size={32} />
 					{:else}
-						<WarningAlt size={32} />
+						<AppHugeIcon icon={Alert01Icon} size={32} />
 					{/if}
 				{/snippet}
 			</Card>

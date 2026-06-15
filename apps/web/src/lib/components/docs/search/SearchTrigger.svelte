@@ -2,7 +2,7 @@
 	import { searchState } from '$lib/stores/search.svelte';
 	import { docsUiConfig } from '$lib/config/docs-ui';
 	import { cn } from '$lib/utils/cn';
-	import Search from 'carbon-icons-svelte/lib/Search.svelte';
+	import { AppSearchIcon } from '$lib/components/icons';
 
 	let { class: className }: { class?: string } = $props();
 </script>
@@ -16,7 +16,7 @@
 		)}
 		onclick={() => searchState.open()}
 	>
-		<Search size={16} class="text-foreground-muted/70" />
+		<AppSearchIcon size={16} class="text-foreground-muted/70" />
 		<span class="flex-1 text-left">{docsUiConfig.search.triggerPlaceholder}</span>
 		{#if docsUiConfig.search.hotkey.enabled}
 			<kbd

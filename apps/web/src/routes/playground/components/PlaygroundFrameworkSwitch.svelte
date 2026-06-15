@@ -1,7 +1,9 @@
 <script lang="ts">
-	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
-	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
-	import LogoVue from 'carbon-icons-svelte/lib/LogoVue.svelte';
+	import {
+		AppFrameworkReactIcon,
+		AppFrameworkSvelteIcon,
+		AppFrameworkVueIcon
+	} from '$lib/components/icons';
 	import { cn } from '$lib/utils/cn';
 
 	type Framework = 'svelte' | 'react' | 'vue';
@@ -38,11 +40,11 @@
 			onclick={() => onSelectFramework(framework.value)}
 		>
 			{#if framework.value === 'svelte'}
-				<LogoSvelte size={16} />
+				<AppFrameworkSvelteIcon size={16} />
 			{:else if framework.value === 'react'}
-				<LogoReact size={16} />
+				<AppFrameworkReactIcon size={16} />
 			{:else}
-				<LogoVue size={16} />
+				<AppFrameworkVueIcon size={16} />
 			{/if}
 		</button>
 	{/each}

@@ -3,9 +3,7 @@
 	import { backOut } from 'svelte/easing';
 	import { docsUiConfig, resolveDocAssistantUrls } from '$lib/config/docs-ui';
 	import { portal } from '$lib/utils/use-portal';
-	import Checkmark from 'carbon-icons-svelte/lib/Checkmark.svelte';
-	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
-	import OverflowMenuHorizontal from 'carbon-icons-svelte/lib/OverflowMenuHorizontal.svelte';
+	import { AppCheckIcon, AppGitHubIcon, AppMoreHorizontalIcon } from '$lib/components/icons';
 
 	type Props = {
 		rawPath?: string | null;
@@ -208,7 +206,7 @@
 								out:fly={{ y: -20, duration: 200, easing: backOut }}
 							>
 								{#if copyState === 'success'}
-									<Checkmark class="size-4 flex-none" />
+									<AppCheckIcon class="size-4 flex-none" />
 								{:else}
 									<svg
 										role="img"
@@ -247,7 +245,7 @@
 					aria-haspopup="true"
 					aria-expanded={isDropdownOpen}
 				>
-					<OverflowMenuHorizontal class="size-4" />
+					<AppMoreHorizontalIcon class="size-4" />
 				</button>
 
 				{#if isDropdownOpen}
@@ -266,7 +264,7 @@
 								rel="noreferrer"
 								class="group flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm font-medium tracking-normal text-foreground-muted transition-colors hover:bg-background-muted hover:text-foreground"
 							>
-								<LogoGithub class="size-4 flex-none" />
+								<AppGitHubIcon class="size-4 flex-none" />
 								{docsUiConfig.docActions.repositoryLinkLabel}
 							</a>
 						{/if}

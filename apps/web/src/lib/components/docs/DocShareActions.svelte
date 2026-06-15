@@ -2,9 +2,7 @@
 	import { fly } from 'svelte/transition';
 	import { backOut } from 'svelte/easing';
 	import { docsUiConfig, resolveDocAssistantUrls } from '$lib/config/docs-ui';
-	import Checkmark from 'carbon-icons-svelte/lib/Checkmark.svelte';
-	import LogoGithub from 'carbon-icons-svelte/lib/LogoGithub.svelte';
-	import Launch from 'carbon-icons-svelte/lib/Launch.svelte';
+	import { AppCheckIcon, AppExternalLinkIcon, AppGitHubIcon } from '$lib/components/icons';
 
 	type Props = {
 		rawPath?: string | null;
@@ -69,7 +67,8 @@
 		if (typeof document === 'undefined' || !actionsElement) return;
 
 		const focusedElement =
-			document.activeElement instanceof HTMLElement && actionsElement.contains(document.activeElement)
+			document.activeElement instanceof HTMLElement &&
+			actionsElement.contains(document.activeElement)
 				? document.activeElement
 				: null;
 		const hoveredTarget =
@@ -172,7 +171,7 @@
 								out:fly={{ y: -20, duration: 300, easing: backOut }}
 							>
 								{#if copyState === 'success'}
-									<Checkmark class="size-4 flex-none" />
+									<AppCheckIcon class="size-4 flex-none" />
 								{:else}
 									<svg
 										role="img"
@@ -208,9 +207,9 @@
 					onmouseenter={(event) => showHoverIndicator(event.currentTarget)}
 					onfocus={(event) => showHoverIndicator(event.currentTarget)}
 				>
-					<LogoGithub class="size-4 flex-none" />
+					<AppGitHubIcon class="size-4 flex-none" />
 					<span>{docsUiConfig.docActions.repositoryLinkLabel}</span>
-					<Launch class="ml-auto size-4 flex-none" />
+					<AppExternalLinkIcon class="ml-auto size-4 flex-none" />
 				</a>
 			{/if}
 
@@ -236,7 +235,7 @@
 						/>
 					</svg>
 					<span>{docsUiConfig.docActions.assistants.chatgpt.label}</span>
-					<Launch class="ml-auto size-4 flex-none" />
+					<AppExternalLinkIcon class="ml-auto size-4 flex-none" />
 				</a>
 			{/if}
 
@@ -262,7 +261,7 @@
 						/>
 					</svg>
 					<span>{docsUiConfig.docActions.assistants.claude.label}</span>
-					<Launch class="ml-auto size-4 flex-none" />
+					<AppExternalLinkIcon class="ml-auto size-4 flex-none" />
 				</a>
 			{/if}
 		</div>

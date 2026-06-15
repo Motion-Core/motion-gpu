@@ -1,6 +1,6 @@
 <script lang="ts">
-	import Add from 'carbon-icons-svelte/lib/Add.svelte';
-	import Help from 'carbon-icons-svelte/lib/Help.svelte';
+	import { Add01Icon, HelpCircleIcon } from '@hugeicons/core-free-icons';
+	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
 	import { slide } from 'svelte/transition';
 	import Badge from '../ui/Badge.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
@@ -61,7 +61,7 @@
 <Section variant="muted" id="faq" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<Help class="text-accent" size={16} />
+			<AppHugeIcon icon={HelpCircleIcon} class="text-accent" size={16} />
 			<span>FAQ</span>
 		</span>
 	</Badge>
@@ -101,7 +101,7 @@
 									class:rotate-45={isOpen(item.question)}
 									class="transition-transform duration-150"
 								>
-									<Add size={24} />
+									<AppHugeIcon icon={Add01Icon} size={24} />
 								</div>
 							</span>
 						</button>

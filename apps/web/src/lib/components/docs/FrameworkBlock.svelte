@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
-	import LogoReact from 'carbon-icons-svelte/lib/LogoReact.svelte';
-	import LogoSvelte from 'carbon-icons-svelte/lib/LogoSvelte.svelte';
-	import LogoVue from 'carbon-icons-svelte/lib/LogoVue.svelte';
+	import {
+		AppFrameworkReactIcon,
+		AppFrameworkSvelteIcon,
+		AppFrameworkVueIcon
+	} from '$lib/components/icons';
 	import { cn } from '$lib/utils/cn';
 	import CopyCodeButton from './markdown/CopyCodeButton.svelte';
 	import ShikiCodeBlock from './ShikiCodeBlock.svelte';
@@ -167,13 +169,13 @@
 					>
 						<span class="inline-flex items-center gap-1.5">
 							{#if fw === 'svelte'}
-								<LogoSvelte size={16} />
+								<AppFrameworkSvelteIcon size={16} />
 								<span>Svelte</span>
 							{:else if fw === 'react'}
-								<LogoReact size={16} />
+								<AppFrameworkReactIcon size={16} />
 								<span>React</span>
 							{:else}
-								<LogoVue size={16} />
+								<AppFrameworkVueIcon size={16} />
 								<span>Vue</span>
 							{/if}
 						</span>

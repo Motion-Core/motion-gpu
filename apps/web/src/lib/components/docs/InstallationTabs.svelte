@@ -140,7 +140,7 @@
 			<div class="relative flex items-center" bind:this={tabList}>
 				{#if activeIndicatorWidth > 0}
 					<div
-						class="tab-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
+						class="tab-active-line package-manager-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
 						style={`
 								width: ${activeIndicatorWidth}px;
 								transform: translateX(${activeIndicatorLeft}px);
@@ -226,7 +226,7 @@
 		}
 
 		:global(html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready]))
-			.tab-active-line {
+			.package-manager-active-line {
 			opacity: 0;
 		}
 

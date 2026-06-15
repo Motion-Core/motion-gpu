@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import {
 		AppFrameworkReactIcon,
@@ -8,7 +7,7 @@
 	} from '$lib/components/icons';
 	import { cn } from '$lib/utils/cn';
 	import CopyCodeButton from './markdown/CopyCodeButton.svelte';
-	import ShikiCodeBlock from './ShikiCodeBlock.svelte';
+	import Pre from './markdown/Pre.svelte';
 	import { getHighlighter } from '$lib/utils/highlighter';
 	import { frameworkStore, frameworks, type Framework } from '$lib/stores/framework.svelte';
 
@@ -30,7 +29,6 @@
 		vueLang = 'vue'
 	}: Props = $props();
 
-	let isReady = $state(false);
 	let tabList = $state<HTMLDivElement | null>(null);
 	let activeIndicatorLeft = $state(0);
 	let activeIndicatorWidth = $state(0);
@@ -87,6 +85,7 @@
 		pendingIndicatorFrame = window.requestAnimationFrame(() => {
 			pendingIndicatorFrame = null;
 			updateActiveIndicator();
+			document.documentElement.dataset.motiongpuFrameworkReady = 'true';
 		});
 	}
 
@@ -108,10 +107,6 @@
 		}
 
 		return highlightedCode;
-	});
-
-	onMount(() => {
-		isReady = true;
 	});
 
 	$effect(() => {
@@ -136,11 +131,7 @@
 	});
 </script>
 
-<div
-	data-framework-block
-	data-ready={isReady ? 'true' : 'false'}
-	class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5"
->
+<div class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5">
 	<div class="relative w-full rounded-md bg-background card">
 		<div
 			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border"
@@ -148,7 +139,7 @@
 			<div class="relative flex items-center" bind:this={tabList}>
 				{#if activeIndicatorWidth > 0}
 					<div
-						class="tab-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
+						class="tab-active-line framework-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
 						style={`
 								width: ${activeIndicatorWidth}px;
 								transform: translateX(${activeIndicatorLeft}px);
@@ -160,11 +151,12 @@
 					<button
 						onclick={() => (frameworkStore.active = fw)}
 						class={cn(
-							'relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
+							'framework-tab relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
 							frameworkStore.active === fw
 								? 'text-accent'
 								: 'text-foreground-muted hover:text-foreground'
 						)}
+						data-framework={fw}
 						use:registerTab={fw}
 					>
 						<span class="inline-flex items-center gap-1.5">
@@ -187,21 +179,29 @@
 		<div
 			class="min-h-12.5 p-4 [&>div]:mt-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&>div]:[box-shadow:none]!"
 		>
-			<ShikiCodeBlock
-				code=""
-				htmlLight={highlighted[frameworkStore.active].light}
-				htmlDark={highlighted[frameworkStore.active].dark}
-				unstyled={true}
-			/>
+			<Pre code="" unstyled={true}>
+				{#each frameworks as fw (fw)}
+					<div
+						class="framework-code"
+						data-framework={fw}
+						data-active={frameworkStore.active === fw}
+					>
+						<div class="shiki-theme-light">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+							{@html highlighted[fw].light}
+						</div>
+						<div class="shiki-theme-dark">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+							{@html highlighted[fw].dark}
+						</div>
+					</div>
+				{/each}
+			</Pre>
 		</div>
 	</div>
 </div>
 
 <style>
-	:global(.js [data-framework-block]:not([data-ready='true'])) {
-		visibility: hidden;
-	}
-
 	.tab-active-line {
 		background-image: linear-gradient(
 			to right,
@@ -212,5 +212,58 @@
 			transparent
 		);
 		filter: drop-shadow(0 0 6px oklch(from var(--color-accent) l c h / 0.38));
+	}
+
+	.framework-tab::after {
+		position: absolute;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		height: 2px;
+		pointer-events: none;
+		content: '';
+		background-image: linear-gradient(
+			to right,
+			transparent,
+			oklch(from var(--color-accent) l c h / 0.68) 18%,
+			var(--color-accent) 50%,
+			oklch(from var(--color-accent) l c h / 0.68) 82%,
+			transparent
+		);
+		filter: drop-shadow(0 0 6px oklch(from var(--color-accent) l c h / 0.38));
+		opacity: 0;
+	}
+
+	.framework-code {
+		display: none;
+	}
+
+	.framework-code[data-active='true'] {
+		display: block;
+	}
+
+	:global(html[data-motiongpu-framework='svelte']) .framework-code[data-framework='svelte'],
+	:global(html[data-motiongpu-framework='react']) .framework-code[data-framework='react'],
+	:global(html[data-motiongpu-framework='vue']) .framework-code[data-framework='vue'] {
+		display: block;
+	}
+
+	:global(html[data-motiongpu-framework='react'])
+		.framework-code[data-active='true']:not([data-framework='react']),
+	:global(html[data-motiongpu-framework='vue'])
+		.framework-code[data-active='true']:not([data-framework='vue']) {
+		display: none;
+	}
+
+	.shiki-theme-dark {
+		display: none;
+	}
+
+	:global(.dark) :global(.shiki-theme-light) {
+		display: none;
+	}
+
+	:global(.dark) :global(.shiki-theme-dark) {
+		display: block;
 	}
 </style>

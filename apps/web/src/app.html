@@ -20,7 +20,7 @@
 			}
 
 			html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready])
-				.tab-active-line {
+				.package-manager-active-line {
 				opacity: 0 !important;
 			}
 
@@ -50,6 +50,42 @@
 				.package-manager-tab[data-package-manager='yarn']::after {
 				opacity: 1;
 			}
+
+			html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]) .framework-active-line {
+				opacity: 0 !important;
+			}
+
+			html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]) .framework-tab {
+				color: var(--color-foreground-muted);
+			}
+
+			html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='svelte'],
+			html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='react'],
+			html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='vue'] {
+				color: var(--color-accent);
+			}
+
+			html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='svelte']::after,
+			html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='react']::after,
+			html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready])
+				.framework-tab[data-framework='vue']::after {
+				opacity: 1;
+			}
+
+			html[data-motiongpu-framework] .framework-code {
+				display: none !important;
+			}
+
+			html[data-motiongpu-framework='svelte'] .framework-code[data-framework='svelte'],
+			html[data-motiongpu-framework='react'] .framework-code[data-framework='react'],
+			html[data-motiongpu-framework='vue'] .framework-code[data-framework='vue'] {
+				display: block !important;
+			}
 		</style>
 		<script>
 			(() => {
@@ -73,6 +109,17 @@
 
 				if (activePackageManager) {
 					document.documentElement.dataset.motiongpuPackageManager = activePackageManager;
+				}
+
+				const frameworkStorageKey = 'motiongpuFramework';
+				const enabledFrameworks = ['svelte', 'react', 'vue'];
+				const storedFramework = localStorage.getItem(frameworkStorageKey);
+				const activeFramework = enabledFrameworks.includes(storedFramework)
+					? storedFramework
+					: 'svelte';
+
+				if (activeFramework) {
+					document.documentElement.dataset.motiongpuFramework = activeFramework;
 				}
 			})();
 		</script>

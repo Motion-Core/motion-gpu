@@ -78,7 +78,7 @@
 	.btn-primary {
 		overflow: hidden;
 		color: var(--color-white-fixed);
-		text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
 		transition:
 			filter 150ms ease-out,
 			box-shadow 150ms ease-out;
@@ -125,7 +125,7 @@
 	:global(.dark) .btn-primary {
 		overflow: hidden;
 		color: var(--color-white-fixed);
-		text-shadow: 0 -1px 0 rgb(0 0 0 / 0.25);
+		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
 		transition:
 			filter 150ms ease-out,
 			box-shadow 150ms ease-out;
@@ -177,7 +177,7 @@
 		isolation: isolate;
 		overflow: hidden;
 		color: var(--color-foreground);
-		text-shadow: 0 -1px 0 rgb(0 0 0 / 0.15);
+		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 
 		transition:
 			filter 150ms ease-out,
@@ -230,7 +230,7 @@
 		isolation: isolate;
 		overflow: hidden;
 		color: var(--color-foreground);
-		text-shadow: 0 -1px 0 rgb(0 0 0 / 0.15);
+		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 
 		transition:
 			filter 150ms ease-out,

@@ -10,10 +10,19 @@ import * as react from '../lib/react/index';
 import * as reactAdvanced from '../lib/react/advanced';
 import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
+import type { TextureOptionsInput as SvelteTextureOptionsInput } from '../lib/svelte/index';
 import * as vue from '../lib/vue/index';
 import * as vueAdvanced from '../lib/vue/advanced';
+import type { TextureOptionsInput as VueTextureOptionsInput } from '../lib/vue/index';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+function acceptReactiveTextureOptions(
+	svelteOptions: SvelteTextureOptionsInput,
+	vueOptions: VueTextureOptionsInput
+): [SvelteTextureOptionsInput, VueTextureOptionsInput] {
+	return [svelteOptions, vueOptions];
+}
 
 function readPackageJson(): {
 	exports: Record<string, { types: string; default: string; svelte?: string }>;
@@ -34,6 +43,16 @@ function sourceEntryForDistPath(distPath: string): string {
 }
 
 describe('public api contract', () => {
+	it('exports reactive adapter texture option input types', () => {
+		expect(acceptReactiveTextureOptions({}, {})).toEqual([{}, {}]);
+		expect(
+			acceptReactiveTextureOptions(
+				() => ({}),
+				() => ({})
+			)
+		).toHaveLength(2);
+	});
+
 	it('exports framework-agnostic runtime symbols from root and /core entrypoints', () => {
 		expect(Object.keys(api).sort()).toEqual([
 			'BlitPass',

@@ -71,7 +71,7 @@ export type {
 	UsePointerOptions,
 	UsePointerResult
 } from './use-pointer.js';
-export type { TextureUrlInput, UseTextureResult } from './use-texture.js';
+export type { TextureOptionsInput, TextureUrlInput, UseTextureResult } from './use-texture.js';
 export type {
 	StorageBufferAccess,
 	StorageBufferDefinition,

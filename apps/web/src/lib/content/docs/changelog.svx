@@ -7,6 +7,9 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ## [Unreleased]
 
+### Changed
+- Overhauled the runtime error overlay across Svelte, React, and Vue with a new responsive layout, updated diagnostics and source-code presentation, keyboard focus trapping, background isolation, focus restoration, and improved screen-reader semantics.
+
 ## [0.13.0] - 2026-08-09
 ### Changed
 - Renderer pipeline signatures now include `adapterOptions`, `deviceDescriptor`, and storage buffer `initialData` content, so declarative WebGPU configuration and initial buffer changes recreate the renderer/device instead of reusing stale GPU resources.

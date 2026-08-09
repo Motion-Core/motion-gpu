@@ -526,6 +526,38 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(32);
 
 		const overlay = await screen.findByTestId('motiongpu-error');
+		expect(overlay.getAttribute('role')).toBe('alertdialog');
+		expect(overlay.getAttribute('aria-modal')).toBe('true');
+		const titleId = overlay.getAttribute('aria-labelledby');
+		const descriptionId = overlay.getAttribute('aria-describedby');
+		expect(titleId).toBeTruthy();
+		expect(descriptionId).toBeTruthy();
+		expect(document.getElementById(titleId ?? '')?.textContent).toBe(
+			overlay.querySelector('h2')?.textContent
+		);
+		expect(document.getElementById(descriptionId ?? '')?.textContent).toContain('missing return');
+		await waitFor(() => expect(document.activeElement).toBe(overlay));
+		const summaries = Array.from(overlay.querySelectorAll<HTMLElement>('summary'));
+		const firstSummary = summaries[0]!;
+		const lastSummary = summaries[summaries.length - 1]!;
+		lastSummary.focus();
+		lastSummary.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+		);
+		expect(document.activeElement).toBe(firstSummary);
+		firstSummary.focus();
+		firstSummary.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				key: 'Tab',
+				shiftKey: true,
+				bubbles: true,
+				cancelable: true
+			})
+		);
+		expect(document.activeElement).toBe(lastSummary);
+		expect(overlay.querySelector('[role="tablist"]')).toBeNull();
+		expect(overlay.querySelector('[role="tab"]')).toBeNull();
+		expect(overlay.querySelector('.motiongpu-error-source-frame > figcaption')).not.toBeNull();
 		expect(overlay.textContent).toContain('WGSL compilation failed');
 		expect(overlay.textContent).toContain('missing return');
 		expect(overlay.textContent).toContain('OverlayScene.svelte (fragment line 2');
@@ -542,6 +574,13 @@ describe('FragCanvas runtime', () => {
 		expect(overlay.querySelector('.motiongpu-error-recoverable')?.textContent).toContain('yes');
 		expect(overlay.querySelectorAll('.motiongpu-error-badge')).toHaveLength(2);
 		expect(overlay.querySelectorAll('.motiongpu-error-badge-wrap')).toHaveLength(2);
+		const detailChevrons = overlay.querySelectorAll('.motiongpu-error-details-chevron');
+		expect(detailChevrons).toHaveLength(3);
+		expect(detailChevrons[0]?.getAttribute('viewBox')).toBe('0 0 18 18');
+		expect(detailChevrons[0]?.getAttribute('aria-hidden')).toBe('true');
+		expect(detailChevrons[0]?.querySelector('polyline')?.getAttribute('points')).toBe(
+			'15.25 6.5 9 12.75 2.75 6.5'
+		);
 		expect(overlay.textContent).toContain('Runtime context');
 		expect(overlay.textContent).toContain('materialSignature:');
 		expect(overlay.textContent).toContain('"fragment": "overlay-hash"');

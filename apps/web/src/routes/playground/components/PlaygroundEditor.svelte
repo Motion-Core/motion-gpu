@@ -27,11 +27,11 @@
 	<div class="h-8 border-b border-(--guide-ink)">
 		<ScrollArea mode="horizontal" class="h-full" viewportClass="h-full">
 			<div
-				class="flex items-stretch [&>div:first-child>button]:rounded-tl-md [&>div:first-child]:rounded-tl-md [&>div:last-child]:rounded-tl-md [&>div:last-child>button]:rounded-tr-md"
+				class="flex items-stretch [&>div:first-child]:rounded-tl-md [&>div:first-child]:border-r [&>div:first-child>button]:rounded-tl-md [&>div:last-child]:rounded-tr-md [&>div:last-child>button]:rounded-tr-md [&>div:not(:first-child)]:border-x"
 			>
 				{#each controller.openFilePaths as filePath (filePath)}
 					<div
-						class={`inline-flex shrink-0 items-center border-r ${
+						class={`inline-flex shrink-0 items-center ${
 							controller.activeFilePath === filePath
 								? 'border-(--guide-ink) bg-background dark:bg-background-inset'
 								: 'border-transparent bg-transparent'

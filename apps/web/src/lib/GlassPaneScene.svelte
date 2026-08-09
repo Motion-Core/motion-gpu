@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Camera, Mesh, Program, Renderer, Texture, Transform, Triangle, Vec2 } from 'ogl';
+	import { Camera, Color, Mesh, Program, Renderer, Texture, Transform, Triangle, Vec2 } from 'ogl';
+	import type { ColorRepresentation } from 'ogl';
 
 	type Props = {
 		/**
 		 * The image source URL.
 		 */
-		image: string;
+		image?: string;
+		/** Render the built-in radial gradient instead of an image. */
+		gradient?: boolean;
+		backgroundColor?: ColorRepresentation;
+		accentColor?: ColorRepresentation;
 		/**
 		 * Glass field rotation in degrees.
 		 * @default 0
@@ -46,6 +51,9 @@
 
 	let {
 		image,
+		gradient = false,
+		backgroundColor = 'var(--background-inset)',
+		accentColor = 'var(--accent)',
 		rotation = 0,
 		refraction = 1,
 		chromaticAberration = 1,
@@ -60,6 +68,9 @@
 		uResolution: { value: Vec2 };
 		uTextureSize: { value: Vec2 };
 		uTexture: { value: Texture };
+		uUseGradient: { value: number };
+		uGradientBackground: { value: Color };
+		uGradientAccent: { value: Color };
 		uRotation: { value: number };
 		uRefraction: { value: number };
 		uChromaticAberration: { value: number };
@@ -71,6 +82,8 @@
 	let canvas = $state<HTMLCanvasElement>();
 	let uniforms = $state.raw<UniformState>();
 	let setImageSource = $state<(source: string) => void>();
+	let updateGradientColors =
+		$state<(background: ColorRepresentation, accent: ColorRepresentation) => void>();
 
 	const vertexShader = `
 		attribute vec2 uv;
@@ -90,6 +103,9 @@
 		uniform vec2 uResolution;
 		uniform vec2 uTextureSize;
 		uniform sampler2D uTexture;
+		uniform float uUseGradient;
+		uniform vec3 uGradientBackground;
+		uniform vec3 uGradientAccent;
 		uniform float uRotation;
 		uniform float uRefraction;
 		uniform float uChromaticAberration;
@@ -104,6 +120,11 @@
 			float c = cos(angle);
 			float s = sin(angle);
 			return vec2(p.x * c - p.y * s, p.x * s + p.y * c);
+		}
+
+		float smoothMinimum(float a, float b, float radius) {
+			float blend = clamp(0.5 + 0.5 * (b - a) / radius, 0.0, 1.0);
+			return mix(b, a, blend) - radius * blend * (1.0 - blend);
 		}
 
 		vec2 getCoverUV(vec2 uv, vec2 textureSize) {
@@ -138,7 +159,20 @@
 			return vec4(cellPos, slope, refrU, frequency);
 		}
 
+		vec3 gradientField(vec2 uv) {
+			float gradientDistance = length(vec2(uv.x - 0.5, 1.0 - uv.y) / vec2(1.0, 1.1));
+			vec3 color = mix(
+				uGradientBackground,
+				uGradientAccent,
+				smoothstep(0.27, 0.69, gradientDistance)
+			);
+			float vignetteDistance = length((uv - 0.5) / vec2(0.3, 0.5));
+			float vignette = smoothstep(0.72, 1.0, vignetteDistance);
+			return mix(color, uGradientBackground, vignette);
+		}
+
 		vec3 imageField(vec2 uv) {
+			if (uUseGradient > 0.5) return gradientField(uv);
 			return texture2D(uTexture, getCoverUV(uv, uTextureSize)).rgb;
 		}
 
@@ -175,12 +209,20 @@
 			float fresnel = pow(1.0 - nz, 5.0);
 			float spec = pow(nDotH, shininess) * (0.04 + 0.96 * fresnel) * 2.0 * max(uRefraction, 0.0);
 			vec3 finalColor = clamp(color + vec3(spec), vec3(0.0), vec3(1.0));
+			if (uUseGradient > 0.5) {
+				vec2 distanceToEdge = min(vUv, 1.0 - vUv);
+				float edgeDistance = smoothMinimum(distanceToEdge.x, distanceToEdge.y, 0.08);
+				float featherProgress = clamp(edgeDistance / 0.5, 0.0, 1.0);
+				float edgeFeather = 1.0 - pow(1.0 - featherProgress, 3.0);
+				finalColor = mix(uGradientBackground, finalColor, edgeFeather);
+			}
 			gl_FragColor = vec4(finalColor, 1.0);
 		}
 	`;
 
 	$effect(() => {
 		if (!uniforms) return;
+		uniforms.uUseGradient.value = gradient ? 1 : 0;
 		uniforms.uRotation.value = rotation;
 		uniforms.uRefraction.value = refraction;
 		uniforms.uChromaticAberration.value = chromaticAberration;
@@ -190,7 +232,11 @@
 	});
 
 	$effect(() => {
-		if (!setImageSource) return;
+		updateGradientColors?.(backgroundColor, accentColor);
+	});
+
+	$effect(() => {
+		if (!setImageSource || !image) return;
 		setImageSource(image);
 	});
 
@@ -214,6 +260,26 @@
 
 		const scene = new Transform();
 		const geometry = new Triangle(gl);
+		const colorProbe = document.createElement('span');
+		colorProbe.style.cssText =
+			'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none;';
+		targetCanvas.parentElement?.append(colorProbe);
+		const colorCanvas = document.createElement('canvas');
+		colorCanvas.width = 1;
+		colorCanvas.height = 1;
+		const colorContext = colorCanvas.getContext('2d', { willReadFrequently: true });
+
+		const resolveColor = (value: ColorRepresentation): Color => {
+			if (typeof value !== 'string') return new Color(value);
+			colorProbe.style.color = value;
+			const resolved = window.getComputedStyle(colorProbe).color;
+			if (!colorContext) return new Color(resolved);
+			colorContext.clearRect(0, 0, 1, 1);
+			colorContext.fillStyle = resolved;
+			colorContext.fillRect(0, 0, 1, 1);
+			const [red, green, blue] = colorContext.getImageData(0, 0, 1, 1).data;
+			return new Color(red / 255, green / 255, blue / 255);
+		};
 
 		const imageTexture = new Texture(gl, {
 			image: new Uint8Array([0, 0, 0, 255]),
@@ -234,6 +300,9 @@
 			uResolution: { value: new Vec2(1, 1) },
 			uTextureSize: { value: new Vec2(1, 1) },
 			uTexture: { value: imageTexture },
+			uUseGradient: { value: gradient ? 1 : 0 },
+			uGradientBackground: { value: new Color() },
+			uGradientAccent: { value: new Color() },
 			uRotation: { value: rotation },
 			uRefraction: { value: refraction },
 			uChromaticAberration: { value: chromaticAberration },
@@ -242,6 +311,20 @@
 			uWaveAmplitude: { value: waveAmplitude }
 		};
 		uniforms = localUniforms;
+		const syncGradientColors = (background: ColorRepresentation, accent: ColorRepresentation) => {
+			localUniforms.uGradientBackground.value.copy(resolveColor(background));
+			localUniforms.uGradientAccent.value.copy(resolveColor(accent));
+		};
+		updateGradientColors = syncGradientColors;
+		syncGradientColors(backgroundColor, accentColor);
+
+		const themeObserver = new MutationObserver(() => {
+			syncGradientColors(backgroundColor, accentColor);
+		});
+		themeObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['class', 'style']
+		});
 
 		let imageToken = 0;
 		const loadImage = (source: string) => {
@@ -302,6 +385,9 @@
 		return () => {
 			window.cancelAnimationFrame(raf);
 			setImageSource = undefined;
+			updateGradientColors = undefined;
+			themeObserver.disconnect();
+			colorProbe.remove();
 			gl.deleteTexture(imageTexture.texture);
 		};
 	});

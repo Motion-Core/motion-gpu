@@ -6,7 +6,6 @@
 	import Hero from '$lib/components/home/Hero.svelte';
 	import HowItWorks from '$lib/components/home/HowItWorks.svelte';
 	import FAQ from '$lib/components/home/FAQ.svelte';
-	import Preview from '$lib/components/home/Preview.svelte';
 	import Menubar from '$lib/components/home/Menubar.svelte';
 
 	let mainContent = $state<HTMLElement | null>(null);
@@ -56,10 +55,9 @@
 	tabindex="-1"
 	data-landing-anim-root
 	data-landing-anim-state={landingAnimationState}
-	class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col items-center justify-center border-(--guide-ink) bg-background sm:border-x"
+	class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col items-center justify-center border-(--guide-ink) sm:border-x"
 >
 	<Hero />
-	<Preview />
 	<Features />
 	<HowItWorks />
 	<FAQ />

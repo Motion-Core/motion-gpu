@@ -7,7 +7,8 @@
 		variants: {
 			variant: {
 				default: '',
-				muted: ''
+				muted: '',
+				full: ''
 			}
 		},
 		defaultVariants: {
@@ -42,15 +43,21 @@
 				class="hidden h-full min-h-20 items-center justify-start bg-guide-dashed px-3 sm:flex"
 			></div>
 		{/if}
+
 		<div
 			class={cn(
-				'relative mx-auto flex w-full max-w-5xl flex-col justify-start border-x border-(--guide-ink) px-4 py-8 sm:px-8 sm:py-16',
-				variant !== 'muted' && 'border-dashed',
+				'relative flex w-full flex-col justify-start px-4 py-8 sm:px-8 sm:py-16',
+
+				variant !== 'full' && 'mx-auto max-w-5xl border-(--guide-ink) sm:border-x',
+
+				variant === 'default' && 'border-dashed',
+
 				className
 			)}
 		>
 			{@render children?.()}
 		</div>
+
 		{#if variant === 'muted'}
 			<div
 				class="hidden h-full min-h-20 items-center justify-start bg-guide-dashed px-3 sm:flex"

@@ -15,12 +15,11 @@ import wgsl from 'shiki/langs/wgsl.mjs';
 let highlighter: ReturnType<typeof createHighlighterCoreSync> | null = null;
 
 export function getHighlighter() {
-	if (!highlighter) {
-		highlighter = createHighlighterCoreSync({
-			themes: [githubLight, githubDark],
-			langs: [typescript, tsx, svelte, vue, xml, bash, json, wgsl],
-			engine: createJavaScriptRegexEngine()
-		});
-	}
+	highlighter ??= createHighlighterCoreSync({
+		themes: [githubLight, githubDark],
+		langs: [typescript, tsx, svelte, vue, xml, bash, json, wgsl],
+		engine: createJavaScriptRegexEngine()
+	});
+
 	return highlighter;
 }

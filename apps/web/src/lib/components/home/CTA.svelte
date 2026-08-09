@@ -1,8 +1,7 @@
 <script lang="ts">
 	import Section from './Section.svelte';
 	import { resolve } from '$app/paths';
-	import { BookOpen01Icon, ThreeDViewIcon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
+	import { AppBookIcon, AppSpace3dIcon } from '$lib/components/icons';
 	const docsRoute = '/docs' as const;
 	const playgroundRoute = '/playground' as const;
 	import Button from '../ui/Button.svelte';
@@ -32,11 +31,11 @@
 				data-sveltekit-preload-data="off"
 				data-sveltekit-preload-code="off"
 			>
-				<AppHugeIcon icon={ThreeDViewIcon} size={16} />
+				<AppSpace3dIcon size={16} />
 				<span>Playground</span>
 			</Button>
 			<Button href={resolve(docsRoute as '/')} size="md" variant="secondary">
-				<AppHugeIcon icon={BookOpen01Icon} size={16} />
+				<AppBookIcon size={16} />
 				<span>Documentation</span>
 			</Button>
 		</div>

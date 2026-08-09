@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "docs:changelog": "node ./scripts/generate-changelog-docs.mjs",
     "dev": "pnpm run dev:web",
@@ -16,7 +20,7 @@
     "check": "pnpm run build:motion-gpu && pnpm run check:motion-gpu && pnpm run check:web",
     "check:web": "pnpm --dir apps/web run check",
     "check:motion-gpu": "pnpm --dir packages/motion-gpu run check",
-    "test": "pnpm run build:motion-gpu && pnpm run test:motion-gpu",
+    "test": "pnpm run build:motion-gpu && pnpm run test:motion-gpu && pnpm --dir apps/web test --passWithNoTests",
     "test:motion-gpu": "pnpm --dir packages/motion-gpu run test",
     "perf:motion-gpu:core": "pnpm --dir packages/motion-gpu run perf:core",
     "perf:motion-gpu:core:check": "pnpm --dir packages/motion-gpu run perf:core:check",
@@ -27,17 +31,24 @@
     "lint": "pnpm run lint:motion-gpu && pnpm run lint:web",
     "lint:web": "pnpm --dir apps/web run lint",
     "lint:motion-gpu": "pnpm --dir packages/motion-gpu run lint",
-    "format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format"
+    "format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format",
+    "format:check": "pnpm --dir apps/web run format:check && pnpm --dir packages/motion-gpu exec prettier --check ."
   },
   "dependencies": {
     "prettier-plugin-tailwindcss": "^0.7.2"
   },
   "pnpm": {
+    "overrides": {
+      "@vitest/coverage-v8": "4.1.6",
+      "react": "19.2.6",
+      "react-dom": "19.2.6",
+      "tinyest": "0.3.1"
+    },
     "onlyBuiltDependencies": [
       "esbuild",
       "sharp",
       "workerd"
     ]
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a"
 }

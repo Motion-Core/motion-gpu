@@ -11,11 +11,11 @@
 	const { children, class: className = '', ...restProps }: ComponentProps = $props();
 </script>
 
-<div class="inset-shadow mt-6 rounded-lg bg-background-inset p-1.5">
+<div class="card-outer mt-6 rounded-lg bg-background-inset p-1.5">
 	<blockquote
 		{...restProps}
 		class={cn(
-			'relative rounded-md border-l-2 border-l-accent bg-background px-5 py-3 text-base font-normal text-foreground-muted italic card',
+			'rounded-md  border-l-2 border-l-accent bg-background px-5 py-3 text-base font-normal text-foreground-muted italic card',
 			className
 		)}
 	>

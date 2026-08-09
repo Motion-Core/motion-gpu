@@ -1,3 +1,7 @@
+<script module lang="ts">
+	let frameworkBlockCounter = 0;
+</script>
+
 <script lang="ts">
 	import { SvelteMap } from 'svelte/reactivity';
 	import {
@@ -28,6 +32,9 @@
 		reactLang = 'tsx',
 		vueLang = 'vue'
 	}: Props = $props();
+	frameworkBlockCounter += 1;
+	const tabsInstanceId = `framework-block-${frameworkBlockCounter.toString()}`;
+	const panelId = `${tabsInstanceId}-panel`;
 
 	let tabList = $state<HTMLDivElement | null>(null);
 	let activeIndicatorLeft = $state(0);
@@ -42,6 +49,48 @@
 		vue: vueCode
 	});
 	const activeCode = $derived(codeMap[frameworkStore.active]);
+	const activeIndex = $derived(Math.max(0, frameworks.indexOf(frameworkStore.active)));
+	const activeTabId = $derived(`${tabsInstanceId}-tab-${activeIndex.toString()}`);
+
+	function setActiveTab(index: number) {
+		frameworkStore.active = frameworks[index];
+	}
+
+	function focusTabByIndex(index: number) {
+		tabRefs.get(frameworks[index])?.focus();
+	}
+
+	function handleTabKeydown(event: KeyboardEvent, index: number) {
+		const lastIndex = frameworks.length - 1;
+		if (lastIndex < 0) return;
+		let nextIndex: number;
+
+		switch (event.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				event.preventDefault();
+				nextIndex = index === lastIndex ? 0 : index + 1;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				event.preventDefault();
+				nextIndex = index === 0 ? lastIndex : index - 1;
+				break;
+			case 'Home':
+				event.preventDefault();
+				nextIndex = 0;
+				break;
+			case 'End':
+				event.preventDefault();
+				nextIndex = lastIndex;
+				break;
+			default:
+				return;
+		}
+
+		setActiveTab(nextIndex);
+		focusTabByIndex(nextIndex);
+	}
 
 	function registerTab(node: HTMLElement, fw: Framework) {
 		tabRefs.set(fw, node as HTMLButtonElement);
@@ -101,8 +150,16 @@
 		for (const fw of frameworks) {
 			const { code, lang } = toHighlight[fw];
 			highlightedCode[fw] = {
-				light: highlighter.codeToHtml(code, { lang, theme: 'github-light' }),
-				dark: highlighter.codeToHtml(code, { lang, theme: 'github-dark' })
+				light: highlighter.codeToHtml(code, {
+					lang,
+					theme: 'github-light',
+					tabindex: false
+				}),
+				dark: highlighter.codeToHtml(code, {
+					lang,
+					theme: 'github-dark',
+					tabindex: false
+				})
 			};
 		}
 
@@ -134,24 +191,40 @@
 <div class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5">
 	<div class="relative w-full rounded-md bg-background card">
 		<div
-			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border"
+			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:guide-duotone after:content-['']"
 		>
-			<div class="relative flex items-center" bind:this={tabList}>
+			<div
+				class="relative flex min-w-0 flex-1 items-center overflow-x-auto [&>button:first-of-type]:rounded-tl-md"
+				role="tablist"
+				aria-label="Framework"
+				bind:this={tabList}
+			>
 				{#if activeIndicatorWidth > 0}
 					<div
 						class="tab-active-line framework-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
 						style={`
-								width: ${activeIndicatorWidth}px;
-								transform: translateX(${activeIndicatorLeft}px);
+								width: ${activeIndicatorWidth.toString()}px;
+								transform: translateX(${activeIndicatorLeft.toString()}px);
 							`}
 					></div>
 				{/if}
 
-				{#each frameworks as fw (fw)}
+				{#each frameworks as fw, index (fw)}
 					<button
-						onclick={() => (frameworkStore.active = fw)}
+						type="button"
+						id={`${tabsInstanceId}-tab-${index.toString()}`}
+						role="tab"
+						aria-selected={index === activeIndex}
+						aria-controls={panelId}
+						tabindex={index === activeIndex ? 0 : -1}
+						onclick={() => {
+							setActiveTab(index);
+						}}
+						onkeydown={(event) => {
+							handleTabKeydown(event, index);
+						}}
 						class={cn(
-							'framework-tab relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
+							'focus-ring framework-tab relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-[color,box-shadow] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset motion-reduce:transition-none',
 							frameworkStore.active === fw
 								? 'text-accent'
 								: 'text-foreground-muted hover:text-foreground'
@@ -177,9 +250,12 @@
 			<CopyCodeButton code={activeCode} class="mr-2" />
 		</div>
 		<div
+			id={panelId}
+			role="tabpanel"
+			aria-labelledby={activeTabId}
 			class="min-h-12.5 p-4 [&>div]:mt-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&>div]:[box-shadow:none]!"
 		>
-			<Pre code="" unstyled={true}>
+			<Pre code="" unstyled={true} scrollThumbTabbable={false} scrollViewportTabbable={false}>
 				{#each frameworks as fw (fw)}
 					<div
 						class="framework-code"

@@ -13,7 +13,7 @@
 	let landingAnimationState = $state<'preparing' | 'ready'>('preparing');
 
 	onMount(() => {
-		let destroyAnimations = () => {};
+		let destroyAnimations: () => void = () => undefined;
 		let isActive = true;
 
 		const setupAnimations = async () => {
@@ -24,7 +24,7 @@
 
 			try {
 				const { createLandingScrollAnimations } = await import('$lib/animations/landing');
-				if (!isActive || !mainContent) return;
+				if (!isActive) return;
 				destroyAnimations = createLandingScrollAnimations(mainContent);
 			} finally {
 				if (isActive) {
@@ -44,7 +44,7 @@
 
 <a
 	href="#main-content"
-	class="sr-only fixed top-3 left-3 z-100 bg-foreground px-4 py-2 text-sm text-background-inset focus:not-sr-only"
+	class="focus-ring focus-outline sr-only fixed top-3 left-3 z-100 rounded-sm bg-foreground px-4 py-2 text-sm text-background-inset outline-none focus:not-sr-only"
 >
 	Skip to main content
 </a>
@@ -56,7 +56,7 @@
 	tabindex="-1"
 	data-landing-anim-root
 	data-landing-anim-state={landingAnimationState}
-	class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col items-center justify-center border-x border-border bg-background"
+	class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col items-center justify-center border-(--guide-ink) bg-background sm:border-x"
 >
 	<Hero />
 	<Preview />
@@ -64,8 +64,8 @@
 	<HowItWorks />
 	<FAQ />
 	<CTA />
-	<div class="w-full border-t border-border bg-dashed">
-		<div class="mx-auto w-full max-w-5xl border-x border-border bg-background">
+	<div class="w-full border-t border-(--guide-ink) bg-guide-dashed">
+		<div class="mx-auto w-full max-w-5xl border-x border-(--guide-ink) bg-background">
 			<Footer />
 		</div>
 	</div>

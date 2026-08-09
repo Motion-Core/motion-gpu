@@ -1,13 +1,12 @@
 <script lang="ts">
 	import {
-		Alert01Icon,
-		CodeIcon,
-		DatabaseZapIcon,
-		FlowConnectionIcon,
-		ThreeDViewIcon,
-		TouchInteraction01Icon
-	} from '@hugeicons/core-free-icons';
-	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
+		AppCodeIcon,
+		AppDatabaseIcon,
+		AppSpace3dIcon,
+		AppTouchClickIcon,
+		AppTriangleWarningIcon,
+		AppWorkflowIcon
+	} from '$lib/components/icons';
 	import Section from './Section.svelte';
 	import Card from './Card.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
@@ -69,7 +68,7 @@
 >
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<AppHugeIcon icon={FlowConnectionIcon} class="text-accent" size={16} />
+			<AppWorkflowIcon class="text-accent" size={16} />
 			<span>How It Works</span>
 		</span>
 	</Badge>
@@ -90,15 +89,15 @@
 			<Card number={step.number} title={step.title} description={step.description}>
 				{#snippet icon()}
 					{#if step.icon === 'material'}
-						<AppHugeIcon icon={CodeIcon} size={32} />
+						<AppCodeIcon size={32} />
 					{:else if step.icon === 'inputs'}
-						<AppHugeIcon icon={DatabaseZapIcon} size={32} />
+						<AppDatabaseIcon size={32} />
 					{:else if step.icon === 'runtime'}
-						<AppHugeIcon icon={TouchInteraction01Icon} size={32} />
+						<AppTouchClickIcon size={32} />
 					{:else if step.icon === 'passes'}
-						<AppHugeIcon icon={ThreeDViewIcon} size={32} />
+						<AppSpace3dIcon size={32} />
 					{:else}
-						<AppHugeIcon icon={Alert01Icon} size={32} />
+						<AppTriangleWarningIcon size={32} />
 					{/if}
 				{/snippet}
 			</Card>

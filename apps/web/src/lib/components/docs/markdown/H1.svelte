@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import type { Snippet } from 'svelte';
 	import { cn } from '$lib/utils/cn';
+	import { copyToClipboard } from '$lib/utils/copy';
 
 	import { AppCheckIcon, AppCopyIcon } from '$lib/components/icons';
+	import Tooltip from '$lib/components/ui/Tooltip.svelte';
 
 	type ComponentProps = {
 		id?: string;
@@ -15,7 +16,6 @@
 	const { children, id, class: className = '', ...restProps }: ComponentProps = $props();
 
 	let copied = $state(false);
-	let timeoutId: number | null = null;
 
 	async function copyHeadingUrl(event: MouseEvent) {
 		event.preventDefault();
@@ -29,28 +29,22 @@
 		window.history.pushState(null, '', hash);
 
 		try {
-			await navigator.clipboard.writeText(url);
-
+			await copyToClipboard(url);
 			copied = true;
-
-			if (timeoutId) {
-				window.clearTimeout(timeoutId);
-			}
-
-			timeoutId = window.setTimeout(() => {
-				copied = false;
-				timeoutId = null;
-			}, 2000);
 		} catch (error) {
 			console.error('Failed to copy heading link', error);
 		}
 	}
 
-	onDestroy(() => {
-		if (timeoutId) {
-			window.clearTimeout(timeoutId);
-			timeoutId = null;
-		}
+	// Reset the copied state after 2 seconds
+	$effect(() => {
+		if (!copied) return;
+		const t = setTimeout(() => {
+			copied = false;
+		}, 2000);
+		return () => {
+			clearTimeout(t);
+		};
 	});
 </script>
 
@@ -68,36 +62,44 @@
 		</span>
 
 		{#if id}
-			<div
-				class="inset-shadow flex items-center rounded-sm p-1 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-visible:opacity-100"
+			<span
+				class="card-outer flex items-center rounded-sm p-1 opacity-0 transition-opacity duration-150 ease-out group-hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none"
 			>
-				<button
-					type="button"
-					class={cn(
-						'relative inline-flex size-6 shrink-0 items-center justify-center rounded-xs bg-background text-foreground card transition-[scale] duration-150 ease-out active:scale-[0.95]'
-					)}
-					onclick={copyHeadingUrl}
-					aria-label={copied ? 'Copied heading link' : 'Copy heading link'}
-				>
-					<span
-						class={cn(
-							'absolute inline-flex items-center justify-center transition-[opacity,filter,scale] duration-150 ease-out will-change-[opacity,filter,scale]',
-							copied ? 'scale-[0.25] opacity-0 blur-xs' : 'blur-0 scale-100 opacity-100'
-						)}
-					>
-						<AppCopyIcon size={16} />
-					</span>
+				<Tooltip>
+					{#snippet tooltip()}
+						{copied ? 'Heading link copied' : 'Copy heading link'}
+					{/snippet}
+					{#snippet children({ describedBy })}
+						<button
+							type="button"
+							class={cn(
+								'focus-ring focus-outline hit-target relative inline-flex size-6 shrink-0 items-center justify-center rounded-[calc(var(--radius-base)*1.25)] bg-background text-foreground card transition-[scale,box-shadow] duration-150 ease-out outline-none active:scale-[0.95] motion-reduce:transform-none motion-reduce:transition-none'
+							)}
+							onclick={copyHeadingUrl}
+							aria-label={copied ? 'Heading link copied' : 'Copy heading link'}
+							aria-describedby={describedBy}
+						>
+							<span
+								class={cn(
+									'absolute inline-flex items-center justify-center transition-[opacity,filter,scale] duration-150 ease-out will-change-[opacity,filter,scale] motion-reduce:transform-none motion-reduce:blur-none motion-reduce:transition-none motion-reduce:will-change-auto',
+									copied ? 'scale-[0.25] opacity-0 blur-xs' : 'blur-0 scale-100 opacity-100'
+								)}
+							>
+								<AppCopyIcon size={16} />
+							</span>
 
-					<span
-						class={cn(
-							'absolute inline-flex items-center justify-center transition-[opacity,filter,scale] duration-150 ease-out will-change-[opacity,filter,scale]',
-							copied ? 'blur-0 scale-100 opacity-100' : 'scale-[0.25] opacity-0 blur-xs'
-						)}
-					>
-						<AppCheckIcon size={16} />
-					</span>
-				</button>
-			</div>
+							<span
+								class={cn(
+									'absolute inline-flex items-center justify-center transition-[opacity,filter,scale] duration-150 ease-out will-change-[opacity,filter,scale] motion-reduce:transform-none motion-reduce:blur-none motion-reduce:transition-none motion-reduce:will-change-auto',
+									copied ? 'blur-0 scale-100 opacity-100' : 'scale-[0.25] opacity-0 blur-xs'
+								)}
+							>
+								<AppCheckIcon size={16} />
+							</span>
+						</button>
+					{/snippet}
+				</Tooltip>
+			</span>
 		{/if}
 	</span>
 </h1>

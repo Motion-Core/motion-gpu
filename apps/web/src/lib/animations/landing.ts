@@ -28,9 +28,7 @@ let pluginsRegistered = false;
 function registerPlugins() {
 	if (pluginsRegistered) return;
 	gsap.registerPlugin(ScrollTrigger, CustomEase, SplitText);
-	if (!gsap.parseEase(LANDING_ANIMATION_CONFIG.easeName)) {
-		CustomEase.create(LANDING_ANIMATION_CONFIG.easeName, LANDING_ANIMATION_CONFIG.easeCurve);
-	}
+	CustomEase.create(LANDING_ANIMATION_CONFIG.easeName, LANDING_ANIMATION_CONFIG.easeCurve);
 	pluginsRegistered = true;
 }
 
@@ -84,13 +82,13 @@ function collectTargets(section: HTMLElement) {
 }
 
 export function createLandingScrollAnimations(root: HTMLElement) {
-	if (typeof window === 'undefined') return () => {};
-	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {};
+	if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => undefined;
 
 	registerPlugins();
 
 	const config = LANDING_ANIMATION_CONFIG;
 	const splitTextInstances: SplitText[] = [];
+	const focusListenerCleanups: (() => void)[] = [];
 
 	const context = gsap.context(() => {
 		const sections = gsap.utils.toArray<HTMLElement>(SECTION_SELECTOR, root);
@@ -113,7 +111,7 @@ export function createLandingScrollAnimations(root: HTMLElement) {
 			});
 
 			if (badges.length > 0) {
-				timeline.from(badges, { autoAlpha: 0, y: config.y });
+				timeline.from(badges, { opacity: 0, y: config.y });
 			}
 
 			if (texts.length > 0) {
@@ -131,12 +129,12 @@ export function createLandingScrollAnimations(root: HTMLElement) {
 					timeline.fromTo(
 						words,
 						{
-							autoAlpha: 0,
+							opacity: 0,
 							y: config.y,
-							filter: `blur(${config.textBlur}px)`
+							filter: `blur(${config.textBlur.toString()}px)`
 						},
 						{
-							autoAlpha: 1,
+							opacity: 1,
 							y: 0,
 							filter: 'blur(0px)',
 							stagger: config.textWordStagger,
@@ -151,7 +149,7 @@ export function createLandingScrollAnimations(root: HTMLElement) {
 				timeline.from(
 					actions,
 					{
-						autoAlpha: 0,
+						opacity: 0,
 						y: config.y,
 						stagger: config.textElementStagger
 					},
@@ -163,7 +161,7 @@ export function createLandingScrollAnimations(root: HTMLElement) {
 				timeline.from(
 					cards,
 					{
-						autoAlpha: 0,
+						opacity: 0,
 						y: config.y,
 						stagger: config.cardStagger
 					},
@@ -172,14 +170,23 @@ export function createLandingScrollAnimations(root: HTMLElement) {
 			}
 
 			if (!hasTargets && fallback.length > 0) {
-				timeline.from(fallback, { autoAlpha: 0, y: config.y });
+				timeline.from(fallback, { opacity: 0, y: config.y });
 			}
+
+			const revealOnFocus = () => {
+				if (timeline.progress() < 1) timeline.play();
+			};
+			section.addEventListener('focusin', revealOnFocus);
+			focusListenerCleanups.push(() => {
+				section.removeEventListener('focusin', revealOnFocus);
+			});
 		}
 
 		ScrollTrigger.refresh();
 	}, root);
 
 	return () => {
+		for (const cleanup of focusListenerCleanups) cleanup();
 		for (const splitText of splitTextInstances.reverse()) {
 			splitText.revert();
 		}

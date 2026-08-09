@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { tick } from 'svelte';
-	import { Cancel01Icon, Github01Icon, Menu01Icon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
+	import { AppCloseIcon, AppGitHubIcon, AppMenuIcon } from '$lib/components/icons';
 	import Button from '../ui/Button.svelte';
 	import ThemeToggle from '../ui/ThemeToggle.svelte';
 	import { brandingConfig } from '$lib/config/branding';
 
 	const homeRoute = '/' as const;
 	const focusableSelectors = 'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])';
+	const navigationLinkClass =
+		'focus-ring focus-outline inline-flex items-center gap-2 rounded-sm px-2 py-2 text-sm font-normal tracking-tight text-foreground-muted transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground motion-reduce:transition-none';
 
 	let mobileOpen = $state(false);
 	let restoreFocusOnClose = true;
@@ -99,53 +100,35 @@
 </script>
 
 <nav aria-label="Primary navigation" class="fixed top-0 z-60 w-full">
-	<div class="mx-auto max-w-6xl border-b border-border bg-background sm:border-x">
+	<div class="mx-auto max-w-6xl border-b border-(--guide-ink) bg-background sm:border-x">
 		<div class="relative flex items-center justify-between gap-3 px-4 py-1.5">
 			<a
 				href={resolve(homeRoute)}
-				class="inline-flex items-center gap-1 px-2 py-2 text-sm tracking-tight text-foreground transition-colors duration-150 ease-out hover:text-foreground"
+				class="focus-ring focus-outline inline-flex items-center gap-1 rounded-sm py-2 text-sm tracking-tight text-foreground transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground motion-reduce:transition-none"
 			>
 				<span
-					class="inline-flex shrink-0 items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
+					class="inline-flex shrink-0 items-center text-accent [&>svg]:size-5 [&>svg]:fill-current"
 					aria-hidden="true"
 				>
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html brandingConfig.logoRaw}
 				</span>
-				<span class="font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
+				<span class="text-base font-medium tracking-tight text-foreground"
+					>{brandingConfig.name}</span
+				>
 			</a>
 
 			<div
 				class="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-1 sm:flex"
 			>
-				<a
-					href="#home"
-					class="inline-flex items-center gap-2 px-2 py-2 text-sm font-normal tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-				>
-					Home
-				</a>
-				<a
-					href="#features"
-					class="inline-flex items-center gap-2 px-2 py-2 text-sm font-normal tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-				>
-					Features
-				</a>
-				<a
-					href="#how-it-works"
-					class="inline-flex items-center gap-2 px-2 py-2 text-sm font-normal tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-				>
-					Pipeline
-				</a>
-				<a
-					href="#faq"
-					class="inline-flex items-center gap-2 px-2 py-2 text-sm font-normal tracking-tight text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground"
-				>
-					FAQ
-				</a>
+				<a href="#home" class={navigationLinkClass}> Home </a>
+				<a href="#features" class={navigationLinkClass}> Features </a>
+				<a href="#how-it-works" class={navigationLinkClass}> Pipeline </a>
+				<a href="#faq" class={navigationLinkClass}> FAQ </a>
 			</div>
 
 			<div class="hidden items-center gap-2 sm:flex">
-				<ThemeToggle />
+				<ThemeToggle tooltipSide="bottom" />
 				<Button
 					href="https://github.com/motion-core/motion-gpu"
 					target="_blank"
@@ -153,14 +136,14 @@
 					variant="secondary"
 					size="md"
 				>
-					<AppHugeIcon icon={Github01Icon} size={16} />
+					<AppGitHubIcon size={16} />
 					<span>GitHub</span>
 				</Button>
 			</div>
 
 			<button
 				type="button"
-				class="-mr-2 inline-flex size-10 items-center justify-center gap-2 text-sm whitespace-nowrap text-foreground transition-colors duration-150 ease-out hover:bg-background-inset sm:hidden"
+				class="focus-ring focus-outline -mr-2 inline-flex size-10 items-center justify-center gap-2 rounded-sm text-sm whitespace-nowrap text-foreground transition-[background-color,box-shadow] duration-150 ease-out outline-none hover:bg-background-inset motion-reduce:transition-none sm:hidden"
 				aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
 				aria-expanded={mobileOpen}
 				aria-controls="mobile-menubar-panel"
@@ -168,9 +151,9 @@
 				onclick={toggleMobileMenu}
 			>
 				{#if mobileOpen}
-					<AppHugeIcon icon={Cancel01Icon} size={20} />
+					<AppCloseIcon size={24} />
 				{:else}
-					<AppHugeIcon icon={Menu01Icon} size={20} />
+					<AppMenuIcon size={18} />
 				{/if}
 			</button>
 		</div>
@@ -181,7 +164,9 @@
 	class="mobile-overlay fixed inset-0 z-40 bg-background-inset/80 backdrop-blur-sm sm:hidden"
 	class:active={mobileOpen}
 	aria-label="Close mobile navigation overlay"
-	onclick={() => closeMobileMenu()}
+	onclick={() => {
+		closeMobileMenu();
+	}}
 	onkeydown={(event) => {
 		if (event.key === 'Escape') {
 			event.preventDefault();
@@ -199,7 +184,7 @@
 	aria-modal="true"
 	aria-label="Mobile navigation"
 	tabindex="-1"
-	class="mobile-panel fixed top-16 left-1/2 z-50 grid w-[min(92vw,30rem)] gap-2 rounded-lg border border-border bg-background p-3 sm:hidden"
+	class="mobile-panel fixed top-16 left-1/2 z-50 grid w-[min(92vw,30rem)] gap-2 rounded-lg border border-(--guide-ink) bg-background p-3 sm:hidden"
 	class:active={mobileOpen}
 	onkeydown={handleMobilePanelKeydown}
 	bind:this={mobilePanel}
@@ -251,10 +236,10 @@
 			variant="secondary"
 			class="col-span-2 justify-center"
 		>
-			<AppHugeIcon icon={Github01Icon} size={16} />
+			<AppGitHubIcon size={16} />
 			<span>GitHub</span>
 		</Button>
-		<ThemeToggle class="col-span-2 ml-auto size-8 sm:hidden" />
+		<ThemeToggle class="col-span-2 ml-auto size-8 sm:hidden" tooltipSide="bottom" />
 	</div>
 </div>
 

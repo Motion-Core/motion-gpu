@@ -1,7 +1,7 @@
 import type { RequestHandler } from './$types';
 import { siteConfig } from '$lib';
 
-const directives = ['User-agent: *', 'Allow: /', 'Disallow: /docs/raw/'];
+const directives = ['User-agent: *', 'Allow: /'];
 
 const toSitemapUrl = (origin: string) => new URL('/sitemap.xml', origin).href;
 

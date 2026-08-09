@@ -1,12 +1,14 @@
 <script lang="ts">
+	import { fromAction } from 'svelte/attachments';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { cn } from '$lib/utils/cn';
 	import { page } from '$app/state';
 	import { AppTableOfContentsIcon } from '$lib/components/icons';
 	import ScrollArea from '$lib/components/ui/ScrollArea.svelte';
-	import type { DocTocHeading } from '$lib/docs/manifest';
+	import type { ContentTocHeading } from '$lib/content/sections';
+	import { prefersReducedMotion } from '$lib/utils/motion';
 
-	type TocItem = DocTocHeading & {
+	type TocItem = ContentTocHeading & {
 		element: HTMLElement;
 	};
 
@@ -25,7 +27,8 @@
 		title?: string;
 		emptyLabel?: string;
 		minViewportWidth?: number;
-		headings?: DocTocHeading[];
+		scrollContainerId?: string;
+		headings?: ContentTocHeading[];
 	};
 
 	const props = $props();
@@ -35,9 +38,10 @@
 	const title = $derived((props as Props).title ?? 'On this page');
 	const emptyLabel = $derived((props as Props).emptyLabel ?? 'No headings');
 	const minViewportWidth = $derived((props as Props).minViewportWidth ?? 1280);
+	const scrollContainerId = $derived((props as Props).scrollContainerId ?? null);
 	const initialHeadings = $derived(normalizeHeadings((props as Props).headings));
 
-	let headings = $state<DocTocHeading[]>([]);
+	let headings = $state<ContentTocHeading[]>([]);
 	const renderedHeadings = $derived(headings.length > 0 ? headings : initialHeadings);
 	let activeId = $state('');
 	let indicatorTop = $state(0);
@@ -48,8 +52,11 @@
 	let svgWidth = $state(40);
 	let indicatorRange = $state<IndicatorRange | null>(null);
 	let pendingIndicatorFrame: number | null = null;
-	let tocViewportActive = $state(false);
 	let lastPulsedRangeKey = '';
+	let viewportWidth = $state(0);
+	const tocViewportActive = $derived(viewportWidth >= minViewportWidth);
+	let collectFrame: number | null = null;
+	let collectCleanup: (() => void) | undefined;
 
 	const ACTIVE_OFFSET = 140;
 	const VISIBLE_BUFFER = 24;
@@ -60,9 +67,16 @@
 	const pulseTimers = new SvelteMap<string, number>();
 	const lastIndicatorIds = new SvelteSet<string>();
 	let pulsingDotIds = $state<string[]>([]);
-	let linksWrapper = $state<HTMLOListElement | null>(null);
+	const linksWrapperId = 'toc-links-wrapper';
 
 	const currentPath = $derived(page.url.pathname);
+
+	function getScrollContainer() {
+		if (typeof document === 'undefined') return window;
+		if (!scrollContainerId) return window;
+		const element = document.getElementById(scrollContainerId);
+		return element ?? window;
+	}
 
 	const slugify = (value: string) =>
 		value
@@ -73,10 +87,10 @@
 			.replace(/[^a-z0-9]+/g, '-')
 			.replace(/^-+|-+$/g, '');
 
-	function normalizeHeadings(value?: DocTocHeading[]) {
+	function normalizeHeadings(value?: ContentTocHeading[]) {
 		return Array.isArray(value)
 			? value.filter(
-					(heading): heading is DocTocHeading =>
+					(heading): heading is ContentTocHeading =>
 						typeof heading.id === 'string' &&
 						heading.id.length > 0 &&
 						typeof heading.text === 'string' &&
@@ -86,14 +100,14 @@
 			: [];
 	}
 
-	function syncHeadingOrder(nextHeadings: DocTocHeading[]) {
+	function syncHeadingOrder(nextHeadings: ContentTocHeading[]) {
 		headingOrder.clear();
 		nextHeadings.forEach(({ id }, index) => {
 			headingOrder.set(id, index);
 		});
 	}
 
-	function applyHeadings(nextHeadings: DocTocHeading[]) {
+	function applyHeadings(nextHeadings: ContentTocHeading[]) {
 		headings = nextHeadings;
 		syncHeadingOrder(nextHeadings);
 		activeId = nextHeadings[0]?.id ?? '';
@@ -121,7 +135,9 @@
 		lastIndicatorIds.clear();
 		pulsingDotIds = [];
 		if (typeof window !== 'undefined') {
-			pulseTimers.forEach((timer) => window.clearTimeout(timer));
+			pulseTimers.forEach((timer) => {
+				window.clearTimeout(timer);
+			});
 		}
 		pulseTimers.clear();
 		if (typeof window !== 'undefined' && pendingIndicatorFrame !== null) {
@@ -135,7 +151,7 @@
 	}
 
 	function pulseDot(id: string) {
-		if (typeof window === 'undefined' || !id) return;
+		if (typeof window === 'undefined' || !id || prefersReducedMotion()) return;
 
 		const existingTimer = pulseTimers.get(id);
 		if (existingTimer) {
@@ -182,6 +198,16 @@
 		});
 	}
 
+	function clearCollectionWork() {
+		if (typeof window !== 'undefined' && collectFrame !== null) {
+			window.cancelAnimationFrame(collectFrame);
+		}
+		collectFrame = null;
+
+		collectCleanup?.();
+		collectCleanup = undefined;
+	}
+
 	function registerLink(node: HTMLElement, id?: string) {
 		let currentId = id ?? '';
 
@@ -215,17 +241,17 @@
 		if (points.length === 0) return '';
 		if (points.length === 1) {
 			const [point] = points;
-			return `M ${point.x} ${point.y}`;
+			return `M ${point.x.toString()} ${point.y.toString()}`;
 		}
 
-		const commands: string[] = [`M ${points[0].x} ${points[0].y}`];
+		const commands: string[] = [`M ${points[0].x.toString()} ${points[0].y.toString()}`];
 
 		for (let i = 1; i < points.length; i++) {
 			const point = points[i];
 			const prev = points[i - 1];
 
 			if (i === points.length - 1) {
-				commands.push(` L ${point.x} ${point.y}`);
+				commands.push(` L ${point.x.toString()} ${point.y.toString()}`);
 				continue;
 			}
 
@@ -238,7 +264,7 @@
 			const nextLen = Math.hypot(nextVecX, nextVecY);
 
 			if (prevLen === 0 || nextLen === 0) {
-				commands.push(` L ${point.x} ${point.y}`);
+				commands.push(` L ${point.x.toString()} ${point.y.toString()}`);
 				continue;
 			}
 
@@ -249,7 +275,7 @@
 			const dot = prevDirX * nextDirX + prevDirY * nextDirY;
 
 			if (Math.abs(dot) > 0.999) {
-				commands.push(` L ${point.x} ${point.y}`);
+				commands.push(` L ${point.x.toString()} ${point.y.toString()}`);
 				continue;
 			}
 
@@ -259,14 +285,23 @@
 			const exitX = point.x + nextDirX * cornerRadius;
 			const exitY = point.y + nextDirY * cornerRadius;
 
-			commands.push(` L ${entryX} ${entryY}`);
-			commands.push(` Q ${point.x} ${point.y} ${exitX} ${exitY}`);
+			commands.push(` L ${entryX.toString()} ${entryY.toString()}`);
+			commands.push(
+				` Q ${point.x.toString()} ${point.y.toString()} ${exitX.toString()} ${exitY.toString()}`
+			);
 		}
 
 		return commands.join('');
 	}
 
+	function getLinksWrapperElement() {
+		if (typeof document === 'undefined') return null;
+		const node = document.getElementById(linksWrapperId);
+		return node instanceof HTMLOListElement ? node : null;
+	}
+
 	function updateLayout() {
+		const linksWrapper = getLinksWrapperElement();
 		if (!linksWrapper || headings.length === 0) {
 			lineHeight = 0;
 			return;
@@ -324,8 +359,8 @@
 
 		if (range) {
 			indicatorRange = range;
-		} else if (!indicatorRange) {
-			indicatorRange = appliedRange;
+		} else {
+			indicatorRange ??= appliedRange;
 		}
 
 		const startPos = linkPositions.get(appliedRange.startId);
@@ -382,20 +417,21 @@
 		const parsed: TocItem[] = [];
 
 		for (const node of nodeList) {
-			const text = node.textContent?.trim() ?? '';
+			const rawText = node.textContent;
+			const text = rawText ? rawText.trim() : '';
 			if (!text) continue;
 
 			let id = node.id;
 			if (!id) {
 				let baseSlug = slugify(text);
 				if (!baseSlug) {
-					baseSlug = `section-${parsed.length + 1}`;
+					baseSlug = `section-${(parsed.length + 1).toString()}`;
 				}
 				const count = slugCounts.get(baseSlug);
 				if (typeof count === 'number') {
 					const nextCount = count + 1;
 					slugCounts.set(baseSlug, nextCount);
-					baseSlug = `${baseSlug}-${nextCount}`;
+					baseSlug = `${baseSlug}-${nextCount.toString()}`;
 				} else {
 					slugCounts.set(baseSlug, 0);
 				}
@@ -408,7 +444,7 @@
 
 				do {
 					nextCount += 1;
-					id = `${baseId}-${nextCount}`;
+					id = `${baseId}-${nextCount.toString()}`;
 				} while (usedIds.has(id));
 
 				slugCounts.set(baseId, nextCount);
@@ -432,20 +468,14 @@
 	}
 
 	function resolveInitialHeadingElements(): TocItem[] {
-		const nextHeadings = initialHeadings;
-		if (nextHeadings.length === 0) return [];
+		if (initialHeadings.length === 0) return [];
 
-		return nextHeadings
-			.map((heading) => {
-				const element = document.getElementById(heading.id);
-				if (!(element instanceof HTMLElement)) return null;
+		const parsed = initialHeadings.flatMap((heading): TocItem[] => {
+			const element = document.getElementById(heading.id);
+			return element instanceof HTMLElement ? [{ ...heading, element }] : [];
+		});
 
-				return {
-					...heading,
-					element
-				};
-			})
-			.filter((heading): heading is TocItem => heading !== null);
+		return parsed.length === initialHeadings.length ? parsed : [];
 	}
 
 	function collectHeadings() {
@@ -465,7 +495,9 @@
 		indicatorBottom = 0;
 		indicatorRange = null;
 
-		requestAnimationFrame(() => updateLayout());
+		requestAnimationFrame(() => {
+			updateLayout();
+		});
 
 		if (!parsed.length) {
 			return undefined;
@@ -473,18 +505,16 @@
 
 		const updateActive = () => {
 			let current = parsed[0]?.id ?? '';
-			const container = document.getElementById('docs-content-container') ?? window;
-			const isWindow = container === window;
-			const scrollY = isWindow ? window.scrollY : (container as HTMLElement).scrollTop;
-			const viewportHeight = isWindow
-				? window.innerHeight
-				: (container as HTMLElement).clientHeight;
+			const scrollEl = getScrollContainer();
+			const isWindow = scrollEl === window;
+			const scrollY = isWindow ? window.scrollY : (scrollEl as HTMLElement).scrollTop;
+			const viewportHeight = isWindow ? window.innerHeight : (scrollEl as HTMLElement).clientHeight;
 			const scrollHeight = isWindow
 				? document.documentElement.scrollHeight
-				: (container as HTMLElement).scrollHeight;
+				: (scrollEl as HTMLElement).scrollHeight;
 			const containerBounds = isWindow
 				? { top: 0, bottom: viewportHeight }
-				: (container as HTMLElement).getBoundingClientRect();
+				: (scrollEl as HTMLElement).getBoundingClientRect();
 			const viewportTop = containerBounds.top - VISIBLE_BUFFER;
 			const viewportBottom = containerBounds.bottom + VISIBLE_BUFFER;
 			const visibleIds: string[] = [];
@@ -500,11 +530,9 @@
 			}
 
 			const last = parsed[parsed.length - 1];
-			if (last) {
-				const scrolledBottom = scrollY + viewportHeight;
-				if (scrolledBottom >= scrollHeight - 20) {
-					current = last.id;
-				}
+			const scrolledBottom = scrollY + viewportHeight;
+			if (scrolledBottom >= scrollHeight - 20) {
+				current = last.id;
 			}
 
 			activeId = current;
@@ -521,9 +549,11 @@
 			scheduleIndicatorUpdate(range);
 		};
 
-		const container = document.getElementById('docs-content-container') ?? window;
+		const container = getScrollContainer();
 
-		updateActive();
+		if (parsed.length > 0) {
+			updateActive();
+		}
 
 		const handleResize = () => {
 			updateActive();
@@ -536,7 +566,9 @@
 		return () => {
 			container.removeEventListener('scroll', updateActive);
 			window.removeEventListener('resize', handleResize);
-			pulseTimers.forEach((timer) => window.clearTimeout(timer));
+			pulseTimers.forEach((timer) => {
+				window.clearTimeout(timer);
+			});
 			pulseTimers.clear();
 			pulsingDotIds = [];
 			lastIndicatorIds.clear();
@@ -566,81 +598,100 @@
 		return currentIndex >= min && currentIndex <= max;
 	}
 
-	$effect(() => {
-		if (typeof window === 'undefined') return;
-		const mediaQuery = window.matchMedia(`(min-width: ${minViewportWidth}px)`);
-		const sync = () => {
-			tocViewportActive = mediaQuery.matches;
+	function manageToc(
+		_node: HTMLElement,
+		deps: { path: string; active: boolean; selector: string }
+	) {
+		let currentDeps = deps;
+
+		const run = () => {
+			clearCollectionWork();
+			syncInitialHeadings();
+
+			if (!currentDeps.active) {
+				resetTocState({ clearHeadings: false });
+				return;
+			}
+
+			collectFrame = window.requestAnimationFrame(() => {
+				collectFrame = null;
+				collectCleanup = collectHeadings();
+			});
 		};
 
-		sync();
-		mediaQuery.addEventListener('change', sync);
+		run();
 
-		return () => {
-			mediaQuery.removeEventListener('change', sync);
+		return {
+			update(nextDeps: { path: string; active: boolean; selector: string }) {
+				currentDeps = nextDeps;
+				run();
+			},
+			destroy() {
+				clearCollectionWork();
+				resetTocState();
+			}
 		};
-	});
+	}
 
-	$effect(() => {
-		const path = currentPath;
-		const isActive = tocViewportActive;
-		void path;
-		void isActive;
+	function observeLinksWrapper(node: HTMLOListElement, active: boolean) {
+		let observer: ResizeObserver | null = null;
 
-		syncInitialHeadings();
+		const sync = (enabled: boolean) => {
+			observer?.disconnect();
+			observer = null;
 
-		if (!isActive) {
-			resetTocState({ clearHeadings: false });
-			return;
-		}
+			if (typeof window === 'undefined' || !enabled) return;
 
-		let cleanup: (() => void) | undefined;
+			observer = new ResizeObserver(() => {
+				updateLayout();
+				updateIndicator();
+			});
 
-		const frame = window.requestAnimationFrame(() => {
-			cleanup = collectHeadings();
-		});
-
-		return () => {
-			window.cancelAnimationFrame(frame);
-			cleanup?.();
+			observer.observe(node);
 		};
-	});
 
-	$effect(() => {
-		if (typeof window === 'undefined' || !linksWrapper || !tocViewportActive) return;
+		sync(active);
 
-		const observer = new ResizeObserver(() => {
-			updateLayout();
-			updateIndicator();
-		});
-
-		observer.observe(linksWrapper);
-
-		return () => {
-			observer.disconnect();
+		return {
+			update(nextActive: boolean) {
+				sync(nextActive);
+			},
+			destroy() {
+				observer?.disconnect();
+			}
 		};
-	});
+	}
 </script>
 
-{#if renderedHeadings.length > 0}
-	<nav class="flex h-full min-h-0 flex-col">
-		<div
-			class="flex flex-none items-center gap-2 text-xs font-medium tracking-wide text-foreground-muted/70 uppercase"
-		>
-			<AppTableOfContentsIcon size={16} />
-			{title}
-		</div>
-		<ScrollArea
-			class="min-h-0 flex-1"
-			viewportClass="overscroll-contain py-2"
-			viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);"
-		>
-			<div class="relative mx-1 flex">
-				<div
-					class="pointer-events-none absolute top-0 left-[2.5px] h-full w-10"
-					style={`
-	                    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${svgWidth} ${lineHeight}' width='${svgWidth}' height='${lineHeight}' preserveAspectRatio='none'%3E%3Cpath d='${svgPath}' stroke='black' stroke-width='1' fill='none'/%3E%3C/svg%3E");
-                    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${svgWidth} ${lineHeight}' width='${svgWidth}' height='${lineHeight}' preserveAspectRatio='none'%3E%3Cpath d='${svgPath}' stroke='black' stroke-width='1' fill='none'/%3E%3C/svg%3E");
+<svelte:window bind:innerWidth={viewportWidth} />
+
+<div
+	class="contents"
+	{@attach fromAction(manageToc, () => ({
+		path: currentPath,
+		active: tocViewportActive,
+		selector
+	}))}
+>
+	{#if renderedHeadings.length > 0}
+		<nav class="flex h-full min-h-0 flex-col" aria-label={title}>
+			<div
+				class="flex flex-none items-center gap-2 text-xs font-medium tracking-wide text-foreground-muted/70 uppercase"
+			>
+				<AppTableOfContentsIcon size={16} />
+				{title}
+			</div>
+			<ScrollArea
+				class="min-h-0 flex-1"
+				viewportClass="overscroll-contain py-2"
+				viewportStyle="mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent); -webkit-mask-image: linear-gradient(to bottom, transparent, black 8px, black calc(100% - 8px), transparent);"
+			>
+				<div class="relative mx-1 flex">
+					<div
+						class="pointer-events-none absolute top-0 left-[2.5px] h-full w-10"
+						style={`
+	                    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${svgWidth.toString()} ${lineHeight.toString()}' width='${svgWidth.toString()}' height='${lineHeight.toString()}' preserveAspectRatio='none'%3E%3Cpath d='${svgPath}' stroke='black' stroke-width='1' fill='none'/%3E%3C/svg%3E");
+                    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${svgWidth.toString()} ${lineHeight.toString()}' width='${svgWidth.toString()}' height='${lineHeight.toString()}' preserveAspectRatio='none'%3E%3Cpath d='${svgPath}' stroke='black' stroke-width='1' fill='none'/%3E%3C/svg%3E");
                     mask-repeat: no-repeat;
                     -webkit-mask-repeat: no-repeat;
                     mask-position: left top;
@@ -648,63 +699,70 @@
                     mask-size: 100% 100%;
                     -webkit-mask-size: 100% 100%;
                 `}
-				>
-					<div class="absolute inset-0 h-full w-full bg-border"></div>
+					>
+						<div class="absolute inset-0 h-full w-full guide"></div>
 
-					{#if indicatorHeight > 0}
-						<div
-							class="toc-active-line absolute left-0 w-full transition-[top,bottom] duration-450 ease-out"
-							style={`
-	                            top: ${indicatorTop}px;
-	                            bottom: ${Math.max(0, lineHeight - indicatorBottom)}px;
+						{#if indicatorHeight > 0}
+							<div
+								class="toc-active-line absolute left-0 w-full transition-[top,bottom] duration-450 ease-out motion-reduce:transition-none"
+								style={`
+	                            top: ${indicatorTop.toString()}px;
+	                            bottom: ${Math.max(0, lineHeight - indicatorBottom).toString()}px;
                         `}
-						></div>
-					{/if}
-				</div>
+							></div>
+						{/if}
+					</div>
 
-				<ol class="relative flex flex-col text-sm" bind:this={linksWrapper}>
-					{#each renderedHeadings as heading (heading.id)}
-						<li
-							class="transition-colors duration-150 ease-out"
-							style={`padding-left: ${(heading.level - 2) * 12}px`}
-						>
-							<a
-								href={`#${heading.id}`}
-								onclick={() => pulseDot(heading.id)}
-								class={cn(
-									'flex max-w-48 items-center gap-2 py-1 font-medium tracking-normal transition-[color] duration-150 ease-out',
-									isLinkHighlighted(heading.id)
-										? 'text-accent'
-										: 'text-foreground-muted hover:text-foreground'
-								)}
-								use:registerLink={heading.id}
+					<ol
+						id={linksWrapperId}
+						class="relative flex flex-col text-sm"
+						{@attach fromAction(observeLinksWrapper, () => tocViewportActive)}
+					>
+						{#each renderedHeadings as heading (heading.id)}
+							<li
+								class="transition-colors duration-150 ease-out motion-reduce:transition-none"
+								style={`padding-left: ${((heading.level - 2) * 12).toString()}px`}
 							>
-								<span
-									aria-hidden="true"
+								<a
+									href={`#${heading.id}`}
+									onclick={() => {
+										pulseDot(heading.id);
+									}}
 									class={cn(
-										'toc-dot relative size-1.5 flex-none rounded-full transition-[background-color,box-shadow,scale] duration-150 ease-out',
-										isLinkHighlighted(heading.id) && 'toc-dot-active',
-										pulsingDotIds.includes(heading.id) && 'toc-dot-pulse'
+										'focus-ring flex max-w-48 items-center gap-2 rounded-xs py-1 font-medium tracking-normal transition-[color,box-shadow] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset motion-reduce:transition-none',
+										isLinkHighlighted(heading.id)
+											? 'text-accent'
+											: 'text-foreground-muted hover:text-foreground'
 									)}
-								></span>
-								<span
-									class={cn(
-										'min-w-0 truncate pl-1',
-										isLinkHighlighted(heading.id) && 'text-accent'
-									)}
+									{@attach fromAction(registerLink, () => heading.id)}
 								>
-									{heading.text}
-								</span>
-							</a>
-						</li>
-					{/each}
-				</ol>
-			</div>
-		</ScrollArea>
-	</nav>
-{:else}
-	<div class="hidden text-sm tracking-normal text-foreground-muted/70 lg:block">{emptyLabel}</div>
-{/if}
+									<span
+										aria-hidden="true"
+										class={cn(
+											'toc-dot relative size-1.5 flex-none rounded-full transition-[background-color,box-shadow,scale] duration-150 ease-out motion-reduce:transform-none motion-reduce:transition-none',
+											isLinkHighlighted(heading.id) && 'toc-dot-active',
+											pulsingDotIds.includes(heading.id) && 'toc-dot-pulse'
+										)}
+									></span>
+									<span
+										class={cn(
+											'min-w-0 truncate pl-1',
+											isLinkHighlighted(heading.id) && 'text-accent'
+										)}
+									>
+										{heading.text}
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ol>
+				</div>
+			</ScrollArea>
+		</nav>
+	{:else}
+		<div class="hidden text-sm tracking-normal text-foreground-muted/70 lg:block">{emptyLabel}</div>
+	{/if}
+</div>
 
 <style>
 	.toc-active-line {
@@ -763,6 +821,12 @@
 
 		100% {
 			transform: scale(1);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.toc-dot-pulse {
+			animation: none;
 		}
 	}
 </style>

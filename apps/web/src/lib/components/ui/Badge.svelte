@@ -1,7 +1,12 @@
-<script>
+<script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Shimmer from './Shimmer.svelte';
 
-	let { children } = $props();
+	type Props = {
+		children: Snippet;
+	};
+
+	let { children }: Props = $props();
 </script>
 
 <div

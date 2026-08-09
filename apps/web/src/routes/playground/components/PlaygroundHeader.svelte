@@ -36,7 +36,7 @@
 <div class="relative z-20 flex flex-wrap items-center justify-between gap-2">
 	<a
 		href={resolve('/')}
-		class="inline-flex min-w-0 items-center gap-1.5 px-1.5 py-1 text-sm tracking-tight text-foreground transition-colors duration-150 ease-out hover:text-foreground"
+		class="focus-ring focus-outline inline-flex min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-1 text-sm tracking-tight text-foreground transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground motion-reduce:transition-none"
 	>
 		<span
 			class="inline-flex shrink-0 items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
@@ -54,7 +54,7 @@
 		>
 			<button
 				type="button"
-				class="inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+				class="focus-ring focus-outline inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none"
 				aria-label="Previous demo"
 				onclick={() => cycleDemo(-1)}
 				disabled={demoOptions.length < 2}
@@ -67,7 +67,7 @@
 				id="playground-header-demo-select"
 				class="w-96"
 				triggerClass="h-7"
-				menuClass="min-w-[11rem]"
+				menuClass="w-max min-w-full"
 				value={activeDemoId}
 				options={demoOptions}
 				onValueChange={onSelectDemo}
@@ -76,7 +76,7 @@
 
 			<button
 				type="button"
-				class="inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-colors duration-150 ease-out hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+				class="focus-ring focus-outline inline-flex h-7 w-7 items-center justify-center rounded-sm text-foreground-muted transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground disabled:pointer-events-none disabled:opacity-40 motion-reduce:transition-none"
 				aria-label="Next demo"
 				onclick={() => cycleDemo(1)}
 				disabled={demoOptions.length < 2}
@@ -88,6 +88,6 @@
 
 	<div class="order-2 inline-flex items-center gap-1 sm:order-3">
 		<PlaygroundFrameworkSwitch {activeFramework} {onSelectFramework} />
-		<ThemeToggle />
+		<ThemeToggle tooltipSide="bottom" />
 	</div>
 </div>

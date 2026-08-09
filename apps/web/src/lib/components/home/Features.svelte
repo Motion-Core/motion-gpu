@@ -3,13 +3,12 @@
 	import Card from './Card.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
 	import {
-		Alert01Icon,
-		ThreeDMoveIcon,
-		Blockchain01Icon,
-		GridViewIcon,
-		Layers01Icon
-	} from '@hugeicons/core-free-icons';
-	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
+		AppAssemblyIcon,
+		AppGrid2x2Icon,
+		AppLayersIcon,
+		AppTransform3dIcon,
+		AppTriangleWarningIcon
+	} from '$lib/components/icons';
 	import Badge from '../ui/Badge.svelte';
 
 	type FeatureCard = {
@@ -49,7 +48,7 @@
 <Section variant="muted" id="features" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<AppHugeIcon icon={GridViewIcon} class="text-accent" size={16} />
+			<AppGrid2x2Icon class="text-accent" size={16} />
 			<span>Features</span>
 		</span>
 	</Badge>
@@ -69,13 +68,13 @@
 			<Card title={card.title} description={card.description}>
 				{#snippet icon()}
 					{#if card.icon === 'chart'}
-						<AppHugeIcon icon={Blockchain01Icon} size={32} />
+						<AppAssemblyIcon size={32} />
 					{:else if card.icon === 'stack'}
-						<AppHugeIcon icon={Layers01Icon} size={32} />
+						<AppLayersIcon size={32} />
 					{:else if card.icon === 'pulse'}
-						<AppHugeIcon icon={ThreeDMoveIcon} size={32} />
+						<AppTransform3dIcon size={32} />
 					{:else}
-						<AppHugeIcon icon={Alert01Icon} size={32} />
+						<AppTriangleWarningIcon size={32} />
 					{/if}
 				{/snippet}
 			</Card>

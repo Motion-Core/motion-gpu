@@ -1,15 +1,13 @@
 <script lang="ts">
 	import Scene from './GlassPaneScene.svelte';
 	import { cn } from './utils/cn';
-	import type { ComponentProps } from 'svelte';
+	import type { HTMLAttributes } from 'svelte/elements';
 
-	type SceneProps = ComponentProps<typeof Scene>;
-
-	interface Props {
+	type Props = HTMLAttributes<HTMLDivElement> & {
 		/**
 		 * The image source URL.
 		 */
-		image: SceneProps['image'];
+		image: string;
 		/**
 		 * Additional CSS classes for the container.
 		 */
@@ -18,39 +16,38 @@
 		 * Glass field rotation in degrees.
 		 * @default 0
 		 */
-		rotation?: SceneProps['rotation'];
+		rotation?: number;
 		/**
 		 * Strength of the glass refraction.
 		 * @default 1
 		 */
-		refraction?: SceneProps['refraction'];
+		refraction?: number;
 		/**
 		 * Amount of chromatic aberration (color splitting).
 		 * @default 1
 		 */
-		chromaticAberration?: SceneProps['chromaticAberration'];
+		chromaticAberration?: number;
 		/**
 		 * Width of the diagonal glass panels.
 		 * @default 0.82
 		 */
-		panelWidth?: SceneProps['panelWidth'];
+		panelWidth?: number;
 		/**
 		 * Frequency of the panel wave.
 		 * @default 0.0
 		 */
-		waveFrequency?: SceneProps['waveFrequency'];
+		waveFrequency?: number;
 		/**
 		 * Amplitude of the panel wave.
 		 * @default 0.0
 		 */
-		waveAmplitude?: SceneProps['waveAmplitude'];
+		waveAmplitude?: number;
 		/**
 		 * Animation speed multiplier.
 		 * @default 0.65
 		 */
-		speed?: SceneProps['speed'];
-		[key: string]: unknown;
-	}
+		speed?: number;
+	};
 
 	let {
 		image,

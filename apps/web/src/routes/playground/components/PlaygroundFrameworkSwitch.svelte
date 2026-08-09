@@ -20,24 +20,71 @@
 		{ value: 'react', label: 'React' },
 		{ value: 'vue', label: 'Vue' }
 	];
+
+	function selectAndFocus(index: number, group: HTMLElement | null) {
+		const option = frameworkOptions[index];
+		if (!option) return;
+		onSelectFramework(option.value);
+		group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
+	}
+
+	function handleKeydown(event: KeyboardEvent, index: number) {
+		const lastIndex = frameworkOptions.length - 1;
+		let nextIndex: number;
+
+		switch (event.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				event.preventDefault();
+				nextIndex = index === lastIndex ? 0 : index + 1;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				event.preventDefault();
+				nextIndex = index === 0 ? lastIndex : index - 1;
+				break;
+			case 'Home':
+				event.preventDefault();
+				nextIndex = 0;
+				break;
+			case 'End':
+				event.preventDefault();
+				nextIndex = lastIndex;
+				break;
+			default:
+				return;
+		}
+
+		const currentTarget = event.currentTarget;
+		selectAndFocus(
+			nextIndex,
+			currentTarget instanceof HTMLElement ? currentTarget.parentElement : null
+		);
+	}
 </script>
 
 <div
 	class="inset-shadow inline-flex items-center gap-1 rounded-sm bg-background-inset p-1"
-	role="group"
+	role="radiogroup"
+	aria-label="Framework"
 >
-	{#each frameworkOptions as framework (framework.value)}
+	{#each frameworkOptions as framework, index (framework.value)}
 		<button
 			type="button"
+			role="radio"
+			tabindex={framework.value === activeFramework ? 0 : -1}
 			class={cn(
-				'inline-flex h-5 w-5 items-center justify-center rounded-[6px] transition-colors duration-150 ease-out',
+				'focus-ring focus-outline inline-flex h-5 w-5 items-center justify-center rounded-[6px] transition-[color,box-shadow] duration-150 ease-out outline-none motion-reduce:transition-none',
 				framework.value === activeFramework
 					? 'bg-background text-foreground card'
 					: 'text-foreground-muted hover:text-foreground'
 			)}
 			aria-label={`Switch framework to ${framework.label}`}
-			aria-pressed={framework.value === activeFramework}
+			aria-checked={framework.value === activeFramework}
 			onclick={() => onSelectFramework(framework.value)}
+			onkeydown={(event) => {
+				handleKeydown(event, index);
+			}}
 		>
 			{#if framework.value === 'svelte'}
 				<AppFrameworkSvelteIcon size={16} />

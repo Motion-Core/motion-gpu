@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
+
 let pkg_root: Promise<string> | null = null;
 
 const MIME: Record<string, string> = {
@@ -55,28 +56,27 @@ async function resolve_pkg_root(): Promise<string> {
 
 export const GET: RequestHandler = async ({ params }) => {
 	const filePath = params.path;
-	if (!filePath) throw error(400, 'Missing path');
+	if (!filePath) error(400, 'Missing path');
 
 	// Prevent directory traversal
-	if (filePath.includes('..')) throw error(400, 'Invalid path');
+	if (filePath.includes('..')) error(400, 'Invalid path');
 
 	let pkg_root_path: string;
 	try {
 		pkg_root_path = await resolve_pkg_root();
 	} catch {
 		// Some runtimes (e.g. deployed Workers) cannot read local node_modules.
-		throw error(404, `File not found: ${filePath}`);
+		error(404, `File not found: ${filePath}`);
 	}
 	const basePath = resolve(pkg_root_path, filePath);
-	if (!basePath.startsWith(pkg_root_path)) throw error(403, 'Forbidden');
+	if (!basePath.startsWith(pkg_root_path)) error(403, 'Forbidden');
 
 	const absolute = await findFile(basePath);
-	if (!absolute || !absolute.startsWith(pkg_root_path))
-		throw error(404, `File not found: ${filePath}`);
+	if (!absolute?.startsWith(pkg_root_path)) error(404, `File not found: ${filePath}`);
 
 	try {
 		const contents = await readFile(absolute);
-		const ext = '.' + absolute.split('.').pop();
+		const ext = `.${absolute.split('.').pop() ?? ''}`;
 		const mime = MIME[ext] ?? 'application/octet-stream';
 
 		return new Response(contents, {
@@ -87,6 +87,6 @@ export const GET: RequestHandler = async ({ params }) => {
 			}
 		});
 	} catch {
-		throw error(404, `File not found: ${filePath}`);
+		error(404, `File not found: ${filePath}`);
 	}
 };

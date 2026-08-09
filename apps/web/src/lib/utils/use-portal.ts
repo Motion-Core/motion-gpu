@@ -27,9 +27,7 @@ export function portal(node: HTMLElement, target: string | HTMLElement = 'body')
 			targetEl = target;
 		} else {
 			throw new Error(
-				`Unknown portal target type: ${
-					target === null ? 'null' : typeof target
-				}. Allowed types: string (CSS selector) or HTMLElement.`
+				`Unknown portal target type: ${typeof target}. Allowed types: string (CSS selector) or HTMLElement.`
 			);
 		}
 		targetEl.appendChild(node);
@@ -41,7 +39,7 @@ export function portal(node: HTMLElement, target: string | HTMLElement = 'body')
 		}
 	}
 
-	update(target);
+	void update(target);
 
 	return {
 		update,

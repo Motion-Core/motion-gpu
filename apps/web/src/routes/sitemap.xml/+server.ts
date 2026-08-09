@@ -1,5 +1,7 @@
 import type { RequestHandler } from './$types';
-import { docsManifest, getDocHref, siteConfig } from '$lib';
+import { siteConfig } from '$lib';
+import { contentSections } from '$lib/config/navigation';
+import { getContentSectionHref, getContentSectionManifest } from '$lib/content/sections';
 
 type SitemapEntry = {
 	path: string;
@@ -9,7 +11,6 @@ type SitemapEntry = {
 
 const staticPages: SitemapEntry[] = [
 	{ path: '/', changefreq: 'weekly', priority: '1.0' },
-	{ path: '/docs', changefreq: 'weekly', priority: '0.9' },
 	{ path: '/llms.txt', changefreq: 'weekly', priority: '0.4' }
 ];
 
@@ -37,13 +38,20 @@ const dedupeEntries = (entries: SitemapEntry[]) => {
 
 export const GET: RequestHandler = () => {
 	const canonicalOrigin = new URL(siteConfig.url).origin;
-	const docEntries: SitemapEntry[] = docsManifest.map((doc) => ({
-		path: getDocHref(doc.slug),
+	const sectionRootEntries: SitemapEntry[] = contentSections.map((section) => ({
+		path: `/${section.id}`,
 		changefreq: 'weekly',
-		priority: '0.8'
+		priority: '0.9'
 	}));
+	const sectionEntries: SitemapEntry[] = contentSections.flatMap((section) =>
+		getContentSectionManifest(section.id).map((item) => ({
+			path: getContentSectionHref(section.id, item.slug),
+			changefreq: 'weekly',
+			priority: '0.8'
+		}))
+	);
 
-	const uniqueEntries = dedupeEntries([...staticPages, ...docEntries]);
+	const uniqueEntries = dedupeEntries([...staticPages, ...sectionRootEntries, ...sectionEntries]);
 	const body =
 		`<?xml version="1.0" encoding="UTF-8"?>` +
 		`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +

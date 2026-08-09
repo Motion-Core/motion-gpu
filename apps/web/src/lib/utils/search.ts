@@ -1,4 +1,8 @@
-type DocSection = {
+import { contentUiDefaults, type SectionUiConfig } from '$lib/config/content-ui';
+import { contentSections } from '$lib/config/navigation';
+import { parseContentSource } from '$lib/content/frontmatter';
+
+type ContentSearchEntry = {
 	title: string;
 	slug: string;
 	heading?: string;
@@ -9,25 +13,6 @@ type DocSection = {
 	content?: string;
 	snippet?: string;
 };
-
-type DocModule = {
-	default: string;
-	metadata?: {
-		name?: string;
-		title?: string;
-		description?: string;
-	};
-};
-
-const docModules = import.meta.glob<string>('/src/routes/docs/**/*.svx', {
-	query: '?raw',
-	eager: true,
-	import: 'default'
-});
-
-const metaModules = import.meta.glob<DocModule>('/src/routes/docs/**/*.svx', {
-	eager: true
-});
 
 const slugify = (value: string) =>
 	value
@@ -71,21 +56,41 @@ function getSnippet(content: string, query: string, maxLength = 100): string {
 	return snippet;
 }
 
-function parseDocs() {
-	const index: DocSection[] = [];
+function parseContentIndex() {
+	const index: ContentSearchEntry[] = [];
 
-	for (const path in docModules) {
-		const rawContent = docModules[path];
-		const meta = metaModules[path]?.metadata ?? {};
+	// Glob from lib/content which mirrors the route structure.
+	const modules = import.meta.glob<string>('/src/lib/content/**/*.svx', {
+		query: '?raw',
+		eager: true,
+		import: 'default'
+	});
 
-		const cleanPath = path.replace('/src/routes/docs/', '').replace('/+page.svx', '');
-		const slug = `/docs/${cleanPath}`;
+	for (const path in modules) {
+		const rawContent = modules[path];
+		const { metadata: meta, body: contentBody } = parseContentSource(rawContent);
 
-		const title = meta.name || meta.title || cleanPath;
-		const description = meta.description || '';
+		// Path example: /src/lib/content/docs/changelog.svx → route: /docs/changelog
+		//              /src/lib/content/examples/index.svx → route: /examples
+		const contentPath = path
+			.replace(/^\/src\/lib\/content\//, '/')
+			.replace(/\.svx$/, '')
+			.replace(/\/index$/, '');
+
+		const section = contentSections.find(
+			(s) => contentPath === `/${s.id}` || contentPath.startsWith(`/${s.id}/`)
+		);
+		if (!section) continue;
+
+		const relativePath = contentPath.replace(new RegExp(`^/${section.id}`), '');
+		const cleanPath = relativePath.replace(/^\/+/, '');
+		const slug = cleanPath ? `/${section.id}/${cleanPath}` : `/${section.id}`;
+
+		const title = meta.name ?? meta.title ?? (cleanPath || section.label);
+		const description = meta.description ?? '';
 
 		index.push({
-			title: title,
+			title,
 			slug,
 			matchType: 'title',
 			score: 0
@@ -93,7 +98,7 @@ function parseDocs() {
 
 		if (description) {
 			index.push({
-				title: title,
+				title,
 				slug,
 				anchor: '',
 				matchType: 'content',
@@ -101,8 +106,6 @@ function parseDocs() {
 				score: 0
 			});
 		}
-
-		const contentBody = rawContent.replace(/^---\n[\s\S]+?\n---\n/, '');
 
 		const lines = contentBody.split('\n');
 		let currentHeading: string | undefined = undefined;
@@ -116,7 +119,7 @@ function parseDocs() {
 				const text = stripMdx(currentContentBuffer.join(' '));
 				if (text.length > 10) {
 					index.push({
-						title: title,
+						title,
 						slug,
 						heading: currentHeading ?? title,
 						anchor: currentAnchor,
@@ -130,7 +133,7 @@ function parseDocs() {
 		};
 
 		for (const line of lines) {
-			const headingMatch = line.match(/^(#{2,4})\s+(.+)$/);
+			const headingMatch = /^(#{2,4})\s+(.+)$/.exec(line);
 
 			if (headingMatch) {
 				flushBuffer();
@@ -140,7 +143,7 @@ function parseDocs() {
 				let baseSlug = slugify(text);
 				if (!baseSlug) {
 					untitledSectionCount += 1;
-					baseSlug = `section-${untitledSectionCount}`;
+					baseSlug = `section-${untitledSectionCount.toString()}`;
 				}
 				const count = slugCounts.get(baseSlug);
 				let uniqueSlug = baseSlug;
@@ -148,7 +151,7 @@ function parseDocs() {
 				if (typeof count === 'number') {
 					const nextCount = count + 1;
 					slugCounts.set(baseSlug, nextCount);
-					uniqueSlug = `${baseSlug}-${nextCount}`;
+					uniqueSlug = `${baseSlug}-${nextCount.toString()}`;
 				} else {
 					slugCounts.set(baseSlug, 0);
 				}
@@ -159,7 +162,7 @@ function parseDocs() {
 				currentAnchor = anchor;
 
 				index.push({
-					title: title,
+					title,
 					slug,
 					heading: text,
 					anchor,
@@ -179,7 +182,7 @@ function parseDocs() {
 	return index;
 }
 
-const searchIndex = parseDocs();
+const searchIndex = parseContentIndex();
 
 const pageLookup = new Map<string, string>();
 searchIndex.forEach((item) => {
@@ -188,14 +191,17 @@ searchIndex.forEach((item) => {
 	}
 });
 
-export function searchDocs(query: string): DocSection[] {
+export function searchContent(
+	query: string,
+	searchConfig: SectionUiConfig['search'] = contentUiDefaults.search
+): ContentSearchEntry[] {
 	if (!query) return [];
 
 	const normalizedQuery = query.toLowerCase();
 
 	const groups = new Map<
 		string,
-		{ parent: DocSection; children: DocSection[]; maxScore: number }
+		{ parent: ContentSearchEntry; children: ContentSearchEntry[]; maxScore: number }
 	>();
 
 	for (const item of searchIndex) {
@@ -222,7 +228,7 @@ export function searchDocs(query: string): DocSection[] {
 			if (!groups.has(item.slug)) {
 				groups.set(item.slug, {
 					parent: {
-						title: pageLookup.get(item.slug) || item.title,
+						title: pageLookup.get(item.slug) ?? item.title,
 						slug: item.slug,
 						matchType: 'title',
 						score: 0
@@ -232,7 +238,8 @@ export function searchDocs(query: string): DocSection[] {
 				});
 			}
 
-			const group = groups.get(item.slug)!;
+			const group = groups.get(item.slug);
+			if (!group) continue;
 
 			if (item.matchType === 'title') {
 				group.parent = { ...item, score };
@@ -252,16 +259,16 @@ export function searchDocs(query: string): DocSection[] {
 			if (scoreDiff !== 0) return scoreDiff;
 			return a.parent.title.localeCompare(b.parent.title);
 		})
-		.slice(0, 20);
+		.slice(0, searchConfig.maxGroups);
 
-	const flatResults: DocSection[] = [];
+	const flatResults: ContentSearchEntry[] = [];
 
 	for (const group of sortedGroups) {
 		flatResults.push(group.parent);
 
 		group.children.sort((a, b) => b.score - a.score);
 
-		const topChildren = group.children.slice(0, 5);
+		const topChildren = group.children.slice(0, searchConfig.maxChildrenPerGroup);
 
 		flatResults.push(...topChildren);
 	}

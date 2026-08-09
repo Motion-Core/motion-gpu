@@ -202,20 +202,20 @@
 <svelte:document onkeydown={handleDocumentKeydown} />
 
 <div
-	class="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-background px-4 py-1.5 after:absolute after:inset-x-0 after:bottom-0 after:h-px after:guide after:content-[''] lg:hidden"
+	class="fixed inset-x-0 top-0 z-50 flex items-center justify-between bg-background px-4 py-1.5 shadow-md lg:hidden"
 >
 	<a
 		href={resolve('/')}
 		class="focus-ring inline-flex items-center gap-1.5 rounded-sm py-2 text-sm tracking-tight text-foreground transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
 	>
 		<span
-			class="inline-flex shrink-0 items-center justify-center overflow-hidden text-accent [&>svg]:size-4 [&>svg]:fill-current"
+			class="inline-flex shrink-0 items-center justify-center overflow-hidden text-accent [&>svg]:size-5 [&>svg]:fill-current"
 			aria-hidden="true"
 		>
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 			{@html brandingConfig.logoRaw}
 		</span>
-		<span class="font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
+		<span class="text-base font-medium tracking-tight text-foreground">{brandingConfig.name}</span>
 	</a>
 	<button
 		id={toggleButtonId}
@@ -225,7 +225,7 @@
 		aria-controls={panelId}
 		aria-expanded={isOpen}
 	>
-		<AppMenuIcon size={16} />
+		<AppMenuIcon size={18} />
 	</button>
 </div>
 
@@ -245,7 +245,7 @@
 
 	<div
 		id={panelId}
-		class="sidebar fixed inset-y-0 right-0 z-50 w-3/4 max-w-sm overflow-hidden bg-background-inset text-foreground-muted before:absolute before:inset-y-0 before:left-0 before:w-px before:guide before:content-[''] lg:hidden"
+		class="sidebar fixed inset-y-0 right-0 z-50 w-3/4 max-w-sm overflow-hidden bg-background-inset text-foreground-muted shadow-md lg:hidden"
 		class:active={isOpen}
 		role="dialog"
 		aria-modal="true"
@@ -257,10 +257,10 @@
 			<button
 				id={closeButtonId}
 				onclick={closePanel}
-				class="focus-ring hit-target size-10 inline-flex items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+				class="focus-ring hit-target inline-flex size-10 items-center justify-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
 				aria-label="Close menu"
 			>
-				<AppCloseIcon size={16} />
+				<AppCloseIcon size={18} />
 			</button>
 		</div>
 

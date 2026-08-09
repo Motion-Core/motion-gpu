@@ -77,8 +77,10 @@
 	}
 
 	.btn-primary {
+		--button-content-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
+
 		color: var(--color-white-fixed);
-		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
+		text-shadow: var(--button-content-shadow);
 		transition:
 			filter 150ms ease-out,
 			box-shadow 150ms ease-out;
@@ -124,7 +126,7 @@
 
 	:global(.dark) .btn-primary {
 		color: var(--color-white-fixed);
-		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
+		text-shadow: var(--button-content-shadow);
 		transition:
 			filter 150ms ease-out,
 			box-shadow 150ms ease-out;
@@ -173,9 +175,11 @@
 	}
 
 	.btn-secondary {
+		--button-content-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+
 		isolation: isolate;
 		color: var(--color-foreground);
-		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+		text-shadow: var(--button-content-shadow);
 
 		transition:
 			filter 150ms ease-out,
@@ -227,7 +231,7 @@
 	:global(.dark) .btn-secondary {
 		isolation: isolate;
 		color: var(--color-foreground);
-		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
+		text-shadow: var(--button-content-shadow);
 
 		transition:
 			filter 150ms ease-out,
@@ -278,5 +282,10 @@
 				filter: brightness(1.08) contrast(0.9);
 			}
 		}
+	}
+
+	.btn-primary :global(svg),
+	.btn-secondary :global(svg) {
+		filter: drop-shadow(var(--button-content-shadow));
 	}
 </style>

@@ -11,7 +11,9 @@
 
 <div
 	data-reveal="badge"
-	class="inset-shadow rounded-full bg-background-inset px-2.5 py-0.5 text-sm font-medium tracking-normal"
+	class="inset-shadow overflow-hidden rounded-full bg-background-inset p-1.5"
 >
-	<Shimmer>{@render children()}</Shimmer>
+	<div class="rounded-full bg-background px-2.5 py-0.5 text-sm font-medium tracking-normal card">
+		<Shimmer>{@render children()}</Shimmer>
+	</div>
 </div>

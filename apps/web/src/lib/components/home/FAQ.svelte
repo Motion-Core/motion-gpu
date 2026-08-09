@@ -80,7 +80,7 @@
 			{#each faqItems as item, index (item.question)}
 				<div
 					data-reveal="card"
-					class="inset-shadow relative overflow-hidden rounded-lg bg-background-inset p-1.5"
+					class="card-outer relative overflow-hidden rounded-lg bg-background-inset p-1.5"
 				>
 					<article class="rounded-md bg-background card">
 						<button

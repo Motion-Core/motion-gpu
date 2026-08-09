@@ -104,16 +104,16 @@
 		<div class="relative flex items-center justify-between gap-3 px-4 py-1.5">
 			<a
 				href={resolve(homeRoute)}
-				class="focus-ring focus-outline inline-flex items-center gap-1 rounded-sm py-2 text-sm tracking-tight text-foreground transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground motion-reduce:transition-none"
+				class="focus-ring focus-outline inline-flex items-center gap-1.5 rounded-sm py-2 text-sm tracking-tight text-foreground transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground motion-reduce:transition-none"
 			>
 				<span
-					class="inline-flex shrink-0 items-center text-accent [&>svg]:size-5 [&>svg]:fill-current"
+					class="inline-flex shrink-0 items-center text-accent [&>svg]:size-4 [&>svg]:fill-current"
 					aria-hidden="true"
 				>
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html brandingConfig.logoRaw}
 				</span>
-				<span class="text-base font-medium tracking-tight text-foreground"
+				<span class="font-medium tracking-tight text-foreground"
 					>{brandingConfig.name}</span
 				>
 			</a>
@@ -151,9 +151,9 @@
 				onclick={toggleMobileMenu}
 			>
 				{#if mobileOpen}
-					<AppCloseIcon size={24} />
+					<AppCloseIcon size={16} />
 				{:else}
-					<AppMenuIcon size={18} />
+					<AppMenuIcon size={16} />
 				{/if}
 			</button>
 		</div>

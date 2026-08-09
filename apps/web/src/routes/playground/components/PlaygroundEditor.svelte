@@ -27,7 +27,7 @@
 	<div class="h-8 border-b border-(--guide-ink)">
 		<ScrollArea mode="horizontal" class="h-full" viewportClass="h-full">
 			<div
-				class="flex items-stretch [&>div:first-child>button]:rounded-tl-md [&>div:last-child>button]:rounded-tr-md"
+				class="flex items-stretch [&>div:first-child>button]:rounded-tl-md [&>div:first-child]:rounded-tl-md [&>div:last-child]:rounded-tl-md [&>div:last-child>button]:rounded-tr-md"
 			>
 				{#each controller.openFilePaths as filePath (filePath)}
 					<div

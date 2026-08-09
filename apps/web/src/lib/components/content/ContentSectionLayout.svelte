@@ -30,7 +30,7 @@
 	const DEFAULT_CONTENT_SHELL_CLASS =
 		'flex h-full min-h-0 w-full min-w-0 flex-1 lg:pt-2 lg:pr-2 lg:pb-2 lg:pl-4';
 	const DEFAULT_CONTENT_WRAPPER_CLASS_BASE =
-		'card-outer relative h-full max-h-full min-h-0 w-full min-w-0 overflow-hidden bg-background-inset pt-12 lg:grid lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible lg:rounded-xl lg:pt-0';
+		'inset-shadow relative h-full max-h-full min-h-0 w-full min-w-0 overflow-hidden bg-background-inset pt-12 lg:grid lg:grid-cols-[minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-visible lg:rounded-xl lg:pt-0';
 	const DEFAULT_CONTENT_WRAPPER_CLASS_WITH_ASIDE =
 		'xl:grid-cols-[minmax(0,1fr)_14rem_2rem] 2xl:grid-cols-[minmax(0,52rem)_minmax(0,1fr)_14rem_2rem]';
 	const DEFAULT_SCROLL_AREA_CLASS_BASE = 'h-full max-h-full min-h-0 w-full min-w-0 lg:row-start-1';

@@ -197,7 +197,7 @@
 			>
 				{#if activeIndicatorWidth > 0}
 					<div
-						class="tab-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out motion-reduce:transition-none"
+						class="tab-active-line package-manager-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out motion-reduce:transition-none"
 						style={`
 									width: ${activeIndicatorWidth.toString()}px;
 									transform: translateX(${activeIndicatorLeft.toString()}px);
@@ -299,7 +299,7 @@
 		}
 
 		:global(html[data-docs-package-manager]:not([data-docs-package-manager-ready]))
-			.tab-active-line {
+			.package-manager-active-line {
 			opacity: 0;
 		}
 

@@ -310,6 +310,33 @@
 		opacity: 0;
 	}
 
+	:global(html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]))
+		.framework-active-line {
+		opacity: 0;
+	}
+
+	:global(html[data-motiongpu-framework]:not([data-motiongpu-framework-ready])) .framework-tab {
+		color: var(--color-foreground-muted);
+	}
+
+	:global(html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='svelte'],
+	:global(html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='react'],
+	:global(html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='vue'] {
+		color: var(--color-accent);
+	}
+
+	:global(html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='svelte']::after,
+	:global(html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='react']::after,
+	:global(html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready]))
+		.framework-tab[data-framework='vue']::after {
+		opacity: 1;
+	}
+
 	.framework-code {
 		display: none;
 	}

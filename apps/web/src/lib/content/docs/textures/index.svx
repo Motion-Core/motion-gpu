@@ -1,216 +1,58 @@
 ---
 title: Textures
-description: Declaring textures, configuring samplers, and managing runtime texture updates.
+description: Declare sampled and storage textures, upload sources, and configure sampling.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+Texture definitions establish allocation, sampling, upload, and shader-visibility contracts. Runtime values provide or replace source images without changing that declaration.
 
-This page covers texture declarations in `defineMaterial`, the runtime texture value forms, update modes, upload behavior, mipmap generation, and sampler configuration.
+## Definition
 
-For loading textures from URLs, see [Loading Textures](/docs/texture-loading).
+| Field | Default | Purpose |
+| --- | --- | --- |
+| `source` | `null` | Initial `TextureValue`; unsupported for storage textures |
+| `colorSpace` | `'srgb'` | Default format is `rgba8unorm-srgb`; linear uses `rgba8unorm` |
+| `format` | Color-space default | Explicit allocation format; required for storage |
+| `flipY` | `true` | Flip external source during upload |
+| `premultipliedAlpha` | `false` | External-image upload behavior |
+| `generateMipmaps` | `false` | Generate the full mip chain on the GPU |
+| `update` | Source-dependent | Upload policy |
+| `filter` | `'linear'` | Min/mag and mipmap filter |
+| `addressModeU/V` | `'clamp-to-edge'` | Sampler wrapping |
+| `anisotropy` | `1` | Floored and clamped to `1..16` |
+| `storage` | `false` | Make the texture compute-writable |
+| `width`, `height` | — | Required explicit dimensions for storage |
+| `fragmentVisible` | Format-aware | Include the sampled binding in fragment WGSL |
 
-## Declaring textures
+Each fragment-visible texture `uImage` produces `uImage` and `uImageSampler` bindings. A null runtime source uses a valid fallback texture.
 
-Textures are declared in the `textures` field of `defineMaterial`:
+## Runtime values
 
-```ts
-const material = defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let color = textureSample(uAlbedo, uAlbedoSampler, uv);
-  return color;
-}
-`,
-	textures: {
-		uAlbedo: {
-			colorSpace: 'srgb',
-			filter: 'linear',
-			generateMipmaps: true
-		}
-	}
-});
-```
+`source` and `state.setTexture(...)` accept `ImageBitmap`, image, canvas, video, `{ source, width?, height?, colorSpace?, flipY?, premultipliedAlpha?, generateMipmaps?, update? }`, or `null`.
 
-Each texture with `fragmentVisible: true` creates two WGSL bindings:
+Update mode precedence is runtime override, definition default, then automatic fallback:
 
-- `uFoo: texture_2d<f32>` — the texture
-- `uFooSampler: sampler` — the associated sampler
+| Mode | Uploads |
+| --- | --- |
+| `'once'` | First bind and source, size, or format changes |
+| `'onInvalidate'` | On invalidation or source change |
+| `'perFrame'` | Every rendered frame |
 
-When `fragmentVisible: false`, the texture slot is excluded from fragment WGSL declarations and `group(0)` fragment bind-group bindings.
+Video sources default to `perFrame`; other sources default to `once`.
 
-`fragmentVisible` defaults to `true` for non-storage textures and float-sampled storage formats (e.g. `rgba8unorm`, `rgba16float`). For integer storage formats (`*uint`, `*sint`) it defaults to `false` because the fragment shader binding is typed `texture_2d<f32>` and cannot sample integer textures. Setting `fragmentVisible: true` explicitly on an integer storage format throws at material-definition time.
+## Sampling constraints
 
-Float32 formats (`r32float`, `rg32float`, `rgba32float`) are sampled as unfilterable textures unless the device supports `float32-filterable`. When filtering is unavailable, Motion GPU uses a non-filtering sampler and coerces `filter: 'linear'` to nearest sampling to avoid WebGPU validation errors.
+Integer `*uint` and `*sint` storage formats default to `fragmentVisible: false`, because fragment bindings use `texture_2d<f32>`. Explicitly enabling fragment visibility for one of those formats throws.
 
-## TextureDefinition fields
+`r32float`, `rg32float`, and `rgba32float` use non-filtering sampling unless the device supports `float32-filterable`. When unsupported, a requested linear filter is coerced to nearest to keep bind-group and sampler types valid.
 
-| Field                | Type                                         | Default                     | Description                                                                                                                                                                                                                                                     |
-| -------------------- | -------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source`             | `TextureValue`                               | `null`                      | Initial texture binding value. Unsupported when `storage: true`.                                                                                                                                                                                                |
-| `colorSpace`         | `'srgb'` \| `'linear'`                       | `'srgb'`                    | Determines GPU format: `rgba8unorm-srgb` vs `rgba8unorm`                                                                                                                                                                                                        |
-| `flipY`              | `boolean`                                    | `true`                      | Flips texture vertically during upload                                                                                                                                                                                                                          |
-| `generateMipmaps`    | `boolean`                                    | `false`                     | Enables GPU-generated mip chain after upload                                                                                                                                                                                                                    |
-| `premultipliedAlpha` | `boolean`                                    | `false`                     | Upload premultiplication behavior                                                                                                                                                                                                                               |
-| `update`             | `'once'` \| `'onInvalidate'` \| `'perFrame'` | Inferred from source        | Runtime refresh policy                                                                                                                                                                                                                                          |
-| `anisotropy`         | `number`                                     | `1`                         | Anisotropic filtering level (clamped to `1..16`)                                                                                                                                                                                                                |
-| `filter`             | `GPUFilterMode`                              | `'linear'`                  | Min/mag filter mode (`'nearest'` or `'linear'`). Float32 formats may be coerced to nearest when the device does not support `float32-filterable`.                                                                                                               |
-| `addressModeU`       | `GPUAddressMode`                             | `'clamp-to-edge'`           | Horizontal wrap mode                                                                                                                                                                                                                                            |
-| `addressModeV`       | `GPUAddressMode`                             | `'clamp-to-edge'`           | Vertical wrap mode                                                                                                                                                                                                                                              |
-| `storage`            | `boolean`                                    | `false`                     | Marks texture as compute-writable storage texture                                                                                                                                                                                                               |
-| `format`             | `GPUTextureFormat`                           | Color-space derived default | Honoured for all texture allocations, including source uploads. **Required when `storage: true`** (must be storage-compatible). When omitted, the allocation format is derived from `colorSpace` (`rgba8unorm-srgb` for `'srgb'`, `rgba8unorm` for `'linear'`). |
-| `width`              | `number`                                     | `undefined`                 | Explicit width. Required when `storage: true`.                                                                                                                                                                                                                  |
-| `height`             | `number`                                     | `undefined`                 | Explicit height. Required when `storage: true`.                                                                                                                                                                                                                 |
-| `fragmentVisible`    | `boolean`                                    | Format-aware (see above)    | Controls whether this slot is bound as a fragment sampled texture in `group(0)`                                                                                                                                                                                 |
+## Storage textures
 
-## Runtime texture value forms
+`storage: true` requires an explicit storage-compatible `format`, `width`, and `height`, and rejects `source`. Compute bindings are generated independently of `fragmentVisible`.
 
-You can set texture sources at definition time or at runtime via `state.setTexture()`:
+Use `PingPongComputePass` with a storage texture. A `PingPongShaderPass` target must instead be a normal fragment-visible sampled texture; the feedback pass owns its A/B render textures.
 
-| Form                               | Description                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `ImageBitmap`                      | Pre-decoded bitmap (from `createImageBitmap` or `useTexture`)                                                                   |
-| `HTMLImageElement`                 | Standard `<img>` element                                                                                                        |
-| `HTMLCanvasElement`                | 2D canvas element                                                                                                               |
-| `HTMLVideoElement`                 | Video element (auto-infers `perFrame` update mode)                                                                              |
-| `{ source, width?, height?, ... }` | Source with per-value overrides for `width`, `height`, `colorSpace`, `flipY`, `premultipliedAlpha`, `generateMipmaps`, `update` |
-| `null`                             | Unbinds user source; a fallback 1×1 texture remains valid in the shader                                                         |
+## Allocation and mipmaps
 
-### Example: setting a texture from a video
+The renderer reallocates when source dimensions or allocation format change and otherwise follows the update mode. Mipmaps are generated by rendering each level from the previous level in the same GPU allocation.
 
-<FrameworkBlock svelteCode={ex.videoTextureSvelte} reactCode={ex.videoTextureReact} vueCode={ex.videoTextureVue} />
-
-Because the source is an `HTMLVideoElement`, the update mode is automatically set to `perFrame`.
-
-## Update modes
-
-The update mode controls **when** the texture is re-uploaded to the GPU:
-
-| Mode             | Behavior                                                                         |
-| ---------------- | -------------------------------------------------------------------------------- |
-| `'once'`         | Upload only on first bind or when the source object / dimensions / format change |
-| `'onInvalidate'` | Upload when the scheduler fires an invalidation, or on source change             |
-| `'perFrame'`     | Upload every frame, regardless of change detection                               |
-
-### Resolution precedence
-
-1. **Runtime override** — `TextureData.update` (from `state.setTexture({ source, update: '...' })`)
-2. **Definition default** — `TextureDefinition.update` (from `defineMaterial({ textures: { ... } })`)
-3. **Automatic fallback** — `HTMLVideoElement` → `perFrame`, everything else → `once`
-
-## Storage textures (compute)
-
-When `storage: true` is enabled, the texture participates in compute bindings (`group(2)`):
-
-- `format` must be a storage-compatible format.
-- Storage texture targets must have explicit `width` and `height`.
-- Storage textures are compute-managed and are not source-uploaded through normal texture update flow.
-- For compute-only storage textures, `fragmentVisible` defaults based on the format (integer formats default to `false`, float formats to `true`). Set `fragmentVisible: false` explicitly on float formats when the slot should not consume fragment sampler/texture bindings. Float32 storage formats visible to the fragment stage use non-filtering sampling unless `float32-filterable` is available.
-
-```ts
-const material = defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  return vec4f(uv, 0.0, 1.0);
-}
-`,
-	textures: {
-		simState: {
-			storage: true,
-			format: 'rgba16float',
-			width: 256,
-			height: 256,
-			fragmentVisible: false // compute-only slot (explicit on float formats)
-		}
-	}
-});
-```
-
-## Fragment feedback textures (`PingPongShaderPass`)
-
-`PingPongShaderPass` targets are declared as normal sampled texture slots in `defineMaterial({ textures })`. The pass owns its internal A/B render textures, then attaches the latest output view to the target before the base scene renders.
-
-Do **not** set `storage: true` for a `PingPongShaderPass` target. Use `PingPongComputePass` when the texture needs compute storage access.
-
-```ts
-const material = defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  return textureSample(trail, trailSampler, uv);
-}
-`,
-	textures: {
-		trail: {
-			format: 'rgba16float',
-			filter: 'linear'
-		}
-	}
-});
-
-const pass = new PingPongShaderPass({
-	fragment: feedbackShader,
-	target: 'trail',
-	width: 512,
-	height: 512,
-	format: 'rgba16float'
-});
-```
-
-During the feedback pass, the target texture is excluded from the regular material texture bind group to avoid sampling the texture being written in the same render pass. Read the previous state through the generated `motiongpuPrevious` / `motiongpuPreviousSampler` bindings instead.
-
-## Upload behavior
-
-The renderer decides how to handle each texture per frame:
-
-| Scenario                        | Action                                        |
-| ------------------------------- | --------------------------------------------- |
-| First bind                      | Allocate GPU texture + upload                 |
-| Source object reference changed | Reallocate if size/format differ, then upload |
-| Size or format changed          | Reallocate + upload                           |
-| `update = 'perFrame'`           | Upload every frame                            |
-| `update = 'onInvalidate'`       | Upload when invalidation is pending           |
-| `update = 'once'`               | No re-upload unless source/size/format change |
-
-The renderer maintains a **fallback 1×1 opaque white texture** for each binding. If the user source is `null`, the fallback is used so the shader always has a valid binding. For explicit float formats such as `rgba16float`, the fallback still uses a safe sampled 8-bit format until a real source or renderer-managed feedback view is attached; this avoids invalid tiny upload layouts while preserving the declared runtime texture contract.
-
-## Mipmap generation
-
-When `generateMipmaps: true` is set:
-
-1. The **base level** (mip 0) is uploaded normally with `copyExternalImageToTexture`.
-2. Each subsequent mip level is generated on the GPU by rendering the previous mip level into the next one.
-3. The generated mip chain stays in the same GPU texture allocation.
-
-Mipmap generation adds GPU work proportional to ~33% of the base texture size. Use it when texture minification is visible (e.g., a texture displayed at varying scales).
-
-## Sampler configuration
-
-The sampler created for each texture is configured from the `TextureDefinition` fields:
-
-| Field          | Effect                                                               |
-| -------------- | -------------------------------------------------------------------- |
-| `filter`       | Sets both `magFilter` and `minFilter`                                |
-| `addressModeU` | Horizontal wrap: `'clamp-to-edge'`, `'repeat'`, or `'mirror-repeat'` |
-| `addressModeV` | Vertical wrap: same options                                          |
-| `anisotropy`   | Maximum anisotropic filtering samples (1 = disabled)                 |
-
-If `generateMipmaps` is enabled, `mipmapFilter` is also set to the same value as `filter`.
-
-## Naming rules
-
-Texture identifiers follow the same rules as uniforms: `[A-Za-z_][A-Za-z0-9_]*`. Invalid names throw at material definition time.
-
-## Practical recommendations
-
-| Use case                       | Recommended config                                                                                                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Static image (photo, sprite)   | `update: 'once'`, `generateMipmaps: true` when minification is visible                                                                                           |
-| Event-driven updates           | `update: 'onInvalidate'` + explicit `invalidate(token)`                                                                                                          |
-| Video / camera / canvas stream | `update: 'perFrame'`                                                                                                                                             |
-| Compute-only storage target    | `storage: true` + explicit `format/width/height` (`fragmentVisible` auto-disables for integer formats; set `false` explicitly for float formats if compute-only) |
-| Fragment feedback target       | Normal sampled texture slot + `PingPongShaderPass({ target, width/height or scale, format })`; do not set `storage: true`                                        |
-| Alpha-correct compositing      | Set `premultipliedAlpha` intentionally and keep source pipeline consistent                                                                                       |
-| Pixel art                      | `filter: 'nearest'` to avoid bilinear smoothing                                                                                                                  |
-| Tiling patterns                | `addressModeU: 'repeat'`, `addressModeV: 'repeat'`                                                                                                               |
+See [Texture Loading](/docs/texture-loading) for URL loading, [Compute Shaders](/docs/compute-shaders) for storage bindings, and the [Glass Pane demo](/playground?demo=glass-pane&framework=svelte) for an editable loaded texture.

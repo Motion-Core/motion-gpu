@@ -1,202 +1,121 @@
 ---
 title: Passes API
-description: Reference for ShaderPass, BlitPass, CopyPass, ComputePass, PingPongComputePass, PingPongShaderPass, and pass slot contracts.
+description: Constructor options and runtime methods for render, compute, and feedback passes.
 ---
 
-Reference for post-processing, fragment-feedback, and compute APIs shared by Svelte/React/Vue adapters and core entrypoints.
-
-## Entrypoints
-
-| Entrypoint                       | Exports                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `@motion-core/motion-gpu/svelte` | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass`, `PingPongShaderPass` |
-| `@motion-core/motion-gpu/react`  | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass`, `PingPongShaderPass` |
-| `@motion-core/motion-gpu/vue`    | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass`, `PingPongShaderPass` |
-| `@motion-core/motion-gpu`        | `ShaderPass`, `BlitPass`, `CopyPass`, `ComputePass`, `PingPongComputePass`, `PingPongShaderPass` |
+Pass classes are framework-neutral and exported from root, core, and adapter entrypoints.
 
 ## Shared render-pass options
 
-`ShaderPass`, `BlitPass`, and `CopyPass` share these post-scene render-pass options:
+`ShaderPass`, `BlitPass`, and `CopyPass` share:
 
-| Option       | Default              | Description                                              |
-| ------------ | -------------------- | -------------------------------------------------------- |
-| `enabled`    | `true`               | Whether pass participates in current frame plan          |
-| `needsSwap`  | `true`               | Swap `source`/`target` after execution                   |
-| `input`      | `'source'`           | Input slot (`source`, `target`, named target)            |
-| `output`     | `'target'` (if swap) | Output slot (`source`, `target`, `canvas`, named target) |
-| `clear`      | `false`              | Clear output before drawing                              |
-| `clearColor` | `[0, 0, 0, 1]`       | RGBA clear color                                         |
-| `preserve`   | `true`               | Preserve output after pass                               |
+| Option | Default |
+| --- | --- |
+| `enabled` | `true` |
+| `needsSwap` | `true` |
+| `input` | `'source'` |
+| `output` | `'target'` when swapping, otherwise `'source'` |
+| `clear` | `false` |
+| `clearColor` | `[0, 0, 0, 1]` |
+| `preserve` | `true` |
+| `filter` | `'linear'` |
+
+`needsSwap: true` is valid only for `source → target`. `canvas` is output-only. Named slots must exist and be written before use.
 
 ## `ShaderPass`
 
-Programmable post-process pass.
-
-Required shader contract:
+Requires `fragment` containing:
 
 ```wgsl
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f
 ```
 
-Additional option:
-
-| Option     | Type            | Description                 |
-| ---------- | --------------- | --------------------------- |
-| `fragment` | `string`        | Required WGSL shader source |
-| `filter`   | `GPUFilterMode` | Texture sampling mode       |
-
-Runtime update API:
+Public methods:
 
 ```ts
-setFragment(nextFragment: string): void
+setFragment(fragment: string): void
+getFragment(): string
 ```
 
-## `BlitPass`
+`setFragment` validates the next source before replacing the active program and invalidating its pipeline cache.
 
-Fullscreen texture sample pass with configurable `filter` (`'linear'` or `'nearest'`).
+## `BlitPass` and `CopyPass`
 
-## `CopyPass`
+`BlitPass` samples its input with the configured filter. `CopyPass` attempts a direct GPU copy and otherwise uses an internal blit. Direct copy requires no clear, preserved output, distinct non-canvas textures, and equal dimensions and formats.
 
-Attempts direct GPU texture copy (`copyTextureToTexture`) and falls back to blit if conditions are not met.
-
-Direct-copy path requires all of:
-
-- `clear === false`
-- `preserve === true`
-- source and output are different textures
-- neither surface is `canvas`
-- matching dimensions and format
+Both expose `setSize`, `render`, and `dispose` through the render-pass lifecycle.
 
 ## `ComputePass`
 
-GPU compute pass for single-dispatch workloads.
-
-Compute passes are renderer-managed pre-scene workloads. The public extension point is the WGSL source plus dispatch strategy passed to `ComputePass` or `PingPongComputePass`.
-
-Required shader contract:
-
-```wgsl
-@compute @workgroup_size(X, Y?, Z?)
-fn compute(@builtin(global_invocation_id) id: vec3u)
+```ts
+new ComputePass({
+	compute: string,
+	dispatch?: tuple | 'auto' | (context) => [number, number, number],
+	enabled?: boolean
+})
 ```
 
-All three elements are validated at construction time: the `@compute` annotation, `@workgroup_size(...)`, and `@builtin(global_invocation_id)` parameter.
-
-### Options
-
-| Option     | Type                                                                        | Default      | Description                 |
-| ---------- | --------------------------------------------------------------------------- | ------------ | --------------------------- |
-| `compute`  | `string`                                                                    | **Required** | WGSL compute shader source  |
-| `dispatch` | `[number, number?, number?] \| 'auto' \| (ctx) => [number, number, number]` | `'auto'`     | Workgroup dispatch strategy |
-| `enabled`  | `boolean`                                                                   | `true`       | Whether pass is active      |
-
-### Runtime update API
+The source requires `@compute`, numeric `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature.
 
 ```ts
-setCompute(source: string): void
-setDispatch(dispatch: ComputePassOptions['dispatch']): void
+setCompute(source): void
+setDispatch(dispatch): void
 getCompute(): string
 getWorkgroupSize(): [number, number, number]
-resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
+resolveDispatch(context): [number, number, number]
+dispose(): void
 ```
 
-### `ComputeDispatchContext`
-
-| Field           | Type                       |
-| --------------- | -------------------------- |
-| `width`         | `number`                   |
-| `height`        | `number`                   |
-| `time`          | `number`                   |
-| `delta`         | `number`                   |
-| `workgroupSize` | `[number, number, number]` |
+`isCompute` is the readonly `true` discriminant.
 
 ## `PingPongComputePass`
 
-Iterative compute pass for multi-step GPU simulations.
-
-### Options
-
-| Option       | Type          | Default      | Description                                                                                                                    |
-| ------------ | ------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `compute`    | `string`      | **Required** | WGSL compute shader source                                                                                                     |
-| `target`     | `string`      | **Required** | Storage texture key from `material.textures` (`storage: true`). Storage texture targets require explicit `width` and `height`. |
-| `iterations` | `number`      | `1`          | Iterations per frame (must be `>= 1`)                                                                                          |
-| `dispatch`   | dispatch mode | `'auto'`     | Workgroup dispatch strategy                                                                                                    |
-| `enabled`    | `boolean`     | `true`       | Whether pass is active                                                                                                         |
-
-### Runtime update API
+Adds required `target`, optional positive-integer `iterations` (default `1`), and the `isPingPong` discriminant. Its target must be a declared storage texture with explicit dimensions.
 
 ```ts
-getCurrentOutput(): string          // Texture key holding latest result ({target}A or {target}B)
-advanceFrame(): void                // Advance internal counter (called by renderer)
-setIterations(count: number): void
-setCompute(source: string): void
+getCurrentOutput(): string
+advanceFrame(): void
+setIterations(count): void
+setCompute(source): void
 setDispatch(dispatch): void
 getTarget(): string
 getIterations(): number
 getCompute(): string
 getWorkgroupSize(): [number, number, number]
-resolveDispatch(ctx: ComputeDispatchContext): [number, number, number]
+resolveDispatch(context): [number, number, number]
+dispose(): void
 ```
 
-### Properties
-
-| Property     | Type      | Description                                 |
-| ------------ | --------- | ------------------------------------------- |
-| `isCompute`  | `true`    | Discriminant for pre-scene compute planning |
-| `isPingPong` | `true`    | Ping-pong identifier                        |
-| `enabled`    | `boolean` | Active state                                |
+The renderer calls `advanceFrame()` after the current iteration batch. Output A/B parity therefore remains correct when iteration count changes between frames.
 
 ## `PingPongShaderPass`
 
-Iterative fragment-feedback pass for fullscreen simulations that read the previous texture state and write the next one. The renderer executes it in the pre-scene phase, owns two A/B render textures, and exposes the latest output through the declared material texture target before the base scene renders.
+Runs a pre-scene fragment shader with `fn frag(uv: vec2f) -> vec4f`. `target` must be a declared, fragment-visible, non-storage material texture.
 
-Required shader contract:
+| Option | Default |
+| --- | --- |
+| `width`, `height` | Canvas axis multiplied by `scale` |
+| `scale` | `1` |
+| `format` | `'rgba16float'` |
+| `filter` | `'linear'` |
+| `addressModeU/V` | `'clamp-to-edge'` |
+| `iterations` | `1` |
+| `clearColor` | `[0, 0, 0, 0]` |
+| `defines`, `includes` | `{}` |
+| `enabled` | `true` |
 
-```wgsl
-fn frag(uv: vec2f) -> vec4f
-```
-
-The generated shader adds these previous-state bindings:
-
-```wgsl
-@group(1) @binding(0) var motiongpuPreviousSampler: sampler;
-@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
-```
-
-`group(0)` contains frame uniforms, user uniforms, and fragment-visible material textures except the target texture. The target is intentionally excluded while the feedback pass is writing, so read previous state only through `motiongpuPrevious`.
-
-### Options
-
-| Option         | Type                               | Default                 | Description                                                                                                              |
-| -------------- | ---------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `fragment`     | `string`                           | **Required**            | WGSL fragment source containing `fn frag(uv: vec2f) -> vec4f`                                                            |
-| `target`       | `string`                           | **Required**            | Material texture key that receives the latest feedback output. Must be fragment-visible and must not be `storage: true`. |
-| `width`        | `number`                           | canvas width × `scale`  | Explicit feedback texture width                                                                                          |
-| `height`       | `number`                           | canvas height × `scale` | Explicit feedback texture height                                                                                         |
-| `scale`        | `number`                           | `1`                     | Canvas-relative scale for implicit dimensions                                                                            |
-| `format`       | `GPUTextureFormat`                 | `'rgba16float'`         | A float-sampled render texture format                                                                                    |
-| `filter`       | `GPUFilterMode`                    | `'linear'`              | Previous-state sampler filter                                                                                            |
-| `addressModeU` | `GPUAddressMode`                   | `'clamp-to-edge'`       | Previous-state sampler U address mode                                                                                    |
-| `addressModeV` | `GPUAddressMode`                   | `'clamp-to-edge'`       | Previous-state sampler V address mode                                                                                    |
-| `iterations`   | `number`                           | `1`                     | Fragment iterations per frame (must be `>= 1`)                                                                           |
-| `clearColor`   | `[number, number, number, number]` | `[0, 0, 0, 0]`          | Color used to initialize or reset both A/B textures                                                                      |
-| `defines`      | `MaterialDefines`                  | `{}`                    | Compile-time constants injected before the fragment                                                                      |
-| `includes`     | `MaterialIncludes`                 | `{}`                    | WGSL chunks used by `#include <name>` directives                                                                         |
-| `enabled`      | `boolean`                          | `true`                  | Whether pass is active                                                                                                   |
-
-### Runtime update API
+Dimensions and scale must be finite and positive, iterations a positive integer, and format float-sampled.
 
 ```ts
-setFragment(fragment: string, options?: { defines?: MaterialDefines; includes?: MaterialIncludes }): void
-setIterations(count: number): void
-setDimensions(width?: number, height?: number): void
-setScale(scale: number): void
-reset(clearColor?: [number, number, number, number]): void
-consumeResetColor(): [number, number, number, number] | null
-getCurrentOutput(): string          // Texture key holding latest result ({target}A or {target}B)
-advanceFrame(): void                // Advance internal counter (called by renderer)
-resolveSize(canvasSize: { width: number; height: number }): { width: number; height: number }
+setFragment(fragment, { defines?, includes? }?): void
+setIterations(count): void
+setDimensions(width?, height?): void
+setScale(scale): void
+reset(clearColor?): void
+consumeResetColor(): RGBA | null
+getCurrentOutput(): string
+advanceFrame(): void
+resolveSize(canvasSize): { width, height }
 getTarget(): string
 getFragment(): string
 getFragmentLineMap(): MaterialLineMap
@@ -205,34 +124,10 @@ getFormat(): GPUTextureFormat
 getFilter(): GPUFilterMode
 getAddressModeU(): GPUAddressMode
 getAddressModeV(): GPUAddressMode
-getClearColor(): [number, number, number, number]
+getClearColor(): RGBA
+dispose(): void
 ```
 
-### Properties
+`isPingPongShader` is the readonly `true` discriminant. `setDimensions`, `setScale`, and `reset` request A/B reinitialization; `consumeResetColor` is renderer-facing and clears that pending request.
 
-| Property           | Type      | Description                                           |
-| ------------------ | --------- | ----------------------------------------------------- |
-| `isPingPongShader` | `true`    | Discriminant for pre-scene fragment-feedback planning |
-| `enabled`          | `boolean` | Active state                                          |
-
-### Texture coordinates
-
-`PingPongShaderPass` `uv` is aligned with the feedback render texture so previous-state reads and current writes hit the same row across iterations. When the target is sampled later by a normal material using its public Y-up `frag(uv)` coordinates, the visible result lines up with the material shader.
-
-## Slot constraints
-
-| Rule                                                             | Effect                     |
-| ---------------------------------------------------------------- | -------------------------- |
-| `needsSwap: true` must be `input: 'source'` + `output: 'target'` | Invalid combinations throw |
-| `canvas` is output-only                                          | `input: 'canvas'` throws   |
-| Named targets must exist in `renderTargets`                      | Unknown target names throw |
-| Named targets must be written before read in frame plan          | Read-before-write throws   |
-
-Compute and fragment-feedback passes do **not** participate in slot routing. They have no `input`, `output`, or `needsSwap` options, and they always execute before the base scene render. Render pass order is preserved only within the post-scene render-pass group.
-
-## Related docs
-
-- [Render Passes](/docs/render-passes)
-- [Render Targets](/docs/render-targets)
-- [Compute Shaders](/docs/compute-shaders)
-- [Storage Buffers](/docs/storage-buffers)
+See [Render Passes](/docs/render-passes), [Compute Shaders](/docs/compute-shaders), and the [Ping-pong Fluid demo](/playground?demo=ping-pong-fluid&framework=svelte).

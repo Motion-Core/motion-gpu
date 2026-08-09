@@ -1,29 +1,11 @@
 ---
-title: Error Handling
-description: Understanding the error normalization pipeline, structured reports, and diagnostics.
+title: Error handling
+description: Normalize WebGPU, shader, resource, and runtime failures into stable reports.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+All adapters route initialization and render failures through `toMotionGPUErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
 
-Motion GPU normalizes all runtime errors into a consistent `MotionGPUErrorReport` structure. This page covers the error pipeline, classification patterns, default/custom error UI behavior, shader compile diagnostics, device loss handling, and retry strategy.
-
-All adapters (Svelte, React, Vue) use the same runtime error contracts and `MotionGPUErrorReport` structure.
-
-## Error normalization pipeline
-
-All errors from initialization and per-frame rendering are processed by `toMotionGPUErrorReport(error, phase)`:
-
-| Phase              | When                                                                     |
-| ------------------ | ------------------------------------------------------------------------ |
-| `'initialization'` | WebGPU adapter/device acquisition, shader compilation, pipeline creation |
-| `'render'`         | Per-frame render execution, texture uploads, buffer writes               |
-
-The function inspects the error message, classifies it into a stable category code, and produces a structured report.
-
-## MotionGPUErrorReport shape
+## Report
 
 ```ts
 interface MotionGPUErrorReport {
@@ -37,235 +19,62 @@ interface MotionGPUErrorReport {
 	stack: string[];
 	rawMessage: string;
 	phase: 'initialization' | 'render';
-	source: {
-		component: string;
-		location: string;
-		line: number;
-		column?: number;
-		snippet: Array<{
-			number: number;
-			code: string;
-			highlight: boolean;
-		}>;
-	} | null;
-	context: {
-		materialSignature?: string;
-		passGraph?: {
-			passCount: number;
-			enabledPassCount: number;
-			inputs: string[];
-			outputs: string[];
-		};
-		activeRenderTargets: string[];
-	} | null;
+	source: MotionGPUErrorSource | null;
+	context: MotionGPUErrorContext | null;
 }
 ```
 
-This interface describes the runtime callback payload shape used by `onError` / `errorRenderer`.
+`code` is the stable routing key. Text fields are display-oriented and may contain source-mapped compiler information. `context`, when present, can include a material signature, pass-graph summary, and active render targets.
 
-| Field         | Description                                                                                          |
-| ------------- | ---------------------------------------------------------------------------------------------------- |
-| `code`        | Stable machine-readable category (for telemetry and alert routing)                                   |
-| `severity`    | Error level used for UX/alerts (`'error'` or `'fatal'`)                                              |
-| `recoverable` | Whether runtime may continue without full renderer recreation                                        |
-| `title`       | Short category heading (e.g., `"WGSL compilation failed"`)                                           |
-| `message`     | Primary human-readable error message                                                                 |
-| `hint`        | Suggested remediation or next step                                                                   |
-| `details`     | Additional lines (e.g., extra compiler messages)                                                     |
-| `stack`       | Stack trace lines when available                                                                     |
-| `rawMessage`  | Original unsanitized error message                                                                   |
-| `phase`       | `'initialization'` or `'render'`                                                                     |
-| `source`      | Structured source context for shader compile errors, or `null`                                       |
-| `context`     | Runtime snapshot for diagnostics (`materialSignature`, pass graph, active render targets), or `null` |
+## Codes
 
-## Built-in classification patterns
+| Area | Codes |
+| --- | --- |
+| WebGPU setup | `WEBGPU_UNAVAILABLE`, `WEBGPU_ADAPTER_UNAVAILABLE`, `WEBGPU_CONTEXT_UNAVAILABLE` |
+| Shader compilation | `WGSL_COMPILATION_FAILED`, `COMPUTE_COMPILATION_FAILED`, `COMPUTE_CONTRACT_INVALID`, `MATERIAL_PREPROCESS_FAILED` |
+| Device and commands | `WEBGPU_DEVICE_LOST`, `WEBGPU_UNCAPTURED_ERROR`, `BIND_GROUP_MISMATCH` |
+| Runtime resources | `RUNTIME_RESOURCE_MISSING`, `UNIFORM_VALUE_INVALID`, `STORAGE_BUFFER_OUT_OF_BOUNDS`, `STORAGE_BUFFER_READ_FAILED` |
+| Graph and ping-pong | `RENDER_GRAPH_INVALID`, `PINGPONG_CONFIGURATION_INVALID` |
+| Textures | `TEXTURE_USAGE_INVALID`, `TEXTURE_REQUEST_FAILED`, `TEXTURE_DECODE_UNAVAILABLE`, `TEXTURE_REQUEST_ABORTED` |
+| Fallback | `MOTIONGPU_RUNTIME_ERROR` |
 
-The normalizer matches error messages against known patterns and assigns code, severity, recoverability, title, and hint:
+WebGPU, adapter, device-loss, and missing bitmap-decode classifications are fatal and non-recoverable where defined by the normalizer. Other known classifications and the fallback are currently reported as recoverable errors.
 
-| Pattern detected in message                                                                                                   | Code                             | Severity | Recoverable | Title                                   | Hint                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | -------- | ----------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `WebGPU is not available in this browser`                                                                                     | `WEBGPU_UNAVAILABLE`             | `fatal`  | `false`     | WebGPU unavailable                      | Use a browser with WebGPU enabled (latest Chrome/Edge/Safari TP) and secure context.                             |
-| `Unable to acquire WebGPU adapter`                                                                                            | `WEBGPU_ADAPTER_UNAVAILABLE`     | `fatal`  | `false`     | WebGPU adapter unavailable              | GPU adapter request failed. Check browser permissions, flags and device support.                                 |
-| `Canvas does not support webgpu context`                                                                                      | `WEBGPU_CONTEXT_UNAVAILABLE`     | `error`  | `true`      | Canvas cannot create WebGPU context     | Make sure this canvas is attached to DOM and not using an unsupported context option.                            |
-| `WGSL compilation failed`                                                                                                     | `WGSL_COMPILATION_FAILED`        | `error`  | `true`      | WGSL compilation failed                 | Check WGSL line numbers below and verify struct/binding/function signatures.                                     |
-| `Invalid include directive ...`, `Unknown include ...`, `Circular include ...`, `Invalid define value ...`                    | `MATERIAL_PREPROCESS_FAILED`     | `error`  | `true`      | Material preprocess failed              | Validate `#include` keys, define values and include expansion order before retrying.                             |
-| `Compute shader compilation failed`                                                                                           | `COMPUTE_COMPILATION_FAILED`     | `error`  | `true`      | Compute shader compilation failed       | Check compute shader WGSL source and verify storage bindings.                                                    |
-| `Compute shader must declare ...`, missing `global_invocation_id`, invalid `@workgroup_size`, unsupported storage access mode | `COMPUTE_CONTRACT_INVALID`       | `error`  | `true`      | Compute contract is invalid             | Ensure compute shader contract (`@compute`, `@workgroup_size`, `global_invocation_id`, storage access) is valid. |
-| `WebGPU device lost` / `Device Lost`                                                                                          | `WEBGPU_DEVICE_LOST`             | `fatal`  | `false`     | WebGPU device lost                      | GPU device/context was lost. Recreate the renderer and check OS/GPU stability.                                   |
-| `Dispatch workgroup count ... max compute workgroups per dimension`                                                           | `WEBGPU_UNCAPTURED_ERROR`        | `error`  | `true`      | Compute dispatch exceeds device limit   | Reduce dispatch counts or split compute work into multiple dispatches/chunks.                                    |
-| `maximum storage buffer binding size` / `maxStorageBufferBindingSize`                                                         | `WEBGPU_UNCAPTURED_ERROR`        | `error`  | `true`      | Storage buffer exceeds binding limit    | Keep each storage buffer binding below adapter limits or shard data across multiple buffers.                     |
-| `WebGPU uncaptured error`                                                                                                     | `WEBGPU_UNCAPTURED_ERROR`        | `error`  | `true`      | WebGPU uncaptured error                 | A GPU command failed asynchronously. Review details and validate resource/state usage.                           |
-| `CreateBindGroup` / `bind group layout`                                                                                       | `BIND_GROUP_MISMATCH`            | `error`  | `true`      | Bind group mismatch                     | Bindings in shader and runtime resources are out of sync. Verify uniforms/textures layout.                       |
-| `Unknown uniform ...`, `Unknown texture ...`, `Unknown storage buffer ...`, missing storage/texture definitions               | `RUNTIME_RESOURCE_MISSING`       | `error`  | `true`      | Runtime resource binding failed         | Check material declarations and runtime keys for uniforms, textures and storage resources.                       |
-| `Uniform ... value must ...`                                                                                                  | `UNIFORM_VALUE_INVALID`          | `error`  | `true`      | Uniform value is invalid                | Provide finite values with tuple/matrix sizes matching the uniform type.                                         |
-| `Storage buffer ... write out of bounds`                                                                                      | `STORAGE_BUFFER_OUT_OF_BOUNDS`   | `error`  | `true`      | Storage buffer write out of bounds      | Ensure offset + write byte length does not exceed declared storage buffer size.                                  |
-| `Cannot read storage buffer ...`, `not allocated on GPU`, missing device                                                      | `STORAGE_BUFFER_READ_FAILED`     | `error`  | `true`      | Storage buffer read failed              | Readbacks require initialized renderer, allocated GPU buffer and active device.                                  |
-| `Render pass #...` validation errors, unknown runtime target references                                                       | `RENDER_GRAPH_INVALID`           | `error`  | `true`      | Render graph configuration is invalid   | Verify pass inputs/outputs, declared render targets and execution order.                                         |
-| `PingPongComputePass must provide a target texture key`                                                                       | `PINGPONG_CONFIGURATION_INVALID` | `error`  | `true`      | Ping-pong compute pass is misconfigured | Configure a valid target texture key for `PingPongComputePass`.                                                  |
-| `PingPongShaderPass ...` target, format, dimension, iteration, or fragment-contract errors                                    | `PINGPONG_CONFIGURATION_INVALID` | `error`  | `true`      | Ping-pong shader pass is misconfigured  | Verify `PingPongShaderPass` target texture, dimensions, iterations, format and fragment contract.                |
-| `Destination texture needs to have CopyDst`                                                                                   | `TEXTURE_USAGE_INVALID`          | `error`  | `true`      | Invalid texture usage flags             | Texture used as upload destination must include CopyDst (and often RenderAttachment).                            |
-| `Texture request failed`                                                                                                      | `TEXTURE_REQUEST_FAILED`         | `error`  | `true`      | Texture request failed                  | Verify texture URL, CORS policy and response status before retrying.                                             |
-| `createImageBitmap is not available in this runtime`                                                                          | `TEXTURE_DECODE_UNAVAILABLE`     | `fatal`  | `false`     | Texture decode unavailable              | Runtime lacks createImageBitmap support. Use a browser/runtime with image bitmap decoding.                       |
-| `texture request was aborted`                                                                                                 | `TEXTURE_REQUEST_ABORTED`        | `error`  | `true`      | Texture request aborted                 | Texture load was cancelled. Retry the request when source inputs stabilize.                                      |
-| _(fallback)_                                                                                                                  | `MOTIONGPU_RUNTIME_ERROR`        | `error`  | `true`      | MotionGPU render error                  | Review technical details below. If issue persists, isolate shader/uniform/texture changes.                       |
+## FragCanvas handling
 
-## Overlay behavior
+| Prop | Default | Behavior |
+| --- | --- | --- |
+| `showErrorOverlay` | `true` | Enables default or custom error UI |
+| `errorRenderer` | — | Replaces the default overlay for the adapter |
+| `onError` | — | Receives the latest normalized report regardless of overlay state |
+| `errorHistoryLimit` | `0` | Enables bounded history when positive |
+| `onErrorHistory` | — | Receives fresh history snapshots |
 
-By default, `FragCanvas` displays runtime errors through the adapter overlay component (`MotionGPUErrorOverlay` rendered via adapter portal utility):
+History limits are floored; non-finite and non-positive values disable history. Consecutive reports with the same phase, title, message, and raw message are deduplicated. Reducing the limit trims existing history. Consumer mutation cannot change the internal snapshot.
 
-| Prop                | Default     | Effect                                                                                                                       |
-| ------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `showErrorOverlay`  | `true`      | Enables all error UI rendering                                                                                               |
-| `errorRenderer`     | `undefined` | Optional custom renderer (`Snippet` in Svelte / callback in React / scoped slot in Vue) that replaces the default overlay UI |
-| `onError`           | `undefined` | Callback invoked with the normalized report                                                                                  |
-| `errorHistoryLimit` | `0`         | Enables bounded history collection when `> 0`                                                                                |
-| `onErrorHistory`    | `undefined` | Callback invoked with deduplicated bounded history snapshots                                                                 |
+The default overlay shows classification metadata, hints, technical details, source snippets, and runtime context when available. Adapter portals keep it outside canvas drawing while preserving the canvas subtree context.
 
-### Key behaviors
+## Shader diagnostics
 
-- Even when `showErrorOverlay` is `false`, `onError` is still called.
-- With `errorRenderer` set and `showErrorOverlay=true`, custom UI is rendered instead of the default overlay.
-- Default overlay always surfaces report metadata (`phase`, `code`, `severity`, `recoverable`) to make classification visible without opening details.
-- When shader diagnostics include runtime context, overlay includes a **Runtime context** section (`materialSignature`, pass graph summary, active render targets).
-- When `errorHistoryLimit <= 0`, history collection is disabled and `onErrorHistory` receives `[]` after resets.
-- When `errorHistoryLimit > 0`, history behaves as a ring buffer containing only the latest `N` unique reports.
-- Consecutive identical reports (`phase/title/message/rawMessage`) are deduplicated and do not append history.
-- `onErrorHistory` and adapter state receive fresh snapshot arrays; mutating a received array does not alter internal runtime history.
-- The default overlay renders above canvas content using a DOM portal.
-- Multiple errors display the most recent one.
+Compilation diagnostics retain both generated-line positions and original source locations:
 
-### Minimal error handling
+- material fragment line;
+- include name and line;
+- define name and line;
+- compute source line.
 
-<FrameworkBlock svelteCode={ex.minimalErrorSvelte} reactCode={ex.minimalErrorReact} vueCode={ex.minimalErrorVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
+The primary diagnostic becomes `message`, remaining diagnostics become `details`, and the first mapped location builds the highlighted `source` snippet. Compute payloads carry `shaderStage: 'compute'` and the original compute source.
 
-### Error history callbacks
-
-<FrameworkBlock svelteCode={ex.errorHistorySvelte} reactCode={ex.errorHistoryReact} vueCode={ex.errorHistoryVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
-
-### Custom error renderer
-
-<FrameworkBlock svelteCode={ex.customRendererSvelte} reactCode={ex.customRendererReact} vueCode={ex.customRendererVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
-
-## Shader compile diagnostics
-
-When WGSL compilation fails, the renderer extracts diagnostics from `GPUShaderModule.getCompilationInfo()` and maps line numbers using the material's source line map.
-
-### Source location mapping
-
-The line map tracks which generated WGSL line corresponds to which original source:
-
-| Map entry type                                                                          | Reported as             |
-| --------------------------------------------------------------------------------------- | ----------------------- |
-| User fragment (material or feedback fragment when structured diagnostics are available) | `fragment line X`       |
-| Include chunk                                                                           | `include <name> line X` |
-| Define constant                                                                         | `define "NAME" line X`  |
-| User compute source                                                                     | `compute line X`        |
-
-### Structured diagnostics payload
-
-For WGSL compilation failures, the error carries a structured diagnostics payload:
-
-```ts
-interface ShaderCompilationDiagnostic {
-	generatedLine: number;
-	message: string;
-	linePos?: number;
-	lineLength?: number;
-	sourceLocation: {
-		kind: 'fragment' | 'include' | 'define' | 'compute';
-		line: number;
-		include?: string;
-		define?: string;
-	} | null;
-}
-```
-
-```ts
-interface ShaderCompilationDiagnosticsPayload {
-	kind: 'shader-compilation';
-	shaderStage?: 'fragment' | 'compute';
-	diagnostics: ShaderCompilationDiagnostic[];
-	fragmentSource: string;
-	computeSource?: string;
-	includeSources: Record<string, string>;
-	defineBlockSource?: string;
-	materialSource: {
-		component?: string;
-		file?: string;
-		line?: number;
-		column?: number;
-		functionName?: string;
-	} | null;
-	runtimeContext?: {
-		materialSignature?: string;
-		passGraph?: {
-			passCount: number;
-			enabledPassCount: number;
-			inputs: string[];
-			outputs: string[];
-		};
-		activeRenderTargets: string[];
-	};
-}
-```
-
-`toMotionGPUErrorReport` uses this to build:
-
-- **`message`** — first compiler error enriched with source label and generated-line context (when available).
-- **`details`** — additional compiler messages with the same contextual labels.
-- **`source`** — component location, line number, and highlighted code snippet.
-- **`context`** — runtime snapshot (`materialSignature`, pass graph, active render targets) when provided by diagnostics payload.
-
-For compute-stage failures, diagnostics payload carries `shaderStage: 'compute'` and `computeSource`; source mapping points to `compute` lines instead of fragment/include/define locations.
-
-Because compute pipeline validation is partly asynchronous in WebGPU, a bad compute shader may first build an optimistic pending pipeline entry and then resolve to a structured compilation error after `getCompilationInfo()` / validation-scope results arrive. In that case the renderer schedules another render pass and surfaces the cached `COMPUTE_COMPILATION_FAILED` report on the next frame instead of falling back to derivative uncaptured-error noise.
-
-### Overlay Source panel
-
-When `report.source` is available, the overlay shows:
-
-- Active source tab: source label + location metadata (fragment/include/define/compute), with optional column.
-- Source snippet centred around the failing line
-- Highlighted failing line
-- Additional diagnostics in a collapsible section
+Compute pipeline validation is partly asynchronous. The renderer caches pending, ready, or failed pipeline state and schedules another frame when validation completes, allowing the normalized compute compilation error to replace derivative uncaptured-command noise.
 
 ## Device loss and uncaptured errors
 
-The renderer listens for two asynchronous error conditions:
+The renderer watches `device.lost` and `uncapturederror`, wakes manual and on-demand runtimes, and re-enters the normal reporting path. It retains up to 12 recent unique uncaptured messages, prefers a root validation cause over derivative `Invalid CommandBuffer` messages, and attaches other unique messages as details.
 
-| Event                   | Source                                                            |
-| ----------------------- | ----------------------------------------------------------------- |
-| `device.lost` promise   | GPU device lost (driver crash, system sleep, resource exhaustion) |
-| `uncapturederror` event | Unexpected WebGPU validation or out-of-memory error               |
+Device loss causes renderer recreation. Repeated creation failures use exponential delays from 250 ms to an 8-second cap; changing the pipeline signature resets the retry state.
 
-Once captured, the error state is stored. The next render call throws a normalized error so `FragCanvas` can display it through the standard reporting path.
+## Production use
 
-For uncaptured errors, the renderer aggregates and normalizes messages before throwing:
+Route telemetry by `code`, `severity`, and `phase`. Keep the detailed overlay in development; use `errorRenderer` for product UI. Enable bounded history only when session diagnostics need it.
 
-- Tracks up to the most recent `12` uncaptured messages and ignores immediate duplicates.
-- Prioritizes a non-derivative root-cause validation message as primary (instead of follow-up `Invalid CommandBuffer` noise).
-- Includes additional unique uncaptured messages in the same thrown error payload under an `Additional uncaptured WebGPU errors (...)` block.
-
-## Retry strategy
-
-When renderer creation fails, `FragCanvas` retries with **exponential backoff**:
-
-| Attempt    | Delay         |
-| ---------- | ------------- |
-| 1st retry  | 250 ms        |
-| 2nd retry  | 500 ms        |
-| 3rd retry  | 1000 ms       |
-| 4th retry  | 2000 ms       |
-| 5th retry  | 4000 ms       |
-| 6th+ retry | 8000 ms (cap) |
-
-Retry state **resets** when the pipeline signature changes (e.g., when you fix a shader error and hot-reload).
-
-## Production recommendations
-
-1. **Always provide `onError`** — send reports to your logging/telemetry system.
-2. **Keep default overlay enabled in dev/staging** — it surfaces WGSL errors with line-level precision.
-3. **Use `errorRenderer` in production** when you need branded/error-system-integrated UI.
-4. **Route alerts by `code` + `severity`** first, then display `phase` and `title` for triage context.
-5. **Enable bounded history (`errorHistoryLimit`)** for session diagnostics without unbounded memory growth.
-6. **Use `hint`** for contextual guidance — each error classification provides a specific suggestion.
+See [FragCanvas Reference](/docs/fragcanvas-reference#error-handling) for adapter-specific renderer types.

@@ -15,7 +15,7 @@
 
 <div
 	data-reveal="card"
-	class="inset-shadow relative overflow-hidden rounded-lg bg-background-inset p-1.5"
+	class="card-outer relative overflow-hidden rounded-lg bg-background-inset p-1.5"
 >
 	<article class={cn('grid min-h-72 rounded-md bg-background p-4 card sm:p-6', className)}>
 		<div class={cn('flex items-start', number ? 'justify-between' : 'justify-start')}>

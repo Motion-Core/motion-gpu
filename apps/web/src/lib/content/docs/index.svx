@@ -1,72 +1,41 @@
 ---
-title: Motion GPU Documentation
-description: Framework-agnostic WebGPU core with Svelte 5, React 19, and Vue 3 adapters for fullscreen WGSL rendering.
+title: Motion GPU documentation
+description: Framework-agnostic WebGPU rendering with Svelte 5, React 19, and Vue 3 adapters.
 ---
 
-`@motion-core/motion-gpu` ships a **framework-agnostic WebGPU core** plus **Svelte 5**, **React 19**, and **Vue 3** adapters for fullscreen WGSL rendering. You get a declarative material system, a reactive frame scheduler, a composable post-processing pipeline, **fragment feedback passes**, and **GPU compute shader support** — wired into a single `<FragCanvas>` component in all three adapters.
+Motion GPU is a framework-agnostic WebGPU runtime for fullscreen fragment rendering, post-processing, fragment feedback, and compute workloads. Svelte 5, React 19, and Vue 3 adapters expose the same runtime through `<FragCanvas>` and context-bound hooks.
 
-This documentation was generated directly from the `packages/motion-gpu/src` source tree, so every contract, default value, and edge-case behavior described here reflects the actual implementation.
+Use the documentation for contracts and runtime behavior. Use the [playground](/playground) to edit complete examples with hot reload.
 
-## AI documentation access
+## Runtime model
 
-Motion GPU documentation is also available for AI tools via [Context7](https://context7.com/motion-core/motion-gpu).
+1. Create an immutable material with `defineMaterial(...)`.
+2. Mount it in the adapter-specific `FragCanvas`.
+3. Register per-frame work with `useFrame(...)` inside the canvas subtree.
+4. Before each render, Motion GPU applies runtime uniform, texture, and storage-buffer updates.
+5. Compute and fragment-feedback passes run before the material shader. Render passes run after it.
+6. The final result is presented to the canvas, optionally through the color pipeline.
 
-## Framework mental model
+Changes to shader source or resource layout rebuild the renderer. Runtime value changes update existing GPU resources instead. [Concepts & Architecture](/docs/concepts-and-architecture) defines the complete lifecycle and rebuild boundary.
 
-Understanding the frame-by-frame flow is the single most useful thing you can learn about Motion GPU:
+## Shader contracts
 
-1. You create an **immutable material** with `defineMaterial({ fragment, uniforms, textures, storageBuffers, ... })`.
-2. `FragCanvas` **resolves** that material and derives a **pipeline signature** (a deterministic string from the compiled shader, uniform layout, texture config/bindings including `fragmentVisible`, storage buffer definitions, and `color` pipeline options including output encoding).
-3. If the signature changes, the WebGPU **renderer is rebuilt** from scratch. If it stays the same, only uniform buffers and texture bindings are updated — no recompilation.
-4. Every animation frame:
-   - **Scheduler tasks** run in topological order (your `useFrame` callbacks).
-   - Runtime **uniforms and textures** are merged with material defaults.
-   - **Pending storage buffer writes** are flushed to the GPU.
-   - **Compute and fragment feedback passes** execute in declaration order as a pre-scene phase.
-   - The **base fullscreen pass** renders your fragment shader.
-   - Optional **post-process render passes** execute through the slot graph.
-   - The **final result** is presented to the canvas, optionally through a private final color pipeline for Khronos PBR Neutral or HDR canvas output.
+| API | Required WGSL entrypoint |
+| --- | --- |
+| Material | `fn frag(uv: vec2f) -> vec4f` |
+| `ShaderPass` | `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` |
+| `PingPongShaderPass` | `fn frag(uv: vec2f) -> vec4f` |
+| Compute passes | `@compute @workgroup_size(...) fn compute(...)` with `@builtin(global_invocation_id)` in the function signature |
 
-## Hard contracts
+Material and fullscreen-pass shaders return straight-alpha colors. Motion GPU premultiplies the final canvas output for its premultiplied WebGPU canvas configuration.
 
-These are enforced at runtime and will throw immediately if violated:
+## Scope
 
-| Contract                                                                                                              | Enforced by                                                                                |
-| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Fragment function must be `fn frag(uv: vec2f) -> vec4f`                                                               | `defineMaterial` validation                                                                |
-| Fragment and `ShaderPass` colors are authored as straight alpha; final canvas presentation premultiplies alpha         | Renderer canvas presentation pipeline                                                      |
-| `ShaderPass` fragment must define `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`                                   | `ShaderPass` constructor                                                                   |
-| `PingPongShaderPass` fragment must define `fn frag(uv: vec2f) -> vec4f` and target a fragment-visible sampled texture | `PingPongShaderPass` constructor + renderer validation                                     |
-| `ComputePass` shader must contain `@compute @workgroup_size(...)` and `fn compute(...)`                               | `ComputePass` constructor                                                                  |
-| Storage buffer `size` must be `> 0` and a multiple of 4                                                               | `defineMaterial` validation                                                                |
-| Uniform / texture / define / include / storage buffer keys must be WGSL-safe identifiers (`[A-Za-z_][A-Za-z0-9_]*`)   | Validators in `uniforms.ts`, `textures.ts`, `material-preprocess.ts`, `storage-buffers.ts` |
-| `renderMode` API contract is `'always'`, `'on-demand'`, or `'manual'`                                                 | Scheduler types/runtime                                                                    |
-| `maxDelta > 0` and `profilingWindow > 0`                                                                              | Scheduler assertions                                                                       |
-| Render target `scale`, `width`, `height` must be finite and `> 0`                                                     | Render-target resolver                                                                     |
-| Pass slots must reference valid surfaces (`canvas` output-only, named slots must exist in `renderTargets`)            | Render graph planner                                                                       |
-| `color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`                        | Color pipeline resolver                                                                    |
+- Motion GPU targets fullscreen fragment and GPU compute workflows. It is not a scene graph or 3D engine.
+- Import framework components and hooks from `/svelte`, `/react`, or `/vue`.
+- Root and `/core` entrypoints are framework-neutral.
+- `/advanced` entrypoints add scheduler helpers and namespaced user context APIs.
 
-## Defaults worth knowing
+## AI access
 
-| Setting                           | Default value                                                               |
-| --------------------------------- | --------------------------------------------------------------------------- |
-| `FragCanvas.clearColor`           | `[0, 0, 0, 1]` (opaque black)                                               |
-| `FragCanvas.color.outputEncoding` | `'srgb'`                                                                    |
-| `FragCanvas.color`                | `undefined` (standard SDR canvas path with default sRGB output encoding)    |
-| `FragCanvas.renderMode`           | `'always'`                                                                  |
-| `FragCanvas.autoRender`           | `true`                                                                      |
-| `FragCanvas.maxDelta`             | `0.1` (seconds)                                                             |
-| `FragCanvas.dpr`                  | `window.devicePixelRatio` (or `1` during SSR)                               |
-| Texture filter                    | `'linear'`                                                                  |
-| Texture address mode              | `'clamp-to-edge'`                                                           |
-| Texture update mode               | Source-dependent: `HTMLVideoElement` → `perFrame`, everything else → `once` |
-| Texture `flipY`                   | `true`                                                                      |
-| Texture `generateMipmaps`         | `false`                                                                     |
-
-## Scope and boundaries
-
-- This package targets **fullscreen fragment workflows and GPU compute** — it is not a general-purpose scene graph or 3D engine.
-- Root entrypoints (`@motion-core/motion-gpu`, `/advanced`) are framework-agnostic core APIs.
-- Framework runtimes must be consumed via adapter entrypoints (`@motion-core/motion-gpu/svelte`, `@motion-core/motion-gpu/react`, `@motion-core/motion-gpu/vue`).
-- Adapter runtimes work without advanced entrypoints; `@motion-core/motion-gpu/svelte/advanced`, `@motion-core/motion-gpu/react/advanced`, and `@motion-core/motion-gpu/vue/advanced` add namespaced user state and extended scheduler ergonomics.
-- All documentation references behaviors currently implemented in the repository, including edge cases verified by the test suite.
+The documentation is also available through [Context7](https://context7.com/motion-core/motion-gpu).

@@ -1,43 +1,22 @@
 ---
 title: Core API
-description: Framework-agnostic root/core exports for adapter and runtime authors.
+description: Framework-neutral exports for adapters, tooling, and low-level runtimes.
 ---
 
-Reference for framework-neutral exports available from root and `/core` entrypoints.
+`@motion-core/motion-gpu` and `/core` expose the same framework-neutral runtime surface.
 
-## Entrypoints
+| Export | Purpose |
+| --- | --- |
+| `defineMaterial`, `resolveMaterial` | Validate and resolve material declarations |
+| `createCurrentWritable` | Subscribable value with synchronous `.current` access |
+| `createFrameRegistry` | Task, stage, invalidation, and profiling engine |
+| `createMotionGPURuntimeLoop` | Renderer lifecycle and RAF orchestration |
+| `loadTexturesFromUrls` | Framework-neutral URL texture loader |
+| `toMotionGPUErrorReport` | Normalize unknown errors |
+| `ShaderPass`, `BlitPass`, `CopyPass` | Post-scene render passes |
+| `ComputePass`, `PingPongComputePass` | Pre-scene compute passes |
+| `PingPongShaderPass` | Pre-scene fragment-feedback pass |
 
-| Entrypoint                         | Role                                    |
-| ---------------------------------- | --------------------------------------- |
-| `@motion-core/motion-gpu`          | Root framework-agnostic core entrypoint |
-| `@motion-core/motion-gpu/advanced` | Root advanced core entrypoint           |
+The entrypoint also exports the related public types: materials, resources, frame registry, runtime loop, errors, passes, render targets, and color pipeline contracts.
 
-## Core exports (`/` and `/core`)
-
-| Export                       | Kind     | Purpose                                                         |
-| ---------------------------- | -------- | --------------------------------------------------------------- |
-| `defineMaterial`             | function | Validates and freezes material definitions                      |
-| `resolveMaterial`            | function | Resolves material for runtime consumption                       |
-| `createCurrentWritable`      | function | Reactive primitive with synchronous `.current` access           |
-| `createFrameRegistry`        | function | Scheduler/task DAG engine                                       |
-| `createMotionGPURuntimeLoop` | function | RAF loop and renderer lifecycle orchestration                   |
-| `loadTexturesFromUrls`       | function | Framework-agnostic URL texture loader                           |
-| `toMotionGPUErrorReport`     | function | Normalizes runtime/shader errors                                |
-| `ShaderPass`                 | class    | Programmable post-process pass                                  |
-| `BlitPass`                   | class    | Fullscreen texture sample pass                                  |
-| `CopyPass`                   | class    | Copy pass with optimized direct-copy path                       |
-| `ComputePass`                | class    | GPU compute pass with configurable dispatch                     |
-| `PingPongComputePass`        | class    | Iterative compute pass for multi-step simulations               |
-| `PingPongShaderPass`         | class    | Fragment-feedback pass for iterative render-texture simulations |
-
-## Use cases
-
-- Building adapter layers for React/Vue/Solid/custom runtimes
-- Headless validation and tooling around materials/shaders
-- Runtime integrations where adapter component APIs are not needed
-
-## Related docs
-
-- [Concepts and Architecture](/docs/concepts-and-architecture)
-- [Frame Scheduler](/docs/frame-scheduler)
-- [Error Handling](/docs/error-handling)
+Use an adapter entrypoint when an application needs `FragCanvas` or hooks. Use core for custom adapters, headless validation, shader tooling, and direct runtime integration.

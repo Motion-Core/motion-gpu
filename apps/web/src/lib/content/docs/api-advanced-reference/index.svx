@@ -1,81 +1,38 @@
 ---
 title: Advanced API
-description: Scheduler helpers and user-context APIs from advanced entrypoints.
+description: Scheduler helpers and namespaced user context exports.
 ---
 
-Reference for advanced exports split between core and adapter layers.
+## Entrypoints
 
-# Entrypoints
-
-| Entrypoint | Exports |
+| Entrypoint | Additional exports |
 | --- | --- |
-| `@motion-core/motion-gpu/advanced` | Core + scheduler helper utilities |
-| `@motion-core/motion-gpu/svelte/advanced` | Svelte runtime API + scheduler helpers + user context APIs |
-| `@motion-core/motion-gpu/react/advanced` | React runtime API + scheduler helpers + user context APIs |
-| `@motion-core/motion-gpu/vue/advanced` | Vue runtime API + scheduler helpers + user context APIs |
+| `@motion-core/motion-gpu/advanced` | Framework-neutral core plus scheduler helpers |
+| `/svelte/advanced`, `/vue/advanced` | Adapter runtime, scheduler helpers, user-context read/write API |
+| `/react/advanced` | Same, plus `useSetMotionGPUUserContext` |
 
 ## Scheduler helpers
 
 ```ts
 applySchedulerPreset(
-  scheduler: MotionGPUScheduler,
-  preset: SchedulerPreset,
-  options?: ApplySchedulerPresetOptions
+	scheduler,
+	preset: 'performance' | 'balanced' | 'debug',
+	overrides?
 ): SchedulerPresetConfig
 ```
 
-`SchedulerPreset`:
-
-```ts
-'performance' | 'balanced' | 'debug'
-```
-
-`ApplySchedulerPresetOptions`:
-
-| Field | Type | Notes |
+| Preset | Diagnostics/profiling | Window |
 | --- | --- | --- |
-| `diagnosticsEnabled` | `boolean` | Must match `profilingEnabled` in runtime |
-| `profilingEnabled` | `boolean` | Must match `diagnosticsEnabled` in runtime |
-| `profilingWindow` | `number` | Finite, `> 0`, rounded down |
+| `performance` | Off | 60 |
+| `balanced` | On | 120 |
+| `debug` | On | 240 |
 
-`SchedulerPresetConfig`:
+Overrides may set `diagnosticsEnabled`, `profilingEnabled`, and a positive finite `profilingWindow`, which is floored. Diagnostics and profiling currently share state, so both boolean overrides must match.
 
-| Field | Type |
-| --- | --- |
-| `diagnosticsEnabled` | `boolean` |
-| `profilingEnabled` | `boolean` |
-| `profilingWindow` | `number` |
+`captureSchedulerDebugSnapshot(scheduler)` returns enable flags, window, resolved schedule, last-run timings, and rolling profiling snapshot.
 
-```ts
-captureSchedulerDebugSnapshot(
-  scheduler: MotionGPUScheduler
-): SchedulerDebugSnapshot
-```
+## User context
 
-`SchedulerDebugSnapshot`:
+Advanced adapter entrypoints export `useMotionGPUUserContext`, `setMotionGPUUserContext`, their types, and scheduler helpers. React adds `useSetMotionGPUUserContext` for hook-bound writes.
 
-| Field | Type |
-| --- | --- |
-| `diagnosticsEnabled` | `boolean` |
-| `profilingEnabled` | `boolean` |
-| `profilingWindow` | `number` |
-| `schedule` | `FrameScheduleSnapshot` |
-| `lastRunTimings` | `FrameRunTimings \| null` |
-| `profilingSnapshot` | `FrameProfilingSnapshot \| null` |
-
-## Adapter advanced exports
-
-Available from `@motion-core/motion-gpu/svelte/advanced`, `@motion-core/motion-gpu/react/advanced`, and `@motion-core/motion-gpu/vue/advanced`:
-- `useMotionGPUUserContext`
-- `setMotionGPUUserContext`
-
-React-only advanced export:
-- `useSetMotionGPUUserContext`
-
-For detailed signatures: [Hooks API](/docs/api-hooks-reference).
-
-## Related docs
-
-- [User Context](/docs/user-context)
-- [Render Modes](/docs/render-modes)
-- [Frame Scheduler](/docs/frame-scheduler)
+See [User Context](/docs/user-context) and [Hooks API](/docs/api-hooks-reference#advanced-user-context).

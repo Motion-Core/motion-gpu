@@ -1,222 +1,75 @@
 ---
-title: Render Modes
-description: Controlling when the canvas re-renders always, on-demand, or manual.
+title: Render modes
+description: Control frame submission and scheduler diagnostics.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+`renderMode` controls when scheduled work results in GPU rendering. Scheduler tasks still run on animation-frame ticks; the mode gates render submission.
 
-This page covers the three render modes (`always`, `on-demand`, `manual`), the stage API for organizing task execution, dependency ordering, and the profiling/diagnostics system.
+## Modes
 
-For the `useFrame` API, see [Frame Scheduler](/docs/frame-scheduler).
-
-## Render modes
-
-`renderMode` determines **when** the canvas re-renders. It is set as a `FragCanvas` prop and can be changed at runtime via `useMotionGPU().renderMode.set(...)`.
-
-### `always` (default)
-
-Renders every frame via `requestAnimationFrame`, as long as `autoRender` is `true`.
-
-<FrameworkBlock svelteCode={ex.alwaysSvelte} reactCode={ex.alwaysReact} vueCode={ex.alwaysVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
-
-Best for: continuous animations, simulations, video textures.
-
-### `on-demand`
-
-Renders only when something triggers an invalidation or `advance()` is called.
-
-<FrameworkBlock svelteCode={ex.onDemandSvelte} reactCode={ex.onDemandReact} vueCode={ex.onDemandVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
-
-<FrameworkBlock svelteCode={ex.onDemandInvalidateSvelte} reactCode={ex.onDemandInvalidateReact} vueCode={ex.onDemandInvalidateVue} />
-
-Invalidation sources:
-- `gpu.invalidate()` / `state.invalidate()` from user code
-- `useFrame` tasks with `autoInvalidate: true` (default)
-- `useFrame` tasks with `invalidation: { mode: 'on-change', token: ... }` when token changes
-- Switching **to** `on-demand` mode auto-injects one initial invalidation
-
-Best for: interactive UIs, data visualization, infrequent updates.
-
-### `manual`
-
-Renders only after an explicit `advance()` call.
-
-<FrameworkBlock svelteCode={ex.manualSvelte} reactCode={ex.manualReact} vueCode={ex.manualVue} />
-
-Best for: frame-by-frame capture, testing, server-side rendering scenarios.
-
-### Runtime mode switching
-
-```ts
-const gpu = useMotionGPU();
-
-// Switch to on-demand
-gpu.renderMode.set('on-demand');
-
-// Switch to manual
-gpu.renderMode.set('manual');
-
-// Back to always
-gpu.renderMode.set('always');
-```
-
-### `autoRender` gate
-
-`autoRender` is a boolean that acts as a **hard override**. When `false`, no rendering occurs regardless of render mode:
-
-```ts
-gpu.autoRender.set(false); // Stops all rendering
-gpu.autoRender.set(true);  // Resumes
-```
-
-## Stages API
-
-Stages group tasks into execution phases. By default, all tasks run in a single **main stage**. You can create custom stages for explicit ordering:
-
-### Creating stages
-
-```ts
-const gpu = useMotionGPU();
-
-const physicsStage = gpu.scheduler.createStage('physics');
-const postStage = gpu.scheduler.createStage('post-process', {
-  after: 'physics'
-});
-```
-
-### Assigning tasks to stages
-
-```ts
-useFrame('simulate', (state) => {
-  // Physics simulation
-}, { stage: physicsStage });
-
-useFrame('render-update', (state) => {
-  // Update uniforms from simulation results
-}, { stage: physicsStage });
-
-useFrame('post-effects', (state) => {
-  // Post-process adjustments
-}, { stage: postStage });
-```
-
-The default stage uses an internal symbol key, so referencing it by string (for example `'main'`) is unsupported.
-
-### Stage options
-
-| Option | Type | Description |
+| Mode | Renders when | Typical use |
 | --- | --- | --- |
-| `before` | stage key or list | This stage runs before the specified stage(s) |
-| `after` | stage key or list | This stage runs after the specified stage(s) |
-| `callback` | `(state, runTasks) => void` | Wrapper function for gating or batching task execution |
+| `'always'` | Every tick while `autoRender` is true | Animation, simulation, video |
+| `'on-demand'` | Invalidated or advanced | Interaction and infrequent updates |
+| `'manual'` | Explicitly advanced | Capture, deterministic stepping, tests |
 
-### Stage callback
-
-The `callback` option lets you wrap task execution:
+Set the initial mode on `FragCanvas` or update it from context:
 
 ```ts
-gpu.scheduler.createStage('guarded', {
-  callback: (state, runTasks) => {
-    if (shouldProcessThisFrame) {
-      runTasks(); // Execute all tasks in this stage
-    }
-    // If runTasks() is not called, all tasks in this stage are skipped
-  }
-});
+const gpu = useMotionGPU();
+gpu.renderMode.set('on-demand');
+gpu.invalidate();
 ```
 
-## Dependency ordering
+Switching to `on-demand` creates one initial invalidation. In that mode, `invalidate()` and `advance()` both open the next render gate. In `manual`, only `advance()` does.
 
-Both tasks and stages support `before` / `after` dependency edges. Dependencies are resolved via **topological sort**:
+## `autoRender`
 
-- Tasks within a stage are sorted by their inter-task dependencies.
-- Stages are sorted by their inter-stage dependencies.
-- Circular dependencies throw an error.
-- Missing dependency references throw an error.
-
-## Schedule inspection
-
-You can inspect the resolved execution order at any time:
+`autoRender` is a global gate. When false, `shouldRender()` rejects every mode, including pending manual advances. The runtime loop and scheduler continue to run.
 
 ```ts
-const schedule = gpu.scheduler.getSchedule();
-// {
-//   stages: [
-//     { key: 'physics', tasks: ['simulate'] },
-//     { key: Symbol(motiongpu-main-stage), tasks: ['render-update'] },
-//     { key: 'post-process', tasks: ['post-effects'] }
-//   ]
-// }
+gpu.autoRender.set(false);
+gpu.autoRender.set(true);
 ```
 
-This is useful for debugging task ordering and verifying dependency resolution.
+## What invalidates on-demand rendering
 
-## Delta clamping
+- `gpu.invalidate()` or `state.invalidate()`;
+- a running `useFrame` task whose invalidation policy resolves to `'always'`;
+- an `on-change` policy whose token changed;
+- switching into `on-demand`;
+- pointer tracking when `usePointer` resolves its request mode to invalidation.
 
-`maxDelta` clamps `state.delta` every frame to prevent large time jumps (e.g., when a tab is background-inseted):
+`useFrame` defaults to automatic invalidation. Set `autoInvalidate: false` or an explicit invalidation policy for tasks that should not keep on-demand rendering active.
 
-- **Default**: `0.1` seconds
-- **Must be**: finite and `> 0`
-- **Configurable via**: `FragCanvas` prop or `gpu.maxDelta.set(value)`
+## Stages and dependencies
 
-<FrameworkBlock svelteCode={ex.maxDeltaSvelte} reactCode={ex.maxDeltaReact} vueCode={ex.maxDeltaVue} svelteLang="svelte" reactLang="tsx" vueLang="vue" />
+Stages group tasks and can order themselves with `before` and `after`. A stage callback receives `(state, runTasks)` and may wrap or skip its tasks. The default main-stage key is an internal symbol and cannot be addressed as `'main'`.
 
-## Diagnostics and profiling
+Task and stage graphs are topologically sorted. Missing references and cycles throw. Inspect the resolved order with `gpu.scheduler.getSchedule()`.
 
-### Diagnostics (single-frame timing)
+## Timing diagnostics
+
+The scheduler exposes last-run timings and rolling profiling:
 
 ```ts
 const scheduler = gpu.scheduler;
-
-// Enable timing collection
+scheduler.setProfilingWindow(120);
 scheduler.setDiagnosticsEnabled(true);
-
-// Read last frame's timings
-const timings = scheduler.getLastRunTimings();
-// { stages: { ... }, tasks: { ... } }
-```
-
-### Profiling (rolling window)
-
-```ts
-// Enable rolling profiling (default window: 60 frames)
 scheduler.setProfilingEnabled(true);
-scheduler.setProfilingWindow(120); // 2-second window at 60fps
 
-// Read aggregate stats
-const snapshot = scheduler.getProfilingSnapshot();
-// { stages: { ... }, tasks: { ... } }
-
-// Reset history
-scheduler.resetProfiling();
+const lastRun = scheduler.getLastRunTimings();
+const profile = scheduler.getProfilingSnapshot();
 ```
 
-### Advanced preset
-
-For convenience, `applySchedulerPreset` applies a named configuration:
+Diagnostics and profiling currently share one internal toggle, so advanced preset overrides must give them the same value. Available presets are `'performance'`, `'balanced'`, and `'debug'`:
 
 ```ts
 import { applySchedulerPreset } from '@motion-core/motion-gpu/advanced';
 
-applySchedulerPreset(gpu.scheduler, 'diagnostics');
-applySchedulerPreset(gpu.scheduler, 'profiling');
-applySchedulerPreset(gpu.scheduler, 'off');
+applySchedulerPreset(gpu.scheduler, 'balanced');
 ```
 
-### Debug snapshot
+Use `captureSchedulerDebugSnapshot(...)` to collect the configuration, schedule, last-run timings, and profiling snapshot in one serializable object.
 
-`captureSchedulerDebugSnapshot` returns a full serializable snapshot of the scheduler state:
-
-```ts
-import { captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
-
-const debugSnapshot = captureSchedulerDebugSnapshot(scheduler);
-// {
-//   schedule: { stages: ... },
-//   timings: { ... },
-//   profiling: { ... }
-// }
-```
+See [Frame Scheduler](/docs/frame-scheduler) for task registration and invalidation policies.

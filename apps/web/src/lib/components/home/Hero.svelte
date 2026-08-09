@@ -2,6 +2,7 @@
 	import Logo from '$lib/assets/motiongpu-logo.svg?raw';
 	import { resolve } from '$app/paths';
 	import { AppBookIcon, AppSpace3dIcon } from '$lib/components/icons';
+	import GradientGlassPane from '$lib/GradientGlassPane.svelte';
 	import Button from '../ui/Button.svelte';
 	import Section from './Section.svelte';
 	const docsRoute = '/docs' as const;
@@ -9,11 +10,27 @@
 </script>
 
 <Section
-	variant="muted"
+	variant="full"
 	id="home"
-	class="flex min-h-128 w-full flex-col items-center justify-start gap-4 sm:min-h-144 lg:min-h-156"
+	class="relative flex min-h-128 w-full flex-col items-center justify-center gap-4 sm:min-h-144 lg:min-h-156"
 >
-	<div class="flex w-full flex-col items-center justify-center gap-4 pt-16 sm:pt-10">
+	<div class="absolute inset-0 h-full min-h-72">
+		<div class="h-full w-full overflow-hidden">
+			<GradientGlassPane
+				class="h-full w-full"
+				backgroundColor="var(--background)"
+				accentColor="var(--accent)"
+				rotation={50}
+				refraction={1.0}
+				chromaticAberration={0.0}
+				panelWidth={1}
+				waveFrequency={0.0}
+				waveAmplitude={0.0}
+				speed={1}
+			/>
+		</div>
+	</div>
+	<div class="relative flex h-full w-full flex-col items-center justify-center gap-4">
 		<span
 			class="inline-flex shrink-0 items-center text-accent [&>svg]:size-16 [&>svg]:fill-current"
 			aria-hidden="true"
@@ -28,11 +45,11 @@
 			<span class="text-accent">WebGPU </span> visuals.
 		</h1>
 		<p
-			class="max-w-xl text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:text-lg"
+			class="max-w-lg text-center text-base font-normal tracking-normal text-pretty text-foreground sm:text-lg"
 		>
 			If you need performance, clarity, and composability in WebGPU, this is the right stack.
 		</p>
-		<div data-reveal="actions" class="flex items-center gap-2">
+		<div data-reveal="actions" class="mt-4 flex items-center gap-2">
 			<Button
 				variant="default"
 				href={resolve(playgroundRoute as '/playground')}

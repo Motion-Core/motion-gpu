@@ -1,179 +1,107 @@
 ---
 title: Hooks API
-description: "Reference for runtime hooks: useFrame, useMotionGPU, usePointer, useTexture, and user context APIs."
+description: Reference for frame, runtime, pointer, texture, and advanced user-context hooks.
 ---
 
-Reference for hook-based runtime control in the Svelte, React, and Vue adapters.
-
-## Entrypoints
-
-| Entrypoint | Exports |
-| --- | --- |
-| `@motion-core/motion-gpu/svelte` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
-| `@motion-core/motion-gpu/svelte/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
-| `@motion-core/motion-gpu/react` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
-| `@motion-core/motion-gpu/react/advanced` | Everything above + `useMotionGPUUserContext`, `useSetMotionGPUUserContext`, `setMotionGPUUserContext` |
-| `@motion-core/motion-gpu/vue` | `useFrame`, `useMotionGPU`, `usePointer`, `useTexture` |
-| `@motion-core/motion-gpu/vue/advanced` | Everything above + `useMotionGPUUserContext`, `setMotionGPUUserContext` |
-
-## Context rule
-
-`useFrame()`, `useMotionGPU()`, `usePointer()`, and `useMotionGPUUserContext()` must run inside the `<FragCanvas>` subtree. In React, `useSetMotionGPUUserContext()` follows the same rule.
+All hooks come from `/svelte`, `/react`, or `/vue`; advanced user-context functions come from the matching `/advanced` entrypoint. Runtime hooks require a `FragCanvas` ancestor.
 
 ## `useFrame`
 
 ```ts
-useFrame(callback: (state: FrameState) => void, options?: UseFrameOptions)
-useFrame(key: FrameKey, callback: (state: FrameState) => void, options?: UseFrameOptions)
+useFrame(callback, options?): UseFrameResult
+useFrame(key, callback, options?): UseFrameResult
 ```
 
-### `UseFrameOptions`
-
-| Field | Type | Default |
+| `UseFrameOptions` | Type | Default |
 | --- | --- | --- |
 | `autoStart` | `boolean` | `true` |
 | `autoInvalidate` | `boolean` | `true` |
 | `invalidation` | `FrameTaskInvalidation` | Implicit |
-| `stage` | `FrameKey \| FrameStage` | Main stage |
-| `before` | task ref or list | `undefined` |
-| `after` | task ref or list | `undefined` |
-| `running` | `() => boolean` | `undefined` |
+| `stage` | `FrameKey &#124; FrameStage` | Main stage |
+| `before`, `after` | Task reference or array | — |
+| `running` | `() => boolean` | — |
 
-Dependency validation is strict: cyclic graphs and missing `before`/`after` references throw.
+`UseFrameResult` contains `task: { key, stage }`, `start()`, `stop()`, and `started: Subscribable<boolean>`.
 
 ### `FrameState`
 
-| Field | Type |
+| Member | Type |
 | --- | --- |
-| `time` | `number` |
-| `delta` | `number` |
+| `time`, `delta` | `number` |
 | `canvas` | `HTMLCanvasElement` |
 | `renderMode` | `RenderMode` |
 | `autoRender` | `boolean` |
-| `setUniform` | `(name: string, value: UniformValue) => void` |
-| `setTexture` | `(name: string, value: TextureValue) => void` |
-| `writeStorageBuffer` | `(name: string, data: ArrayBufferView, options?: { offset?: number }) => void` |
-| `readStorageBuffer` | `(name: string) => Promise<ArrayBuffer>` |
-| `invalidate` | `(token?: FrameInvalidationToken) => void` |
+| `setUniform` | `(name, value) => void` |
+| `setTexture` | `(name, value) => void` |
+| `writeStorageBuffer` | `(name, data, { offset? }?) => void` |
+| `readStorageBuffer` | `(name) => Promise<ArrayBuffer>` |
+| `invalidate` | `(token?) => void` |
 | `advance` | `() => void` |
 
-`writeStorageBuffer` requires WebGPU-compatible writes: `offset` and `data.byteLength` must be multiples of 4 bytes, and the write must fit inside the declared buffer size.
+Storage writes require a four-byte-aligned offset and byte length and must fit in the declared buffer.
 
 ## `useMotionGPU`
 
-Returns runtime context controls:
-- reactive size/dpr/mode stores
-- scheduler handle
-- `invalidate()` and `advance()`
-- access to shared `user` current-writable map
+Returns `MotionGPUContext`:
 
-See: [Hooks and Context](/docs/hooks-and-context).
+| Member | Type |
+| --- | --- |
+| `canvas` | `HTMLCanvasElement &#124; undefined` |
+| `size` | `CurrentReadable<{ width; height }>` in CSS pixels |
+| `dpr`, `maxDelta` | `CurrentWritable<number>` |
+| `renderMode` | `CurrentWritable<RenderMode>` |
+| `autoRender` | `CurrentWritable<boolean>` |
+| `user` | `CurrentWritable<Record<string &#124; symbol, unknown>>` |
+| `invalidate`, `advance` | `() => void` |
+| `scheduler` | `MotionGPUScheduler` |
+
+The scheduler exposes `createStage`, `getStage`, schedule inspection, diagnostics/profiling setters and getters, reset, last-run timings, and rolling snapshots.
 
 ## `usePointer(options?)`
 
-```ts
-usePointer(options?: UsePointerOptions): UsePointerResult
-```
-
-### `UsePointerOptions`
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `enabled` | `boolean` | `true` |
-| `requestFrame` | `'auto' \| 'invalidate' \| 'advance' \| 'none'` | `'auto'` |
-| `capturePointer` | `boolean` | `true` |
-| `trackWhilePressedOutsideCanvas` | `boolean` | `true` |
-| `clickEnabled` | `boolean` | `true` |
-| `clickMaxDurationMs` | `number` | `350` |
-| `clickMaxMovePx` | `number` | `8` |
-| `clickButtons` | `number[]` | `[0]` |
-| `onMove` | `(state, event) => void` | `undefined` |
-| `onDown` | `(state, event) => void` | `undefined` |
-| `onUp` | `(state, event) => void` | `undefined` |
-| `onClick` | `(click, state, event) => void` | `undefined` |
-
-### Return: `UsePointerResult`
-
-| Field | Type |
+| Option | Default |
 | --- | --- |
-| `state` | `CurrentReadable<PointerState>` |
-| `lastClick` | `CurrentReadable<PointerClick \| null>` |
-| `resetClick` | `() => void` |
+| `enabled` | `true` |
+| `requestFrame` | `'auto'` |
+| `capturePointer` | `true` |
+| `trackWhilePressedOutsideCanvas` | `true` |
+| `clickEnabled` | `true` |
+| `clickMaxDurationMs` | `350` |
+| `clickMaxMovePx` | `8` |
+| `clickButtons` | `[0]` |
+| `onMove`, `onDown`, `onUp`, `onClick` | — |
 
-### `PointerState` highlights
+`requestFrame` accepts `'auto'`, `'invalidate'`, `'advance'`, or `'none'`. Auto resolves to advance in manual mode, invalidate in on-demand mode, and none in always mode.
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `px` | `[number, number]` | CSS pixels relative to canvas |
-| `uv` | `[number, number]` | `0..1` with Y-up orientation |
-| `ndc` | `[number, number]` | `-1..1` with Y-up orientation |
-| `inside` | `boolean` | Pointer currently inside canvas bounds |
-| `pressed` | `boolean` | Active pointer is down |
-| `dragging` | `boolean` | Active pointer moved while pressed |
-| `deltaPx` / `deltaUv` | tuple | Per-event movement delta |
-| `velocityPx` / `velocityUv` | tuple | Per-event velocity |
+The result contains `state: CurrentReadable<PointerState>`, `lastClick: CurrentReadable<PointerClick | null>`, and `resetClick()`. State includes `px`, `uv`, `ndc`, inside/pressed/dragging state, pointer identity and buttons, down position, deltas, and velocities.
 
 ## `useTexture(urlInput, options?)`
 
-### URL input
+`urlInput` is `string[] | (() => string[])`. Svelte and Vue options may also be lazy; React options are an object.
 
-| Form | Type |
+| Result | Type |
 | --- | --- |
-| Static | `string[]` |
-| Dynamic | `() => string[]` |
-
-### `TextureLoadOptions`
-
-| Field | Type | Default |
-| --- | --- | --- |
-| `colorSpace` | `'srgb' \| 'linear'` | `'srgb'` |
-| `requestInit` | `RequestInit` | `undefined` |
-| `decode` | `TextureDecodeOptions` | Auto |
-| `signal` | `AbortSignal` | `undefined` |
-| `update` | `TextureUpdateMode` | `undefined` |
-| `flipY` | `boolean` | `undefined` |
-| `premultipliedAlpha` | `boolean` | `undefined` |
-| `generateMipmaps` | `boolean` | `undefined` |
-
-### Return: `UseTextureResult`
-
-| Field | Type |
-| --- | --- |
-| `textures` | `CurrentReadable<LoadedTexture[] \| null>` |
+| `textures` | `CurrentReadable<LoadedTexture[] &#124; null>` |
 | `loading` | `CurrentReadable<boolean>` |
-| `error` | `CurrentReadable<Error \| null>` |
-| `errorReport` | `CurrentReadable<MotionGPUErrorReport \| null>` |
+| `error` | `CurrentReadable<Error &#124; null>` |
+| `errorReport` | `CurrentReadable<MotionGPUErrorReport &#124; null>` |
 | `reload` | `() => Promise<void>` |
+
+`TextureLoadOptions` contains `colorSpace`, `requestInit`, `decode`, `signal`, `update`, `flipY`, `premultipliedAlpha`, and `generateMipmaps`.
 
 ## Advanced user context
 
 ```ts
-useMotionGPUUserContext(): CurrentReadable<Record<MotionGPUUserNamespace, unknown>>
-useMotionGPUUserContext<T>(namespace: MotionGPUUserNamespace): CurrentReadable<T | undefined>
+useMotionGPUUserContext(): CurrentReadable<Record<string | symbol, unknown>>
+useMotionGPUUserContext<T>(namespace): CurrentReadable<T | undefined>
+setMotionGPUUserContext(namespace, valueOrFactory, options?): T | undefined
 ```
 
-```ts
-setMotionGPUUserContext<T>(
-  namespace: MotionGPUUserNamespace,
-  value: T | (() => T),
-  options?: SetMotionGPUUserContextOptions
-): T | undefined
-```
+React also provides a context-bound `useSetMotionGPUUserContext()` setter.
 
-```ts
-useSetMotionGPUUserContext(): <T>(
-  namespace: MotionGPUUserNamespace,
-  value: T | (() => T),
-  options?: SetMotionGPUUserContextOptions
-) => T | undefined
-```
-
-In React, prefer `useSetMotionGPUUserContext()` for effect and event-handler writes.
-
-`SetMotionGPUUserContextOptions`:
-
-| Field | Values | Default |
+| Option | Values | Default |
 | --- | --- | --- |
-| `existing` | `'skip' \| 'replace' \| 'merge'` | `'skip'` |
+| `existing` | `'skip' &#124; 'replace' &#124; 'merge'` | `'skip'` |
+| `functionValue` | `'factory' &#124; 'value'` | `'factory'` |
 
-See: [User Context](/docs/user-context).
+See [Frame Scheduler](/docs/frame-scheduler), [Hooks & Context](/docs/hooks-and-context), [Texture Loading](/docs/texture-loading), and [User Context](/docs/user-context).

@@ -1,212 +1,59 @@
 ---
-title: Shader Includes & Defines
-description: 'Using #include directives and compile-time defines for reusable and configurable shader code.'
+title: Shader includes & defines
+description: Preprocess reusable WGSL chunks and typed compile-time constants.
 ---
 
-Motion GPU's material preprocessor supports **`#include` directives** for reusable shader code and **`defines`** for compile-time constants. Both are expanded before WGSL compilation and tracked with source-line maps for accurate error diagnostics. The same preprocessing contract is used by material fragments and `PingPongShaderPass` fragments.
+Material and `PingPongShaderPass` fragments share a preprocessor for named includes and defines. Preprocessing happens before contract validation and WGSL compilation, while retaining a generated-to-source line map.
 
-## Include system
+## Includes
 
-### Declaring includes
-
-Includes are named WGSL source chunks declared in the material definition:
+Declare source chunks in the material and reference them from a line containing only the directive:
 
 ```ts
 const material = defineMaterial({
 	fragment: `
-#include <noise>
-
+#include <math>
 fn frag(uv: vec2f) -> vec4f {
-  let n = fbm(uv * 4.0 + motiongpuFrame.time * 0.5);
-  return vec4f(vec3f(n), 1.0);
+	return vec4f(remap(uv.x, 0.0, 1.0), uv.y, 0.0, 1.0);
 }
 `,
 	includes: {
-		noise: `
-fn hash(p: vec2f) -> f32 {
-  let h = dot(p, vec2f(127.1, 311.7));
-  return fract(sin(h) * 43758.5453);
-}
-
-fn noise(p: vec2f) -> f32 {
-  let i = floor(p);
-  let f = fract(p);
-  let u = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash(i), hash(i + vec2f(1.0, 0.0)), u.x),
-    mix(hash(i + vec2f(0.0, 1.0)), hash(i + vec2f(1.0, 1.0)), u.x),
-    u.y
-  );
-}
-
-fn fbm(p: vec2f) -> f32 {
-  var value = 0.0;
-  var amplitude = 0.5;
-  var pos = p;
-  for (var i = 0; i < 5; i++) {
-    value += amplitude * noise(pos);
-    pos *= 2.0;
-    amplitude *= 0.5;
-  }
-  return value;
-}
-`
+		math: `fn remap(x: f32, a: f32, b: f32) -> f32 { return (x - a) / (b - a); }`
 	}
 });
 ```
 
-### Directive syntax
+Include names must be WGSL-safe identifiers. Included chunks may include other chunks recursively. Unknown names, empty source, invalid directives, and circular chains throw before shader compilation; circular errors include the expansion stack.
 
-The directive must appear on its own line:
+Expansion replaces directives recursively and records the original fragment or include line for every generated line.
 
-```wgsl
-#include <name>
-```
+## Defines
 
-Where `name` is an identifier matching a key in the `includes` map. The identifier must follow WGSL naming rules: `[A-Za-z_][A-Za-z0-9_]*`.
+Defines are sorted by name and emitted as top-level WGSL `const` declarations before the expanded fragment.
 
-### Recursive includes
-
-Includes can themselves contain `#include` directives, enabling modular shader libraries:
-
-```ts
-includes: {
-  math_utils: `
-fn remap(value: f32, low1: f32, high1: f32, low2: f32, high2: f32) -> f32 {
-  return low2 + (value - low1) * (high2 - low2) / (high1 - low1);
-}
-`,
-  color_utils: `
-#include <math_utils>
-
-fn gammaCorrect(color: vec3f, gamma: f32) -> vec3f {
-  return pow(color, vec3f(1.0 / gamma));
-}
-
-fn contrastAdjust(color: vec3f, contrast: f32) -> vec3f {
-  return vec3f(
-    remap(color.r, 0.0, 1.0, 0.5 - contrast * 0.5, 0.5 + contrast * 0.5),
-    remap(color.g, 0.0, 1.0, 0.5 - contrast * 0.5, 0.5 + contrast * 0.5),
-    remap(color.b, 0.0, 1.0, 0.5 - contrast * 0.5, 0.5 + contrast * 0.5)
-  );
-}
-`
-}
-```
-
-### Validation rules
-
-| Rule                   | Behaviour                                                                                |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| Unknown include key    | Throws `Unknown include "name" referenced in fragment shader.`                           |
-| Circular include chain | Throws with full stack: `Circular include detected for "X". Include stack: A -> B -> X.` |
-| Invalid identifier     | Throws naming validation error                                                           |
-| Empty source string    | Throws `Include source must be a non-empty WGSL string.`                                 |
-
-### Include expansion order
-
-1. The fragment source is scanned line by line.
-2. Each `#include <name>` line is replaced with the full source of that include chunk.
-3. The process is recursive — included chunks can contain their own `#include` directives.
-4. A **line map** is built during expansion, tracking which generated line came from which source (fragment line N, include "X" line M, etc.).
-
-This line map is used for **diagnostics** — when WGSL compilation fails, the error message points back to the original source location (see [Error Handling](/docs/error-handling)).
-
-## Define system
-
-### Declaring defines
-
-Defines are compile-time constants injected as top-level WGSL `const` declarations:
+| Input | Emitted type |
+| --- | --- |
+| `boolean` | `bool` |
+| Unwrapped number | `f32` |
+| `{ type: 'bool' &#124; 'f32' &#124; 'i32' &#124; 'u32', value }` | Explicit scalar |
+| `{ type: 'vec2f' &#124; 'vec3f' &#124; 'vec4f', value }` | Explicit float vector |
 
 ```ts
-const material = defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  var color = vec3f(0.0);
-  if (ENABLE_GLOW) {
-    let dist = distance(uv, vec2f(0.5, 0.5));
-    let glow = GLOW_INTENSITY / (dist * dist + 0.001);
-    color += vec3f(glow);
-  }
-  for (var i = 0i; i < ITERATIONS; i++) {
-    color += vec3f(0.01);
-  }
-  return vec4f(color, 1.0);
+defines: {
+	ENABLE_GLOW: true,
+	ITERATIONS: { type: 'i32', value: 8 },
+	TINT: { type: 'vec3f', value: [1, 0.65, 0.35] }
 }
-`,
-	defines: {
-		ENABLE_GLOW: true,
-		GLOW_INTENSITY: 0.02,
-		ITERATIONS: { type: 'i32', value: 8 },
-		GLOW_CENTER: { type: 'vec2f', value: [0.5, 0.5] },
-		TINT: { type: 'vec3f', value: [1.0, 0.65, 0.35] }
-	}
-});
 ```
 
-### Value forms and emitted WGSL
+Numeric components must be finite. Integer defines require integers, `u32` cannot be negative, and vector tuple length must match its type.
 
-| Input form                                    | Emitted WGSL                                             |
-| --------------------------------------------- | -------------------------------------------------------- |
-| `true` / `false`                              | `const NAME: bool = true;` / `const NAME: bool = false;` |
-| `42` (number)                                 | `const NAME: f32 = 42.0;`                                |
-| `3.14` (number)                               | `const NAME: f32 = 3.14;`                                |
-| `{ type: 'bool', value: true }`               | `const NAME: bool = true;`                               |
-| `{ type: 'f32', value: 1.5 }`                 | `const NAME: f32 = 1.5;`                                 |
-| `{ type: 'i32', value: 8 }`                   | `const NAME: i32 = 8;`                                   |
-| `{ type: 'u32', value: 16 }`                  | `const NAME: u32 = 16u;`                                 |
-| `{ type: 'vec2f', value: [0.5, 0.25] }`       | `const NAME: vec2f = vec2f(0.5, 0.25);`                  |
-| `{ type: 'vec3f', value: [1, 0.5, 0] }`       | `const NAME: vec3f = vec3f(1.0, 0.5, 0.0);`              |
-| `{ type: 'vec4f', value: [0, 0.25, 0.5, 1] }` | `const NAME: vec4f = vec4f(0.0, 0.25, 0.5, 1.0);`        |
+## Defines or uniforms
 
-### Validation rules for defines
+Use a define when the value is part of compiled shader structure, such as a feature flag, loop bound, or static vector constant. Use a uniform for runtime data. Changing a define requires a new material and changes the material signature; changing a uniform value updates the existing buffer.
 
-| Rule                                                                                 | Result                                           |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------ |
-| Numeric values must be finite                                                        | Throws if `NaN` or `Infinity`                    |
-| `i32` / `u32` values must be integers                                                | Throws if fractional                             |
-| `u32` values must be `>= 0`                                                          | Throws if negative                               |
-| `vec2f` / `vec3f` / `vec4f` values must be finite numeric tuples of length 2 / 3 / 4 | Throws if length or component values are invalid |
-| Invalid identifier name                                                              | Throws naming validation error                   |
+## Diagnostics
 
-### Expansion order
+The line map labels compilation failures as fragment, include, or define locations. `PingPongShaderPass.setFragment(fragment, { defines, includes })` uses the same preprocessing and replaces its pipeline only after the new source passes contract validation.
 
-Defines are sorted alphabetically by key and prepended **before** the expanded fragment source. This means:
-
-1. All `const` declarations from defines appear first.
-2. An empty separator line follows.
-3. The expanded fragment (with includes resolved) comes next.
-
-This is deterministic and part of the material signature, meaning changing a material define value **always triggers a renderer rebuild** (unlike uniforms, which only update a buffer). For `PingPongShaderPass`, changing defines/includes through `setFragment(fragment, { defines, includes })` invalidates that pass pipeline cache and recompiles the feedback pass on the next render.
-
-## Defines vs. uniforms: when to use which
-
-| Use case                                   | Use defines                        | Use uniforms |
-| ------------------------------------------ | ---------------------------------- | ------------ |
-| Feature toggles (`ENABLE_X`)               | ✅                                 | ❌           |
-| Loop iteration counts                      | ✅                                 | ❌           |
-| Static vector constants (`CENTER`, `TINT`) | ✅                                 | ❌           |
-| Values that change every frame             | ❌                                 | ✅           |
-| Values controlled by user interaction      | ❌                                 | ✅           |
-| Performance-critical constants             | ✅ (enables compiler optimization) |              |
-
-**Key difference**: Defines are baked into the shader source at material definition time. Changing a define requires creating a new material and triggers a full pipeline rebuild. Uniforms are updated per-frame via buffer writes with no recompilation cost.
-
-## Source-map diagnostics
-
-When a WGSL compilation error occurs, Motion GPU uses the line map to report the original source location:
-
-- **Fragment line errors** → reported as `fragment line X`
-- **Include errors** → reported as `include <name> line X`
-- **Define errors** → reported as `define "NAME" line X`
-
-This means you see meaningful error locations even when your fragment expands to hundreds of generated WGSL lines. See [Error Handling and Diagnostics](/docs/error-handling) for the full error report structure.
-
-## Practical tips
-
-1. **Keep includes general-purpose** — utility functions (noise, SDF helpers, color space conversions) are ideal candidates.
-2. **Name includes clearly** — the key is used in error messages and diagnostics.
-3. **Use defines for branch elimination** — the WGSL compiler can optimize away dead branches when a bool constant is `false`.
-4. **Use typed defines for integer loops** — `{ type: 'i32', value: N }` avoids the default `f32` inference.
-5. **Use typed vector defines for static shader constants** — `{ type: 'vec2f', value: [x, y] }`, `{ type: 'vec3f', value: [r, g, b] }`, or `{ type: 'vec4f', value: [r, g, b, a] }`.
-6. **Avoid putting `fn frag(...)` inside includes** — the entrypoint should stay in the main fragment for clarity.
+Open the [Diamond demo](/playground?demo=diamond&framework=svelte) or [Motion GPU Logo demo](/playground?demo=motion-gpu-logo&framework=svelte) to edit real define/include usage.

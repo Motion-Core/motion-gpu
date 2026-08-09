@@ -1,158 +1,44 @@
 ---
-title: Render Targets
-description: Creating off-screen textures for multi-pass rendering and intermediate computation.
+title: Render targets
+description: Declare named off-screen surfaces for post-processing passes.
 ---
 
-Render targets are named off-screen textures that post-scene render passes can read from and write to. They allow techniques like downsampled blur pyramids, multi-resolution effects, and intermediate computation buffers.
+Named render targets provide explicit intermediate surfaces in the post-scene render graph. They are distinct from storage textures and the private A/B textures owned by `PingPongShaderPass`.
 
-For persistent pre-scene fragment feedback, use `PingPongShaderPass` with a sampled material texture target instead of `renderTargets`. The feedback pass owns its A/B render textures and exposes the latest result through the material texture slot before the scene renders.
-
-## Declaring render targets
-
-Render targets are declared as a `renderTargets` prop on `FragCanvas`:
+## Declare targets
 
 ```svelte
 <FragCanvas
 	{material}
 	renderTargets={{
 		half: { scale: 0.5 },
-		bloom: { width: 640, height: 360, format: 'rgba16float' }
+		fixed: { width: 512, height: 512, format: 'rgba16float' }
 	}}
 	{passes}
 />
 ```
 
-The map keys become the names used to access targets in passes.
+Use each key as a pass `input` or `output`. Named targets must be written before they are read in the current frame, and named routing requires `needsSwap: false`.
 
-## Using named targets as pass slots
+## Definition
 
-Named target keys can be used directly in `RenderPass.input` and `RenderPass.output`:
+| Field | Default | Resolution |
+| --- | --- | --- |
+| `width` | — | Explicit width, floored to an integer |
+| `height` | — | Explicit height, floored to an integer |
+| `scale` | `1` | Applied independently to omitted dimensions |
+| `format` | Current working format | GPU texture format |
 
-```ts
-const passes = [
-	new ShaderPass({
-		needsSwap: false,
-		output: 'bloom'
-	}),
-	new ShaderPass({
-		needsSwap: false,
-		input: 'bloom',
-		output: 'canvas'
-	})
-];
-```
+Every supplied dimension and scale must be finite and greater than zero. Resolved dimensions have a minimum of one pixel. Keys follow the same WGSL-safe identifier rule as other named resources.
 
-Rules:
+If only one explicit dimension is supplied, the other still follows the canvas and `scale`. For a 1920×1080 canvas, `{ width: 512 }` resolves to 512×1080 with the default scale.
 
-- Named slots must exist in `renderTargets`.
-- Named outputs are only valid with `needsSwap: false`.
-- `needsSwap: true` is reserved for `source -> target`.
+## Format and lifecycle
 
-## RenderTargetDefinition fields
+In the standard SDR path, the default target format follows the preferred canvas format. HDR, tone-mapped, or explicitly configured working pipelines can use `rgba16float`. A target-level `format` always wins.
 
-| Field    | Type               | Default                | Description                                    |
-| -------- | ------------------ | ---------------------- | ---------------------------------------------- |
-| `width`  | `number`           | `undefined`            | Explicit width in pixels (floored, minimum 1)  |
-| `height` | `number`           | `undefined`            | Explicit height in pixels (floored, minimum 1) |
-| `scale`  | `number`           | `1`                    | Scale factor relative to canvas size           |
-| `format` | `GPUTextureFormat` | Current working format | Texture format                                 |
+The renderer compares resolved targets by `key:format:widthxheight`. It allocates new targets, reallocates changed targets, destroys removed targets, and preserves textures whose signature remains stable.
 
-The default working format is the preferred canvas format in the standard SDR path. When `FragCanvas` enables Khronos PBR Neutral, HDR presentation, or a custom `color.workingFormat`, the default working format can be `rgba16float`. Explicit `renderTargets.foo.format` always wins.
+Custom render passes receive the resolved map as `context.targets`. Built-in passes access named targets through normal slot routing.
 
-## Resolution rules
-
-Each dimension is resolved independently:
-
-1. If `width` or `height` is **explicitly set**, that value is used (`Math.max(1, Math.floor(value))`).
-2. If a dimension is **not set**, it is computed as `Math.max(1, Math.floor(canvasDimension * scale))`.
-3. If `scale` is not set, it defaults to `1` (full canvas resolution).
-
-### Examples
-
-| Definition                    | Canvas 1920×1080 | Result    |
-| ----------------------------- | ---------------- | --------- |
-| `{ scale: 0.5 }`              | 1920×1080        | 960×540   |
-| `{ scale: 0.25 }`             | 1920×1080        | 480×270   |
-| `{ width: 256, height: 256 }` | any              | 256×256   |
-| `{ width: 512 }`              | 1920×1080        | 512×1080  |
-| `{}`                          | 1920×1080        | 1920×1080 |
-
-## Naming rules
-
-Target keys must be WGSL-safe identifiers: `[A-Za-z_][A-Za-z0-9_]*`. Invalid names throw during resolution.
-
-## Validation
-
-| Condition                                 | Result                              |
-| ----------------------------------------- | ----------------------------------- |
-| `scale <= 0`                              | Throws                              |
-| `scale` is `NaN` or `Infinity`            | Throws                              |
-| `width <= 0` or `height <= 0`             | Throws                              |
-| `width` / `height` is `NaN` or `Infinity` | Throws                              |
-| Invalid key identifier                    | Throws                              |
-| Pass writes undeclared named slot         | Throws during render-graph planning |
-| Pass reads undeclared named slot          | Throws during render-graph planning |
-| Pass reads named slot before first write  | Throws during render-graph planning |
-
-## Accessing targets in passes
-
-Render targets are available in the `RenderPassContext` via the `targets` field:
-
-```ts
-render(context: RenderPassContext): void {
-  const bloomTarget = context.targets.bloom;
-  if (bloomTarget) {
-    // Use bloomTarget.texture, bloomTarget.view, etc.
-  }
-}
-```
-
-Named targets are accessed through `context.targets` inside custom passes.
-
-## Lifecycle
-
-The renderer manages render target textures automatically:
-
-| Event                               | Action                                |
-| ----------------------------------- | ------------------------------------- |
-| New target added                    | GPU texture allocated                 |
-| Canvas resizes (for scaled targets) | Texture reallocated at new resolution |
-| Target definition changes           | Texture reallocated                   |
-| Target removed from map             | GPU texture destroyed                 |
-| Renderer destroyed                  | All target textures destroyed         |
-
-### Signature-based change detection
-
-Render target definitions are compared each frame using a **deterministic signature**: `key:format:widthxheight`. Only targets whose signature changed are reallocated — stable targets keep their existing GPU texture.
-
-## Practical patterns
-
-### Half-resolution blur
-
-```ts
-const renderTargets = {
-	halfRes: { scale: 0.5 }
-};
-
-// Use halfRes as an intermediate for blur passes
-```
-
-### Fixed-resolution computation buffer
-
-```ts
-const renderTargets = {
-	compute: { width: 256, height: 256, format: 'rgba16float' }
-};
-```
-
-### HDR intermediate
-
-```ts
-const renderTargets = {
-	hdr: { format: 'rgba16float' }
-};
-
-// Full canvas resolution but in 16-bit float for high dynamic range
-```
-
-With `color={{ toneMapping: 'khronos-pbr-neutral' }}` or `color={{ dynamicRange: 'hdr' }}`, Motion GPU already uses `rgba16float` for its internal `source`/`target` working surfaces. Declare named `rgba16float` targets only when your own pass graph needs a named HDR surface.
+For persistent fragment feedback, declare a sampled material texture and use `PingPongShaderPass`. For compute writes, declare a storage texture. See [Render Passes](/docs/render-passes) and [Textures](/docs/textures).

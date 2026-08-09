@@ -1,229 +1,64 @@
 ---
-title: Writing Shaders
-description: WGSL concepts, conventions, and patterns for effective shader authoring in Motion GPU.
+title: Writing shaders
+description: Motion GPU WGSL entrypoints, coordinates, generated bindings, and color output.
 ---
 
-MotionGPU renders fullscreen fragment shaders written in **WGSL** (WebGPU Shading Language). This page covers the WGSL concepts you need for effective shader authoring, the conventions MotionGPU imposes, and common visual patterns.
+This page documents the WGSL conventions added by Motion GPU. For WGSL language syntax and built-ins, use the WebGPU specification or a dedicated WGSL reference.
 
-## The fragment contract
+## Entrypoints
 
-Every material must declare exactly this function:
+| Context | Required function |
+| --- | --- |
+| Material | `fn frag(uv: vec2f) -> vec4f` |
+| `ShaderPass` | `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` |
+| `PingPongShaderPass` | `fn frag(uv: vec2f) -> vec4f` |
+| Compute pass | `@compute @workgroup_size(...) fn compute(...)` with a `global_invocation_id` parameter |
+
+The material entrypoint is validated in the main `fragment` source before preprocessing, so do not place it inside an include. `PingPongShaderPass` validates its preprocessed source. `ShaderPass` and compute contracts are validated when their pass source is set.
+
+## Coordinates
+
+Material `uv` runs from `(0, 0)` at the bottom-left to `(1, 1)` at the top-right. `usePointer().state.current.uv` uses the same Y-up orientation. The final presentation pipeline preserves this public orientation even though internal render-target sampling follows framebuffer coordinates.
+
+For aspect-correct calculations, use the physical render resolution:
 
 ```wgsl
-fn frag(uv: vec2f) -> vec4f
+let aspect = motiongpuFrame.resolution.x / motiongpuFrame.resolution.y;
 ```
 
-- **`uv`** — normalized coordinates from `(0, 0)` at the **bottom-left** to `(1, 1)` at the **top-right**.
-- **Return value** — an RGBA color. The alpha channel is typically `1.0` for opaque output.
+## Generated bindings
 
-If this signature is missing, `defineMaterial` throws immediately.
+Motion GPU injects the bindings it owns. Do not redeclare them.
 
-Shader output is treated as linear color. In the default SDR path values are presented with the configured `color.outputEncoding`. When `FragCanvas` enables `color.toneMapping`, `color.dynamicRange`, or a custom `color.workingFormat`, the scene and post-process graph run through an internal working format first. Khronos PBR Neutral expects non-negative linear Rec.709 HDR values and is applied by the private final presentation pass after all render passes.
+### Frame uniforms
 
-## Pass shader contracts
+| Field | Type | Value |
+| --- | --- | --- |
+| `motiongpuFrame.time` | `f32` | RAF timestamp in seconds |
+| `motiongpuFrame.delta` | `f32` | Delta in seconds, clamped by `maxDelta` |
+| `motiongpuFrame.resolution` | `vec2f` | Physical canvas resolution |
 
-Post-scene and pre-scene passes use their own WGSL entrypoints:
+Material uniforms are fields of `motiongpuUniforms`. Each fragment-visible texture named `uImage` creates `uImage: texture_2d<f32>` and `uImageSampler: sampler` with a layout appropriate to the texture format.
 
-| API                  | Required entrypoint                               | Purpose                                                       |
-| -------------------- | ------------------------------------------------- | ------------------------------------------------------------- |
-| `ShaderPass`         | `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f` | Post-process the current scene/pass color                     |
-| `PingPongShaderPass` | `fn frag(uv: vec2f) -> vec4f`                     | Write the next feedback texture state from the previous state |
+Storage buffers are available by their declared names. Fragment shaders receive read-only bindings; compute access follows each definition.
 
-`PingPongShaderPass` is a fragment shader pass, but it is not the base material shader. It runs before the scene, renders into renderer-managed A/B textures, and exposes the previous state through generated bindings:
+### Feedback bindings
+
+`PingPongShaderPass` exposes its previous state separately:
 
 ```wgsl
 @group(1) @binding(0) var motiongpuPreviousSampler: sampler;
 @group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
 ```
 
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  let previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);
-  return previous * 0.98;
-}
-```
+The target material texture is excluded from that pass's regular texture bindings while it is being written. Sample prior state through `motiongpuPrevious`.
 
-The feedback `uv` is aligned with the pass render texture so previous-state sampling and current writes hit the same texel rows across iterations. When the target texture is later sampled by the base material with its public Y-up `uv`, the visible result lines up with the material coordinate contract.
+## Color and alpha
 
-## Coordinate space
+Author material and `ShaderPass` output in straight alpha. Motion GPU premultiplies only the final canvas presentation output.
 
-```
-(0, 1) ───────── (1, 1)
-│                     │
-│    Your canvas      │
-│                     │
-(0, 0) ───────── (1, 0)
-```
+Shader output is linear color. In the standard SDR path, `color.outputEncoding: 'srgb'` applies linear-to-sRGB encoding. A configured working format, tone mapper, or HDR mode moves final conversion into the private presentation pass after post-processing.
 
-This is the standard GPU convention (Y-up), **not** the DOM convention (Y-down). When converting pointer coordinates manually, flip Y: `1.0 - (clientY - top) / height`. If you use `usePointer()`, `state.current.uv` already uses this Y-up orientation.
+`canvasColorSpace` configures the canvas presentation space; it does not replace value encoding. Khronos PBR Neutral accepts non-negative linear Rec.709 HDR input and produces SDR output, so it cannot be combined with explicit HDR canvas presentation.
 
-The final presentation pass keeps this public `uv` contract unchanged. Internally it samples render-target textures in framebuffer coordinates, so enabling `color` does not flip the shader output.
-
-## Built-in bindings
-
-Motion GPU injects the frame uniforms plus any user uniforms/textures you declare. You do **not** declare these bindings yourself.
-
-### Frame uniforms (always available)
-
-These are injected by the renderer and updated every frame:
-
-| Name                        | Type    | Description                                                    |
-| --------------------------- | ------- | -------------------------------------------------------------- |
-| `motiongpuFrame.time`       | `f32`   | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
-| `motiongpuFrame.delta`      | `f32`   | Time since last frame in seconds (clamped by `maxDelta`)       |
-| `motiongpuFrame.resolution` | `vec2f` | Canvas size in physical pixels `(width, height)`               |
-
-### User uniforms
-
-Any uniform you declare in `defineMaterial({ uniforms: { ... } })` becomes a field on the `motiongpuUniforms` struct:
-
-```ts
-defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let t = sin(motiongpuUniforms.uTime * 3.0);
-  return vec4f(t, uv.y, motiongpuUniforms.uIntensity, 1.0);
-}
-`,
-	uniforms: {
-		uTime: 0,
-		uIntensity: 0.8
-	}
-});
-```
-
-Here `uTime` and `uIntensity` are both `f32` fields on `motiongpuUniforms`.
-
-### User textures
-
-Textures declared in the material become `texture_2d<f32>` bindings with an associated `sampler`. You sample them with a generated helper:
-
-```ts
-defineMaterial({
-	fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let color = textureSample(uAlbedo, uAlbedoSampler, uv);
-  return color;
-}
-`,
-	textures: {
-		uAlbedo: { filter: 'linear' }
-	}
-});
-```
-
-For each texture named `uFoo`, the shader gets:
-
-- `uFoo: texture_2d<f32>` — the texture binding
-- `uFooSampler: sampler` — the associated sampler
-
-In a `PingPongShaderPass`, fragment-visible material textures are also available in `group(0)` except the feedback target texture itself. The target is excluded while the pass writes to it; sample the prior target contents via `motiongpuPrevious` instead.
-
-## WGSL quick reference
-
-If you are new to WGSL, here are the most common types and functions used in fragment shaders:
-
-### Scalar and vector types
-
-| Type    | Description              | Example                |
-| ------- | ------------------------ | ---------------------- |
-| `f32`   | 32-bit float             | `let x: f32 = 3.14;`   |
-| `i32`   | 32-bit signed integer    | `let n: i32 = 42;`     |
-| `u32`   | 32-bit unsigned integer  | `let n: u32 = 7u;`     |
-| `bool`  | Boolean                  | `let b: bool = true;`  |
-| `vec2f` | 2-component float vector | `vec2f(1.0, 2.0)`      |
-| `vec3f` | 3-component float vector | `vec3f(1.0, 0.5, 0.0)` |
-| `vec4f` | 4-component float vector | `vec4f(r, g, b, a)`    |
-
-### Common math functions
-
-| Function                     | Description                      |
-| ---------------------------- | -------------------------------- |
-| `sin(x)`, `cos(x)`, `tan(x)` | Trigonometry                     |
-| `abs(x)`                     | Absolute value                   |
-| `min(a, b)`, `max(a, b)`     | Min/max                          |
-| `clamp(x, lo, hi)`           | Range clamping                   |
-| `mix(a, b, t)`               | Linear interpolation             |
-| `step(edge, x)`              | Step function (0.0 or 1.0)       |
-| `smoothstep(lo, hi, x)`      | Hermite interpolation            |
-| `length(v)`                  | Vector magnitude                 |
-| `distance(a, b)`             | Distance between two points      |
-| `normalize(v)`               | Unit vector                      |
-| `dot(a, b)`                  | Dot product                      |
-| `cross(a, b)`                | Cross product (vec3f only)       |
-| `floor(x)`, `ceil(x)`        | Rounding                         |
-| `fract(x)`                   | Fractional part (`x - floor(x)`) |
-| `pow(x, y)`                  | Power                            |
-| `exp(x)`, `log(x)`           | Exp / natural log                |
-| `sqrt(x)`                    | Square root                      |
-
-## Common shader patterns
-
-### UV gradient
-
-The simplest shader maps UV coordinates directly to colors:
-
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  return vec4f(uv.x, uv.y, 0.5, 1.0);
-}
-```
-
-### Animated sine wave
-
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  let wave = 0.5 + 0.5 * sin(motiongpuFrame.time * 2.0 + uv.x * 10.0);
-  return vec4f(vec3f(wave), 1.0);
-}
-```
-
-### Radial glow
-
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  let center = vec2f(0.5, 0.5);
-  let dist = distance(uv, center);
-  let glow = 0.01 / (dist * dist + 0.001);
-  return vec4f(glow * 0.2, glow * 0.4, glow * 0.8, 1.0);
-}
-```
-
-### Circle SDF (Signed Distance Field)
-
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  let center = vec2f(0.5, 0.5);
-  let radius = 0.3;
-  let dist = length(uv - center) - radius;
-  let edge = smoothstep(0.005, 0.0, dist);
-  return vec4f(vec3f(edge), 1.0);
-}
-```
-
-### Aspect-ratio correction
-
-The UV space is always `[0..1] × [0..1]`, which can stretch non-square canvases. To get square pixels:
-
-```wgsl
-fn frag(uv: vec2f) -> vec4f {
-  let aspect = motiongpuFrame.resolution.x / motiongpuFrame.resolution.y;
-  var corrected = uv;
-  corrected.x *= aspect;
-
-  // Now corrected.x ranges from 0 to aspect, corrected.y from 0 to 1
-  let dist = length(corrected - vec2f(aspect * 0.5, 0.5));
-  let circle = smoothstep(0.305, 0.3, dist);
-  return vec4f(vec3f(circle), 1.0);
-}
-```
-
-## Color output and presentation
-
-By default, `FragCanvas` uses sRGB output encoding (`color.outputEncoding: 'srgb'`). This means the renderer applies a **linear-to-sRGB conversion** to your fragment output automatically on the standard SDR path.
-
-If you are doing your own color management and want raw linear output, set `color={{ outputEncoding: 'linear' }}` on `FragCanvas`. Note that changing this triggers a renderer rebuild since it changes the pipeline signature.
-
-`color.canvasColorSpace` is a separate WebGPU canvas configuration option. It selects the canvas presentation space such as `'srgb'` or `'display-p3'`; it does not replace the final value encoding step.
-
-When a `color` presentation pipeline is active, output conversion moves to the private final presentation pass. This keeps tone mapping and SDR/HDR presentation after all render passes instead of baking it into the scene shader.
+Open the [Motion GPU Logo demo](/playground?demo=motion-gpu-logo&framework=svelte) for editable shader source. Resource-specific contracts are documented under [Uniforms](/docs/uniforms), [Textures](/docs/textures), and [Shader Includes & Defines](/docs/shader-includes-and-defines).

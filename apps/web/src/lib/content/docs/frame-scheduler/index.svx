@@ -1,165 +1,72 @@
 ---
-title: Frame Scheduler
-description: Managing per-frame logic, task ordering, and invalidation with the useFrame API.
+title: Frame scheduler
+description: Register per-frame tasks, invalidation policies, and ordering dependencies.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+`useFrame(...)` registers a callback in the `FragCanvas` scheduler. It must run inside the canvas subtree and automatically unregisters through the adapter lifecycle.
 
-The frame scheduler manages all per-frame logic in Motion GPU. Every `useFrame` callback is registered as a **task** with ordering constraints and an invalidation policy. This page covers the `useFrame` API in depth.
+## Signatures
 
-For render modes, stages, and profiling, see [Render Modes and Scheduling](/docs/render-modes).
+```ts
+useFrame(callback, options?)
+useFrame(key, callback, options?)
+```
 
-## Basic usage
+An explicit string or symbol key makes ordering and diagnostic output stable. Registering the same explicit key again replaces the previous task; a stale cleanup from the old registration cannot remove the replacement.
 
-<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} vueCode={ex.basicUsageVue} />
+## Frame state
 
-`useFrame` must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
-
-## Overloads
-
-| Signature | Description |
+| Member | Purpose |
 | --- | --- |
-| `useFrame(callback, options?)` | Auto-generated task key |
-| `useFrame(key, callback, options?)` | Explicit stable key for ordering and debugging |
+| `time`, `delta` | RAF time in seconds and delta clamped by `maxDelta` |
+| `canvas` | Active canvas element |
+| `renderMode`, `autoRender` | Current render-gate state |
+| `setUniform`, `setTexture` | Set runtime resource overrides |
+| `writeStorageBuffer` | Queue an aligned CPU-to-GPU write |
+| `readStorageBuffer` | Read a declared buffer asynchronously |
+| `invalidate`, `advance` | Request on-demand or manual rendering |
 
-```ts
-// Auto key
-useFrame((state) => { ... });
+## Options
 
-// Explicit key
-useFrame('camera-update', (state) => { ... });
-
-// With options
-useFrame('particles', (state) => { ... }, {
-  stage: particleStage,
-  autoInvalidate: false
-});
-```
-
-## Return value
-
-`useFrame` returns a handle for controlling the task:
-
-| Field | Type | Description |
+| Option | Default | Meaning |
 | --- | --- | --- |
-| `task` | `{ key: FrameKey; stage: FrameKey }` | Task and stage identifiers |
-| `start()` | `() => void` | Enables the task (resumes execution) |
-| `stop()` | `() => void` | Disables the task (paused, not removed) |
-| `started` | `CurrentReadable<boolean>` | Reactive store for effective running state |
+| `autoStart` | `true` | Start the task immediately |
+| `autoInvalidate` | `true` | Use implicit `'always'` invalidation |
+| `invalidation` | Implicit | Explicit `'never'`, `'always'`, or token policy |
+| `stage` | Main stage | Stage key or `FrameStage` |
+| `before`, `after` | — | Task dependencies in the same stage |
+| `running` | — | Dynamic predicate checked every frame |
 
-```ts
-const handle = useFrame('animation', (state) => {
-  state.setUniform('uTime', state.time);
-});
-
-// Pause animation
-handle.stop();
-
-// Resume
-handle.start();
-```
-
-## FrameState callback API
-
-The `state` parameter passed to your callback provides everything you need for per-frame logic:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `time` | `number` | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
-| `delta` | `number` | Time since last frame in seconds (clamped by `maxDelta`) |
-| `canvas` | `HTMLCanvasElement` | Active canvas element |
-| `renderMode` | `RenderMode` | Current render mode |
-| `autoRender` | `boolean` | Current auto-render state |
-| `setUniform(name, value)` | function | Set a runtime uniform override |
-| `setTexture(name, value)` | function | Set a runtime texture source |
-| `writeStorageBuffer(name, data, options?)` | function | Queue a CPU → GPU write into a declared storage buffer |
-| `readStorageBuffer(name)` | function | Async GPU → CPU readback from a declared storage buffer |
-| `invalidate(token?)` | function | Trigger invalidation for on-demand mode |
-| `advance()` | function | Request one frame in manual mode |
-
-### Example: complete runtime component
-
-<FrameworkBlock svelteCode={ex.completeRuntimeSvelte} reactCode={ex.completeRuntimeReact} vueCode={ex.completeRuntimeVue} />
-
-## UseFrameOptions
-
-| Option | Type | Default | Description |
-| --- | --- | --- | --- |
-| `autoStart` | `boolean` | `true` | Whether the task starts enabled |
-| `autoInvalidate` | `boolean` | `true` | Auto-invalidate every frame (for on-demand mode) |
-| `invalidation` | `FrameTaskInvalidation` | Implicit | Explicit invalidation policy override |
-| `stage` | `FrameKey \| FrameStage` | Main stage | Which stage to assign the task to |
-| `before` | task ref or list | `undefined` | This task must run **before** the specified task(s) |
-| `after` | task ref or list | `undefined` | This task must run **after** the specified task(s) |
-| `running` | `() => boolean` | `undefined` | Dynamic gate — task is skipped when this returns `false` |
+The returned handle contains task metadata, `start()`, `stop()`, and a `started: Subscribable<boolean>` flag. Stopping a task keeps it registered but skips its callback.
 
 ## Invalidation policies
 
-The invalidation policy controls whether a task's execution triggers a re-render in `on-demand` mode:
-
-### Simple policies
-
-| Value | Behaviour |
-| --- | --- |
-| `'never'` | Task never triggers invalidation |
-| `'always'` | Task always triggers invalidation |
-
-### Object policies
-
 ```ts
-// Always invalidate with a token
-{ mode: 'always', token: 'my-task' }
-
-// Never invalidate
-{ mode: 'never' }
-
-// On-change: invalidate only when token value changes
-{ mode: 'on-change', token: () => someReactiveValue }
-```
-
-### `on-change` semantics
-
-With `on-change`, the scheduler compares the current resolved token against the previous frame's token. Invalidation fires **only when they differ**. This is ideal for state-driven updates:
-
-```ts
-useFrame('background-inset', (state) => {
-  state.setUniform('uColor', currentColor);
-}, {
-  autoInvalidate: false,
-  invalidation: {
-    mode: 'on-change',
-    token: () => currentColor.join(',')
-  }
+useFrame('sync-data', syncData, {
+	invalidation: {
+		mode: 'on-change',
+		token: () => dataVersion
+	}
 });
 ```
 
-## Task ordering with dependencies
+- `'always'` invalidates whenever the task runs.
+- `'never'` does not invalidate.
+- `{ mode: 'on-change', token }` compares the resolved string, number, or symbol token with the previous run.
+- `{ mode: 'always', token }` invalidates with the supplied static or resolved token.
 
-Use `before` and `after` to control execution order within a stage:
+An `on-change` policy requires a token. The first non-null resolved token and every subsequent changed token invalidate the frame. Resolving `null` or `undefined` clears the stored comparison state.
+
+## Ordering
 
 ```ts
-const physics = useFrame('physics', (state) => {
-  // Update physics simulation
-});
+const simulation = useFrame('simulation', updateSimulation);
 
-const render = useFrame('render-update', (state) => {
-  // Read physics results
-}, {
-  after: physics.task
+useFrame('upload', uploadState, {
+	after: simulation.task
 });
 ```
 
-Dependencies are resolved via topological sort.
+`before` and `after` accept task keys, task metadata, or arrays of either. Dependencies order tasks within a stage. If a task omits `stage`, the registry uses the stage of the first task-metadata dependency it finds; otherwise it uses the main stage. References to known tasks in other stages do not create cross-stage ordering—order those stages separately.
 
-- Circular dependencies throw a deterministic error.
-- Missing `before` / `after` references throw a deterministic error.
-
-## Lifecycle
-
-- `useFrame` automatically **unregisters** the task when the component is destroyed (adapter lifecycle cleanup).
-- The `stop()` / `start()` methods pause/resume without unregistering — the task remains in the schedule but is skipped.
-- The `running` gate is checked each frame — a stopped task or a task with `running: () => false` is simply skipped, not removed.
-- Re-registering the same explicit key replaces the previous task registration; stale unsubscribe handlers from the replaced task will not remove the newer one.
+Use [Render Modes](/docs/render-modes) for render gating, stages, and profiling. Runtime resource rules are documented under [Uniforms](/docs/uniforms), [Textures](/docs/textures), and [Storage Buffers](/docs/storage-buffers).

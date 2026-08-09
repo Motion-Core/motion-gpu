@@ -1,163 +1,57 @@
 ---
 title: Uniforms
-description: Passing dynamic values from JavaScript to WGSL shaders declaration, types, and updates.
+description: Declare, pack, and update dynamic shader values.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+Material uniforms define a stable WGSL buffer layout. Runtime calls update values inside that layout without recompiling the shader.
 
-Uniforms are the primary mechanism for passing dynamic values from your JavaScript/TypeScript runtime code into WGSL shaders. This page covers declaration, type inference, memory layout, and runtime updates.
+## Declaration forms
 
-Examples below use the same runtime uniform APIs across Svelte, React, and Vue.
+| Input value | Inferred type |
+| --- | --- |
+| Finite number | `f32` |
+| 2-number tuple | `vec2f` |
+| 3-number tuple | `vec3f` |
+| 4-number tuple | `vec4f` |
 
-## Declaring uniforms
-
-Uniforms are declared in the `uniforms` field of `defineMaterial`:
+Use `{ type, value }` for an explicit scalar or vector type and for `mat4x4f`. A matrix accepts a 16-number array or `Float32Array`; it is never inferred from array length.
 
 ```ts
-const material = defineMaterial({
-  fragment: `
-fn frag(uv: vec2f) -> vec4f {
-  let t = sin(motiongpuUniforms.uTime * 3.0);
-  let color = mix(motiongpuUniforms.uColorA, motiongpuUniforms.uColorB, t * 0.5 + 0.5);
-  return vec4f(color, 1.0);
+uniforms: {
+	uTime: 0,
+	uColor: [1, 0.5, 0],
+	uTransform: { type: 'mat4x4f', value: matrix }
 }
-`,
-  uniforms: {
-    uTime: 0,
-    uColorA: [1.0, 0.2, 0.3],
-    uColorB: { type: 'vec3f', value: [0.2, 0.5, 1.0] }
-  }
+```
+
+Fields are available as `motiongpuUniforms.<name>`. Names must match `[A-Za-z_][A-Za-z0-9_]*`.
+
+## Layout
+
+Entries are sorted by name and packed using WGSL alignment. The final buffer is at least 16 bytes and rounded to a 16-byte boundary.
+
+| Type | Alignment | Value size |
+| --- | --- | --- |
+| `f32` | 4 bytes | 4 bytes |
+| `vec2f` | 8 bytes | 8 bytes |
+| `vec3f` | 16 bytes | 12 bytes |
+| `vec4f` | 16 bytes | 16 bytes |
+| `mat4x4f` | 16 bytes | 64 bytes |
+
+Sorting makes declaration order irrelevant to the resolved layout and signature.
+
+## Runtime updates
+
+```ts
+useFrame((state) => {
+	state.setUniform('uTime', state.time);
 });
 ```
 
-Each uniform becomes a field on the `motiongpuUniforms` struct. The library generates the binding struct and uniform buffer automatically.
+The name must exist and the value must match its declared type. Motion GPU merges runtime overrides with material defaults, compares the packed values, and writes only dirty byte ranges.
 
-## Input forms
+Changing a value does not rebuild the renderer. Adding, removing, renaming, or changing the type of a uniform changes the material signature.
 
-Motion GPU accepts two styles of uniform declaration:
+## Frame uniforms
 
-### Shorthand (value only)
-
-The type is inferred from the value shape:
-
-| Value | Inferred WGSL type |
-| --- | --- |
-| `number` | `f32` |
-| `[x, y]` | `vec2f` |
-| `[x, y, z]` | `vec3f` |
-| `[x, y, z, w]` | `vec4f` |
-
-```ts
-uniforms: {
-  uTime: 0,                    // f32
-  uMouse: [0.5, 0.5],          // vec2f
-  uColor: [1.0, 0.5, 0.0],    // vec3f
-  uTint: [1.0, 1.0, 1.0, 0.8] // vec4f
-}
-```
-
-### Explicit (type + value)
-
-For clarity or for `mat4x4f`, use the explicit form:
-
-| `type` | `value` | WGSL type |
-| --- | --- | --- |
-| `'f32'` | `number` | `f32` |
-| `'vec2f'` | `[x, y]` | `vec2f` |
-| `'vec3f'` | `[x, y, z]` | `vec3f` |
-| `'vec4f'` | `[x, y, z, w]` | `vec4f` |
-| `'mat4x4f'` | 16-element number array or `Float32Array` | `mat4x4f` |
-
-```ts
-uniforms: {
-  uTime: { type: 'f32', value: 0 },
-  uModelMatrix: {
-    type: 'mat4x4f',
-    value: [
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    ]
-  }
-}
-```
-
-The `mat4x4f` type **must** use explicit form — it cannot be inferred from an array length of 16.
-
-When a material default uses a `Float32Array` matrix, `defineMaterial` clones it into an immutable snapshot. For per-frame matrix updates, keep using `state.setUniform('uModelMatrix', { type: 'mat4x4f', value: float32Array })`; runtime values still accept `Float32Array` for efficient packing.
-
-## Naming rules
-
-All uniform identifiers must be WGSL-safe: `[A-Za-z_][A-Za-z0-9_]*`.
-
-Invalid names throw at material definition time. Common conventions:
-- `uTime`, `uMouse`, `uColor` — prefix with `u` for user uniforms
-- `motiongpuFrame.*` — built-in frame uniforms (do not declare these in `defineMaterial`)
-
-## WGSL alignment and packing
-
-Uniforms are packed into a single `Float32Array` buffer following WGSL `std140`-like alignment rules:
-
-| Type | Alignment (bytes) | Size (bytes) | Size (f32 slots) |
-| --- | --- | --- | --- |
-| `f32` | 4 | 4 | 1 |
-| `vec2f` | 8 | 8 | 2 |
-| `vec3f` | 16 | 12 | 3 (padded to 4-slot boundary) |
-| `vec4f` | 16 | 16 | 4 |
-| `mat4x4f` | 16 | 64 | 16 |
-
-### Packing behavior
-
-1. Uniform entries are **sorted alphabetically** by name.
-2. Each entry is placed at the next offset that satisfies its alignment requirement.
-3. The total buffer size is **rounded up to 16 bytes** (minimum 16 bytes).
-
-Example layout for `{ uA: f32, uB: vec3f, uC: vec2f }` (sorted: `uA`, `uB`, `uC`):
-
-```
-Offset 0:  uA   (f32)    — 4 bytes
-Offset 4:  [padding]     — 12 bytes (vec3f needs 16-byte alignment)
-Offset 16: uB   (vec3f)  — 12 bytes
-Offset 28: [padding]     — 4 bytes (vec2f needs 8-byte alignment, next valid is 32)
-Offset 32: uC   (vec2f)  — 8 bytes
-Total: 40 bytes → rounded to 48 (16-byte multiple)
-```
-
-You generally don't need to think about this — it's handled automatically. The material signature is based on uniform names and types (order does not matter because layout is sorted).
-
-## Runtime updates with `setUniform`
-
-Inside a `useFrame` callback, use `state.setUniform(name, value)` to update a uniform's value for the current frame:
-
-<FrameworkBlock svelteCode={ex.runtimeUpdatesSvelte} reactCode={ex.runtimeUpdatesReact} vueCode={ex.runtimeUpdatesVue} />
-
-### Important rules
-
-- **Name must exist** in the material's `uniforms` map. Setting an unknown name throws.
-- **Value shape must match** the declared type. Passing `[1, 2]` to an `f32` uniform throws.
-- **Updates are merged** — material defaults are used for any uniform not set during the frame.
-- **Dirty tracking** — only changed ranges are written to the GPU buffer, minimizing upload overhead.
-
-## Built-in frame uniforms
-
-The renderer provides a built-in `motiongpuFrame` uniform buffer. You do **not** declare it in `defineMaterial`:
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `motiongpuFrame.time` | `f32` | `requestAnimationFrame` timestamp in seconds (monotonic clock) |
-| `motiongpuFrame.delta` | `f32` | Frame delta in seconds (clamped by `maxDelta`) |
-| `motiongpuFrame.resolution` | `vec2f` | Canvas size in physical pixels |
-
-## Validation errors
-
-| Error condition | When it throws |
-| --- | --- |
-| Invalid identifier (e.g., `"2foo"`, `"my-var"`) | `defineMaterial` call |
-| Unknown uniform type | `defineMaterial` call |
-| Invalid value shape (wrong array length) | `defineMaterial` call |
-| Setting unknown uniform name at runtime | `state.setUniform` call |
-| Value type mismatch at runtime | `state.setUniform` call |
+`motiongpuFrame.time`, `.delta`, and `.resolution` are generated separately and must not be declared in the material. See [Writing Shaders](/docs/writing-shaders#frame-uniforms) for their exact meaning.

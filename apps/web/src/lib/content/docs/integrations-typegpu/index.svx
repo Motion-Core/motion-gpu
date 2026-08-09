@@ -1,121 +1,55 @@
 ---
-title: TypeGPU Integration
-description: Integrating TypeGPU TypeScript shader authoring with Motion GPU runtime rendering and scheduling.
+title: TypeGPU integration
+description: Generate Motion GPU fragment WGSL from TypeScript with TypeGPU.
 ---
 
-This integration is focused on one workflow:
+TypeGPU can author shader logic in TypeScript while Motion GPU continues to own rendering, scheduling, resources, passes, and adapter integration.
 
-- write shaders in **TypeScript** with TypeGPU (`'use gpu'`)
-- transform them with **`unplugin-typegpu`**
-- pass generated WGSL to Motion GPU `defineMaterial`
+## Boundary
 
-You keep Motion GPU runtime ergonomics (`FragCanvas`, `useFrame`, `usePointer`, render modes, passes) and move shader authoring to typed TypeScript.
+1. `unplugin-typegpu` transforms functions containing `'use gpu'`.
+2. `tgpu.resolve(...)` produces a WGSL string.
+3. The resolved module must expose `fn frag(uv: vec2f) -> vec4f`.
+4. Pass the string to `defineMaterial({ fragment })`.
 
-## Integration model
+Motion GPU does not bypass its material validation for generated WGSL.
 
-Boundary is simple:
-
-1. Author shader logic in TypeScript with TypeGPU.
-2. `unplugin-typegpu` transforms shader functions.
-3. `tgpu.resolve(...)` returns WGSL (`string`).
-4. Motion GPU consumes that WGSL in `defineMaterial({ fragment })`.
-5. Motion GPU still enforces fragment contract:
-   `fn frag(uv: vec2f) -> vec4f`
-
-### 1. Enable transformer in build pipeline
-
-Vite example:
+## Build setup
 
 ```ts
 import { defineConfig } from 'vite';
 import typegpu from 'unplugin-typegpu/vite';
 
 export default defineConfig({
-  plugins: [typegpu()]
+	plugins: [typegpu()]
 });
 ```
 
-If you bundle inside a worker pipeline, use the matching integration (for example Rolldown/Rollup plugin variant) and include it in that worker bundler as well.
+If shader transformation runs inside a worker bundler, configure the matching TypeGPU integration in that bundler as well.
 
-### 2. Author shader in TypeScript (`shader.ts`)
+## Access Motion GPU bindings
 
-```ts
-// shader.ts
-import tgpu, { d } from 'typegpu';
-
-const resolution = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.resolution', d.vec2u, 'uniform');
-const time = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.time', d.f32, 'uniform');
-
-const frag = tgpu
-  .fn([d.vec2f], d.vec4f)((uv) => {
-    'use gpu';
-
-    const r = d.vec2f(resolution.$);
-    const fitX = r.x / Math.max(r.y, 1);
-    const px = (uv.x - 0.5) * fitX;
-    const py = uv.y - 0.5;
-    const wave = 0.5 + 0.5 * Math.sin((px + py) * 12 + time.$ * 1.4);
-
-    return d.vec4f(wave, 0.4 + 0.6 * wave, 1 - wave, 1);
-  })
-  .$name('frag');
-
-export const fragment = tgpu.resolve([frag], { names: 'strict' });
-```
-
-### 3. Use generated WGSL in Motion GPU (`App.svelte` / runtime file)
+Expose generated Motion GPU identifiers to TypeGPU with raw snippets:
 
 ```ts
-import { defineMaterial } from '@motion-core/motion-gpu';
-import { fragment } from './shader';
-
-const material = defineMaterial({ fragment });
+const time = tgpu['~unstable'].rawCodeSnippet(
+	'motiongpuFrame.time',
+	d.f32,
+	'uniform'
+);
 ```
 
-## Access Motion GPU runtime bindings in TypeGPU
+Available frame fields are `motiongpuFrame.time`, `.delta`, and `.resolution`. User fields use `motiongpuUniforms.<name>` and must also be declared in `defineMaterial({ uniforms })`.
 
-Motion GPU provides built-ins in shader scope:
+Keep shader resolution in a `shader.ts` module and runtime orchestration in the adapter component. This isolates transformer-dependent code from `FragCanvas`, `useFrame`, and `usePointer`.
 
-- `motiongpuFrame.resolution`
-- `motiongpuFrame.time`
-- `motiongpuFrame.delta`
+## Failure modes
 
-In TypeGPU, expose them via `rawCodeSnippet(...)` as shown above.
+| Failure | Check |
+| --- | --- |
+| Missing TypeGPU metadata | Transformer is installed in the pipeline compiling the shader module |
+| Browser bundle references `createRequire` | A browser-safe plugin entry is used by the worker bundler |
+| Missing `frag` contract | Resolved function is named `frag` and has the required signature |
+| Unknown `motiongpuUniforms` field | Matching uniform exists in the material |
 
-For user uniforms declared in `defineMaterial({ uniforms })`, reference:
-
-- `motiongpuUniforms.<name>`
-
-Example:
-
-```ts
-const uStrength = tgpu['~unstable'].rawCodeSnippet('motiongpuUniforms.uStrength', d.f32, 'uniform');
-```
-
-You must still declare `uStrength` in `defineMaterial({ uniforms: { uStrength: ... } })`.
-
-## Recommended file split
-
-For this integration, keep a strict 2-file split:
-
-1. `shader.ts`: TypeGPU authoring (`'use gpu'`) + `tgpu.resolve`
-2. runtime component (`.svelte` / `.tsx`): Motion GPU `FragCanvas`, `defineMaterial`, `useFrame` / `usePointer`
-
-This keeps shader logic isolated from runtime orchestration and makes testing/refactoring easier.
-
-## Common pitfalls
-
-| Problem | Cause | Fix |
-| --- | --- | --- |
-| `Missing metadata ... unplugin-typegpu` | `'use gpu'` shader path without transformer | Enable `unplugin-typegpu` in your build pipeline |
-| `createRequire is not a function` in browser bundle | Node-targeted plugin entry used in browser worker | Use browser-safe plugin entry/integration for your bundler pipeline |
-| WGSL compile error: missing `frag(uv)` | Generated function not named/signed as MotionGPU contract | Ensure final WGSL exports `fn frag(uv: vec2f) -> vec4f` |
-| Unknown `motiongpuUniforms.<x>` | Uniform referenced in shader but not declared in material | Add uniform to `defineMaterial({ uniforms })` |
-| Visual jitter from frame-time coupling | Scaling animation speed directly by `delta` | Prefer stable base on `time`; use `delta` only when intentionally integrating velocities |
-
-## Related docs
-
-- [Writing Shaders](/docs/writing-shaders)
-- [Defining Materials](/docs/defining-materials)
-- [Uniforms](/docs/uniforms)
-- [Hooks & Context](/docs/hooks-and-context)
+Open the complete [TypeGPU Resolve Codegen demo](/playground?demo=typegpu-resolve-codegen&framework=svelte) to inspect generated WGSL and adapter variants.

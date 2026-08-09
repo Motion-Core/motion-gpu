@@ -1,123 +1,51 @@
 ---
 title: Hooks & Context
-description: Accessing runtime state, pointer input, and rendering controls with Motion GPU hooks.
+description: Read runtime state and control rendering from the FragCanvas subtree.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+Adapter hooks connect descendant components to one `FragCanvas` runtime. Calling `useMotionGPU`, `useFrame`, `usePointer`, or advanced user-context hooks outside that subtree throws.
 
-This page covers `useMotionGPU()` for runtime context access, `usePointer()` for normalized pointer input, the `CurrentWritable` pattern for synchronous reads, and recommended integration patterns.
+## Runtime context
 
-For advanced user-defined context, see [User Context (Advanced)](/docs/user-context).
+`useMotionGPU()` returns:
 
-## useMotionGPU()
-
-`useMotionGPU()` returns the `MotionGPUContext` — the primary API for reading runtime state and controlling rendering from within `FragCanvas` children.
-
-<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} vueCode={ex.basicUsageVue} />
-
-Must be called inside a `<FragCanvas>` component tree. Calling it outside throws.
-
-## usePointer()
-
-`usePointer()` provides adapter-managed pointer tracking (`mouse`, `touch`, `pen`) with shader-friendly coordinates:
-- `state.current.uv` in `0..1` with Y-up orientation
-- `state.current.ndc` in `-1..1`
-- optional synthesized click snapshots via `lastClick.current`
-- optional automatic frame wakeups (`requestFrame: 'auto'`)
-
-Use it to remove canvas event-listener boilerplate in runtime components.
-
-## MotionGPUContext shape
-
-### Reactive stores
-
-| Store | Type | Description |
-| --- | --- | --- |
-| `gpu.size` | `CurrentReadable<{ width: number; height: number }>` | Canvas size in CSS pixels (from `getBoundingClientRect`) |
-| `gpu.dpr` | `CurrentWritable<number>` | Device pixel ratio |
-| `gpu.maxDelta` | `CurrentWritable<number>` | Max frame delta (seconds) |
-| `gpu.renderMode` | `CurrentWritable<RenderMode>` | Current render mode |
-| `gpu.autoRender` | `CurrentWritable<boolean>` | Auto-render gate |
-| `gpu.user` | `CurrentWritable<Record<string \| symbol, unknown>>` | User-defined namespace store |
-
-### Direct values
-
-| Property | Type | Description |
-| --- | --- | --- |
-| `gpu.canvas` | `HTMLCanvasElement \| undefined` | The active canvas element (undefined until mounted) |
-
-### Control methods
-
-| Method | Description |
+| Member | Purpose |
 | --- | --- |
-| `gpu.invalidate()` | Request re-render in `on-demand` mode |
-| `gpu.advance()` | Request exactly one frame in `manual` mode |
+| `canvas` | Active `HTMLCanvasElement`, or `undefined` before mount |
+| `size` | Readable canvas size in CSS pixels |
+| `dpr`, `maxDelta`, `renderMode`, `autoRender` | Writable runtime controls |
+| `user` | Namespaced user-state store |
+| `invalidate()` | Request on-demand rendering |
+| `advance()` | Request one manual frame |
+| `scheduler` | Stage, diagnostics, profiling, and schedule inspection API |
 
-### Scheduler access
+## Current values
 
-| Method | Description |
-| --- | --- |
-| `gpu.scheduler.createStage(key, options)` | Creates a named execution stage |
-| `gpu.scheduler.getSchedule()` | Returns resolved stage/task order |
-| `gpu.scheduler.setDiagnosticsEnabled(flag)` | Enable/disable single-frame timing |
-| `gpu.scheduler.setProfilingEnabled(flag)` | Enable/disable rolling profiling |
-| `gpu.scheduler.setProfilingWindow(n)` | Set rolling window size |
-| `gpu.scheduler.getLastRunTimings()` | Last frame's timing data |
-| `gpu.scheduler.getProfilingSnapshot()` | Aggregate profiling stats |
-| `gpu.scheduler.resetProfiling()` | Clear profiling history |
+`CurrentReadable<T>` adds a synchronous `.current` getter to a subscribable value. `CurrentWritable<T>` also provides `.set(...)` and `.update(...)`.
 
-For higher-level scheduler configuration and debug snapshots, use the advanced helper exports:
+Use `.current` in frame callbacks and other imperative code:
 
 ```ts
-import { applySchedulerPreset, captureSchedulerDebugSnapshot } from '@motion-core/motion-gpu/advanced';
+const gpu = useMotionGPU();
+
+useFrame(() => {
+	const { width, height } = gpu.size.current;
+});
 ```
 
-## The CurrentWritable / CurrentReadable pattern
+Use `.subscribe(...)` when UI state must react to changes. Avoid creating a subscription for every frame read.
 
-Store-like subscriptions require setup/teardown to read values reactively. In `useFrame` callbacks (which run 60 times per second), subscribing and unsubscribing per read is wasteful.
+## Pointer input
 
-`CurrentWritable<T>` and `CurrentReadable<T>` extend reactive store contracts with a synchronous `.current` getter:
+`usePointer(...)` normalizes mouse, touch, and pen events. Its `state` readable includes CSS-pixel coordinates, Y-up `uv` coordinates in `0..1`, Y-up NDC coordinates in `-1..1`, movement, velocity, button state, and inside/dragging flags. Optional click synthesis is exposed through `lastClick`.
 
-```ts
-// Subscription read — requires subscribe/unsubscribe
-let value: number;
-const unsub = gpu.maxDelta.subscribe(v => { value = v; });
-// ... use value ...
-unsub();
+`requestFrame: 'auto'` chooses invalidation or manual advance from the active render mode. Use `'invalidate'`, `'advance'`, or `'none'` to override it.
 
-// CurrentWritable — zero-overhead synchronous read
-const value = gpu.maxDelta.current; // Instant, no subscription
-```
+## Rendering controls
 
-### API
+- `gpu.renderMode.set(...)` switches between `always`, `on-demand`, and `manual`.
+- `gpu.autoRender.set(false)` closes the render gate in every mode.
+- `gpu.invalidate()` wakes `on-demand` rendering.
+- `gpu.advance()` requests one render in `manual` mode and also satisfies the on-demand gate.
 
-| Method | Description |
-| --- | --- |
-| `.current` | Synchronous read of the latest value |
-| `.set(value)` | Update the value (writable only) |
-| `.subscribe(fn)` | Standard reactive-store style subscription |
-
-### When to use which
-
-| Context | Use |
-| --- | --- |
-| Inside `useFrame` callbacks | `.current` (runs 60+ times/sec) |
-| Framework reactive bindings (`$store`, `useSyncExternalStore`, `ref` + `.subscribe`, etc.) | Standard `.subscribe` integration |
-| One-off reads outside reactive blocks | `.current` |
-
-## Integration patterns
-
-### Reading canvas size
-
-<FrameworkBlock svelteCode={ex.readSizeSvelte} reactCode={ex.readSizeReact} vueCode={ex.readSizeVue} />
-
-### Conditional rendering control
-
-<FrameworkBlock svelteCode={ex.togglePauseSvelte} reactCode={ex.togglePauseReact} vueCode={ex.togglePauseVue} />
-
-### On-demand with external triggers
-
-<FrameworkBlock svelteCode={ex.onDemandExternalSvelte} reactCode={ex.onDemandExternalReact} vueCode={ex.onDemandExternalVue} />
+See [Hooks API](/docs/api-hooks-reference) for exact options and return types, [Frame Scheduler](/docs/frame-scheduler) for task registration, and [User Context](/docs/user-context) for advanced namespaced state.

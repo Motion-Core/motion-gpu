@@ -1,170 +1,54 @@
 ---
-title: Texture Loading
-description: Reactive hook for loading textures from URLs with automatic cleanup and error handling.
+title: Texture loading
+description: Load URL textures with reactive state, cancellation, caching, and cleanup.
 ---
 
-<script lang="ts">
-	import FrameworkBlock from '$lib/components/docs/FrameworkBlock.svelte';
-	import * as ex from './examples';
-</script>
+`useTexture(...)` is the adapter lifecycle wrapper around the framework-neutral URL loader. Svelte and Vue defer loading until client mount; all adapters dispose their current bitmaps on unmount.
 
-`useTexture` is an adapter runtime hook that loads textures from URLs, exposes reactive loading and both raw/normalized error state, and handles cancellation and resource cleanup automatically.
-
-For texture declaration and configuration in materials, see [Texture Definitions](/docs/textures).
-
-## Basic usage
-
-<FrameworkBlock svelteCode={ex.basicUsageSvelte} reactCode={ex.basicUsageReact} vueCode={ex.basicUsageVue} />
-
-`useTexture` starts loading immediately when called. It returns reactive stores that update as the load progresses.
-
-## URL input forms
-
-| Form | Description |
-| --- | --- |
-| `string[]` | Static list of URLs |
-| `() => string[]` | Lazy URL provider (evaluated on each load/reload) |
-
-```ts
-// Static
-const tex = useTexture(['/assets/a.png', '/assets/b.png']);
-
-// Dynamic
-const tex = useTexture(() => [
-  `/assets/textures/${currentSet}/diffuse.png`,
-  `/assets/textures/${currentSet}/normal.png`
-]);
-```
-
-## Return value (`UseTextureResult`)
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `textures` | `CurrentReadable<LoadedTexture[] \| null>` | Loaded textures in input order, or `null` on failure |
-| `loading` | `CurrentReadable<boolean>` | `true` while an active load request is running |
-| `error` | `CurrentReadable<Error \| null>` | Last loading error |
-| `errorReport` | `CurrentReadable<MotionGPUErrorReport \| null>` | Last loading error normalized to MotionGPU diagnostics shape |
-| `reload` | `() => Promise<void>` | Triggers a fresh load with current URL input |
-
-### Using `.current` for synchronous access
-
-All stores expose a `.current` getter for zero-subscription reads — ideal for `useFrame` callbacks:
-
-```ts
-useFrame((state) => {
-  if (loaded.loading.current) return; // Skip while loading
-  if (loaded.error.current) return;   // Skip on error
-
-  const textures = loaded.textures.current;
-  if (textures) {
-    state.setTexture('uDiffuse', { source: textures[0].source });
-    state.setTexture('uNormal', { source: textures[1].source });
-  }
-});
-```
-
-### Using reactive subscriptions for UI
-
-<FrameworkBlock svelteCode={ex.reactiveUISvelte} reactCode={ex.reactiveUIReact} vueCode={ex.reactiveUIVue} />
-
-## TextureLoadOptions
-
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `colorSpace` | `'srgb'` \| `'linear'` | `'srgb'` | Affects `colorSpaceConversion` during decode |
-| `requestInit` | `RequestInit` | `undefined` | Forwarded to `fetch()` for custom headers, credentials, etc. |
-| `decode` | `TextureDecodeOptions` | See below | Bitmap decode settings |
-| `signal` | `AbortSignal` | `undefined` | External cancellation signal |
-| `update` | `TextureUpdateMode` | `undefined` | Metadata attached to loaded textures |
-| `flipY` | `boolean` | `undefined` | Metadata attached to loaded textures |
-| `premultipliedAlpha` | `boolean` | `undefined` | Metadata attached to loaded textures |
-| `generateMipmaps` | `boolean` | `undefined` | Metadata attached to loaded textures |
-
-### TextureDecodeOptions
-
-| Field | Default | Description |
-| --- | --- | --- |
-| `colorSpaceConversion` | `'none'` (linear) / `'default'` (srgb) | Colour space handling during bitmap decode |
-| `premultiplyAlpha` | `'default'` | Alpha premultiplication during decode |
-| `imageOrientation` | `'none'` | Bitmap orientation (`'none'` or `'flipY'`) |
-
-## Example with options
+## Input and result
 
 ```ts
 const loaded = useTexture(
-  ['/assets/hdr-env.png'],
-  {
-    colorSpace: 'linear',
-    generateMipmaps: true,
-    decode: {
-      premultiplyAlpha: 'none'
-    }
-  }
+	() => ['/textures/albedo.png', '/textures/normal.png'],
+	{ colorSpace: 'srgb', generateMipmaps: true }
 );
 ```
 
-## LoadedTexture shape
+The URL input is a `string[]` or lazy `() => string[]`. Svelte and Vue also accept a lazy options provider; React accepts an options object.
 
-Each loaded texture provides:
+| Result | Type |
+| --- | --- |
+| `textures` | `CurrentReadable<LoadedTexture[] &#124; null>` |
+| `loading` | `CurrentReadable<boolean>` |
+| `error` | `CurrentReadable<Error &#124; null>` |
+| `errorReport` | `CurrentReadable<MotionGPUErrorReport &#124; null>` |
+| `reload()` | `Promise<void>` |
 
-| Field | Type | Description |
+Read `.current` in frame callbacks and subscribe when UI must react.
+
+## Options
+
+| Field | Default | Purpose |
 | --- | --- | --- |
-| `url` | `string` | Source URL |
-| `source` | `ImageBitmap` | Decoded bitmap — pass to `state.setTexture` |
-| `width` | `number` | Bitmap width in pixels |
-| `height` | `number` | Bitmap height in pixels |
-| `colorSpace` | `'srgb'` \| `'linear'` | Effective color space |
-| `update` | `'once' \| 'onInvalidate' \| 'perFrame'` | Effective update mode metadata |
-| `flipY` | `boolean` | Effective flip-y metadata |
-| `premultipliedAlpha` | `boolean` | Effective premultiplied alpha metadata |
-| `generateMipmaps` | `boolean` | Effective mipmap metadata |
-| `dispose` | `() => void` | Releases the bitmap resources (idempotent: safe to call more than once) |
+| `colorSpace` | `'srgb'` | Loaded texture metadata and decode default |
+| `requestInit` | — | Forwarded fetch options |
+| `decode` | Derived | `createImageBitmap` conversion, premultiplication, and orientation |
+| `signal` | — | External cancellation |
+| `update`, `flipY`, `premultipliedAlpha`, `generateMipmaps` | — | Metadata copied to each loaded texture |
 
-## Abort, reload, and race safety
+Linear color defaults decode `colorSpaceConversion` to `'none'`; sRGB defaults to `'default'`. `premultiplyAlpha` defaults to `'default'` and `imageOrientation` to `'none'`.
 
-`useTexture` is designed for safe async operation in a reactive environment:
+Each `LoadedTexture` contains its URL, `ImageBitmap`, dimensions, color-space and optional upload metadata, plus an idempotent `dispose()`.
 
-### Cancellation on reload
+## Concurrency and cleanup
 
-When `reload()` is called, any in-flight request is **aborted** before the new one starts. This prevents stale results from overwriting fresh data.
+- `reload()` aborts the active request and queues a fresh load.
+- Request versions prevent stale results from replacing newer results.
+- A failed batch aborts sibling requests and disposes textures that already completed.
+- Successful replacement disposes the previous bitmap list.
+- `AbortError` is treated as cancellation and does not populate error state.
+- Other failures populate both the raw error and normalized report.
 
-### Request versioning
+Requests with the same URL, normalized fetch options, color space, and decode options share a reference-counted blob request. The cache entry is removed when its final consumer releases it; an unsettled request is aborted at that point.
 
-Each load increments an internal version counter. When a response arrives, it is only accepted if its version matches the current counter. This eliminates race conditions from overlapping loads.
-
-### Dispose on replacement
-
-When new textures are loaded successfully, the **previous** bitmaps are disposed. When the component is destroyed, all current bitmaps are disposed.
-
-### Abort error suppression
-
-`AbortError` exceptions are treated as expected cancellation and are **not** surfaced in the `error` or `errorReport` stores. Only genuine failures (network errors, decode errors, etc.) appear.
-
-## Blob cache
-
-Under the hood, `texture-loader.ts` maintains a **reference-counted blob cache**. This means:
-
-- If two `useTexture` calls request the same URL with the same options, only one network request is made.
-- The cache key is deterministic: `JSON.stringify({ url, colorSpace, requestInit, decode })`.
-- Entries are evicted when their reference count drops to zero (e.g., all components using that URL are destroyed).
-
-## Component lifecycle
-
-`useTexture` performs adapter lifecycle cleanup automatically:
-
-1. On destroy/unmount, `disposed` flag is set.
-2. The internal `requestVersion` is incremented (invalidating any in-flight result).
-3. The active `AbortController` is aborted.
-4. All current bitmap textures are disposed.
-
-This means you don't need to manually clean up — the hook handles its own lifecycle.
-
-## Error handling
-
-| Failure | Source | `errorReport.code` |
-| --- | --- | --- |
-| `createImageBitmap` unavailable | Runtime capability check | `TEXTURE_DECODE_UNAVAILABLE` |
-| Non-OK HTTP response (4xx, 5xx) | URL fetch | `TEXTURE_REQUEST_FAILED` |
-| Fetch failure (network/CORS) | URL fetch | `TEXTURE_REQUEST_FAILED` (when message matches loader pattern) or fallback |
-| Invalid image data | Bitmap decode | Usually `MOTIONGPU_RUNTIME_ERROR` unless message matches a known classifier |
-| Abort / cancellation | `AbortError` | Suppressed (`error` and `errorReport` stay `null`) |
+Pass each loaded bitmap through `state.setTexture(...)`. See [Textures](/docs/textures) for upload and sampler behavior.

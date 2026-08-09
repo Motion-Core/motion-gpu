@@ -5,24 +5,39 @@
 	const docsRoute = '/docs' as const;
 	const playgroundRoute = '/playground' as const;
 	import Button from '../ui/Button.svelte';
+	import GradientGlassPane from '$lib/GradientGlassPane.svelte';
+
 </script>
 
 <Section variant="default" id="cta">
 	<div
-		class="inset-shadow flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl bg-background-inset px-4 py-8 sm:px-8 sm:py-16"
+		class="relative inset-shadow flex h-full w-full flex-col items-center justify-center gap-4 rounded-xl bg-background-inset px-4 py-8 sm:px-8 sm:py-16"
 	>
+	<div class="absolute inset-0 overflow-hidden">
+		<GradientGlassPane
+			backgroundColor="var(--background)"
+			accentColor="var(--accent)"
+			rotation={50}
+			refraction={1.0}
+			chromaticAberration={0.0}
+			panelWidth={1}
+			waveFrequency={0.0}
+			waveAmplitude={0.0}
+			speed={1}
+		/>
+	</div>
 		<h2
-			class="text-center text-2xl font-medium tracking-tight text-balance text-foreground sm:text-4xl"
+			class="relative text-center text-2xl font-medium tracking-tight text-balance text-foreground sm:text-4xl"
 		>
-			Bring your shader pipeline to production.
+			Bring your shader pipeline to <span class="text-accent">production</span>.
 		</h2>
 		<p
-			class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-2/3"
+			class="relative text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-2/3"
 		>
 			Open the playground to iterate fast, then move to docs for strict contracts, render passes,
 			and deterministic frame scheduling.
 		</p>
-		<div data-reveal="actions" class="flex items-center gap-2">
+		<div data-reveal="actions" class="relative flex items-center gap-2 mt-4">
 			<Button
 				variant="default"
 				href={resolve(playgroundRoute as '/playground')}

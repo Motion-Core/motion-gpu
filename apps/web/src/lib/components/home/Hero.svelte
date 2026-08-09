@@ -12,12 +12,12 @@
 <Section
 	variant="full"
 	id="home"
-	class="flex min-h-128 w-full flex-col items-center justify-center gap-4 sm:min-h-144 lg:min-h-156"
+	class="relative flex min-h-128 w-full flex-col items-center justify-center gap-4 sm:min-h-144 lg:min-h-156"
 >
 	<div class="absolute inset-0 h-full min-h-72">
-		<div class="h-full w-full overflow-hidden bg-foreground dark:bg-background">
+		<div class="h-full w-full overflow-hidden">
 			<GradientGlassPane
-				class="mix-blend-screen dark:mix-blend-lighten"
+				class="h-full w-full"
 				backgroundColor="var(--background)"
 				accentColor="var(--accent)"
 				rotation={50}
@@ -49,7 +49,7 @@
 		>
 			If you need performance, clarity, and composability in WebGPU, this is the right stack.
 		</p>
-		<div data-reveal="actions" class="flex items-center gap-2">
+		<div data-reveal="actions" class="mt-4 flex items-center gap-2">
 			<Button
 				variant="default"
 				href={resolve(playgroundRoute as '/playground')}

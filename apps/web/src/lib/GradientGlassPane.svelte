@@ -34,7 +34,7 @@
 	}: Props = $props();
 </script>
 
-<div class={cn('relative h-full w-full overflow-hidden', className)} {...rest}>
+<div class={cn('relative overflow-hidden', className)} {...rest}>
 	<div class="absolute inset-0 z-0">
 		<Scene
 			gradient

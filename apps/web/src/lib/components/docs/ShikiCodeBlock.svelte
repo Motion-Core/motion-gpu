@@ -22,7 +22,7 @@
 		unstyled = false,
 		scrollable,
 		scrollThumbTabbable,
-		scrollViewportTabbable
+		scrollViewportTabbable = false
 	}: Props = $props();
 </script>
 

@@ -3,6 +3,8 @@ All notable changes to Motion GPU will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.13.0] - 2026-08-09
 ### Changed
 - Renderer pipeline signatures now include `adapterOptions`, `deviceDescriptor`, and storage buffer `initialData` content, so declarative WebGPU configuration and initial buffer changes recreate the renderer/device instead of reusing stale GPU resources.
 - `defineMaterial` now normalizes `Float32Array` `mat4x4f` defaults into immutable material snapshots while preserving `Float32Array` support for runtime `setUniform` updates.
@@ -302,7 +304,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/0481829...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...HEAD
+[0.13.0]: https://github.com/Motion-Core/motion-gpu/compare/572487f...eeeb14c
+[0.12.0]: https://github.com/Motion-Core/motion-gpu/compare/0481829...572487f
 [0.11.0]: https://github.com/Motion-Core/motion-gpu/compare/7376a48...0481829
 [0.10.0]: https://github.com/Motion-Core/motion-gpu/compare/1e4e41b...7376a48
 [0.9.2]: https://github.com/Motion-Core/motion-gpu/compare/9819601...1e4e41b

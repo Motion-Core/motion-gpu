@@ -1,22 +1,31 @@
 <script lang="ts">
 	import './layout.css';
 	import { page } from '$app/state';
-	import { docsUiConfig } from '$lib/config/docs-ui';
-	import { siteConfig } from '$lib/config/site';
+	import { CommandPalette, contentUiDefaults, siteConfig } from '$lib';
+	import { getContentSectionByPathname, getContentSectionUiConfig } from '$lib/content/sections';
+	import { themeStore } from '$lib/stores/theme.svelte';
+	import type { SectionUiConfig } from '$lib/config/content-ui';
+	import { type Snippet } from 'svelte';
 
-	const { children } = $props();
+	const { children }: { children: Snippet } = $props();
 
 	const currentPage = page;
 
 	const isHomePath = (path?: string) => path === '/';
-	const isDocsPath = (path?: string) => path?.startsWith('/docs');
 
 	const currentUrl = $derived(currentPage.url);
 	const currentPath = $derived(currentUrl.pathname);
 	const isHomeRoute = $derived(isHomePath(currentPath));
-	const isDocsRoute = $derived(isDocsPath(currentPath));
+	const currentSection = $derived(getContentSectionByPathname(currentPath));
+	const currentSectionUi = $derived(
+		currentSection ? getContentSectionUiConfig(currentSection.id) : null
+	);
+	const searchConfig = $derived<SectionUiConfig['search']>(
+		currentSectionUi?.search ?? contentUiDefaults.search
+	);
+	const showCommandPalette = $derived(Boolean(currentSection) && searchConfig.enabled);
 	const siteOrigin = new URL(siteConfig.url).origin;
-	const canonicalUrl = $derived(new URL(currentPath || '/', siteOrigin).href);
+	const canonicalUrl = $derived(new URL(currentPath, siteOrigin).href);
 
 	const siteName = siteConfig.name;
 	const authorName = siteConfig.author;
@@ -49,16 +58,18 @@
 </script>
 
 <svelte:head>
-	<meta name="theme-color" content="#ffffff" />
-	<meta name="motiongpu-theme-storage-key" content={docsUiConfig.theme.storageKey} />
 	<meta
-		name="motiongpu-package-manager-storage-key"
-		content={docsUiConfig.packageManager.storageKey}
+		name="theme-color"
+		content={themeStore.isDark ? siteConfig.themeColor.dark : siteConfig.themeColor.light}
 	/>
-	<meta name="motiongpu-package-manager-default" content={docsUiConfig.packageManager.default} />
 	<meta
-		name="motiongpu-package-manager-enabled"
-		content={docsUiConfig.packageManager.enabled.join(',')}
+		name="docs-package-manager-storage-key"
+		content={contentUiDefaults.packageManager.storageKey}
+	/>
+	<meta name="docs-package-manager-default" content={contentUiDefaults.packageManager.default} />
+	<meta
+		name="docs-package-manager-enabled"
+		content={contentUiDefaults.packageManager.enabled.join(',')}
 	/>
 	<meta property="og:site_name" content={siteName} />
 	<meta property="og:locale" content="en_US" />
@@ -83,7 +94,7 @@
 		<meta property="og:type" content="website" />
 		<meta property="og:url" content={canonicalUrl} />
 		<meta property="og:image" content={sharedOgImage} />
-		<meta property="og:image:alt" content="Motion GPU logomark" />
+		<meta property="og:image:alt" content={`${siteName} logomark`} />
 		<meta property="og:image:type" content="image/png" />
 		<meta name="twitter:title" content={homeTitle} />
 		<meta name="twitter:description" content={homeDescription} />
@@ -91,11 +102,14 @@
 		<svelte:element this={'script'} type="application/ld+json">
 			{homeStructuredData}
 		</svelte:element>
-	{:else if !isDocsRoute}
+	{:else if !currentSection}
 		<title>{siteName}</title>
 		<meta name="description" content={homeDescription} />
 		<link rel="canonical" href={canonicalUrl} />
 	{/if}
 </svelte:head>
 
+{#if showCommandPalette}
+	<CommandPalette {searchConfig} />
+{/if}
 {@render children()}

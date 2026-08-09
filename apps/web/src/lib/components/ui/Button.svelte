@@ -4,13 +4,13 @@
 	import { cn } from '$lib/utils/cn';
 
 	const buttonVariants = cva(
-		'inline-flex items-center justify-center gap-2 whitespace-nowrap tracking-tight font-medium text-sm transition-colors duration-150 ease-out rounded-sm disabled:pointer-events-none disabled:opacity-50',
+		'focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap tracking-tight font-medium text-sm transition-[color,background-color,filter,box-shadow] duration-150 ease-out rounded-sm outline-none disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none',
 		{
 			variants: {
 				variant: {
-					default: 'btn-primary',
-					secondary: 'btn-secondary',
-					ghost: 'text-foreground hover:bg-background-inset'
+					default: 'btn-primary focus-outline',
+					secondary: 'btn-secondary focus-outline',
+					ghost: 'focus-outline text-foreground hover:bg-background-inset'
 				},
 				size: {
 					sm: 'h-7 px-2.5 text-xs',
@@ -28,14 +28,14 @@
 
 	type ButtonVariants = VariantProps<typeof buttonVariants>;
 
-	interface Props extends ButtonVariants {
+	type Props = ButtonVariants & {
 		href?: string;
 		type?: 'button' | 'submit' | 'reset';
 		disabled?: boolean;
 		class?: string;
 		children?: Snippet;
 		[key: string]: unknown;
-	}
+	};
 
 	let {
 		href,
@@ -52,7 +52,7 @@
 </script>
 
 {#if href}
-	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+	<!-- eslint-disable svelte/no-navigation-without-resolve -- generic button supports internal and external URLs -->
 	<a
 		href={disabled ? undefined : href}
 		class={classes}
@@ -62,6 +62,7 @@
 	>
 		{@render children?.()}
 	</a>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 {:else}
 	<button {type} class={classes} {disabled} {...rest}>
 		{@render children?.()}
@@ -76,7 +77,6 @@
 	}
 
 	.btn-primary {
-		overflow: hidden;
 		color: var(--color-white-fixed);
 		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
 		transition:
@@ -89,7 +89,7 @@
 			inset 0 1px 0 rgb(255 255 255 / 0.22),
 			var(--shadow-md);
 
-		&::after {
+		&::before {
 			content: '';
 			position: absolute;
 			inset: 0;
@@ -123,7 +123,6 @@
 	}
 
 	:global(.dark) .btn-primary {
-		overflow: hidden;
 		color: var(--color-white-fixed);
 		text-shadow: 0 1px 1px rgb(0 0 0 / 0.5);
 		transition:
@@ -140,7 +139,7 @@
 			inset 0 1px 0 rgb(255 255 255 / 0.22),
 			var(--shadow-md);
 
-		&::after {
+		&::before {
 			content: '';
 			position: absolute;
 			inset: 0;
@@ -175,7 +174,6 @@
 
 	.btn-secondary {
 		isolation: isolate;
-		overflow: hidden;
 		color: var(--color-foreground);
 		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 
@@ -193,7 +191,7 @@
 			inset 0 1px 0 rgb(255 255 255 / 0.22),
 			var(--shadow-md);
 
-		&::after {
+		&::before {
 			content: '';
 			position: absolute;
 			inset: 0;
@@ -228,7 +226,6 @@
 
 	:global(.dark) .btn-secondary {
 		isolation: isolate;
-		overflow: hidden;
 		color: var(--color-foreground);
 		text-shadow: 0 1px 1px rgb(0 0 0 / 0.25);
 
@@ -250,7 +247,7 @@
 			inset 0 1px 0 rgb(255 255 255 / 0.22),
 			var(--shadow-md);
 
-		&::after {
+		&::before {
 			content: '';
 			position: absolute;
 			inset: 0;

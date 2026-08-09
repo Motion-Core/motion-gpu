@@ -1,10 +1,10 @@
 import { browser } from '$app/environment';
-import { docsUiConfig } from '$lib/config/docs-ui';
+import { contentUiDefaults } from '$lib/config/content-ui';
 
 export const themes = ['light', 'dark'] as const;
 export type Theme = (typeof themes)[number];
 
-const storageKey = docsUiConfig.theme.storageKey;
+const storageKey = contentUiDefaults.theme.storageKey;
 
 function isTheme(value: string | null): value is Theme {
 	return value === 'light' || value === 'dark';
@@ -22,7 +22,7 @@ function applyTheme(theme: Theme) {
 
 function getInitialTheme(): Theme {
 	if (!browser) {
-		return docsUiConfig.theme.defaultMode === 'dark' ? 'dark' : 'light';
+		return contentUiDefaults.theme.defaultMode === 'dark' ? 'dark' : 'light';
 	}
 
 	const storedTheme = localStorage.getItem(storageKey);

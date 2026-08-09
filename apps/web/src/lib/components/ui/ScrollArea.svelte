@@ -15,6 +15,8 @@
 		viewportClass?: string;
 		viewportStyle?: string;
 		mode?: ScrollMode;
+		thumbTabbable?: boolean;
+		viewportTabbable?: boolean;
 	};
 
 	const MIN_THUMB_SIZE = 20;
@@ -28,9 +30,12 @@
 		style,
 		viewportClass,
 		viewportStyle,
-		mode = 'vertical'
+		mode = 'vertical',
+		thumbTabbable = true,
+		viewportTabbable = true
 	}: Props = $props();
-	const viewportId = $derived(id ?? undefined);
+	const generatedId = $props.id();
+	const viewportId = $derived(id ?? `scroll-area-${generatedId}`);
 
 	let viewport = $state<HTMLDivElement | null>(null);
 	let isDragging = $state(false);
@@ -51,6 +56,8 @@
 	let isScrolling = $state(false);
 	let isHoveringVerticalTrack = $state(false);
 	let isHoveringHorizontalTrack = $state(false);
+	let isVerticalThumbFocused = $state(false);
+	let isHorizontalThumbFocused = $state(false);
 	let scrollTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	const verticalEnabled = $derived(mode === 'vertical' || mode === 'both');
@@ -112,7 +119,9 @@
 	}
 
 	function handleScroll() {
-		requestAnimationFrame(() => updateThumbs());
+		requestAnimationFrame(() => {
+			updateThumbs();
+		});
 		isScrolling = true;
 		clearTimeout(scrollTimeout);
 		scrollTimeout = setTimeout(() => {
@@ -238,7 +247,6 @@
 	}
 
 	const viewportAttachment: Attachment<HTMLDivElement> = (node) => {
-		void mode;
 		viewport = node;
 		updateThumbs(node);
 
@@ -274,25 +282,41 @@
 </script>
 
 <div class={cn('relative flex flex-col overflow-hidden', className)} {style}>
-	<div
-		{@attach viewportAttachment}
-		id={viewportId}
-		class={cn('scrollbar-hide min-h-0 w-full flex-1', viewportOverflowClass, viewportClass)}
-		style={viewportStyle}
-		onscroll={handleScroll}
-	>
-		{@render children?.()}
-	</div>
+	{#if viewportTabbable}
+		<div
+			{@attach viewportAttachment}
+			id={viewportId}
+			class={cn('scrollbar-hide min-h-0 w-full flex-1', viewportOverflowClass, viewportClass)}
+			style={viewportStyle}
+			onscroll={handleScroll}
+		>
+			{@render children?.()}
+		</div>
+	{:else}
+		<div
+			{@attach viewportAttachment}
+			id={viewportId}
+			tabindex="-1"
+			class={cn('scrollbar-hide min-h-0 w-full flex-1', viewportOverflowClass, viewportClass)}
+			style={viewportStyle}
+			onscroll={handleScroll}
+		>
+			{@render children?.()}
+		</div>
+	{/if}
 
 	{#if showVerticalTrack}
 		<div
 			class={cn(
-				'absolute top-0 right-0 w-2.5 p-px transition-opacity duration-300',
-				isScrolling || (isDragging && dragAxis === 'vertical') || isHoveringVerticalTrack
+				'absolute top-0 right-0 w-2.5 p-px transition-opacity duration-300 motion-reduce:transition-none',
+				isScrolling ||
+					(isDragging && dragAxis === 'vertical') ||
+					isHoveringVerticalTrack ||
+					isVerticalThumbFocused
 					? 'opacity-100'
 					: 'opacity-0'
 			)}
-			style:bottom={showHorizontalTrack ? `${SCROLLBAR_THICKNESS}px` : '0px'}
+			style:bottom={showHorizontalTrack ? `${SCROLLBAR_THICKNESS.toString()}px` : '0px'}
 			onmouseenter={() => (isHoveringVerticalTrack = true)}
 			onmouseleave={() => (isHoveringVerticalTrack = false)}
 			role="presentation"
@@ -304,15 +328,21 @@
 				aria-valuemin={0}
 				aria-valuemax={Math.max(0, viewport ? viewport.scrollHeight - viewport.clientHeight : 0)}
 				aria-valuenow={viewport?.scrollTop ?? 0}
-				tabindex="0"
+				tabindex={thumbTabbable ? 0 : -1}
 				class={cn(
-					'relative rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
+					'focus-ring relative rounded-full bg-foreground/10 transition-[background-color,box-shadow] duration-150 outline-none hover:bg-foreground/30 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-foreground/50 motion-reduce:transition-none',
 					isDragging && dragAxis === 'vertical' && 'bg-foreground/50'
 				)}
-				style:height={`${verticalThumbSize}px`}
-				style:transform={`translate3d(0, ${verticalThumbOffset}px, 0)`}
-				onmousedown={(event) => onDragStart(event, 'vertical')}
-				onkeydown={(event) => onThumbKeyDown(event, 'vertical')}
+				style:height={`${verticalThumbSize.toString()}px`}
+				style:transform={`translate3d(0, ${verticalThumbOffset.toString()}px, 0)`}
+				onmousedown={(event) => {
+					onDragStart(event, 'vertical');
+				}}
+				onkeydown={(event) => {
+					onThumbKeyDown(event, 'vertical');
+				}}
+				onfocus={() => (isVerticalThumbFocused = true)}
+				onblur={() => (isVerticalThumbFocused = false)}
 			></div>
 		</div>
 	{/if}
@@ -320,12 +350,15 @@
 	{#if showHorizontalTrack}
 		<div
 			class={cn(
-				'absolute bottom-0 left-0 h-2.5 p-px transition-opacity duration-300',
-				isScrolling || (isDragging && dragAxis === 'horizontal') || isHoveringHorizontalTrack
+				'absolute bottom-0 left-0 h-2.5 p-px transition-opacity duration-300 motion-reduce:transition-none',
+				isScrolling ||
+					(isDragging && dragAxis === 'horizontal') ||
+					isHoveringHorizontalTrack ||
+					isHorizontalThumbFocused
 					? 'opacity-100'
 					: 'opacity-0'
 			)}
-			style:right={showVerticalTrack ? `${SCROLLBAR_THICKNESS}px` : '0px'}
+			style:right={showVerticalTrack ? `${SCROLLBAR_THICKNESS.toString()}px` : '0px'}
 			onmouseenter={() => (isHoveringHorizontalTrack = true)}
 			onmouseleave={() => (isHoveringHorizontalTrack = false)}
 			role="presentation"
@@ -337,15 +370,21 @@
 				aria-valuemin={0}
 				aria-valuemax={Math.max(0, viewport ? viewport.scrollWidth - viewport.clientWidth : 0)}
 				aria-valuenow={viewport?.scrollLeft ?? 0}
-				tabindex="0"
+				tabindex={thumbTabbable ? 0 : -1}
 				class={cn(
-					'relative h-full rounded-full bg-foreground/10 transition-colors duration-150 hover:bg-foreground/30 active:bg-foreground/50',
+					'focus-ring relative h-full rounded-full bg-foreground/10 transition-[background-color,box-shadow] duration-150 outline-none hover:bg-foreground/30 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background active:bg-foreground/50 motion-reduce:transition-none',
 					isDragging && dragAxis === 'horizontal' && 'bg-foreground/50'
 				)}
-				style:width={`${horizontalThumbSize}px`}
-				style:transform={`translate3d(${horizontalThumbOffset}px, 0, 0)`}
-				onmousedown={(event) => onDragStart(event, 'horizontal')}
-				onkeydown={(event) => onThumbKeyDown(event, 'horizontal')}
+				style:width={`${horizontalThumbSize.toString()}px`}
+				style:transform={`translate3d(${horizontalThumbOffset.toString()}px, 0, 0)`}
+				onmousedown={(event) => {
+					onDragStart(event, 'horizontal');
+				}}
+				onkeydown={(event) => {
+					onThumbKeyDown(event, 'horizontal');
+				}}
+				onfocus={() => (isHorizontalThumbFocused = true)}
+				onblur={() => (isHorizontalThumbFocused = false)}
 			></div>
 		</div>
 	{/if}

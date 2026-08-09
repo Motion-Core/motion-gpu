@@ -1,15 +1,15 @@
 import { browser } from '$app/environment';
 import {
-	docsUiConfig,
+	contentUiDefaults,
 	availablePackageManagers,
 	type PackageManagerOption
-} from '$lib/config/docs-ui';
+} from '$lib/config/content-ui';
 
 export type PackageManager = PackageManagerOption;
 
 const enabledManagers = Array.from(
 	new Set(
-		docsUiConfig.packageManager.enabled.filter((pm): pm is PackageManager =>
+		contentUiDefaults.packageManager.enabled.filter((pm): pm is PackageManager =>
 			availablePackageManagers.includes(pm)
 		)
 	)
@@ -18,7 +18,7 @@ const enabledManagers = Array.from(
 export const packageManagers: PackageManager[] =
 	enabledManagers.length > 0 ? enabledManagers : ['npm'];
 
-const DATASET_KEY = 'motiongpuPackageManager';
+const DATASET_KEY = 'docsPackageManager';
 
 function isPackageManager(value: string | null): value is PackageManager {
 	return !!value && packageManagers.includes(value as PackageManager);
@@ -42,7 +42,7 @@ function syncBootstrapPackageManager(value: PackageManager): void {
 }
 
 function createPackageManagerStore() {
-	const configuredDefault = docsUiConfig.packageManager.default;
+	const configuredDefault = contentUiDefaults.packageManager.default;
 	const defaultActive = packageManagers.includes(configuredDefault)
 		? configuredDefault
 		: packageManagers[0];
@@ -55,10 +55,8 @@ function createPackageManagerStore() {
 		if (bootstrapped) {
 			nextActive = bootstrapped;
 		} else {
-			const stored = localStorage.getItem(
-				docsUiConfig.packageManager.storageKey
-			) as PackageManager | null;
-			if (stored && packageManagers.includes(stored)) {
+			const stored = localStorage.getItem(contentUiDefaults.packageManager.storageKey);
+			if (isPackageManager(stored)) {
 				nextActive = stored;
 			}
 		}
@@ -74,7 +72,7 @@ function createPackageManagerStore() {
 		set active(v: PackageManager) {
 			active = v;
 			if (browser) {
-				localStorage.setItem(docsUiConfig.packageManager.storageKey, v);
+				localStorage.setItem(contentUiDefaults.packageManager.storageKey, v);
 				syncBootstrapPackageManager(v);
 			}
 		}

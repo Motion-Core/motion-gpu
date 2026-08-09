@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Camera, Mesh, Program, Renderer, Texture, Transform, Triangle, Vec2 } from 'ogl';
 
-	interface Props {
+	type Props = {
 		/**
 		 * The image source URL.
 		 */
@@ -42,7 +42,7 @@
 		 * @default 0.65
 		 */
 		speed?: number;
-	}
+	};
 
 	let {
 		image,
@@ -302,9 +302,7 @@
 		return () => {
 			window.cancelAnimationFrame(raf);
 			setImageSource = undefined;
-			if (imageTexture.texture) {
-				gl.deleteTexture(imageTexture.texture);
-			}
+			gl.deleteTexture(imageTexture.texture);
 		};
 	});
 </script>

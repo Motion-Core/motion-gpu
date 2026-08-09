@@ -29,13 +29,19 @@ export const siteConfig = {
 		'creative coding',
 		'motion-gpu'
 	],
-	/** Default social preview image path. */
+	/** Default social preview image endpoint. */
 	ogImage: '/og-image.jpg',
+	/** Browser chrome colors synchronized with the light and dark inset surfaces. */
+	themeColor: {
+		light: '#f0f0f1',
+		dark: '#131416'
+	},
 	/** External profile links used by docs actions and metadata. */
 	links: {
 		github: 'https://github.com/motion-core/motion-gpu',
 		twitter: 'https://x.com/madebyhex'
 	},
+	/** Package metadata used in installation snippets and docs helpers. */
 	package: {
 		name: '@motion-core/motion-gpu'
 	}

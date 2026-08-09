@@ -1,12 +1,12 @@
 <script lang="ts">
-	import type { AppHugeIconProps } from './AppHugeIcon.svelte';
+	import type { AppIconProps } from './app-icon-types';
 
 	let {
 		size = 24,
 		color = 'currentColor',
 		class: className = '',
 		...restProps
-	}: AppHugeIconProps = $props();
+	}: AppIconProps = $props();
 </script>
 
 <svg

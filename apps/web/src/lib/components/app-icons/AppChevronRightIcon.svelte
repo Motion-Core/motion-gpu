@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { ChevronRightIcon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon, { type AppHugeIconProps } from './AppHugeIcon.svelte';
+	import type { ComponentProps } from 'svelte';
+	import AppIcon from './AppIcon.svelte';
+	import { chevronRightIcon } from './app-icon-data';
 
-	let props: AppHugeIconProps = $props();
+	let { ...props }: Omit<ComponentProps<typeof AppIcon>, 'icon'> = $props();
 </script>
 
-<AppHugeIcon icon={ChevronRightIcon} {...props} />
+<AppIcon icon={chevronRightIcon} {...props} />

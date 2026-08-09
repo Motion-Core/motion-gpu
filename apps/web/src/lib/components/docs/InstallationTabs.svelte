@@ -1,3 +1,7 @@
+<script module lang="ts">
+	let installationTabsCounter = 0;
+</script>
+
 <script lang="ts">
 	import { SvelteMap } from 'svelte/reactivity';
 	import { cn } from '$lib/utils/cn';
@@ -18,6 +22,9 @@
 	};
 
 	let { pkg = siteConfig.package.name, args, isDev = false }: Props = $props();
+	installationTabsCounter += 1;
+	const tabsInstanceId = `installation-tabs-${installationTabsCounter.toString()}`;
+	const panelId = `${tabsInstanceId}-panel`;
 	let tabList = $state<HTMLDivElement | null>(null);
 	let activeIndicatorLeft = $state(0);
 	let activeIndicatorWidth = $state(0);
@@ -42,6 +49,49 @@
 	);
 
 	const activeCommand = $derived(commands[packageManagerStore.active]);
+	const activeIndex = $derived(Math.max(0, packageManagers.indexOf(packageManagerStore.active)));
+	const activeTabId = $derived(`${tabsInstanceId}-tab-${activeIndex.toString()}`);
+
+	function setActiveTab(index: number) {
+		packageManagerStore.active = packageManagers[index];
+	}
+
+	function focusTabByIndex(index: number) {
+		const tabElement = tabRefs.get(packageManagers[index]);
+		tabElement?.focus();
+	}
+
+	function handleTabKeydown(event: KeyboardEvent, index: number) {
+		const lastIndex = packageManagers.length - 1;
+		if (lastIndex < 0) return;
+		let nextIndex: number;
+
+		switch (event.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				event.preventDefault();
+				nextIndex = index === lastIndex ? 0 : index + 1;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				event.preventDefault();
+				nextIndex = index === 0 ? lastIndex : index - 1;
+				break;
+			case 'Home':
+				event.preventDefault();
+				nextIndex = 0;
+				break;
+			case 'End':
+				event.preventDefault();
+				nextIndex = lastIndex;
+				break;
+			default:
+				return;
+		}
+
+		setActiveTab(nextIndex);
+		focusTabByIndex(nextIndex);
+	}
 
 	function registerTab(node: HTMLElement, pm: PackageManager) {
 		tabRefs.set(pm, node as HTMLButtonElement);
@@ -85,7 +135,7 @@
 		pendingIndicatorFrame = window.requestAnimationFrame(() => {
 			pendingIndicatorFrame = null;
 			updateActiveIndicator();
-			document.documentElement.dataset.motiongpuPackageManagerReady = 'true';
+			document.documentElement.dataset.docsPackageManagerReady = 'true';
 		});
 	}
 
@@ -119,11 +169,13 @@
 			highlighted[pm] = {
 				light: highlighter.codeToHtml(cmd, {
 					lang: 'bash',
-					theme: 'github-light'
+					theme: 'github-light',
+					tabindex: false
 				}),
 				dark: highlighter.codeToHtml(cmd, {
 					lang: 'bash',
-					theme: 'github-dark'
+					theme: 'github-dark',
+					tabindex: false
 				})
 			};
 		}
@@ -132,27 +184,43 @@
 	});
 </script>
 
-<div class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5">
+<div class="card-outer my-6 rounded-lg bg-background-inset p-1.5">
 	<div class="relative w-full rounded-md bg-background card">
 		<div
-			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border after:shadow-2xs after:shadow-white after:content-[''] dark:after:bg-background-inset dark:after:shadow-border"
+			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:guide-duotone after:content-['']"
 		>
-			<div class="relative flex items-center" bind:this={tabList}>
+			<div
+				class="relative flex min-w-0 flex-1 items-center overflow-x-auto [&>button:first-of-type]:rounded-tl-md"
+				role="tablist"
+				aria-label="Package manager"
+				bind:this={tabList}
+			>
 				{#if activeIndicatorWidth > 0}
 					<div
-						class="tab-active-line package-manager-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out"
+						class="tab-active-line pointer-events-none absolute bottom-0 left-0 z-10 h-0.5 transition-[transform,width] duration-150 ease-out motion-reduce:transition-none"
 						style={`
-								width: ${activeIndicatorWidth}px;
-								transform: translateX(${activeIndicatorLeft}px);
-							`}
+									width: ${activeIndicatorWidth.toString()}px;
+									transform: translateX(${activeIndicatorLeft.toString()}px);
+								`}
 					></div>
 				{/if}
 
-				{#each packageManagers as pm (pm)}
+				{#each packageManagers as pm, index (pm)}
 					<button
-						onclick={() => (packageManagerStore.active = pm)}
+						type="button"
+						id={`${tabsInstanceId}-tab-${index.toString()}`}
+						role="tab"
+						aria-selected={index === activeIndex}
+						aria-controls={panelId}
+						tabindex={index === activeIndex ? 0 : -1}
+						onclick={() => {
+							setActiveTab(index);
+						}}
+						onkeydown={(event) => {
+							handleTabKeydown(event, index);
+						}}
 						class={cn(
-							'package-manager-tab relative z-20 px-4 py-2.5 text-sm font-medium tracking-normal transition-colors duration-150 ease-out outline-none select-none',
+							'focus-ring package-manager-tab relative z-20 px-4 py-3 text-sm font-medium tracking-normal transition-[color,box-shadow] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset motion-reduce:transition-none',
 							packageManagerStore.active === pm
 								? 'text-accent'
 								: 'text-foreground-muted hover:text-foreground'
@@ -165,10 +233,15 @@
 				{/each}
 			</div>
 
-			<CopyCodeButton code={activeCommand} class="mr-2" />
+			<div class="mr-2 flex w-fit flex-none items-center">
+				<CopyCodeButton code={activeCommand} />
+			</div>
 		</div>
 
 		<div
+			id={panelId}
+			role="tabpanel"
+			aria-labelledby={activeTabId}
 			class="min-h-12.5 p-4 [&>div]:mt-0 [&>div]:rounded-none [&>div]:border-0 [&>div]:bg-transparent [&>div]:p-0 [&>div]:shadow-none [&>div]:[box-shadow:none]!"
 		>
 			<Pre code="" unstyled={true}>
@@ -225,8 +298,8 @@
 			opacity: 0;
 		}
 
-		:global(html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready]))
-			.package-manager-active-line {
+		:global(html[data-docs-package-manager]:not([data-docs-package-manager-ready]))
+			.tab-active-line {
 			opacity: 0;
 		}
 
@@ -238,49 +311,49 @@
 			display: block;
 		}
 
-		:global(html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager]:not([data-docs-package-manager-ready]))
 			.package-manager-tab {
 			color: var(--color-foreground-muted);
 		}
 
-		:global(html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='npm']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='npm'],
-		:global(html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='pnpm']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='pnpm'],
-		:global(html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='bun']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='bun'],
-		:global(html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='yarn']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='yarn'] {
 			color: var(--color-accent);
 		}
 
-		:global(html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='npm']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='npm']::after,
-		:global(html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='pnpm']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='pnpm']::after,
-		:global(html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='bun']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='bun']::after,
-		:global(html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready]))
+		:global(html[data-docs-package-manager='yarn']:not([data-docs-package-manager-ready]))
 			.package-manager-tab[data-package-manager='yarn']::after {
 			opacity: 1;
 		}
 
-		:global(html[data-motiongpu-package-manager='npm'])
+		:global(html[data-docs-package-manager='npm'])
 			.package-manager-command[data-package-manager='npm'],
-		:global(html[data-motiongpu-package-manager='pnpm'])
+		:global(html[data-docs-package-manager='pnpm'])
 			.package-manager-command[data-package-manager='pnpm'],
-		:global(html[data-motiongpu-package-manager='bun'])
+		:global(html[data-docs-package-manager='bun'])
 			.package-manager-command[data-package-manager='bun'],
-		:global(html[data-motiongpu-package-manager='yarn'])
+		:global(html[data-docs-package-manager='yarn'])
 			.package-manager-command[data-package-manager='yarn'] {
 			display: block;
 		}
 
-		:global(html[data-motiongpu-package-manager='pnpm'])
+		:global(html[data-docs-package-manager='pnpm'])
 			.package-manager-command[data-active='true']:not([data-package-manager='pnpm']),
-		:global(html[data-motiongpu-package-manager='bun'])
+		:global(html[data-docs-package-manager='bun'])
 			.package-manager-command[data-active='true']:not([data-package-manager='bun']),
-		:global(html[data-motiongpu-package-manager='yarn'])
+		:global(html[data-docs-package-manager='yarn'])
 			.package-manager-command[data-active='true']:not([data-package-manager='yarn']) {
 			display: none;
 		}

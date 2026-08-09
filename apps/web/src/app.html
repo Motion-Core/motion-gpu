@@ -4,87 +4,45 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<style>
-			html[data-motiongpu-package-manager] .package-manager-command {
+			html[data-docs-package-manager] .package-manager-command {
 				display: none !important;
 			}
 
-			html[data-motiongpu-package-manager='npm']
-				.package-manager-command[data-package-manager='npm'],
-			html[data-motiongpu-package-manager='pnpm']
-				.package-manager-command[data-package-manager='pnpm'],
-			html[data-motiongpu-package-manager='bun']
-				.package-manager-command[data-package-manager='bun'],
-			html[data-motiongpu-package-manager='yarn']
-				.package-manager-command[data-package-manager='yarn'] {
+			html[data-docs-package-manager='npm'] .package-manager-command[data-package-manager='npm'],
+			html[data-docs-package-manager='pnpm'] .package-manager-command[data-package-manager='pnpm'],
+			html[data-docs-package-manager='bun'] .package-manager-command[data-package-manager='bun'],
+			html[data-docs-package-manager='yarn'] .package-manager-command[data-package-manager='yarn'] {
 				display: block !important;
 			}
 
-			html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready])
-				.package-manager-active-line {
+			html[data-docs-package-manager]:not([data-docs-package-manager-ready]) .tab-active-line {
 				opacity: 0 !important;
 			}
 
-			html[data-motiongpu-package-manager]:not([data-motiongpu-package-manager-ready])
-				.package-manager-tab {
+			html[data-docs-package-manager]:not([data-docs-package-manager-ready]) .package-manager-tab {
 				color: var(--color-foreground-muted);
 			}
 
-			html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='npm']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='npm'],
-			html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='pnpm']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='pnpm'],
-			html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='bun']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='bun'],
-			html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='yarn']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='yarn'] {
 				color: var(--color-accent);
 			}
 
-			html[data-motiongpu-package-manager='npm']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='npm']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='npm']::after,
-			html[data-motiongpu-package-manager='pnpm']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='pnpm']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='pnpm']::after,
-			html[data-motiongpu-package-manager='bun']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='bun']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='bun']::after,
-			html[data-motiongpu-package-manager='yarn']:not([data-motiongpu-package-manager-ready])
+			html[data-docs-package-manager='yarn']:not([data-docs-package-manager-ready])
 				.package-manager-tab[data-package-manager='yarn']::after {
 				opacity: 1;
-			}
-
-			html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]) .framework-active-line {
-				opacity: 0 !important;
-			}
-
-			html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]) .framework-tab {
-				color: var(--color-foreground-muted);
-			}
-
-			html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='svelte'],
-			html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='react'],
-			html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='vue'] {
-				color: var(--color-accent);
-			}
-
-			html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='svelte']::after,
-			html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='react']::after,
-			html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready])
-				.framework-tab[data-framework='vue']::after {
-				opacity: 1;
-			}
-
-			html[data-motiongpu-framework] .framework-code {
-				display: none !important;
-			}
-
-			html[data-motiongpu-framework='svelte'] .framework-code[data-framework='svelte'],
-			html[data-motiongpu-framework='react'] .framework-code[data-framework='react'],
-			html[data-motiongpu-framework='vue'] .framework-code[data-framework='vue'] {
-				display: block !important;
 			}
 		</style>
 		<script>
@@ -108,29 +66,11 @@
 					: packageManagerDefault;
 
 				if (activePackageManager) {
-					document.documentElement.dataset.motiongpuPackageManager = activePackageManager;
-				}
-
-				const frameworkStorageKey = 'motiongpuFramework';
-				const enabledFrameworks = ['svelte', 'react', 'vue'];
-				const storedFramework = localStorage.getItem(frameworkStorageKey);
-				const activeFramework = enabledFrameworks.includes(storedFramework)
-					? storedFramework
-					: 'svelte';
-
-				if (activeFramework) {
-					document.documentElement.dataset.motiongpuFramework = activeFramework;
+					document.documentElement.dataset.docsPackageManager = activePackageManager;
 				}
 			})();
 		</script>
 		%sveltekit.head%
-		<link
-			rel="preload"
-			href="/fonts/BerkeleyMono-Regular.woff2"
-			as="font"
-			type="font/woff2"
-			crossorigin
-		/>
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { scale } from 'svelte/transition';
 	import { AppChevronDownIcon } from '$lib/components/icons';
@@ -11,7 +10,7 @@
 		disabled?: boolean;
 	};
 
-	interface Props {
+	type Props = {
 		id?: string;
 		value: string;
 		options: SelectOption[];
@@ -22,7 +21,7 @@
 		placeholder?: string;
 		ariaLabel?: string;
 		onValueChange?: (value: string) => void;
-	}
+	};
 
 	let {
 		id,
@@ -37,8 +36,8 @@
 		onValueChange
 	}: Props = $props();
 
-	let root: HTMLDivElement | null = null;
-	let trigger: HTMLButtonElement | null = null;
+	let root = $state<HTMLDivElement | null>(null);
+	let trigger = $state<HTMLButtonElement | null>(null);
 	let isOpen = $state(false);
 	let highlightedIndex = $state(-1);
 
@@ -79,7 +78,7 @@
 
 	const selectByIndex = (index: number) => {
 		const option = options[index];
-		if (!option || option.disabled) return;
+		if (option.disabled) return;
 		if (option.value !== value) {
 			onValueChange?.(option.value);
 		}
@@ -92,7 +91,7 @@
 		if (index < 0) index = getInitialHighlightIndex();
 		if (index < 0) return;
 
-		for (let attempts = 0; attempts < options.length; attempts += 1) {
+		for (const _option of options) {
 			index = (index + step + options.length) % options.length;
 			if (!options[index]?.disabled) {
 				highlightedIndex = index;
@@ -151,10 +150,10 @@
 	};
 
 	const handleFocusOut = () => {
-		if (typeof window === 'undefined') return;
 		requestAnimationFrame(() => {
-			if (!isOpen || !root) return;
-			if (!root.contains(document.activeElement)) {
+			const currentRoot = root;
+			if (!isOpen || currentRoot === null) return;
+			if (!currentRoot.contains(document.activeElement)) {
 				closeMenu();
 			}
 		});
@@ -170,15 +169,17 @@
 		};
 
 		window.addEventListener('pointerdown', onPointerDown);
-		return () => window.removeEventListener('pointerdown', onPointerDown);
+		return () => {
+			window.removeEventListener('pointerdown', onPointerDown);
+		};
 	});
 
 	$effect(() => {
 		if (!isOpen || highlightedIndex < 0) return;
-		void tick().then(() => {
-			const option = root?.querySelector<HTMLElement>(`[data-option-index="${highlightedIndex}"]`);
-			option?.scrollIntoView({ block: 'nearest' });
-		});
+		const option = root?.querySelector<HTMLElement>(
+			`[data-option-index="${highlightedIndex.toString()}"]`
+		);
+		option?.scrollIntoView({ block: 'nearest' });
 	});
 </script>
 
@@ -188,7 +189,7 @@
 		type="button"
 		{id}
 		class={cn(
-			'relative inline-flex h-7 w-full items-center justify-end gap-1.5 rounded-sm px-2 text-xs text-foreground-muted transition-colors duration-150 ease-out outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50',
+			'focus-ring focus-outline relative inline-flex h-7 w-full items-center justify-end gap-1.5 rounded-sm px-2 text-xs text-foreground-muted transition-[color,box-shadow] duration-150 ease-out outline-none hover:text-foreground disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none',
 			triggerClass
 		)}
 		{disabled}
@@ -214,7 +215,7 @@
 	{#if isOpen}
 		<div
 			class={cn(
-				'absolute top-[calc(100%+4px)] left-0 z-500 min-w-full overflow-hidden rounded-sm bg-background card',
+				'absolute top-[calc(100%+4px)] left-0 z-500 w-max min-w-full overflow-hidden rounded-sm bg-background card',
 				menuClass
 			)}
 			transition:scale={{ start: 0.98, duration: 130, easing: cubicOut }}
@@ -231,10 +232,10 @@
 						type="button"
 						role="option"
 						aria-selected={option.value === value}
-						aria-disabled={option.disabled || undefined}
+						aria-disabled={option.disabled ?? undefined}
 						data-option-index={index}
 						class={cn(
-							'flex w-full cursor-default items-center px-2 py-1.5 text-left text-xs font-normal transition-colors duration-150 ease-out',
+							'flex w-full cursor-default items-center px-2 py-1.5 text-left text-xs font-normal whitespace-nowrap transition-colors duration-150 ease-out',
 							option.disabled
 								? 'cursor-not-allowed text-foreground/40'
 								: 'text-foreground-muted hover:bg-background-muted hover:text-foreground',
@@ -243,8 +244,12 @@
 								'bg-background-muted text-foreground',
 							option.value === value && !option.disabled && 'font-medium text-foreground'
 						)}
-						onmouseenter={() => (highlightedIndex = index)}
-						onclick={() => selectByIndex(index)}
+						onmouseenter={() => {
+							highlightedIndex = index;
+						}}
+						onclick={() => {
+							selectByIndex(index);
+						}}
 					>
 						{option.label}
 					</button>

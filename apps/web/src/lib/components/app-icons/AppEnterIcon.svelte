@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { CornerDownLeftIcon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon, { type AppHugeIconProps } from './AppHugeIcon.svelte';
+	import type { ComponentProps } from 'svelte';
+	import AppIcon from './AppIcon.svelte';
+	import { enterIcon } from './app-icon-data';
 
-	let props: AppHugeIconProps = $props();
+	let { ...props }: Omit<ComponentProps<typeof AppIcon>, 'icon'> = $props();
 </script>
 
-<AppHugeIcon icon={CornerDownLeftIcon} {...props} />
+<AppIcon icon={enterIcon} {...props} />

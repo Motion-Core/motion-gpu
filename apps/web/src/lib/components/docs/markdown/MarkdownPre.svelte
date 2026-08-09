@@ -21,7 +21,7 @@
 
 {#if code}
 	<Pre data-language={lang} code={raw}>
-		{@render code?.()}
+		{@render code()}
 	</Pre>
 {:else}
 	<ShikiCodeBlock code={raw} {htmlLight} {htmlDark} {lang} />

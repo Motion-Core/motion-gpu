@@ -3,7 +3,7 @@
 	import type { Snippet } from 'svelte';
 	import { cn } from '$lib/utils/cn';
 
-	const sectionVariants = cva('w-full border-t border-border border-dashed', {
+	const sectionVariants = cva('w-full border-t border-(--guide-ink) border-dashed', {
 		variants: {
 			variant: {
 				default: '',
@@ -15,11 +15,11 @@
 		}
 	});
 
-	interface Props extends VariantProps<typeof sectionVariants> {
+	type Props = VariantProps<typeof sectionVariants> & {
 		id?: string;
 		class?: string;
 		children?: Snippet;
-	}
+	};
 
 	let { id, variant = 'default', class: className = '', children }: Props = $props();
 </script>
@@ -38,11 +38,13 @@
 		)}
 	>
 		{#if variant === 'muted'}
-			<div class="hidden h-full min-h-20 items-center justify-start bg-dashed px-3 sm:flex"></div>
+			<div
+				class="hidden h-full min-h-20 items-center justify-start bg-guide-dashed px-3 sm:flex"
+			></div>
 		{/if}
 		<div
 			class={cn(
-				'relative mx-auto flex w-full max-w-5xl flex-col justify-start border-x border-border px-4 py-8 sm:px-8 sm:py-16',
+				'relative mx-auto flex w-full max-w-5xl flex-col justify-start border-x border-(--guide-ink) px-4 py-8 sm:px-8 sm:py-16',
 				variant !== 'muted' && 'border-dashed',
 				className
 			)}
@@ -50,7 +52,9 @@
 			{@render children?.()}
 		</div>
 		{#if variant === 'muted'}
-			<div class="hidden h-full min-h-20 items-center justify-start bg-dashed px-3 sm:flex"></div>
+			<div
+				class="hidden h-full min-h-20 items-center justify-start bg-guide-dashed px-3 sm:flex"
+			></div>
 		{/if}
 	</div>
 </section>

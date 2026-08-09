@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { ArrowLeftIcon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon, { type AppHugeIconProps } from './AppHugeIcon.svelte';
+	import type { ComponentProps } from 'svelte';
+	import AppIcon from './AppIcon.svelte';
+	import { arrowLeftIcon } from './app-icon-data';
 
-	let props: AppHugeIconProps = $props();
+	let { ...props }: Omit<ComponentProps<typeof AppIcon>, 'icon'> = $props();
 </script>
 
-<AppHugeIcon icon={ArrowLeftIcon} {...props} />
+<AppIcon icon={arrowLeftIcon} {...props} />

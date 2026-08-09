@@ -24,21 +24,23 @@
 <section
 	class="inset-shadow flex min-h-0 flex-col overflow-hidden rounded-md bg-background-muted p-px dark:bg-background"
 >
-	<div class="h-8 border-b border-border">
+	<div class="h-8 border-b border-(--guide-ink)">
 		<ScrollArea mode="horizontal" class="h-full" viewportClass="h-full">
-			<div class="flex items-stretch">
+			<div
+				class="flex items-stretch [&>div:first-child>button]:rounded-tl-md [&>div:last-child>button]:rounded-tr-md"
+			>
 				{#each controller.openFilePaths as filePath (filePath)}
 					<div
-						class={`inline-flex shrink-0 items-center rounded-t-md border-r ${
+						class={`inline-flex shrink-0 items-center border-r ${
 							controller.activeFilePath === filePath
-								? 'border-border bg-background dark:bg-background-inset'
+								? 'border-(--guide-ink) bg-background dark:bg-background-inset'
 								: 'border-transparent bg-transparent'
 						}`}
 					>
 						<button
 							type="button"
 							onclick={() => controller.switchToFile(filePath)}
-							class={`px-2.5 py-2 text-left font-mono text-[11px] font-normal transition-colors duration-150 ease-out sm:px-3 sm:text-xs ${
+							class={`focus-ring relative px-2.5 py-2 text-left font-mono text-[11px] font-normal transition-[color,box-shadow] duration-150 ease-out outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset motion-reduce:transition-none sm:px-3 sm:text-xs ${
 								controller.activeFilePath === filePath
 									? 'text-foreground'
 									: 'text-foreground-muted hover:text-foreground'
@@ -66,14 +68,16 @@
 
 	{#if controller.syncError}
 		<p
-			class="rounded-b-md border-t border-border bg-background p-px px-3 py-2 font-mono text-xs font-normal text-red-500 dark:bg-background-inset"
+			class="rounded-b-md border-t border-(--guide-ink) bg-background p-px px-3 py-2 font-mono text-xs font-normal text-red-500 dark:bg-background-inset"
 			role="alert"
 		>
 			{controller.syncError}
 		</p>
 	{/if}
 
-	<section class="rounded-b-md border-t border-border bg-background p-px dark:bg-background-inset">
+	<section
+		class="rounded-b-md border-t border-(--guide-ink) bg-background p-px dark:bg-background-inset"
+	>
 		{#if controller.runtimeLog}
 			<details>
 				<summary

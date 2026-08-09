@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { Add01Icon, HelpCircleIcon } from '@hugeicons/core-free-icons';
-	import AppHugeIcon from '$lib/components/app-icons/AppHugeIcon.svelte';
+	import { AppCircleQuestionIcon, AppPlusIcon } from '$lib/components/icons';
 	import { slide } from 'svelte/transition';
 	import Badge from '../ui/Badge.svelte';
 	import InsetShadowContainer from './InsetShadowContainer.svelte';
@@ -61,7 +60,7 @@
 <Section variant="muted" id="faq" class="flex flex-col items-center justify-center gap-4">
 	<Badge>
 		<span class="flex items-center gap-1.5">
-			<AppHugeIcon icon={HelpCircleIcon} class="text-accent" size={16} />
+			<AppCircleQuestionIcon class="text-accent" size={16} />
 			<span>FAQ</span>
 		</span>
 	</Badge>
@@ -86,11 +85,13 @@
 					<article class="rounded-md bg-background card">
 						<button
 							type="button"
-							id={`faq-trigger-${index}`}
-							class="flex w-full cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left text-base text-foreground sm:px-6"
+							id={`faq-trigger-${index.toString()}`}
+							class="focus-ring focus-outline flex w-full cursor-pointer items-center justify-between gap-4 rounded-md px-4 py-3 text-left text-base text-foreground transition-shadow duration-150 ease-out outline-none motion-reduce:transition-none sm:px-6"
 							aria-expanded={isOpen(item.question)}
-							aria-controls={`faq-panel-${index}`}
-							onclick={() => toggle(item.question)}
+							aria-controls={`faq-panel-${index.toString()}`}
+							onclick={() => {
+								toggle(item.question);
+							}}
 						>
 							<span class="font-medium tracking-tight">{item.question}</span>
 							<span
@@ -101,15 +102,15 @@
 									class:rotate-45={isOpen(item.question)}
 									class="transition-transform duration-150"
 								>
-									<AppHugeIcon icon={Add01Icon} size={24} />
+									<AppPlusIcon size={24} />
 								</div>
 							</span>
 						</button>
 						{#if isOpen(item.question)}
 							<div
-								id={`faq-panel-${index}`}
+								id={`faq-panel-${index.toString()}`}
 								role="region"
-								aria-labelledby={`faq-trigger-${index}`}
+								aria-labelledby={`faq-trigger-${index.toString()}`}
 								class="px-4 pb-4 sm:px-6"
 								transition:slide={{ duration: 220 }}
 							>

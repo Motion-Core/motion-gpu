@@ -29,12 +29,15 @@
 </script>
 
 <script lang="ts">
-	let { children } = $props();
+	import { type Snippet } from 'svelte';
+	let { children }: { children: Snippet } = $props();
 </script>
 
 <article
 	data-doc-content
 	class="w-full max-w-4xl space-y-6 text-base leading-relaxed text-foreground"
 >
-	{@render children?.()}
+	{#if children}
+		{@render children()}
+	{/if}
 </article>

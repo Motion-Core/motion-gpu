@@ -59,6 +59,6 @@ Author material and `ShaderPass` output in straight alpha. Motion GPU premultipl
 
 Shader output is linear color. In the standard SDR path, `color.outputEncoding: 'srgb'` applies linear-to-sRGB encoding. A configured working format, tone mapper, or HDR mode moves final conversion into the private presentation pass after post-processing.
 
-`canvasColorSpace` configures the canvas presentation space; it does not replace value encoding. Khronos PBR Neutral accepts non-negative linear Rec.709 HDR input and produces SDR output, so it cannot be combined with explicit HDR canvas presentation.
+`canvasColorSpace` configures the canvas presentation space; it does not replace value encoding. The built-in Khronos PBR Neutral, Uncharted 2 / Hable Filmic, Stephen Hill ACES fit, and Gran Turismo tone mappers accept non-negative linear Rec.709 HDR input and produce SDR output, so they cannot be combined with explicit HDR canvas presentation.
 
 Open the [Motion GPU Logo demo](/playground?demo=motion-gpu-logo&framework=svelte) for editable shader source. Resource-specific contracts are documented under [Uniforms](/docs/uniforms), [Textures](/docs/textures), and [Shader Includes & Defines](/docs/shader-includes-and-defines).

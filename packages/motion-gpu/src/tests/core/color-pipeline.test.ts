@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildPresentationShader, resolveColorPipeline } from '../../lib/core/color-pipeline';
 
+const toneMappers = [
+	['khronos-pbr-neutral', 'motiongpuKhronosPbrNeutral'],
+	['uncharted2-filmic', 'motiongpuUncharted2Filmic'],
+	['aces-hill', 'motiongpuAcesHill'],
+	['gran-turismo', 'motiongpuGranTurismo']
+] as const;
+
 describe('color pipeline', () => {
 	it('keeps SDR defaults compatible with the existing direct canvas path', () => {
 		const pipeline = resolveColorPipeline({
@@ -17,14 +24,14 @@ describe('color pipeline', () => {
 		expect(pipeline.canvasToneMappingMode).toBe('standard');
 	});
 
-	it('uses HDR intermediate rendering for Khronos PBR Neutral SDR presentation', () => {
+	it.each(toneMappers)('uses HDR intermediate rendering for %s SDR presentation', (toneMapping) => {
 		const pipeline = resolveColorPipeline({
-			color: { toneMapping: 'khronos-pbr-neutral' },
+			color: { toneMapping },
 			preferredCanvasFormat: 'bgra8unorm'
 		});
 
 		expect(pipeline.outputEncoding).toBe('srgb');
-		expect(pipeline.toneMapping).toBe('khronos-pbr-neutral');
+		expect(pipeline.toneMapping).toBe(toneMapping);
 		expect(pipeline.dynamicRange).toBe('sdr');
 		expect(pipeline.canvasFormat).toBe('bgra8unorm');
 		expect(pipeline.workingFormat).toBe('rgba16float');
@@ -47,13 +54,13 @@ describe('color pipeline', () => {
 		expect(pipeline.canvasToneMappingMode).toBe('extended');
 	});
 
-	it('rejects explicit HDR presentation combined with an SDR tone mapper', () => {
+	it.each(toneMappers)('rejects explicit HDR presentation combined with %s', (toneMapping) => {
 		expect(() =>
 			resolveColorPipeline({
-				color: { dynamicRange: 'hdr', toneMapping: 'khronos-pbr-neutral' },
+				color: { dynamicRange: 'hdr', toneMapping },
 				preferredCanvasFormat: 'bgra8unorm'
 			})
-		).toThrow(/Khronos PBR Neutral maps to SDR/i);
+		).toThrow(/Tone mapping produces SDR output/i);
 	});
 
 	it('builds the final presentation shader with Khronos PBR Neutral before sRGB encoding', () => {
@@ -71,6 +78,84 @@ describe('color pipeline', () => {
 			'let motiongpuPresented = motiongpuLinearToSrgb(motiongpuToneMapped);'
 		);
 		expect(shader.indexOf('motiongpuKhronosPbrNeutral')).toBeLessThan(
+			shader.indexOf('motiongpuLinearToSrgb(motiongpuToneMapped)')
+		);
+	});
+
+	it('builds the reference Uncharted 2 filmic curve', () => {
+		const shader = buildPresentationShader({
+			toneMapping: 'uncharted2-filmic',
+			convertLinearToSrgb: true,
+			dynamicRange: 'sdr'
+		});
+
+		expect(shader).toContain('fn motiongpuUncharted2Partial(color: vec3f) -> vec3f');
+		expect(shader).toContain('let a = 0.15;');
+		expect(shader).toContain('let b = 0.50;');
+		expect(shader).toContain('let c = 0.10;');
+		expect(shader).toContain('let d = 0.20;');
+		expect(shader).toContain('let e = 0.02;');
+		expect(shader).toContain('let f = 0.30;');
+		expect(shader).toContain('let exposureBias = 2.0;');
+		expect(shader).toContain('let whitePoint = vec3f(11.2);');
+		expect(shader).toContain(
+			'let whiteScale = vec3f(1.0) / motiongpuUncharted2Partial(whitePoint);'
+		);
+		expect(shader).toContain(
+			'let motiongpuToneMapped = motiongpuUncharted2Filmic(max(motiongpuLinear.rgb, vec3f(0.0)));'
+		);
+	});
+
+	it('builds the Stephen Hill ACES fit with its input and output transforms', () => {
+		const shader = buildPresentationShader({
+			toneMapping: 'aces-hill',
+			convertLinearToSrgb: true,
+			dynamicRange: 'sdr'
+		});
+
+		expect(shader).toContain('fn motiongpuAcesHillFit(color: vec3f) -> vec3f');
+		expect(shader).toContain('color * (color + vec3f(0.0245786)) - vec3f(0.000090537)');
+		expect(shader).toContain(
+			'color * (vec3f(0.983729) * color + vec3f(0.4329510)) + vec3f(0.238081)'
+		);
+		expect(shader).toContain('vec3f(0.59719, 0.07600, 0.02840)');
+		expect(shader).toContain('vec3f(0.35458, 0.90834, 0.13383)');
+		expect(shader).toContain('vec3f(0.04823, 0.01566, 0.83777)');
+		expect(shader).toContain('vec3f(1.60475, -0.10208, -0.00327)');
+		expect(shader).toContain('vec3f(-0.53108, 1.10813, -0.07276)');
+		expect(shader).toContain('vec3f(-0.07367, -0.00605, 1.07602)');
+		expect(shader).toContain('return clamp(color, vec3f(0.0), vec3f(1.0));');
+	});
+
+	it('builds the reference Gran Turismo triple-section curve', () => {
+		const shader = buildPresentationShader({
+			toneMapping: 'gran-turismo',
+			convertLinearToSrgb: true,
+			dynamicRange: 'sdr'
+		});
+
+		expect(shader).toContain('fn motiongpuGranTurismo(color: vec3f) -> vec3f');
+		expect(shader).toContain('let p = 1.0;');
+		expect(shader).toContain('let a = 1.0;');
+		expect(shader).toContain('let m = 0.22;');
+		expect(shader).toContain('let l = 0.4;');
+		expect(shader).toContain('let c = 1.33;');
+		expect(shader).toContain('let b = 0.0;');
+		expect(shader).toContain('let l0 = ((p - m) * l) / a;');
+		expect(shader).toContain('let c2 = (a * p) / (p - s1);');
+		expect(shader).toContain('let w0 = vec3f(1.0) - smoothstep(vec3f(0.0), vec3f(m), color);');
+		expect(shader).toContain('let w2 = step(vec3f(m + l0), color);');
+		expect(shader).toContain('return toe * w0 + linear * w1 + shoulder * w2;');
+	});
+
+	it.each(toneMappers)('applies %s before sRGB encoding', (toneMapping, helper) => {
+		const shader = buildPresentationShader({
+			toneMapping,
+			convertLinearToSrgb: true,
+			dynamicRange: 'sdr'
+		});
+
+		expect(shader.indexOf(`let motiongpuToneMapped = ${helper}`)).toBeLessThan(
 			shader.indexOf('motiongpuLinearToSrgb(motiongpuToneMapped)')
 		);
 	});
@@ -131,6 +216,9 @@ describe('color pipeline', () => {
 		});
 
 		expect(shader).not.toContain('motiongpuKhronosPbrNeutral');
+		expect(shader).not.toContain('motiongpuUncharted2Filmic');
+		expect(shader).not.toContain('motiongpuAcesHill');
+		expect(shader).not.toContain('motiongpuGranTurismo');
 		expect(shader).not.toContain('motiongpuLinearToSrgb');
 		expect(shader).toContain('return motiongpuLinear;');
 	});

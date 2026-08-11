@@ -42,12 +42,22 @@ vueLang="ts"
 | Option | Default | Behavior |
 | --- | --- | --- |
 | `outputEncoding` | `'srgb'` | Linear-to-sRGB encoding; `'linear'` leaves values unchanged |
-| `toneMapping` | `'none'` | Optional Khronos PBR Neutral SDR tone mapper |
+| `toneMapping` | `'none'` | Optional built-in HDR-to-SDR tone mapper |
 | `dynamicRange` | `'sdr'` | `'hdr'` requests extended `rgba16float`; `'auto'` falls back to SDR |
 | `canvasColorSpace` | `'srgb'` | Canvas presentation space, including optional `'display-p3'` |
 | `workingFormat` | `'auto'` | Uses `rgba16float` for HDR or tone mapping; otherwise canvas format |
 
-Khronos PBR Neutral and explicit HDR output cannot be enabled together. Render passes execute before the private presentation pass.
+Available `toneMapping` values:
+
+| Value | Algorithm |
+| --- | --- |
+| `'none'` | No tone curve |
+| `'khronos-pbr-neutral'` | Khronos PBR Neutral |
+| `'uncharted2-filmic'` | Uncharted 2 / Hable Filmic with the reference `2.0` exposure bias and `11.2` white point |
+| `'aces-hill'` | Stephen Hill's ACES RRT and ODT fit, including its input and output color transforms |
+| `'gran-turismo'` | Hajime Uchimura's 2017 Gran Turismo triple-section curve with its published defaults |
+
+All built-in tone mappers expect non-negative linear scene color and produce SDR output. Tone mapping and explicit HDR output cannot be enabled together. Render passes execute before the private presentation pass.
 
 Material and pass shaders return straight alpha. Final canvas presentation premultiplies the output.
 

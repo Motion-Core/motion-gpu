@@ -1,6 +1,8 @@
 const linuxSwiftShaderArgs: string[] = [
 	'--enable-unsafe-webgpu',
 	'--use-webgpu-adapter=swiftshader',
+	'--use-gl=angle',
+	'--use-angle=swiftshader',
 	'--enable-dawn-features=allow_unsafe_apis',
 	'--disable-dawn-features=use_dxc',
 	'--enable-webgpu-developer-features',

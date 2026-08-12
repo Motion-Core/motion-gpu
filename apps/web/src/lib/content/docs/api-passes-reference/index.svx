@@ -39,6 +39,8 @@ getFragment(): string
 
 `setFragment` validates the next source before replacing the active program and invalidating its pipeline cache.
 
+`shade` and any helper it calls can read the current pass coordinates from `motiongpuFragment.uv`. The existing `uv` parameter remains required.
+
 ## `BlitPass` and `CopyPass`
 
 `BlitPass` samples its input with the configured filter. `CopyPass` attempts a direct GPU copy and otherwise uses an internal blit. Direct copy requires no clear, preserved output, distinct non-canvas textures, and equal dimensions and formats.
@@ -129,5 +131,7 @@ dispose(): void
 ```
 
 `isPingPongShader` is the readonly `true` discriminant. `setDimensions`, `setScale`, and `reset` request A/B reinitialization; `consumeResetColor` is renderer-facing and clears that pending request.
+
+`frag` and its helper functions can read the ping-pong target coordinates from `motiongpuFragment.uv`. They use the pass target dimensions and the same public Y-up orientation as the `uv` parameter.
 
 See [Render Passes](/docs/render-passes), [Compute Shaders](/docs/compute-shaders), and the [Ping-pong Fluid demo](/playground?demo=ping-pong-fluid&framework=svelte).

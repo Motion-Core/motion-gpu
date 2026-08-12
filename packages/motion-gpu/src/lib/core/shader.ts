@@ -1,4 +1,5 @@
 import { assertUniformName } from './uniforms.js';
+import { MOTIONGPU_FRAGMENT_CONTEXT_WGSL } from './fragment-context.js';
 import type { MaterialLineMap, MaterialSourceLocation } from './material-preprocess.js';
 import type { StorageBufferType, UniformLayout } from './types.js';
 
@@ -271,6 +272,7 @@ struct MotionGPUUniforms {
 ${textureBindings}
 ${storageBufferBindings ? '\n' + storageBufferBindings : ''}
 ${colorTransformHelpers}
+${MOTIONGPU_FRAGMENT_CONTEXT_WGSL}
 
 struct MotionGPUVertexOut {
 	@builtin(position) position: vec4f,
@@ -295,7 +297,8 @@ fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
 ${fragmentWgsl}
 
 @fragment
-fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+fn motiongpuFragmentMain(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	${fragmentOutput}
 }
 `;
@@ -378,6 +381,7 @@ ${textureBindings}
 
 @group(1) @binding(0) var motiongpuPreviousSampler: sampler;
 @group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;
+${MOTIONGPU_FRAGMENT_CONTEXT_WGSL}
 
 struct MotionGPUPingPongVertexOut {
 	@builtin(position) position: vec4f,
@@ -403,6 +407,7 @@ ${fragmentWgsl}
 
 @fragment
 fn motiongpuPingPongFragment(in: MotionGPUPingPongVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = ${keepAliveExpression};
 	return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);

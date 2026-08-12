@@ -16,6 +16,46 @@ export async function getCanvasHash(page: Page): Promise<string> {
 	return createHash('sha1').update(image).digest('hex');
 }
 
+export async function getCanvasPixel(
+	page: Page,
+	x: number,
+	y: number
+): Promise<[number, number, number, number]> {
+	if (x < 0 || x > 1 || y < 0 || y > 1) {
+		throw new Error(`Canvas pixel coordinates must be normalized, got (${x}, ${y})`);
+	}
+
+	const image = await page.locator('.canvas-shell canvas').screenshot();
+	const dataUrl = `data:image/png;base64,${image.toString('base64')}`;
+
+	return page.evaluate(
+		async ({ source, normalizedX, normalizedY }) => {
+			const bitmap = await createImageBitmap(await (await fetch(source)).blob());
+			const surface = document.createElement('canvas');
+			surface.width = bitmap.width;
+			surface.height = bitmap.height;
+			const context = surface.getContext('2d');
+			if (!context) {
+				bitmap.close();
+				throw new Error('Canvas 2D context is unavailable');
+			}
+
+			context.drawImage(bitmap, 0, 0);
+			bitmap.close();
+			const pixelX = Math.min(surface.width - 1, Math.floor(normalizedX * surface.width));
+			const pixelY = Math.min(surface.height - 1, Math.floor(normalizedY * surface.height));
+			const pixel = context.getImageData(pixelX, pixelY, 1, 1).data;
+			return [pixel[0] ?? 0, pixel[1] ?? 0, pixel[2] ?? 0, pixel[3] ?? 0] as [
+				number,
+				number,
+				number,
+				number
+			];
+		},
+		{ source: dataUrl, normalizedX: x, normalizedY: y }
+	);
+}
+
 export async function waitForCanvasHashChange(
 	page: Page,
 	previousHash: string,

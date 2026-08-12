@@ -11,7 +11,10 @@ import { resolveUniformLayout } from '../../lib/core/uniforms';
 describe('buildShaderSource', () => {
 	it('injects user uniforms and frag wrapper', () => {
 		const shader = buildShaderSource(
-			'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			[
+				'fn getUv() -> vec2f { return motiongpuFragment.uv; }',
+				'fn frag(uv: vec2f) -> vec4f { return vec4f(getUv(), 0.0, 1.0); }'
+			].join('\n'),
 			resolveUniformLayout({
 				intensity: { type: 'vec4f', value: [1, 0, 0, 0] },
 				tint: [1, 1, 1, 1]
@@ -23,7 +26,14 @@ describe('buildShaderSource', () => {
 		expect(shader).toContain('tint: vec4f');
 		expect(shader).toContain('@group(0) @binding(2) var uTexture1Sampler: sampler;');
 		expect(shader).toContain('@group(0) @binding(3) var uTexture1: texture_2d<f32>;');
+		expect(shader).toContain('var<private> motiongpuFragment: MotionGPUFragment;');
+		expect(shader).toContain('fn getUv() -> vec2f { return motiongpuFragment.uv; }');
+		expect(shader).toContain('fn motiongpuFragmentMain');
+		expect(shader).toContain('motiongpuFragment.uv = in.uv;');
 		expect(shader).toContain('let fragColor = frag(in.uv);');
+		expect(shader.indexOf('motiongpuFragment.uv = in.uv;')).toBeLessThan(
+			shader.indexOf('let fragColor = frag(in.uv);')
+		);
 		expect(shader).toContain('let motiongpuKeepAlive = motiongpuUniforms.intensity.x;');
 		expect(shader).toContain(
 			'return vec4f(fragColor.rgb + motiongpuKeepAlive * 0.0, fragColor.a);'
@@ -227,8 +237,9 @@ describe('buildShaderSource', () => {
 	it('builds ping-pong fragment shaders with previous texture bindings', () => {
 		const shader = buildPingPongShaderSource(
 			[
+				'fn getUv() -> vec2f { return motiongpuFragment.uv; }',
 				'fn frag(uv: vec2f) -> vec4f {',
-				'\tlet previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, uv, 0.0);',
+				'\tlet previous = textureSampleLevel(motiongpuPrevious, motiongpuPreviousSampler, getUv(), 0.0);',
 				'\tlet image = textureSample(uImage, uImageSampler, uv);',
 				'\treturn mix(previous, image, motiongpuUniforms.uBlend);',
 				'}'
@@ -243,9 +254,15 @@ describe('buildShaderSource', () => {
 		expect(shader).toContain('@group(0) @binding(3) var uImage: texture_2d<f32>;');
 		expect(shader).toContain('@group(1) @binding(0) var motiongpuPreviousSampler: sampler;');
 		expect(shader).toContain('@group(1) @binding(1) var motiongpuPrevious: texture_2d<f32>;');
+		expect(shader).toContain('var<private> motiongpuFragment: MotionGPUFragment;');
+		expect(shader).toContain('fn getUv() -> vec2f { return motiongpuFragment.uv; }');
 		expect(shader).toContain('fn motiongpuPingPongFragment');
 		expect(shader).toContain('out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);');
+		expect(shader).toContain('motiongpuFragment.uv = in.uv;');
 		expect(shader).toContain('let fragColor = frag(in.uv);');
+		expect(shader.indexOf('motiongpuFragment.uv = in.uv;')).toBeLessThan(
+			shader.indexOf('let fragColor = frag(in.uv);')
+		);
 		expect(shader).toContain('let motiongpuKeepAlive = motiongpuUniforms.uBlend;');
 	});
 

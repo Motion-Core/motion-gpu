@@ -20,6 +20,21 @@ The material entrypoint is validated in the main `fragment` source before prepro
 
 Material `uv` runs from `(0, 0)` at the bottom-left to `(1, 1)` at the top-right. `usePointer().state.current.uv` uses the same Y-up orientation. The final presentation pipeline preserves this public orientation even though internal render-target sampling follows framebuffer coordinates.
 
+Motion GPU also exposes the current coordinates as `motiongpuFragment.uv`. Use this when a helper function needs UV without threading it through every call:
+
+```wgsl
+fn vignette() -> f32 {
+	let centered = motiongpuFragment.uv - vec2f(0.5);
+	return 1.0 - smoothstep(0.2, 0.7, length(centered));
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	return vec4f(vec3f(vignette()), 1.0);
+}
+```
+
+The field is available in material fragments, `ShaderPass`, and `PingPongShaderPass`. It is not available in compute shaders, where one fragment UV does not exist. The required `uv` entrypoint parameter remains part of each fragment contract.
+
 For aspect-correct calculations, use the physical render resolution:
 
 ```wgsl
@@ -41,6 +56,22 @@ Motion GPU injects the bindings it owns. Do not redeclare them.
 Material uniforms are fields of `motiongpuUniforms`. Each fragment-visible texture named `uImage` creates `uImage: texture_2d<f32>` and `uImageSampler: sampler` with a layout appropriate to the texture format.
 
 Storage buffers are available by their declared names. Fragment shaders receive read-only bindings; compute access follows each definition.
+
+### Fragment context
+
+Fragment shaders receive this declaration in their generated WGSL:
+
+```wgsl
+struct MotionGPUFragment {
+	uv: vec2f,
+};
+
+var<private> motiongpuFragment: MotionGPUFragment;
+```
+
+The generated fragment entrypoint assigns its interpolated UV to `motiongpuFragment.uv` immediately before calling `frag(...)` or `shade(...)`. `var<private>` is invocation-local WGSL state, not a uniform or storage resource. It adds no bind group, GPU buffer, or per-frame CPU upload.
+
+Treat `motiongpuFragment` as read-only application API. WGSL permits assignment to a private variable, but a user assignment would affect only later reads in the same fragment invocation and would no longer represent the entrypoint coordinates.
 
 ### Feedback bindings
 

@@ -1,18 +1,37 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import FragCanvas from '../../../src/lib/svelte/FragCanvas.svelte';
-	import { defineMaterial } from '../../../src/lib/core/material';
+	import { defineMaterial, type FragMaterial } from '../../../src/lib/core/material';
 	import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-	import type { RenderPass, RenderTargetDefinitionMap } from '../../../src/lib/core/types';
-	import { ShaderPass } from '../../../src/lib/passes';
+	import type { AnyPass, RenderTargetDefinitionMap } from '../../../src/lib/core/types';
+	import { PingPongShaderPass, ShaderPass } from '../../../src/lib/passes';
 	import RuntimeProbe, { type RuntimeControls } from '../RuntimeProbe.svelte';
 
-	const material = defineMaterial({
+	const contextMaterial = defineMaterial({
+		fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv * 0.6, distance(contextUv, uv), 1.0);
+}
+`,
+		textures: {
+			fluid: { format: 'rgba16float', filter: 'nearest' }
+		}
+	});
+
+	const feedbackMaterial = defineMaterial({
 		fragment: `
 fn frag(uv: vec2f) -> vec4f {
-	return vec4f(0.2, 0.3, 0.4, 1.0);
+	return textureSample(fluid, fluidSampler, uv);
 }
-`
+`,
+		textures: {
+			fluid: { format: 'rgba16float', filter: 'nearest' }
+		}
 	});
 
 	const invertPass = new ShaderPass({
@@ -27,8 +46,13 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		needsSwap: false,
 		output: 'fxMain',
 		fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-	return vec4f(inputColor.rgb * vec3f(uv.x + 0.2, uv.y + 0.3, 0.8), inputColor.a);
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv.x, contextUv.y * 0.8, distance(contextUv, uv), inputColor.a);
 }
 `
 	});
@@ -38,8 +62,31 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		input: 'fxMain',
 		output: 'canvas',
 		fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-	return vec4f(inputColor.bgr, inputColor.a);
+	let contextUv = getFragmentUv();
+	return vec4f(inputColor.r * 0.9, contextUv.y * 0.8, distance(contextUv, uv), inputColor.a);
+}
+`
+	});
+
+	const feedbackPass = new PingPongShaderPass({
+		target: 'fluid',
+		width: 160,
+		height: 110,
+		format: 'rgba16float',
+		filter: 'nearest',
+		fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv.x * 0.8, contextUv.y, distance(contextUv, uv), 1.0);
 }
 `
 	});
@@ -51,8 +98,9 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 	let gpuStatus = $state<'checking' | 'unavailable' | 'no-adapter' | 'ready'>('checking');
 	let controls = $state<RuntimeControls | null>(null);
 	let frameCount = $state(0);
-	let passes = $state<RenderPass[]>([]);
-	let passMode = $state<'none' | 'invert' | 'named'>('none');
+	let material = $state<FragMaterial>(contextMaterial);
+	let passes = $state<AnyPass[]>([]);
+	let passMode = $state<'none' | 'invert' | 'named' | 'feedback'>('none');
 	let renderMode = $state<'always' | 'on-demand' | 'manual'>('manual');
 	let lastError = $state('none');
 
@@ -87,6 +135,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		<button
 			data-testid="set-pass-none"
 			onclick={() => {
+				material = contextMaterial;
 				passes = [];
 				passMode = 'none';
 			}}
@@ -96,6 +145,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		<button
 			data-testid="set-pass-invert"
 			onclick={() => {
+				material = contextMaterial;
 				passes = [invertPass];
 				passMode = 'invert';
 			}}
@@ -105,11 +155,22 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		<button
 			data-testid="set-pass-named"
 			onclick={() => {
+				material = contextMaterial;
 				passes = [namedWritePass, namedReadPass];
 				passMode = 'named';
 			}}
 		>
 			named pass
+		</button>
+		<button
+			data-testid="set-pass-feedback"
+			onclick={() => {
+				material = feedbackMaterial;
+				passes = [feedbackPass];
+				passMode = 'feedback';
+			}}
+		>
+			feedback pass
 		</button>
 		<button data-testid="advance-once" onclick={() => controls?.advance()}>advance</button>
 	</section>

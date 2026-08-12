@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if ! command -v pnpm >/dev/null 2>&1; then
+	echo "pre-commit: pnpm is required; enable Corepack and run pnpm install" >&2
+	exit 1
+fi
+
+echo "pre-commit: running the full CI gate"
+pnpm run ci

@@ -1365,51 +1365,61 @@ describe('createRenderer', () => {
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
 	});
 
-	it('renders through an HDR intermediate and final presentation pass for Khronos PBR Neutral', async () => {
-		const runtime = createWebGpuRuntime();
-		const renderer = await createRenderer({
-			...baseOptions(runtime),
-			color: { toneMapping: 'khronos-pbr-neutral' }
-		});
+	it.each([
+		['khronos-pbr-neutral', 'motiongpuKhronosPbrNeutral'],
+		['uncharted2-filmic', 'motiongpuUncharted2Filmic'],
+		['aces-hill', 'motiongpuAcesHill'],
+		['gran-turismo', 'motiongpuGranTurismo']
+	] as const)(
+		'renders through an HDR intermediate and final presentation pass for %s',
+		async (toneMapping, helper) => {
+			const runtime = createWebGpuRuntime();
+			const renderer = await createRenderer({
+				...baseOptions(runtime),
+				color: { toneMapping }
+			});
 
-		renderer.render({
-			time: 0,
-			delta: 0.016,
-			renderMode: 'always',
-			uniforms: {},
-			textures: {}
-		});
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
 
-		expect(runtime.context.configure).toHaveBeenCalledWith(
-			expect.objectContaining({
-				format: 'rgba8unorm',
-				alphaMode: 'premultiplied'
-			})
-		);
-		expect(
-			runtime.textures.some((texture) => {
-				const size = texture.descriptor.size as { width?: number; height?: number };
-				return (
-					size.width === 10 && size.height === 10 && texture.descriptor.format === 'rgba16float'
-				);
-			})
-		).toBe(true);
+			expect(runtime.context.configure).toHaveBeenCalledWith(
+				expect.objectContaining({
+					format: 'rgba8unorm',
+					alphaMode: 'premultiplied'
+				})
+			);
+			expect(
+				runtime.textures.some((texture) => {
+					const size = texture.descriptor.size as { width?: number; height?: number };
+					return (
+						size.width === 10 && size.height === 10 && texture.descriptor.format === 'rgba16float'
+					);
+				})
+			).toBe(true);
 
-		const encoder = runtime.commandEncoders[0];
-		expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(2);
-		const shaderCodes = getShaderCodes(runtime);
-		expect(shaderCodes.some((code) => code.includes('motiongpuKhronosPbrNeutral'))).toBe(true);
-		const sceneShader = shaderCodes.find((code) => code.includes('fn motiongpuFragment'));
-		const presentationShader = shaderCodes.find((code) =>
-			code.includes('fn motiongpuPresentationFragment')
-		);
-		expect(sceneShader).toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
-		expect(presentationShader).toContain(
-			'out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);'
-		);
-		expect(presentationShader).toContain('return motiongpuPremultiplyForCanvas(motiongpuOutput);');
-		expect(presentationShader).not.toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
-	});
+			const encoder = runtime.commandEncoders[0];
+			expect(encoder?.beginRenderPass).toHaveBeenCalledTimes(2);
+			const shaderCodes = getShaderCodes(runtime);
+			expect(shaderCodes.some((code) => code.includes(helper))).toBe(true);
+			const sceneShader = shaderCodes.find((code) => code.includes('fn motiongpuFragment'));
+			const presentationShader = shaderCodes.find((code) =>
+				code.includes('fn motiongpuPresentationFragment')
+			);
+			expect(sceneShader).toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
+			expect(presentationShader).toContain(
+				'out.uv = vec2f((position.x + 1.0) * 0.5, (1.0 - position.y) * 0.5);'
+			);
+			expect(presentationShader).toContain(
+				'return motiongpuPremultiplyForCanvas(motiongpuOutput);'
+			);
+			expect(presentationShader).not.toContain('out.uv = (position + vec2f(1.0, 1.0)) * 0.5;');
+		}
+	);
 
 	it('configures an extended rgba16float canvas for HDR presentation', async () => {
 		const runtime = createWebGpuRuntime();

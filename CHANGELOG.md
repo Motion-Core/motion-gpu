@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Added Uncharted 2 / Hable Filmic, Stephen Hill's ACES fit, and the 2017 Gran Turismo / Uchimura tone mappers to the `FragCanvas` color pipeline.
+
 ### Changed
 - Overhauled the runtime error overlay across Svelte, React, and Vue with a new responsive layout, updated diagnostics and source-code presentation, keyboard focus trapping, background isolation, focus restoration, and improved screen-reader semantics.
 

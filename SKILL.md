@@ -128,7 +128,7 @@ Enforce these constraints without exceptions:
 16. Storage buffer `size` must be `> 0` and a multiple of 4.
 17. `PingPongComputePass` `iterations` must be `>= 1`.
 18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`) and always dispatch before the base scene render.
-19. `FragCanvas.color.dynamicRange: 'hdr'` cannot be combined with `color.toneMapping: 'khronos-pbr-neutral'`; Khronos PBR Neutral maps HDR scene values to SDR.
+19. `FragCanvas.color.dynamicRange: 'hdr'` cannot be combined with an enabled `color.toneMapping`; built-in tone mappers map HDR scene values to SDR.
 
 ## Architecture Pattern
 
@@ -273,7 +273,8 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Use `FragCanvas.color` for color pipeline configuration.
 - `color.outputEncoding` controls final SDR encoding (`'srgb'` by default, `'linear'` for linear output).
-- `color.toneMapping: 'khronos-pbr-neutral'` enables the private final presentation pass and expects non-negative linear HDR scene color.
+- `color.toneMapping` accepts `'none'`, `'khronos-pbr-neutral'`, `'uncharted2-filmic'`, `'aces-hill'`, or `'gran-turismo'`.
+- An enabled tone mapper runs in the private final presentation pass, expects non-negative linear HDR scene color, and produces SDR output.
 - `color.dynamicRange: 'hdr'` requests HDR canvas presentation; `dynamicRange: 'auto'` tries HDR and falls back to SDR.
 - `color.workingFormat: 'auto'` selects `rgba16float` for HDR or tone-mapped pipelines, otherwise the preferred canvas format.
 - Changing any color pipeline option is a renderer signature change and rebuilds the renderer.

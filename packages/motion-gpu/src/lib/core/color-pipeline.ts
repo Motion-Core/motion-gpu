@@ -53,7 +53,7 @@ export function resolveColorPipeline(input: ResolveColorPipelineInput): Resolved
 	const requestedDynamicRange = input.color?.dynamicRange ?? 'sdr';
 	if (toneMapping !== 'none' && requestedDynamicRange === 'hdr') {
 		throw new Error(
-			'Khronos PBR Neutral maps to SDR. Use dynamicRange:"sdr"/"auto" with toneMapping, or set toneMapping:"none" for HDR presentation.'
+			'Tone mapping produces SDR output. Use dynamicRange:"sdr"/"auto" with toneMapping, or set toneMapping:"none" for HDR presentation.'
 		);
 	}
 
@@ -157,6 +157,93 @@ fn motiongpuKhronosPbrNeutral(colorInput: vec3f) -> vec3f {
 `;
 }
 
+function buildUncharted2FilmicHelper(enabled: boolean): string {
+	if (!enabled) {
+		return '';
+	}
+
+	return `
+fn motiongpuUncharted2Partial(color: vec3f) -> vec3f {
+	let a = 0.15;
+	let b = 0.50;
+	let c = 0.10;
+	let d = 0.20;
+	let e = 0.02;
+	let f = 0.30;
+	let numerator = color * (a * color + vec3f(c * b)) + vec3f(d * e);
+	let denominator = color * (a * color + vec3f(b)) + vec3f(d * f);
+	return numerator / denominator - vec3f(e / f);
+}
+
+fn motiongpuUncharted2Filmic(color: vec3f) -> vec3f {
+	let exposureBias = 2.0;
+	let whitePoint = vec3f(11.2);
+	let whiteScale = vec3f(1.0) / motiongpuUncharted2Partial(whitePoint);
+	return motiongpuUncharted2Partial(exposureBias * color) * whiteScale;
+}
+`;
+}
+
+function buildAcesHillHelper(enabled: boolean): string {
+	if (!enabled) {
+		return '';
+	}
+
+	return `
+fn motiongpuAcesHillFit(color: vec3f) -> vec3f {
+	let a = color * (color + vec3f(0.0245786)) - vec3f(0.000090537);
+	let b = color * (vec3f(0.983729) * color + vec3f(0.4329510)) + vec3f(0.238081);
+	return a / b;
+}
+
+fn motiongpuAcesHill(colorInput: vec3f) -> vec3f {
+	let inputMatrix = mat3x3f(
+		vec3f(0.59719, 0.07600, 0.02840),
+		vec3f(0.35458, 0.90834, 0.13383),
+		vec3f(0.04823, 0.01566, 0.83777)
+	);
+	let outputMatrix = mat3x3f(
+		vec3f(1.60475, -0.10208, -0.00327),
+		vec3f(-0.53108, 1.10813, -0.07276),
+		vec3f(-0.07367, -0.00605, 1.07602)
+	);
+	var color = inputMatrix * colorInput;
+	color = motiongpuAcesHillFit(color);
+	color = outputMatrix * color;
+	return clamp(color, vec3f(0.0), vec3f(1.0));
+}
+`;
+}
+
+function buildGranTurismoHelper(enabled: boolean): string {
+	if (!enabled) {
+		return '';
+	}
+
+	return `
+fn motiongpuGranTurismo(color: vec3f) -> vec3f {
+	let p = 1.0;
+	let a = 1.0;
+	let m = 0.22;
+	let l = 0.4;
+	let c = 1.33;
+	let b = 0.0;
+	let l0 = ((p - m) * l) / a;
+	let s0 = m + l0;
+	let s1 = m + a * l0;
+	let c2 = (a * p) / (p - s1);
+	let cp = -c2 / p;
+	let w0 = vec3f(1.0) - smoothstep(vec3f(0.0), vec3f(m), color);
+	let w2 = step(vec3f(m + l0), color);
+	let w1 = vec3f(1.0) - w0 - w2;
+	let toe = vec3f(m) * pow(color / vec3f(m), vec3f(c)) + vec3f(b);
+	let linear = vec3f(m) + a * (color - vec3f(m));
+	let shoulder = vec3f(p) - vec3f(p - s1) * exp(vec3f(cp) * (color - vec3f(s0)));
+	return toe * w0 + linear * w1 + shoulder * w2;
+}
+`;
+}
+
 function buildCanvasPremultiplyHelper(enabled: boolean): string {
 	if (!enabled) {
 		return '';
@@ -195,6 +282,21 @@ function buildPresentationReturn(options: PresentationShaderOptions): string {
 			'let motiongpuToneMapped = motiongpuKhronosPbrNeutral(max(motiongpuLinear.rgb, vec3f(0.0)));'
 		);
 		colorExpression = 'motiongpuToneMapped';
+	} else if (options.toneMapping === 'uncharted2-filmic') {
+		lines.push(
+			'let motiongpuToneMapped = motiongpuUncharted2Filmic(max(motiongpuLinear.rgb, vec3f(0.0)));'
+		);
+		colorExpression = 'motiongpuToneMapped';
+	} else if (options.toneMapping === 'aces-hill') {
+		lines.push(
+			'let motiongpuToneMapped = motiongpuAcesHill(max(motiongpuLinear.rgb, vec3f(0.0)));'
+		);
+		colorExpression = 'motiongpuToneMapped';
+	} else if (options.toneMapping === 'gran-turismo') {
+		lines.push(
+			'let motiongpuToneMapped = motiongpuGranTurismo(max(motiongpuLinear.rgb, vec3f(0.0)));'
+		);
+		colorExpression = 'motiongpuToneMapped';
 	} else if (options.convertLinearToSrgb) {
 		lines.push('let motiongpuNonNegative = max(motiongpuLinear.rgb, vec3f(0.0));');
 		colorExpression = 'motiongpuNonNegative';
@@ -215,7 +317,6 @@ function buildPresentationReturn(options: PresentationShaderOptions): string {
 }
 
 export function buildPresentationShader(options: PresentationShaderOptions): string {
-	const includeToneMapping = options.toneMapping === 'khronos-pbr-neutral';
 	const includeSrgb = options.convertLinearToSrgb;
 	const includePremultiply = options.premultiplyAlpha ?? false;
 	const presentationReturn = buildPresentationReturn(options);
@@ -228,7 +329,10 @@ struct MotionGPUVertexOut {
 
 @group(0) @binding(0) var motiongpuPresentationSampler: sampler;
 @group(0) @binding(1) var motiongpuPresentationTexture: texture_2d<f32>;
-${buildKhronosPbrNeutralHelper(includeToneMapping)}
+${buildKhronosPbrNeutralHelper(options.toneMapping === 'khronos-pbr-neutral')}
+${buildUncharted2FilmicHelper(options.toneMapping === 'uncharted2-filmic')}
+${buildAcesHillHelper(options.toneMapping === 'aces-hill')}
+${buildGranTurismoHelper(options.toneMapping === 'gran-turismo')}
 ${buildLinearToSrgbHelper(includeSrgb)}
 ${buildCanvasPremultiplyHelper(includePremultiply)}
 @vertex

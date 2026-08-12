@@ -297,7 +297,12 @@ export type OutputEncoding = 'srgb' | 'linear';
 /**
  * Final tone mapper applied by the private presentation pass.
  */
-export type ToneMapping = 'none' | 'khronos-pbr-neutral';
+export type ToneMapping =
+	| 'none'
+	| 'khronos-pbr-neutral'
+	| 'uncharted2-filmic'
+	| 'aces-hill'
+	| 'gran-turismo';
 
 /**
  * Requested display dynamic range for final canvas presentation.
@@ -318,7 +323,7 @@ export interface ColorPipelineOptions {
 	 */
 	outputEncoding?: OutputEncoding;
 	/**
-	 * Final tone mapper. Khronos PBR Neutral maps HDR linear input to SDR output.
+	 * Final tone mapper. Tone mapping converts HDR linear input to SDR output.
 	 */
 	toneMapping?: ToneMapping;
 	/**

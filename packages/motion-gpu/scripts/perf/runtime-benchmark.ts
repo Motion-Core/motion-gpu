@@ -10,7 +10,7 @@ const HARNESS_URL = 'http://127.0.0.1:4175/?scenario=perf';
 const SERVER_URL = 'http://127.0.0.1:4175';
 const SCRIPT_DIR = import.meta.dirname;
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '../..');
-const BASELINE_PATH = resolve(PACKAGE_ROOT, 'benchmarks/runtime-baseline.json');
+const BASELINE_PATH = resolve(PACKAGE_ROOT, 'benchmarks/baselines/runtime.json');
 const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/runtime-latest.json');
 
 const BROWSER_LAUNCH_ARGS = [
@@ -24,9 +24,11 @@ const MODE_SAMPLE_MS = 4_000;
 const IDLE_SETTLE_MS = 700;
 const MANUAL_ADVANCE_DURATION_MS = 4_000;
 const MANUAL_ADVANCE_INTERVAL_MS = 16;
+const MANUAL_ADVANCE_LATENCY_SAMPLES = 40;
 const COMPUTE_STORAGE_SAMPLE_FRAMES = 1_000;
 
 const METRIC_RULES = {
+	startup_first_frame_ms: { direction: 'lower', maxRegressionPct: 25 },
 	always_scheduler_hz: { direction: 'higher', maxRegressionPct: 18 },
 	always_render_hz: { direction: 'higher', maxRegressionPct: 18 },
 	on_demand_idle_scheduler_hz: { direction: 'lower', maxRegressionPct: 30 },
@@ -35,6 +37,7 @@ const METRIC_RULES = {
 	manual_idle_render_hz: { direction: 'lower', maxRegressionPct: 30 },
 	manual_advance_scheduler_hz: { direction: 'higher', maxRegressionPct: 20 },
 	manual_advance_render_hz: { direction: 'higher', maxRegressionPct: 20 },
+	manual_advance_latency_p95_ms: { direction: 'lower', maxRegressionPct: 25 },
 	compute_storage_bindgroup_creations_per_1000_frames: {
 		direction: 'lower',
 		maxRegressionPct: 25
@@ -53,8 +56,16 @@ interface ModeSample {
 	renderHz: number;
 }
 
+interface LatencySample {
+	samplesMs: number[];
+	meanMs: number;
+	p50Ms: number;
+	p95Ms: number;
+	maxMs: number;
+}
+
 interface RuntimeBenchmarkDocument {
-	schemaVersion: 1;
+	schemaVersion: 2;
 	generatedAt: string;
 	environment: {
 		node: string;
@@ -66,14 +77,19 @@ interface RuntimeBenchmarkDocument {
 		idleSettleMs: number;
 		manualAdvanceDurationMs: number;
 		manualAdvanceIntervalMs: number;
+		manualAdvanceLatencySamples: number;
 		computeStorageSampleFrames: number;
 	};
 	metrics: MetricMap;
 	samples: {
+		startup: {
+			firstFrameMs: number;
+		};
 		always: ModeSample;
 		onDemandIdle: ModeSample;
 		manualIdle: ModeSample;
 		manualAdvance: ModeSample & { pulses: number };
+		manualAdvanceLatency: LatencySample;
 		computeStorage: {
 			frames: number;
 			bindGroupLayoutCreations: number;
@@ -84,16 +100,16 @@ interface RuntimeBenchmarkDocument {
 }
 
 interface RuntimeBaselineDocument {
-	schemaVersion: 1;
+	schemaVersion: 2;
 	updatedAt: string;
-	metrics: MetricMap;
+	metrics: Partial<MetricMap>;
 }
 
 interface ComparisonRow {
 	metric: MetricKey;
 	current: number;
-	baseline: number;
-	deltaPct: number;
+	baseline: number | null;
+	deltaPct: number | null;
 	regression: boolean;
 	rule: (typeof METRIC_RULES)[MetricKey];
 }
@@ -325,9 +341,58 @@ async function sampleManualAdvance(page: Page): Promise<ModeSample & { pulses: n
 	);
 }
 
+async function sampleManualAdvanceLatency(page: Page, sampleCount: number): Promise<LatencySample> {
+	return page.evaluate(async (count) => {
+		const perfWindow = window as PerfWindow;
+		const api = perfWindow.__MOTION_GPU_PERF__;
+		const renderElement = document.querySelector<HTMLElement>('[data-testid="render-count"]');
+		if (!api || !renderElement) {
+			throw new Error('Missing perf controls or render counter');
+		}
+
+		const samplesMs: number[] = [];
+		for (let index = 0; index < count; index += 1) {
+			const renderCountBefore = Number(renderElement.textContent ?? '');
+			if (!Number.isFinite(renderCountBefore)) {
+				throw new Error('Expected numeric render counter');
+			}
+
+			const startedAt = performance.now();
+			await new Promise<void>((resolveRender, rejectRender) => {
+				const observer = new MutationObserver(() => {
+					const current = Number(renderElement.textContent ?? '');
+					if (current > renderCountBefore) {
+						observer.disconnect();
+						window.clearTimeout(timeoutId);
+						resolveRender();
+					}
+				});
+				const timeoutId = window.setTimeout(() => {
+					observer.disconnect();
+					rejectRender(new Error('Timed out waiting for a manual frame'));
+				}, 1_000);
+				observer.observe(renderElement, { childList: true, characterData: true, subtree: true });
+				api.advance();
+			});
+			samplesMs.push(performance.now() - startedAt);
+		}
+
+		const sorted = [...samplesMs].sort((a, b) => a - b);
+		const p50Index = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * 0.5));
+		const p95Index = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * 0.95));
+		return {
+			samplesMs,
+			meanMs: samplesMs.reduce((sum, value) => sum + value, 0) / Math.max(1, samplesMs.length),
+			p50Ms: sorted[p50Index] ?? 0,
+			p95Ms: sorted[p95Index] ?? 0,
+			maxMs: sorted[sorted.length - 1] ?? 0
+		};
+	}, sampleCount);
+}
+
 function compareAgainstBaseline(
 	current: MetricMap,
-	baseline: MetricMap
+	baseline: Partial<MetricMap>
 ): {
 	rows: ComparisonRow[];
 	regressions: ComparisonRow[];
@@ -338,6 +403,17 @@ function compareAgainstBaseline(
 		const rule = METRIC_RULES[metricName];
 		const currentValue = current[metricName];
 		const baselineValue = baseline[metricName];
+		if (baselineValue === undefined) {
+			rows.push({
+				metric: metricName,
+				current: currentValue,
+				baseline: null,
+				deltaPct: null,
+				regression: false,
+				rule
+			});
+			continue;
+		}
 		const deltaPct =
 			baselineValue === 0
 				? currentValue === 0
@@ -478,6 +554,7 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 		});
 		const page = await context.newPage();
 
+		const startupStartedAt = performance.now();
 		await page.goto(HARNESS_URL);
 		await waitForTestIdText(page, 'scenario', 'perf');
 		await waitForTestIdText(page, 'controls-ready', 'yes');
@@ -493,6 +570,11 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 				timeout: 10_000
 			}
 		);
+		await page.waitForFunction(() => {
+			const element = document.querySelector<HTMLElement>('[data-testid="render-count"]');
+			return Number(element?.textContent ?? '0') > 0;
+		});
+		const startupFirstFrameMs = performance.now() - startupStartedAt;
 
 		await setMode(page, 'always');
 		await page.waitForTimeout(IDLE_SETTLE_MS);
@@ -506,11 +588,16 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 		await page.waitForTimeout(IDLE_SETTLE_MS);
 		const manualIdleSample = await sampleMode(page, MODE_SAMPLE_MS);
 		const manualAdvanceSample = await sampleManualAdvance(page);
+		const manualAdvanceLatencySample = await sampleManualAdvanceLatency(
+			page,
+			MANUAL_ADVANCE_LATENCY_SAMPLES
+		);
 		const computeStorageSample = sampleComputeStorageBindGroupCreations(
 			COMPUTE_STORAGE_SAMPLE_FRAMES
 		);
 
 		const metrics: MetricMap = {
+			startup_first_frame_ms: startupFirstFrameMs,
 			always_scheduler_hz: alwaysSample.schedulerHz,
 			always_render_hz: alwaysSample.renderHz,
 			on_demand_idle_scheduler_hz: onDemandIdleSample.schedulerHz,
@@ -519,12 +606,13 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 			manual_idle_render_hz: manualIdleSample.renderHz,
 			manual_advance_scheduler_hz: manualAdvanceSample.schedulerHz,
 			manual_advance_render_hz: manualAdvanceSample.renderHz,
+			manual_advance_latency_p95_ms: manualAdvanceLatencySample.p95Ms,
 			compute_storage_bindgroup_creations_per_1000_frames:
 				computeStorageSample.creationsPer1000Frames
 		};
 
 		return {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			generatedAt: new Date().toISOString(),
 			environment: {
 				node: process.version,
@@ -536,14 +624,19 @@ async function runRuntimeBenchmark(): Promise<RuntimeBenchmarkDocument> {
 				idleSettleMs: IDLE_SETTLE_MS,
 				manualAdvanceDurationMs: MANUAL_ADVANCE_DURATION_MS,
 				manualAdvanceIntervalMs: MANUAL_ADVANCE_INTERVAL_MS,
+				manualAdvanceLatencySamples: MANUAL_ADVANCE_LATENCY_SAMPLES,
 				computeStorageSampleFrames: COMPUTE_STORAGE_SAMPLE_FRAMES
 			},
 			metrics,
 			samples: {
+				startup: {
+					firstFrameMs: startupFirstFrameMs
+				},
 				always: alwaysSample,
 				onDemandIdle: onDemandIdleSample,
 				manualIdle: manualIdleSample,
 				manualAdvance: manualAdvanceSample,
+				manualAdvanceLatency: manualAdvanceLatencySample,
 				computeStorage: computeStorageSample
 			}
 		};
@@ -568,7 +661,7 @@ async function main(): Promise<void> {
 
 		if (args.updateBaseline) {
 			const baselinePayload: RuntimeBaselineDocument = {
-				schemaVersion: 1,
+				schemaVersion: 2,
 				updatedAt: new Date().toISOString(),
 				metrics: result.metrics
 			};
@@ -587,6 +680,12 @@ async function main(): Promise<void> {
 		const { rows, regressions } = compareAgainstBaseline(result.metrics, baseline.metrics);
 		console.log('Comparison to baseline:');
 		for (const row of rows) {
+			if (row.baseline === null || row.deltaPct === null) {
+				console.log(
+					`${row.metric}: current=${formatNumber(row.current)} baseline=missing delta=n/a NEW_METRIC`
+				);
+				continue;
+			}
 			const sign = row.deltaPct >= 0 ? '+' : '';
 			const state = row.regression ? 'REGRESSION' : 'ok';
 			console.log(

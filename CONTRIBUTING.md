@@ -29,4 +29,9 @@ Performance checks are kept separate from the required PR gate. Their baselines 
 ```sh
 pnpm run perf:motion-gpu:core:check
 pnpm run perf:motion-gpu:check
+pnpm run perf:motion-gpu:gpu:check
 ```
+
+The GPU check requires a hardware WebGPU adapter with timestamp queries and a baseline generated on
+the same GPU, driver, OS, and Chromium major version. Create it with
+`pnpm run perf:motion-gpu:gpu:baseline`. The command rejects SwiftShader and other software adapters.

@@ -34,7 +34,7 @@ export const siteConfig = {
 	/** Browser chrome colors synchronized with the light and dark inset surfaces. */
 	themeColor: {
 		light: '#f0f0f1',
-		dark: '#131416'
+		dark: '#121418'
 	},
 	/** External profile links used by docs actions and metadata. */
 	links: {

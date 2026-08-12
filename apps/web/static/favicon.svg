@@ -1,12 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="93" height="93" viewBox="0 0 93 93" fill="none"><g clip-path="url(#clip0_4_2)">
-<path d="M0 44H30.3431C33.9652 44 37.4388 42.5612 40 40C42.5612 37.4388 44 33.9652 44 30.3431V0H36V30.3438L14.5439 8.8877L8.8877 14.5439L30.3438 36H0V44Z" fill="#FF6900"></path>
-<path d="M93 49H62.6569C59.0348 49 55.5612 50.4388 53 53C50.4388 55.5612 49 59.0348 49 62.6569V93H57V62.6562L78.4561 84.1123L84.1123 78.4561L62.6563 57H93V49Z" fill="#FF6900"></path>
-<path d="M49 0V30.3431C49 33.9652 50.4388 37.4388 53 40C55.5612 42.5612 59.0348 44 62.6569 44H93V36H62.6563L84.1123 14.5439L78.4561 8.8877L57 30.3438V0H49Z" fill="#FF6900"></path>
-<path d="M44 93V62.6569C44 59.0348 42.5612 55.5612 40 53C37.4388 50.4388 33.9652 49 30.3431 49H0V57H30.3438L8.8877 78.4561L14.5439 84.1123L36 62.6562V93H44Z" fill="#FF6900"></path>
-</g><defs>
-<clipPath id="clip0_4_2">
-<rect width="93" height="93" fill="white"></rect>
-</clipPath>
-</defs><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"><metadata><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"><rdf:Description><dc:creator>RealFaviconGenerator</dc:creator><dc:source>https://realfavicongenerator.net</dc:source></rdf:Description></rdf:RDF></metadata><path d="M0 11.3548H7.83048C8.76521 11.3548 9.66162 10.9835 10.3226 10.3226C10.9835 9.66163 11.3548 8.76521 11.3548 7.83048V0H9.29032V7.83066L3.75326 2.2936L2.2936 3.75326L7.83066 9.29032H0V11.3548Z" fill="#6697FF"></path><path d="M24 12.6452H16.1695C15.2348 12.6452 14.3384 13.0165 13.6774 13.6774C13.0165 14.3384 12.6452 15.2348 12.6452 16.1695V24H14.7097V16.1693L20.2467 21.7064L21.7064 20.2467L16.1694 14.7097H24V12.6452Z" fill="#6697FF"></path><path d="M12.6452 0V7.83048C12.6452 8.76521 13.0165 9.66163 13.6774 10.3226C14.3384 10.9835 15.2348 11.3548 16.1695 11.3548H24V9.29032H16.1694L21.7064 3.75326L20.2467 2.2936L14.7097 7.83066V0H12.6452Z" fill="#6697FF"></path><path d="M11.3548 24V16.1695C11.3548 15.2348 10.9835 14.3384 10.3226 13.6774C9.66163 13.0165 8.76521 12.6452 7.83048 12.6452H0V14.7097H7.83066L2.2936 20.2467L3.75326 21.7064L9.29032 16.1693V24H11.3548Z" fill="#6697FF"></path><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
 @media (prefers-color-scheme: dark) { :root { filter: none; } }
 </style></svg>

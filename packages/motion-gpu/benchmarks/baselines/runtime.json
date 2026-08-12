@@ -1,0 +1,17 @@
+{
+	"schemaVersion": 2,
+	"updatedAt": "2026-08-12T20:16:42.084Z",
+	"metrics": {
+		"startup_first_frame_ms": 392.020625,
+		"always_scheduler_hz": 119.96401079711839,
+		"always_render_hz": 119.96401079711839,
+		"on_demand_idle_scheduler_hz": 0,
+		"on_demand_idle_render_hz": 0,
+		"manual_idle_scheduler_hz": 0,
+		"manual_idle_render_hz": 0,
+		"manual_advance_scheduler_hz": 58.072877723117564,
+		"manual_advance_render_hz": 58.072877723117564,
+		"manual_advance_latency_p95_ms": 8.599999964237213,
+		"compute_storage_bindgroup_creations_per_1000_frames": 4
+	}
+}

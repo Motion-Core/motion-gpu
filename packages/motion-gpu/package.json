@@ -101,6 +101,10 @@
 		"perf:runtime": "tsx ./scripts/perf/runtime-benchmark.ts",
 		"perf:runtime:check": "tsx ./scripts/perf/runtime-benchmark.ts --strict",
 		"perf:runtime:baseline": "tsx ./scripts/perf/runtime-benchmark.ts --update-baseline",
+		"perf:gpu": "tsx ./scripts/perf/hardware-gpu-benchmark.ts",
+		"perf:gpu:check": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --strict",
+		"perf:gpu:baseline": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --update-baseline",
+		"perf:gpu:headed": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --headed",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write ."
 	},

@@ -511,6 +511,10 @@ pnpm run perf:core:baseline
 pnpm run perf:runtime
 pnpm run perf:runtime:check
 pnpm run perf:runtime:baseline
+pnpm run perf:gpu
+pnpm run perf:gpu:check
+pnpm run perf:gpu:baseline
+pnpm run perf:gpu:headed
 ```
 
 ---

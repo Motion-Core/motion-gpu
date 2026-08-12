@@ -52,7 +52,7 @@
 	{id}
 	{...restProps}
 	class={cn(
-		'group w-fit scroll-m-24 text-3xl font-medium tracking-tight text-foreground [&_code]:text-2xl',
+		'group mt-16 w-fit scroll-m-24 text-3xl font-medium tracking-tight text-foreground [&_code]:text-2xl',
 		className
 	)}
 >

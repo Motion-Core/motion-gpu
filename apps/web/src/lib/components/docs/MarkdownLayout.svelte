@@ -35,7 +35,7 @@
 
 <article
 	data-doc-content
-	class="w-full max-w-4xl space-y-6 text-base leading-relaxed text-foreground"
+	class="w-full max-w-4xl space-y-6 text-base leading-relaxed text-foreground [&>h2:first-child]:mt-0"
 >
 	{#if children}
 		{@render children()}

@@ -1,15 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
+import { webgpuLaunchArgs } from './e2e/webgpu';
 
 const isCi = Boolean(process.env['CI']);
-const webgpuLaunchArgs = [
-	'--enable-unsafe-webgpu',
-	'--use-angle=swiftshader',
-	'--enable-features=Vulkan',
-	'--disable-vulkan-surface'
-];
 
 export default defineConfig({
 	testDir: './e2e/specs',
+	reporter: isCi ? 'line' : 'list',
+	maxFailures: isCi ? 1 : 0,
 	timeout: 30_000,
 	expect: {
 		timeout: 5_000

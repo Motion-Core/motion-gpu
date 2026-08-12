@@ -1381,7 +1381,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			},
 			fragment: {
 				module: shaderModule,
-				entryPoint: 'motiongpuFragment',
+				entryPoint: 'motiongpuFragmentMain',
 				targets: [{ format: scenePipelineFormat }]
 			},
 			primitive: {
@@ -1397,7 +1397,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					},
 					fragment: {
 						module: directCanvasShaderModule,
-						entryPoint: 'motiongpuFragment',
+						entryPoint: 'motiongpuFragmentMain',
 						targets: [{ format: colorPipeline.canvasFormat }]
 					},
 					primitive: {

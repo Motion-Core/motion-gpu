@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Added fragment-local `motiongpuFragment.uv` coordinates for helper functions in material, `ShaderPass`, and `PingPongShaderPass` WGSL, while preserving the existing explicit entrypoint parameters.
 - Added Uncharted 2 / Hable Filmic, Stephen Hill's ACES fit, and the 2017 Gran Turismo / Uchimura tone mappers to the `FragCanvas` color pipeline.
 
 ### Changed

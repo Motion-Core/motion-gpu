@@ -18,7 +18,10 @@ function createFakeDevice() {
 		createBindGroupLayout: vi.fn(
 			() => ({ type: 'bind-group-layout' }) as unknown as GPUBindGroupLayout
 		),
-		createShaderModule: vi.fn(() => ({ type: 'shader-module' }) as unknown as GPUShaderModule),
+		createShaderModule: vi.fn((descriptor: GPUShaderModuleDescriptor) => {
+			void descriptor;
+			return { type: 'shader-module' } as unknown as GPUShaderModule;
+		}),
 		createPipelineLayout: vi.fn(
 			() => ({ type: 'pipeline-layout' }) as unknown as GPUPipelineLayout
 		),
@@ -132,6 +135,35 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 `
 		});
 		expect(pass.getFragment()).toContain('fn shade(inputColor: vec4f, uv: vec2f)');
+	});
+
+	it('exposes fragment-local uv to ShaderPass helper functions', () => {
+		const pass = new ShaderPass({
+			fragment: `
+fn getUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
+fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
+	return vec4f(getUv(), distance(getUv(), uv), inputColor.a);
+}
+`
+		});
+		const context = createPassContext();
+		const device = context.device as unknown as ReturnType<typeof createFakeDevice>;
+
+		pass.render(context);
+
+		const descriptor = device.createShaderModule.mock.calls[0]?.[0] as
+			| GPUShaderModuleDescriptor
+			| undefined;
+		const source = String(descriptor?.code ?? '');
+		expect(source).toContain('var<private> motiongpuFragment: MotionGPUFragment;');
+		expect(source).toContain('return motiongpuFragment.uv;');
+		expect(source).toContain('motiongpuFragment.uv = in.uv;');
+		expect(source.indexOf('motiongpuFragment.uv = in.uv;')).toBeLessThan(
+			source.indexOf('return shade(inputColor, in.uv);')
+		);
 	});
 
 	it('uses direct GPU copy path when CopyPass surfaces are compatible', () => {

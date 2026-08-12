@@ -2,12 +2,25 @@ import { expect, test } from '@playwright/test';
 import {
 	expectCanvasHashStable,
 	getCanvasHash,
+	getCanvasPixel,
 	toNumber,
 	waitForCanvasHash,
 	waitForCanvasHashChange
 } from './helpers';
 
 test.describe('motion-gpu passes e2e', () => {
+	async function expectFragmentUvGradient(page: Parameters<typeof getCanvasPixel>[0]) {
+		const left = await getCanvasPixel(page, 0.15, 0.5);
+		const right = await getCanvasPixel(page, 0.85, 0.5);
+		const top = await getCanvasPixel(page, 0.5, 0.15);
+		const bottom = await getCanvasPixel(page, 0.5, 0.85);
+		const center = await getCanvasPixel(page, 0.5, 0.5);
+
+		expect(right[0] - left[0]).toBeGreaterThan(40);
+		expect(top[1] - bottom[1]).toBeGreaterThan(40);
+		expect(center[2]).toBeLessThan(15);
+	}
+
 	test('applies and removes post-process pass in manual render mode', async ({ page }) => {
 		await page.goto('/?scenario=passes');
 		await expect(page.getByTestId('scenario')).toHaveText('passes');
@@ -44,6 +57,30 @@ test.describe('motion-gpu passes e2e', () => {
 		await expect(page.getByTestId('pass-mode')).toHaveText('none');
 		await page.getByTestId('advance-once').click();
 		await waitForCanvasHash(page, baseHash);
+		await expect(page.getByTestId('last-error')).toHaveText('none');
+	});
+
+	test('exposes the same fragment uv in materials, shader passes and feedback passes', async ({
+		page
+	}) => {
+		await page.goto('/?scenario=passes');
+		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
+		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
+		await expect
+			.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
+			.toBeGreaterThan(0);
+
+		await expectFragmentUvGradient(page);
+
+		await page.getByTestId('set-pass-named').click();
+		await expect(page.getByTestId('pass-mode')).toHaveText('named');
+		await page.getByTestId('advance-once').click();
+		await expectFragmentUvGradient(page);
+
+		await page.getByTestId('set-pass-feedback').click();
+		await expect(page.getByTestId('pass-mode')).toHaveText('feedback');
+		await page.getByTestId('advance-once').click();
+		await expectFragmentUvGradient(page);
 		await expect(page.getByTestId('last-error')).toHaveText('none');
 	});
 });

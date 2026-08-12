@@ -25,6 +25,13 @@ fn motiongpuLinearToSrgb(linearColor: vec3f) -> vec3f {
 }
 
 
+struct MotionGPUFragment {
+	uv: vec2f,
+};
+
+var<private> motiongpuFragment: MotionGPUFragment;
+
+
 struct MotionGPUVertexOut {
 	@builtin(position) position: vec4f,
 	@location(0) uv: vec2f,
@@ -48,7 +55,8 @@ fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
 fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
 
 @fragment
-fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+fn motiongpuFragmentMain(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = motiongpuUniforms.uMix;
@@ -80,6 +88,13 @@ struct MotionGPUUniforms {
 
 
 
+struct MotionGPUFragment {
+	uv: vec2f,
+};
+
+var<private> motiongpuFragment: MotionGPUFragment;
+
+
 struct MotionGPUVertexOut {
 	@builtin(position) position: vec4f,
 	@location(0) uv: vec2f,
@@ -100,10 +115,12 @@ fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
 	return out;
 }
 
-fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+fn getUv() -> vec2f { return motiongpuFragment.uv; }
+fn frag(uv: vec2f) -> vec4f { return vec4f(getUv(), 0.0, 1.0); }
 
 @fragment
-fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+fn motiongpuFragmentMain(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = motiongpuUniforms.intensity.x;
@@ -134,6 +151,13 @@ struct MotionGPUUniforms {
 @group(1) @binding(1) var<storage, read> colors: array<vec4f>;
 
 
+struct MotionGPUFragment {
+	uv: vec2f,
+};
+
+var<private> motiongpuFragment: MotionGPUFragment;
+
+
 struct MotionGPUVertexOut {
 	@builtin(position) position: vec4f,
 	@location(0) uv: vec2f,
@@ -157,7 +181,8 @@ fn motiongpuVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
 fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
 
 @fragment
-fn motiongpuFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+fn motiongpuFragmentMain(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	
 	let fragColor = frag(in.uv);
 	let motiongpuKeepAlive = motiongpuUniforms.uMix;

@@ -1,3 +1,4 @@
+import { MOTIONGPU_FRAGMENT_CONTEXT_WGSL } from '../core/fragment-context.js';
 import { FullscreenPass, type FullscreenPassOptions } from './FullscreenPass.js';
 
 const SHADER_PASS_CONTRACT =
@@ -22,6 +23,7 @@ struct MotionGPUVertexOut {
 
 @group(0) @binding(0) var motiongpuShaderPassSampler: sampler;
 @group(0) @binding(1) var motiongpuShaderPassTexture: texture_2d<f32>;
+${MOTIONGPU_FRAGMENT_CONTEXT_WGSL}
 
 @vertex
 fn motiongpuShaderPassVertex(@builtin(vertex_index) index: u32) -> MotionGPUVertexOut {
@@ -42,6 +44,7 @@ ${fragment}
 
 @fragment
 fn motiongpuShaderPassFragment(in: MotionGPUVertexOut) -> @location(0) vec4f {
+	motiongpuFragment.uv = in.uv;
 	let inputColor = textureSample(motiongpuShaderPassTexture, motiongpuShaderPassSampler, in.uv);
 	return shade(inputColor, in.uv);
 }

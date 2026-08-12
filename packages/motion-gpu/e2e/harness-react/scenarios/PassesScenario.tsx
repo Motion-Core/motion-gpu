@@ -1,16 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FragCanvas, ShaderPass, defineMaterial } from '../../../src/lib/react';
+import { FragCanvas, PingPongShaderPass, ShaderPass, defineMaterial } from '../../../src/lib/react';
 import type { MotionGPUErrorReport } from '../../../src/lib/core/error-report';
-import type { RenderPass, RenderTargetDefinitionMap } from '../../../src/lib/core/types';
+import type { FragMaterial } from '../../../src/lib/core/material';
+import type { AnyPass, RenderTargetDefinitionMap } from '../../../src/lib/core/types';
 import { detectGpuStatus, type GpuStatus } from '../gpu-status';
 import { RuntimeProbe, type RuntimeControls } from '../RuntimeProbe';
 
-const material = defineMaterial({
+const contextMaterial = defineMaterial({
+	fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv * 0.6, distance(contextUv, uv), 1.0);
+}
+`,
+	textures: {
+		fluid: { format: 'rgba16float', filter: 'nearest' }
+	}
+});
+
+const feedbackMaterial = defineMaterial({
 	fragment: `
 fn frag(uv: vec2f) -> vec4f {
-	return vec4f(0.2, 0.3, 0.4, 1.0);
+	return textureSample(fluid, fluidSampler, uv);
 }
-`
+`,
+	textures: {
+		fluid: { format: 'rgba16float', filter: 'nearest' }
+	}
 });
 
 const invertPass = new ShaderPass({
@@ -25,8 +45,13 @@ const namedWritePass = new ShaderPass({
 	needsSwap: false,
 	output: 'fxMain',
 	fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-	return vec4f(inputColor.rgb * vec3f(uv.x + 0.2, uv.y + 0.3, 0.8), inputColor.a);
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv.x, contextUv.y * 0.8, distance(contextUv, uv), inputColor.a);
 }
 `
 });
@@ -36,8 +61,31 @@ const namedReadPass = new ShaderPass({
 	input: 'fxMain',
 	output: 'canvas',
 	fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
-	return vec4f(inputColor.bgr, inputColor.a);
+	let contextUv = getFragmentUv();
+	return vec4f(inputColor.r * 0.9, contextUv.y * 0.8, distance(contextUv, uv), inputColor.a);
+}
+`
+});
+
+const feedbackPass = new PingPongShaderPass({
+	target: 'fluid',
+	width: 160,
+	height: 110,
+	format: 'rgba16float',
+	filter: 'nearest',
+	fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	let contextUv = getFragmentUv();
+	return vec4f(contextUv.x * 0.8, contextUv.y, distance(contextUv, uv), 1.0);
 }
 `
 });
@@ -50,8 +98,9 @@ export function PassesScenario() {
 	const [gpuStatus, setGpuStatus] = useState<GpuStatus>('checking');
 	const [controls, setControls] = useState<RuntimeControls | null>(null);
 	const [frameCount, setFrameCount] = useState(0);
-	const [passes, setPasses] = useState<RenderPass[]>([]);
-	const [passMode, setPassMode] = useState<'none' | 'invert' | 'named'>('none');
+	const [material, setMaterial] = useState<FragMaterial>(contextMaterial);
+	const [passes, setPasses] = useState<AnyPass[]>([]);
+	const [passMode, setPassMode] = useState<'none' | 'invert' | 'named' | 'feedback'>('none');
 	const [renderMode, setRenderMode] = useState<'always' | 'on-demand' | 'manual'>('manual');
 	const [lastError, setLastError] = useState('none');
 
@@ -85,6 +134,7 @@ export function PassesScenario() {
 					className="harness-button"
 					data-testid="set-pass-none"
 					onClick={() => {
+						setMaterial(contextMaterial);
 						setPasses([]);
 						setPassMode('none');
 					}}
@@ -95,6 +145,7 @@ export function PassesScenario() {
 					className="harness-button"
 					data-testid="set-pass-invert"
 					onClick={() => {
+						setMaterial(contextMaterial);
 						setPasses([invertPass]);
 						setPassMode('invert');
 					}}
@@ -105,11 +156,23 @@ export function PassesScenario() {
 					className="harness-button"
 					data-testid="set-pass-named"
 					onClick={() => {
+						setMaterial(contextMaterial);
 						setPasses([namedWritePass, namedReadPass]);
 						setPassMode('named');
 					}}
 				>
 					named pass
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-pass-feedback"
+					onClick={() => {
+						setMaterial(feedbackMaterial);
+						setPasses([feedbackPass]);
+						setPassMode('feedback');
+					}}
+				>
+					feedback pass
 				</button>
 				<button
 					className="harness-button"

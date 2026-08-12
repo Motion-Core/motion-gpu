@@ -24,6 +24,8 @@ Returns an immutable `FragMaterial` whose six fields are always present; omitted
 
 `fragment` must contain `fn frag(uv: vec2f) -> vec4f` in the main source. Material and pass colors use straight alpha until final canvas presentation.
 
+Material helper functions can read the current fragment coordinates from `motiongpuFragment.uv`. Motion GPU initializes the fragment-local field before calling `frag(uv)`, so both values are equal at entry. See [Writing Shaders](/docs/writing-shaders) for the generated WGSL declaration and its scope.
+
 ## `resolveMaterial(material)`
 
 Returns cached renderer input for a validated material:

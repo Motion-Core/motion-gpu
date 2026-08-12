@@ -1,6 +1,6 @@
 ---
 name: motion-gpu-adapters-wgsl
-description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React/Vue adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
+description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React/Vue adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, fragment-local motiongpuFragment context, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
 ---
 
 # MotionGPU Core + Adapters Skill
@@ -43,7 +43,7 @@ Import only from public entrypoints above. Never import from internal package pa
 
 Documentation sources:
 - LLM docs index: `http://motion-gpu.dev/llms.txt`
-- Docs generated from source live under `apps/web/src/routes/docs`
+- Docs source lives under `apps/web/src/lib/content/docs`
 
 If examples conflict with exported runtime behavior, prefer exported API contracts from entrypoints.
 
@@ -68,8 +68,8 @@ Adapter-specific differences:
   - `children?: ReactNode`
   - `errorRenderer?: (report: MotionGPUErrorReport) => ReactNode`
 - Vue:
-  - `canvasClass?: string`
-  - `canvasStyle?: string | Record<string, string | number>`
+  - native canvas attributes, including `class`, `style`, `data-*`, `aria-*`, and event listeners, are forwarded through `$attrs`
+  - `width` and `height` attributes are ignored because backing-store dimensions come from measured layout and `dpr`
   - default slot for children
   - `#errorRenderer="{ report }"` scoped slot for custom error UI
 
@@ -111,24 +111,28 @@ Enforce these constraints without exceptions:
 `fn frag(uv: vec2f) -> vec4f`
 2. `ShaderPass` shader entrypoint must be exactly:
 `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`
-3. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
-4. Call `useFrame()`, `useMotionGPU()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
-5. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
-6. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:
+3. `PingPongShaderPass` shader entrypoint must be exactly:
+`fn frag(uv: vec2f) -> vec4f`
+4. Material, `ShaderPass`, and `PingPongShaderPass` helpers may read the current Y-up coordinates from `motiongpuFragment.uv`. Keep the explicit `uv` entrypoint parameter; do not replace the required signatures with `frag()` or `shade(inputColor)`.
+5. `motiongpuFragment` is fragment-only. In compute shaders, derive coordinates from `global_invocation_id` and an explicitly chosen domain size.
+6. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
+7. Call `useFrame()`, `useMotionGPU()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
+8. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
+9. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:
 `[A-Za-z_][A-Za-z0-9_]*`
-7. Use `needsSwap: true` only with `input: 'source'` and `output: 'target'`.
-8. Never read from `input: 'canvas'` in render passes.
-9. Use explicit `{ type: 'mat4x4f', value: [...] }` for matrix uniforms.
-10. Keep `maxDelta > 0` and scheduler profiling window `> 0`.
-11. Build materials via `defineMaterial(...)`; never handcraft `FragMaterial`.
-12. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
-13. For `invalidation: { mode: 'on-change' }`, always provide `token`.
-14. Read/write named pass slots only when declared in `renderTargets`.
-15. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
-16. Storage buffer `size` must be `> 0` and a multiple of 4.
-17. `PingPongComputePass` `iterations` must be `>= 1`.
-18. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`) and always dispatch before the base scene render.
-19. `FragCanvas.color.dynamicRange: 'hdr'` cannot be combined with an enabled `color.toneMapping`; built-in tone mappers map HDR scene values to SDR.
+10. Use `needsSwap: true` only with `input: 'source'` and `output: 'target'`.
+11. Never read from `input: 'canvas'` in render passes.
+12. Use explicit `{ type: 'mat4x4f', value: [...] }` for matrix uniforms.
+13. Keep `maxDelta > 0` and scheduler profiling window `> 0`.
+14. Build materials via `defineMaterial(...)`; never handcraft `FragMaterial`.
+15. In `manual` mode, call `advance()` to render; `invalidate()` alone does not render.
+16. For `invalidation: { mode: 'on-change' }`, always provide `token`.
+17. Read/write named pass slots only when declared in `renderTargets`.
+18. Declare all storage buffers in `defineMaterial({ storageBuffers })` before using `writeStorageBuffer`/`readStorageBuffer`.
+19. Storage buffer `size` must be `> 0` and a multiple of 4.
+20. `PingPongComputePass` `iterations` must be `>= 1`.
+21. Compute passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`) and always dispatch before the base scene render.
+22. `FragCanvas.color.dynamicRange: 'hdr'` cannot be combined with an enabled `color.toneMapping`; built-in tone mappers map HDR scene values to SDR.
 
 ## Architecture Pattern
 
@@ -173,6 +177,7 @@ Pick one main mode:
 
 Put in material:
 - Fragment WGSL source.
+- Fragment helper functions. They can read `motiongpuFragment.uv` when threading the entrypoint `uv` parameter through every helper would obscure generated or reusable WGSL.
 - Uniform declarations and initial values.
 - Texture declarations and sampler/upload defaults.
 - Storage buffer declarations (`storageBuffers`) with size, type, access mode, and optional `initialData`.
@@ -234,9 +239,35 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 ### WGSL
 
 - Use `motiongpuFrame.time`, `motiongpuFrame.delta`, `motiongpuFrame.resolution` for frame data.
+- Use `motiongpuFragment.uv` for the current Y-up coordinates inside material, `ShaderPass`, or `PingPongShaderPass` helper functions. The value equals the required entrypoint `uv` parameter when the entrypoint begins.
+- Do not declare `motiongpuFragment`. MotionGPU injects this fragment-local WGSL declaration and initializes it immediately before calling `frag(...)` or `shade(...)`:
+
+```wgsl
+struct MotionGPUFragment {
+	uv: vec2f,
+};
+
+var<private> motiongpuFragment: MotionGPUFragment;
+```
+
+- Treat `motiongpuFragment` as read-only. WGSL permits assignment to `var<private>`, but a user write would change later reads only within that fragment invocation and would no longer represent the entrypoint coordinates.
+- `motiongpuFragment` adds no uniform, buffer, bind group, or per-frame CPU upload.
 - Read user uniforms through `motiongpuUniforms.<name>`.
 - Sample textures with generated pairs: `uTex` and `uTexSampler`.
 - `usePointer().state.current.uv` already provides Y-up UV; flip Y manually only for custom DOM event wiring.
+
+Use the fragment context when a nested helper needs coordinates:
+
+```wgsl
+fn vignette() -> f32 {
+	let centered = motiongpuFragment.uv - vec2f(0.5);
+	return 1.0 - smoothstep(0.2, 0.7, length(centered));
+}
+
+fn frag(uv: vec2f) -> vec4f {
+	return vec4f(vec3f(vignette()), 1.0);
+}
+```
 
 ### Uniforms
 
@@ -300,6 +331,14 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 - Declare storage buffers in `defineMaterial({ storageBuffers: { name: { size, type, access? } } })`.
 - Use `ComputePass` for single-dispatch GPU compute; `PingPongComputePass` for iterative simulations.
+- Do not use `motiongpuFragment.uv` in compute shaders. Compute has no rasterized fragment, interpolated UV, required render target, or single canonical domain size.
+- Derive normalized coordinates explicitly from `global_invocation_id` and the domain being processed. Include the pixel-center offset, orientation, bounds checks, and domain size intentionally. For a two-dimensional texture domain, a typical mapping is:
+
+```wgsl
+let uv = (vec2f(globalId.xy) + vec2f(0.5)) / vec2f(domainSize);
+```
+
+- Do not silently substitute canvas resolution, dispatch size, or one storage texture's dimensions for `domainSize`. Those values are equivalent only when the compute contract explicitly makes them so.
 - Compute passes are accepted in the same `passes` array as render passes, but dispatch in declaration order before the base scene render.
 - Compute passes do not read/write render pass slots and cannot satisfy render-pass slot dependencies.
 - `dispatch` can be static tuple `[x, y?, z?]`, `'auto'`, or dynamic function.
@@ -411,6 +450,7 @@ Follow this order:
 3. WGSL compile errors:
 - Read normalized report from `onError`.
 - Map error to fragment/include/define line.
+- If `motiongpuFragment` is unknown, verify that the source belongs to a material, `ShaderPass`, or `PingPongShaderPass`, not a compute shader.
 4. Pass graph errors:
 - Verify `needsSwap`, input/output slots, and target declarations.
 5. No redraw in `on-demand`:
@@ -430,11 +470,12 @@ Follow this order:
 Ship only when all checks pass:
 
 1. Keep shader contracts valid (`frag`/`shade`/`compute` signatures).
-2. Keep all runtime-updated keys predeclared in material.
-3. Keep render mode and invalidation strategy intentional and documented.
-4. Keep error handling present (`onError` at minimum).
-5. Keep passes/targets routing valid.
-6. Keep imports on public entrypoints only.
-7. Keep storage buffer names declared before `writeStorageBuffer`/`readStorageBuffer` usage.
-8. Keep adapter-specific API differences correct (`class` vs `className`, `errorRenderer`, `children`, `useSetMotionGPUUserContext`).
-9. Keep checks/tests executed or report what was not run.
+2. Keep `motiongpuFragment.uv` limited to fragment helpers and preserve explicit `uv` entrypoint parameters.
+3. Keep all runtime-updated keys predeclared in material.
+4. Keep render mode and invalidation strategy intentional and documented.
+5. Keep error handling present (`onError` at minimum).
+6. Keep passes/targets routing valid.
+7. Keep imports on public entrypoints only.
+8. Keep storage buffer names declared before `writeStorageBuffer`/`readStorageBuffer` usage.
+9. Keep adapter-specific API differences correct (`class` vs `className`, `errorRenderer`, `children`, `useSetMotionGPUUserContext`).
+10. Keep checks/tests executed or report what was not run.

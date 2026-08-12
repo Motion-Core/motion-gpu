@@ -17,9 +17,14 @@
 
 	const material = defineMaterial({
 		fragment: `
+fn getFragmentUv() -> vec2f {
+	return motiongpuFragment.uv;
+}
+
 fn frag(uv: vec2f) -> vec4f {
-	let wave = 0.5 + 0.5 * sin(motiongpuFrame.time * 2.5 + uv.x * 6.0);
-	return vec4f(wave, uv.y, 1.0 - wave, 1.0);
+	let contextUv = getFragmentUv();
+	let wave = 0.5 + 0.5 * sin(motiongpuFrame.time * 2.5 + contextUv.x * 6.0);
+	return vec4f(wave, contextUv.y, 1.0 - wave, 1.0);
 }
 `
 	});

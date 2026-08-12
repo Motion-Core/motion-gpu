@@ -94,6 +94,8 @@ jobs:
         run: pnpm --dir packages/motion-gpu exec playwright install --with-deps chromium
 
       - name: Run end-to-end tests
+        env:
+          DEBUG: pw:browser
         run: pnpm run ci:e2e
 
       - name: Upload failure artifacts

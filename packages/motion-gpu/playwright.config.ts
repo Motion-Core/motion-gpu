@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { webgpuLaunchArgs } from './e2e/webgpu';
 
 const isCi = Boolean(process.env['CI']);
+const linuxLaunchOptions = process.platform === 'linux' ? { channel: 'chromium' as const } : {};
 
 export default defineConfig({
 	testDir: './e2e/specs',
@@ -46,6 +47,7 @@ export default defineConfig({
 				baseURL: 'http://127.0.0.1:4175',
 				...devices['Desktop Chrome'],
 				launchOptions: {
+					...linuxLaunchOptions,
 					args: webgpuLaunchArgs
 				}
 			}
@@ -56,6 +58,7 @@ export default defineConfig({
 				baseURL: 'http://127.0.0.1:4176',
 				...devices['Desktop Chrome'],
 				launchOptions: {
+					...linuxLaunchOptions,
 					args: webgpuLaunchArgs
 				}
 			}
@@ -66,6 +69,7 @@ export default defineConfig({
 				baseURL: 'http://127.0.0.1:4177',
 				...devices['Desktop Chrome'],
 				launchOptions: {
+					...linuxLaunchOptions,
 					args: webgpuLaunchArgs
 				}
 			}

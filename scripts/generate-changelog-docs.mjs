@@ -7,7 +7,17 @@ const currentFile = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(currentFile), '..');
 
 const sourcePath = path.join(repoRoot, 'CHANGELOG.md');
-const targetPath = path.join(repoRoot, 'apps', 'web', 'src', 'lib', 'content', 'docs', 'changelog.svx');
+const targetPath = path.join(
+	repoRoot,
+	'apps',
+	'web',
+	'src',
+	'lib',
+	'content',
+	'docs',
+	'changelog.svx'
+);
+const checkOnly = process.argv.includes('--check');
 
 function normalizeMarkdown(input) {
 	return input.replace(/\r\n?/g, '\n').trim();
@@ -83,6 +93,12 @@ async function main() {
 
 	if (current === output) {
 		console.log('Changelog docs are up to date.');
+		return;
+	}
+
+	if (checkOnly) {
+		console.error('Changelog docs are stale. Run `pnpm run docs:changelog` and commit the result.');
+		process.exitCode = 1;
 		return;
 	}
 

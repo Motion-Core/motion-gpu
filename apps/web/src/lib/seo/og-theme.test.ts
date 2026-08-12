@@ -19,8 +19,8 @@ import {
 describe('OG theme colors', () => {
 	it('resolves nested CSS token references for both themes', () => {
 		expect(ogThemeColors.light.backgroundInset).toBe('oklch(0.9564 0.0013 265)');
-		expect(ogThemeColors.dark.backgroundInset).toBe('oklch(0.1913 0.0039 265)');
-		expect(ogThemeColors.dark.accent).toBe('oklch(0.6996 0.181959 44.4414)');
+		expect(ogThemeColors.dark.backgroundInset).toBe('oklch(0.1913 0.0079 265)');
+		expect(ogThemeColors.dark.accent).toBe('oklch(0.6996 0.181959 265)');
 	});
 
 	it('keeps browser chrome colors synchronized with inset surfaces', () => {

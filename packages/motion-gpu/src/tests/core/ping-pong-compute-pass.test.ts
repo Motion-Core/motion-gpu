@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { ComputeResourceMap } from '../../lib/core/types';
 import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
 
 const validCompute = `
@@ -8,256 +9,256 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 }
 `;
 
+const validCompute1D = `
+@compute @workgroup_size(64)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let x = id.x;
+}
+`;
+
+function createResources(texture = 'simulation'): ComputeResourceMap {
+	return {
+		uPrevious: { texture, access: 'sampled', pingPong: 'read' },
+		uNext: { texture, access: 'storage-write', pingPong: 'write' }
+	};
+}
+
+function createPass(
+	options: Partial<ConstructorParameters<typeof PingPongComputePass>[0]> = {}
+): PingPongComputePass {
+	return new PingPongComputePass({
+		compute: validCompute,
+		resources: createResources(),
+		...options
+	});
+}
+
 describe('PingPongComputePass', () => {
-	it('creates with valid compute and target', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'simulation'
-		});
+	it('creates with one explicit read/write resource pair', () => {
+		const pass = createPass();
 		expect(pass.enabled).toBe(true);
 		expect(pass.isCompute).toBe(true);
 		expect(pass.isPingPong).toBe(true);
-		expect(pass.getTarget()).toBe('simulation');
+		expect(pass.getResources()).toEqual(createResources());
+		expect('getTarget' in pass).toBe(false);
+		expect('getCurrentOutput' in pass).toBe(false);
 	});
 
-	it('rejects invalid compute shader', () => {
-		expect(
-			() =>
-				new PingPongComputePass({
-					compute: 'fn bad() {}',
-					target: 'sim'
-				})
-		).toThrow(/@compute/);
+	it('rejects an invalid compute shader before storing state', () => {
+		expect(() => createPass({ compute: 'fn bad() {}' })).toThrow(/@compute/);
 	});
 
-	it('defaults iterations to 1', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
+	it('requires exactly one ping-pong read and write descriptor', () => {
+		for (const resources of [
+			{},
+			{ uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' } },
+			{
+				uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+				uPreviousAgain: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+				uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+			}
+		] as const) {
+			expect(() => createPass({ resources: resources as ComputeResourceMap })).toThrow(
+				/exactly one pingPong read texture and one pingPong write texture/
+			);
+		}
+	});
+
+	it('requires the read and write roles to use sampled and storage-write access', () => {
+		const invalidRead = {
+			uPrevious: {
+				texture: 'simulation',
+				access: 'storage-write',
+				pingPong: 'read'
+			},
+			uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+		};
+		expect(() => createPass({ resources: invalidRead as unknown as ComputeResourceMap })).toThrow(
+			/storage-write pingPong role must be "write"/
+		);
+	});
+
+	it('requires both roles to reference the same material texture', () => {
+		expect(() =>
+			createPass({
+				resources: {
+					uPrevious: { texture: 'simulationA', access: 'sampled', pingPong: 'read' },
+					uNext: { texture: 'simulationB', access: 'storage-write', pingPong: 'write' }
+				}
+			})
+		).toThrow(/must reference the same texture/);
+	});
+
+	it('compares external ping-pong identity by resourceId', () => {
+		const textureA = {} as GPUTexture;
+		const textureB = {} as GPUTexture;
+		const sharedId = Symbol('simulation');
+		const pass = createPass({
+			resources: {
+				uPrevious: {
+					texture: {
+						externalTexture: textureA,
+						resourceId: sharedId,
+						format: 'rgba16float',
+						usage: 3 as GPUTextureUsageFlags
+					},
+					access: 'sampled',
+					pingPong: 'read'
+				},
+				uNext: {
+					texture: {
+						externalTexture: textureB,
+						resourceId: sharedId,
+						format: 'rgba16float',
+						usage: 3 as GPUTextureUsageFlags
+					},
+					access: 'storage-write',
+					pingPong: 'write'
+				}
+			}
 		});
+		expect(pass.getResources().uPrevious).toMatchObject({ access: 'sampled' });
+
+		expect(() =>
+			createPass({
+				resources: {
+					uPrevious: {
+						texture: {
+							externalTexture: textureA,
+							resourceId: 'one',
+							format: 'rgba16float',
+							usage: 1 as GPUTextureUsageFlags
+						},
+						access: 'sampled',
+						pingPong: 'read'
+					},
+					uNext: {
+						texture: {
+							externalTexture: textureB,
+							resourceId: 'two',
+							format: 'rgba16float',
+							usage: 2 as GPUTextureUsageFlags
+						},
+						access: 'storage-write',
+						pingPong: 'write'
+					}
+				}
+			})
+		).toThrow(/must reference the same texture/);
+	});
+
+	it('allows unrelated resources alongside the pair and sorts every alias', () => {
+		const pass = createPass({
+			resources: {
+				zSampler: { sampler: 'camera' },
+				uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' },
+				aObstacle: { texture: 'obstacle', access: 'sampled' },
+				uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' }
+			}
+		});
+		expect(Object.keys(pass.getResources())).toEqual([
+			'aObstacle',
+			'uNext',
+			'uPrevious',
+			'zSampler'
+		]);
+	});
+
+	it('captures an immutable topology and returns defensive copies', () => {
+		const resources: Record<string, ComputeResourceMap[string]> = {
+			uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+			uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+		};
+		const pass = createPass({ resources });
+		resources.uExtra = { sampler: 'camera' };
+		delete resources.uPrevious;
+
+		const first = pass.getResources() as Record<string, ComputeResourceMap[string]>;
+		first.uExtra = { sampler: 'camera' };
+		delete first.uPrevious;
+
+		expect(pass.getResources()).toEqual(createResources());
+	});
+
+	it('preserves external provider identity while copying descriptors', () => {
+		const provider = vi.fn(() => ({}) as GPUTexture);
+		const resources: ComputeResourceMap = {
+			uPrevious: {
+				texture: {
+					externalTexture: provider,
+					resourceId: 'simulation',
+					format: 'rgba16float',
+					usage: 3 as GPUTextureUsageFlags
+				},
+				access: 'sampled',
+				pingPong: 'read'
+			},
+			uNext: {
+				texture: {
+					externalTexture: provider,
+					resourceId: 'simulation',
+					format: 'rgba16float',
+					usage: 3 as GPUTextureUsageFlags
+				},
+				access: 'storage-write',
+				pingPong: 'write'
+			}
+		};
+		const pass = createPass({ resources });
+		const previous = pass.getResources().uPrevious;
+		expect(previous && 'texture' in previous && typeof previous.texture !== 'string').toBeTruthy();
+		if (previous && 'texture' in previous && typeof previous.texture !== 'string') {
+			expect('externalTexture' in previous.texture && previous.texture.externalTexture).toBe(
+				provider
+			);
+		}
+	});
+
+	it('defaults iterations to one and validates updates', () => {
+		const pass = createPass();
 		expect(pass.getIterations()).toBe(1);
-	});
-
-	it('setIterations validates >= 1', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
 		pass.setIterations(5);
+		expect(pass.getIterations()).toBe(5);
+		for (const count of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+			expect(() => pass.setIterations(count)).toThrow(/positive integer >= 1/);
+		}
 		expect(pass.getIterations()).toBe(5);
 	});
 
-	it('setIterations rejects 0', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		expect(() => pass.setIterations(0)).toThrow(/positive integer >= 1/);
+	it('rejects invalid constructor iterations', () => {
+		expect(() => createPass({ iterations: 0 })).toThrow(/positive integer >= 1/);
 	});
 
-	it('setIterations rejects negative', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		expect(() => pass.setIterations(-1)).toThrow(/positive integer >= 1/);
-	});
-
-	it('setIterations rejects non-integer', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		expect(() => pass.setIterations(1.5)).toThrow(/positive integer >= 1/);
-	});
-
-	it('getCurrentOutput alternates after odd/even iterations', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			iterations: 1
-		});
-
-		// Frame 0: 0 total iterations → even → A
-		expect(pass.getCurrentOutput()).toBe('simA');
-
-		pass.advanceFrame();
-		// Frame 1: 1 total iteration → odd → B
-		expect(pass.getCurrentOutput()).toBe('simB');
-
-		pass.advanceFrame();
-		// Frame 2: 2 total iterations → even → A
-		expect(pass.getCurrentOutput()).toBe('simA');
-	});
-
-	it('getCurrentOutput with multiple iterations per frame', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'buf',
-			iterations: 3
-		});
-
-		// Frame 0: 0 total → A
-		expect(pass.getCurrentOutput()).toBe('bufA');
-
-		pass.advanceFrame();
-		// Frame 1: 3 total → odd → B
-		expect(pass.getCurrentOutput()).toBe('bufB');
-
-		pass.advanceFrame();
-		// Frame 2: 6 total → even → A
-		expect(pass.getCurrentOutput()).toBe('bufA');
-	});
-
-	it('getTarget returns declared target key', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'particles'
-		});
-		expect(pass.getTarget()).toBe('particles');
-	});
-
-	it('setCompute validates new shader', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
+	it('setCompute updates shader state atomically without changing resources', () => {
+		const pass = createPass();
+		const resources = pass.getResources();
 		expect(() => pass.setCompute('fn bad() {}')).toThrow(/@compute/);
+		expect(pass.getCompute()).toBe(validCompute);
+		pass.setCompute(validCompute1D);
+		expect(pass.getCompute()).toBe(validCompute1D);
+		expect(pass.getWorkgroupSize()).toEqual([64, 1, 1]);
+		expect(pass.getResources()).toEqual(resources);
 	});
 
-	it('resolveDispatch supports auto dispatch', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			dispatch: 'auto'
-		});
-		const dispatch = pass.resolveDispatch({
+	it('supports auto, tuple, and callback dispatch without changing resources', () => {
+		const pass = createPass({ dispatch: 'auto' });
+		const context = {
 			width: 1024,
 			height: 512,
 			time: 0,
 			delta: 0.016,
-			workgroupSize: [16, 16, 1]
-		});
-		expect(dispatch).toEqual([Math.ceil(1024 / 16), Math.ceil(512 / 16), 1]);
-	});
-
-	it('resolveDispatch supports dynamic callback dispatch', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			dispatch: (ctx) => [ctx.width / 2, ctx.height / 2, 3]
-		});
-		const dispatch = pass.resolveDispatch({
-			width: 64,
-			height: 32,
-			time: 1,
-			delta: 0.1,
-			workgroupSize: [16, 16, 1]
-		});
-		expect(dispatch).toEqual([32, 16, 3]);
-	});
-
-	it('resolveDispatch supports tuple dispatch with defaults', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			dispatch: [7]
-		});
-		const dispatch = pass.resolveDispatch({
-			width: 320,
-			height: 240,
-			time: 0,
-			delta: 0.016,
-			workgroupSize: [16, 16, 1]
-		});
-		expect(dispatch).toEqual([7, 1, 1]);
-	});
-
-	it('resolveDispatch falls back to [1, 1, 1] for unexpected dispatch mode', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		pass.setDispatch('unexpected' as unknown as Parameters<typeof pass.setDispatch>[0]);
-		const dispatch = pass.resolveDispatch({
-			width: 100,
-			height: 100,
-			time: 0,
-			delta: 0.016,
-			workgroupSize: [16, 16, 1]
-		});
-		expect(dispatch).toEqual([1, 1, 1]);
-	});
-
-	it('preserves output parity when iterations change mid-run', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			iterations: 3
-		});
-
-		expect(pass.getCurrentOutput()).toBe('simA');
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simB');
-
-		pass.setIterations(2);
-		expect(pass.getCurrentOutput()).toBe('simB');
-	});
-
-	it('tracks total iterations across iteration-count changes', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			iterations: 1
-		});
-
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simB');
-
-		pass.setIterations(2);
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simB');
-
-		pass.setIterations(3);
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simA');
-	});
-
-	it('keeps output on A for even iteration counts across frames', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim',
-			iterations: 2
-		});
-
-		expect(pass.getCurrentOutput()).toBe('simA');
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simA');
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('simA');
-	});
-
-	it('isCompute is true', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		expect(pass.isCompute).toBe(true);
-	});
-
-	it('isPingPong is true', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
-		expect(pass.isPingPong).toBe(true);
+			workgroupSize: [16, 16, 1] as [number, number, number]
+		};
+		expect(pass.resolveDispatch(context)).toEqual([64, 32, 1]);
+		pass.setDispatch([7]);
+		expect(pass.resolveDispatch(context)).toEqual([7, 1, 1]);
+		pass.setDispatch((ctx) => [ctx.width / 2, ctx.height / 2, 3]);
+		expect(pass.resolveDispatch(context)).toEqual([512, 256, 3]);
+		expect(pass.getResources()).toEqual(createResources());
 	});
 
 	it('dispose is idempotent', () => {
-		const pass = new PingPongComputePass({
-			compute: validCompute,
-			target: 'sim'
-		});
+		const pass = createPass();
 		expect(() => pass.dispose()).not.toThrow();
 		expect(() => pass.dispose()).not.toThrow();
 	});

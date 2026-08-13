@@ -1,4 +1,10 @@
 import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
+import {
+	copyComputeResourceMap,
+	normalizeComputeResourceMap,
+	resolveComputePingPongResourcePair
+} from '../core/compute-resources.js';
+import type { ComputeResourceMap } from '../core/types.js';
 import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.js';
 
 /**
@@ -10,10 +16,11 @@ export interface PingPongComputePassOptions {
 	 */
 	compute: string;
 	/**
-	 * Target texture key from `material.textures`.
-	 * The engine will auto-generate `{target}A` and `{target}B` bindings.
+	 * Pass-local resources keyed by their WGSL binding aliases.
+	 * Must contain one sampled `pingPong: 'read'` descriptor and one
+	 * storage-write `pingPong: 'write'` descriptor for the same texture.
 	 */
-	target: string;
+	resources: ComputeResourceMap;
 	/**
 	 * Number of compute iterations per frame. Default: 1.
 	 */
@@ -52,17 +59,18 @@ export class PingPongComputePass {
 	readonly isPingPong = true as const;
 
 	private compute: string;
-	private target: string;
+	private readonly resources: ComputeResourceMap;
 	private iterations: number;
 	private dispatch: ComputePassOptions['dispatch'];
 	private workgroupSize: [number, number, number];
-	private totalIterations: number = 0;
 
 	constructor(options: PingPongComputePassOptions) {
 		assertComputeContract(options.compute);
 		const workgroupSize = extractWorkgroupSize(options.compute);
+		const resources = normalizeComputeResourceMap(options.resources);
+		resolveComputePingPongResourcePair(resources);
 		this.compute = options.compute;
-		this.target = options.target;
+		this.resources = resources;
 		this.iterations = PingPongComputePass.assertIterations(options.iterations ?? 1);
 		this.dispatch = options.dispatch ?? 'auto';
 		this.enabled = options.enabled ?? true;
@@ -76,22 +84,6 @@ export class PingPongComputePass {
 			);
 		}
 		return count;
-	}
-
-	/**
-	 * Returns the texture key holding the latest result.
-	 * Alternates between `{target}A` and `{target}B` based on accumulated iteration parity.
-	 */
-	getCurrentOutput(): string {
-		return this.totalIterations % 2 === 0 ? `${this.target}A` : `${this.target}B`;
-	}
-
-	/**
-	 * Advances the iteration accumulator by the current iteration count
-	 * (called by renderer after each frame's iterations).
-	 */
-	advanceFrame(): void {
-		this.totalIterations += this.iterations;
 	}
 
 	/**
@@ -121,13 +113,6 @@ export class PingPongComputePass {
 	}
 
 	/**
-	 * Returns the target texture key.
-	 */
-	getTarget(): string {
-		return this.target;
-	}
-
-	/**
 	 * Returns the current iteration count.
 	 */
 	getIterations(): number {
@@ -139,6 +124,13 @@ export class PingPongComputePass {
 	 */
 	getCompute(): string {
 		return this.compute;
+	}
+
+	/**
+	 * Returns a defensive copy of the immutable pass resource topology.
+	 */
+	getResources(): ComputeResourceMap {
+		return copyComputeResourceMap(this.resources);
 	}
 
 	/**

@@ -7,7 +7,10 @@ import * as core from '../lib/core/index';
 import type { ComputeResourceMap as CoreComputeResourceMap } from '../lib/core/index';
 import * as coreAdvanced from '../lib/core/advanced';
 import * as api from '../lib/index';
-import type { ComputeResourceMap as RootComputeResourceMap } from '../lib/index';
+import type {
+	ComputeResourceMap as RootComputeResourceMap,
+	PingPongComputePassOptions
+} from '../lib/index';
 import * as react from '../lib/react/index';
 import * as reactAdvanced from '../lib/react/advanced';
 import type { ComputeResourceMap as ReactComputeResourceMap } from '../lib/react/index';
@@ -130,6 +133,26 @@ describe('public api contract', () => {
 		expect(acceptRootComputeResourceMap(missingResourceId)).toBe(missingResourceId);
 		// @ts-expect-error texture descriptors cannot use storage-buffer access
 		expect(acceptRootComputeResourceMap(incompatibleAccess)).toBe(incompatibleAccess);
+	});
+
+	it('accepts resources on compute passes and omits the old ping-pong target contract', () => {
+		const resources = {
+			uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+			uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+		} as const satisfies RootComputeResourceMap;
+		const compute =
+			'@compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) {}';
+
+		expect(new api.ComputePass({ compute, resources }).getResources()).toEqual(resources);
+		expect(new api.PingPongComputePass({ compute, resources }).getResources()).toEqual(resources);
+
+		const legacyOptions: PingPongComputePassOptions = {
+			compute,
+			resources,
+			// @ts-expect-error target was removed in favor of explicit resource descriptors
+			target: 'simulation'
+		};
+		expect(Object.keys(legacyOptions)).toContain('target');
 	});
 
 	it('exports reactive adapter texture option input types', () => {

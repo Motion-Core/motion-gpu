@@ -1,4 +1,6 @@
 import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
+import { copyComputeResourceMap, normalizeComputeResourceMap } from '../core/compute-resources.js';
+import type { ComputeResourceMap } from '../core/types.js';
 
 /**
  * Dispatch context provided to dynamic dispatch callbacks.
@@ -20,6 +22,11 @@ export interface ComputePassOptions {
 	 * Must declare `@compute @workgroup_size(...) fn compute(@builtin(global_invocation_id) ...)`.
 	 */
 	compute: string;
+	/**
+	 * Pass-local resources keyed by their WGSL binding aliases.
+	 * The topology is captured when the pass is constructed.
+	 */
+	resources?: ComputeResourceMap;
 	/**
 	 * Dispatch workgroup counts.
 	 * - Static tuple: `[x]`, `[x, y]`, or `[x, y, z]`
@@ -55,6 +62,7 @@ export class ComputePass {
 	readonly isCompute = true as const;
 
 	private compute: string;
+	private readonly resources: ComputeResourceMap;
 	private workgroupSize: [number, number, number];
 	private dispatch: ComputePassOptions['dispatch'];
 
@@ -62,6 +70,7 @@ export class ComputePass {
 		assertComputeContract(options.compute);
 		const workgroupSize = extractWorkgroupSize(options.compute);
 		this.compute = options.compute;
+		this.resources = normalizeComputeResourceMap(options.resources);
 		this.workgroupSize = workgroupSize;
 		this.dispatch = options.dispatch ?? 'auto';
 		this.enabled = options.enabled ?? true;
@@ -92,6 +101,13 @@ export class ComputePass {
 	 */
 	getCompute(): string {
 		return this.compute;
+	}
+
+	/**
+	 * Returns a defensive copy of the immutable pass resource topology.
+	 */
+	getResources(): ComputeResourceMap {
+		return copyComputeResourceMap(this.resources);
 	}
 
 	/**

@@ -256,7 +256,7 @@ describe('compute shader source generation', () => {
 		});
 	});
 
-	it('builds ping-pong shader bindings for targetA/targetB', () => {
+	it('builds ping-pong shader bindings for explicit read/write aliases', () => {
 		const source = buildPingPongComputeShaderSource({
 			compute: validComputeShader2D,
 			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
@@ -264,13 +264,14 @@ describe('compute shader source generation', () => {
 			storageBufferDefinitions: {
 				particles: { type: 'array<vec4f>', access: 'read-write' }
 			},
-			target: 'sim',
+			readAlias: 'uPrevious',
+			writeAlias: 'uNext',
 			targetFormat: 'rgba16float'
 		});
 
-		expect(source).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
+		expect(source).toContain('@group(2) @binding(0) var uPrevious: texture_2d<f32>;');
 		expect(source).toContain(
-			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
+			'@group(2) @binding(1) var uNext: texture_storage_2d<rgba16float, write>;'
 		);
 		expect(source).toContain(
 			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
@@ -285,7 +286,8 @@ describe('compute shader source generation', () => {
 			storageBufferDefinitions: {
 				particles: { type: 'array<vec4f>', access: 'read-write' }
 			},
-			target: 'sim',
+			readAlias: 'uPrevious',
+			writeAlias: 'uNext',
 			targetFormat: 'rgba16float'
 		});
 

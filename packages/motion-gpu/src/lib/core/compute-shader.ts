@@ -231,9 +231,7 @@ export function storageTextureSampleScalarType(format: GPUTextureFormat): 'f32' 
 /**
  * Assembles compute shader WGSL for ping-pong workflows.
  *
- * Exposes two generated bindings under group(2):
- * - `${target}A`: sampled read texture (`texture_2d<T>`)
- * - `${target}B`: storage write texture (`texture_storage_2d<format, write>`)
+ * Exposes the declared ping-pong read/write aliases under group(2).
  */
 export function buildPingPongComputeShaderSource(options: {
 	compute: string;
@@ -243,7 +241,8 @@ export function buildPingPongComputeShaderSource(options: {
 		string,
 		{ type: StorageBufferType; access: StorageBufferAccess }
 	>;
-	target: string;
+	readAlias: string;
+	writeAlias: string;
 	targetFormat: GPUTextureFormat;
 }): string {
 	const uniformFields = buildUniformStructForCompute(options.uniformLayout);
@@ -254,8 +253,8 @@ export function buildPingPongComputeShaderSource(options: {
 	);
 	const sampledType = storageTextureSampleScalarType(options.targetFormat);
 	const pingPongTextureBindings = [
-		`@group(2) @binding(0) var ${options.target}A: texture_2d<${sampledType}>;`,
-		`@group(2) @binding(1) var ${options.target}B: texture_storage_2d<${options.targetFormat}, write>;`
+		`@group(2) @binding(0) var ${options.readAlias}: texture_2d<${sampledType}>;`,
+		`@group(2) @binding(1) var ${options.writeAlias}: texture_storage_2d<${options.targetFormat}, write>;`
 	].join('\n');
 
 	return `struct MotionGPUFrame {
@@ -401,7 +400,8 @@ export function buildPingPongComputeShaderSourceWithMap(options: {
 		string,
 		{ type: StorageBufferType; access: StorageBufferAccess }
 	>;
-	target: string;
+	readAlias: string;
+	writeAlias: string;
 	targetFormat: GPUTextureFormat;
 }): BuiltComputeShaderSource {
 	const code = buildPingPongComputeShaderSource(options);

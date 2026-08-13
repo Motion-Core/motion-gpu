@@ -2557,7 +2557,6 @@ describe('createRenderer', () => {
 	it('dispatches ping-pong compute iterations with alternating read/write bind groups', async () => {
 		const runtime = createWebGpuRuntime();
 		const resolveDispatch = vi.fn(() => [1, 1, 1] as [number, number, number]);
-		const advanceFrame = vi.fn();
 		const pingPongPass = {
 			enabled: true,
 			isCompute: true,
@@ -2566,10 +2565,15 @@ describe('createRenderer', () => {
 				`@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
 			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
 			resolveDispatch,
-			getTarget: () => 'sim',
-			getCurrentOutput: () => 'simB',
-			getIterations: () => 2,
-			advanceFrame
+			getResources: () => ({
+				simA: { texture: 'sim', access: 'sampled' as const, pingPong: 'read' as const },
+				simB: {
+					texture: 'sim',
+					access: 'storage-write' as const,
+					pingPong: 'write' as const
+				}
+			}),
+			getIterations: () => 2
 		};
 		const renderer = await createRenderer({
 			...baseOptions(runtime),
@@ -2594,7 +2598,6 @@ describe('createRenderer', () => {
 		});
 
 		expect(resolveDispatch).toHaveBeenCalledTimes(2);
-		expect(advanceFrame).toHaveBeenCalledTimes(1);
 		const pingPongBindGroups = runtime.device.createBindGroup.mock.calls
 			.map((call) => call[0] as { entries: Array<{ binding: number; resource: unknown }> })
 			.filter((descriptor) => {
@@ -2622,7 +2625,10 @@ describe('createRenderer', () => {
 		const { PingPongComputePass } = await import('../../lib/passes/PingPongComputePass');
 		const pingPongPass = new PingPongComputePass({
 			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
-			target: 'sim',
+			resources: {
+				simA: { texture: 'sim', access: 'sampled', pingPong: 'read' },
+				simB: { texture: 'sim', access: 'storage-write', pingPong: 'write' }
+			},
 			dispatch: [1, 1, 1]
 		});
 		const renderer = await createRenderer({

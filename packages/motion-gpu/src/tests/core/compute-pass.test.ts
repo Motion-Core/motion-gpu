@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { ComputeResourceMap } from '../../lib/core/types';
 import { ComputePass } from '../../lib/passes/ComputePass';
 
 const validCompute = `
@@ -22,6 +23,162 @@ describe('ComputePass', () => {
 		expect(pass.enabled).toBe(true);
 		expect(pass.isCompute).toBe(true);
 		expect(pass.getCompute()).toBe(validCompute);
+	});
+
+	it('defaults resources to an empty map', () => {
+		const pass = new ComputePass({ compute: validCompute });
+		expect(pass.getResources()).toEqual({});
+	});
+
+	it('sorts aliases and captures a defensive topology snapshot', () => {
+		const resources: Record<string, ComputeResourceMap[string]> = {
+			zOutput: { texture: 'motion', access: 'storage-write' },
+			aInput: { texture: 'camera', access: 'sampled', view: { baseMipLevel: 1 } }
+		};
+		const pass = new ComputePass({ compute: validCompute, resources });
+		resources.extra = { sampler: 'camera' };
+		delete resources.aInput;
+
+		const first = pass.getResources() as Record<string, ComputeResourceMap[string]>;
+		expect(Object.keys(first)).toEqual(['aInput', 'zOutput']);
+		first.extra = { sampler: 'camera' };
+		delete first.aInput;
+		const sampled = pass.getResources().aInput;
+		if (sampled && 'texture' in sampled && sampled.view) {
+			(sampled.view as { baseMipLevel?: number }).baseMipLevel = 9;
+		}
+
+		expect(pass.getResources()).toEqual({
+			aInput: { texture: 'camera', access: 'sampled', view: { baseMipLevel: 1 } },
+			zOutput: { texture: 'motion', access: 'storage-write' }
+		});
+	});
+
+	it('rejects invalid and renderer-reserved aliases', () => {
+		expect(
+			() =>
+				new ComputePass({
+					compute: validCompute,
+					resources: { 'not-valid': { texture: 'camera', access: 'sampled' } }
+				})
+		).toThrow(/Invalid uniform name/);
+		for (const alias of ['motiongpuFrame', 'motiongpuUniforms']) {
+			expect(
+				() =>
+					new ComputePass({
+						compute: validCompute,
+						resources: { [alias]: { texture: 'camera', access: 'sampled' } }
+					})
+			).toThrow(/reserved by MotionGPU/);
+		}
+	});
+
+	it('rejects ambiguous descriptors and unsupported fields', () => {
+		const ambiguous = {
+			uResource: { texture: 'camera', buffer: 'data', access: 'sampled' }
+		};
+		expect(
+			() =>
+				new ComputePass({
+					compute: validCompute,
+					resources: ambiguous as unknown as ComputeResourceMap
+				})
+		).toThrow(/exactly one of texture, buffer, or sampler/);
+
+		const extraField = {
+			uResource: { texture: 'camera', access: 'sampled', surprise: true }
+		};
+		expect(
+			() =>
+				new ComputePass({
+					compute: validCompute,
+					resources: extraField as unknown as ComputeResourceMap
+				})
+		).toThrow(/unsupported field "surprise"/);
+	});
+
+	it('validates descriptor access, versions, views, and external metadata', () => {
+		const cases: Array<[ComputeResourceMap, RegExp]> = [
+			[
+				{
+					uTexture: { texture: 'camera', access: 'storage-read' }
+				} as unknown as ComputeResourceMap,
+				/texture access/
+			],
+			[
+				{
+					uTexture: { texture: 'camera', access: 'storage-write', version: 'initial' }
+				} as unknown as ComputeResourceMap,
+				/cannot set version/
+			],
+			[
+				{
+					uTexture: { texture: 'camera', access: 'sampled', view: { mipLevelCount: 0 } }
+				} as unknown as ComputeResourceMap,
+				/positive integer/
+			],
+			[
+				{
+					uTexture: {
+						texture: {
+							externalTexture: {} as GPUTexture,
+							resourceId: '',
+							format: 'rgba8unorm',
+							usage: 1 as GPUTextureUsageFlags
+						},
+						access: 'sampled'
+					}
+				},
+				/resourceId/
+			]
+		];
+		for (const [resources, expected] of cases) {
+			expect(() => new ComputePass({ compute: validCompute, resources })).toThrow(expected);
+		}
+	});
+
+	it('preserves static handles and provider functions while copying wrappers', () => {
+		const texture = {} as GPUTexture;
+		const provider = vi.fn(() => texture);
+		const pass = new ComputePass({
+			compute: validCompute,
+			resources: {
+				uStatic: {
+					texture: {
+						externalTexture: texture,
+						resourceId: 'static',
+						format: 'rgba8unorm',
+						usage: 1 as GPUTextureUsageFlags
+					},
+					access: 'sampled'
+				},
+				uDynamic: {
+					texture: {
+						externalTexture: provider,
+						resourceId: 'dynamic',
+						format: 'rgba8unorm',
+						usage: 1 as GPUTextureUsageFlags
+					},
+					access: 'sampled'
+				}
+			}
+		});
+		const staticDescriptor = pass.getResources().uStatic;
+		const dynamicDescriptor = pass.getResources().uDynamic;
+		if (
+			!staticDescriptor ||
+			!dynamicDescriptor ||
+			!('texture' in staticDescriptor) ||
+			!('texture' in dynamicDescriptor) ||
+			typeof staticDescriptor.texture === 'string' ||
+			typeof dynamicDescriptor.texture === 'string' ||
+			!('externalTexture' in staticDescriptor.texture) ||
+			!('externalTexture' in dynamicDescriptor.texture)
+		) {
+			throw new Error('Expected external texture descriptors.');
+		}
+		expect(staticDescriptor.texture.externalTexture).toBe(texture);
+		expect(dynamicDescriptor.texture.externalTexture).toBe(provider);
 	});
 
 	it('rejects invalid compute shader contract', () => {
@@ -98,12 +255,16 @@ describe('ComputePass', () => {
 	});
 
 	it('setCompute validates new shader and updates workgroup size', () => {
-		const pass = new ComputePass({ compute: validCompute });
+		const resources: ComputeResourceMap = {
+			uCamera: { texture: 'camera', access: 'sampled' }
+		};
+		const pass = new ComputePass({ compute: validCompute, resources });
 		expect(pass.getWorkgroupSize()).toEqual([256, 1, 1]);
 
 		pass.setCompute(validCompute2D);
 		expect(pass.getWorkgroupSize()).toEqual([16, 16, 1]);
 		expect(pass.getCompute()).toBe(validCompute2D);
+		expect(pass.getResources()).toEqual(resources);
 	});
 
 	it('setCompute rejects invalid new shader', () => {
@@ -114,7 +275,10 @@ describe('ComputePass', () => {
 	});
 
 	it('setDispatch updates dispatch strategy', () => {
-		const pass = new ComputePass({ compute: validCompute });
+		const resources: ComputeResourceMap = {
+			uCamera: { texture: 'camera', access: 'sampled' }
+		};
+		const pass = new ComputePass({ compute: validCompute, resources });
 		pass.setDispatch([42]);
 		const dispatch = pass.resolveDispatch({
 			width: 100,
@@ -124,6 +288,7 @@ describe('ComputePass', () => {
 			workgroupSize: [256, 1, 1]
 		});
 		expect(dispatch).toEqual([42, 1, 1]);
+		expect(pass.getResources()).toEqual(resources);
 	});
 
 	it('getCompute returns current shader source', () => {

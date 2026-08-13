@@ -154,7 +154,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
-	target: 'simulation',
+	resources: {
+		simulationA: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+		simulationB: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+	},
 	iterations: 1,
 	dispatch: [8, 8, 1]
 });
@@ -172,7 +175,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
-	target: 'simulation',
+	resources: {
+		simulationA: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+		simulationB: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+	},
 	iterations: 4,
 	dispatch: [8, 8, 1]
 });

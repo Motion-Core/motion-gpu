@@ -28,6 +28,7 @@ import {
 	storageTextureSampleScalarType
 } from './compute-shader.js';
 import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
+import { resolveComputePingPongResourcePair } from './compute-resources.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import {
 	buildCanvasConfiguration,
@@ -38,6 +39,7 @@ import {
 } from './color-pipeline.js';
 import type {
 	AnyPass,
+	ComputeResourceMap,
 	RenderPass,
 	RenderPassInputSlot,
 	RenderPassOutputSlot,
@@ -188,11 +190,9 @@ interface RuntimeComputePass {
 		workgroupSize: [number, number, number];
 	}) => [number, number, number];
 	getWorkgroupSize?: () => [number, number, number];
+	getResources?: () => ComputeResourceMap;
 	isPingPong?: boolean;
-	getTarget?: () => string;
-	getCurrentOutput?: () => string;
 	getIterations?: () => number;
-	advanceFrame?: () => void;
 }
 
 /**
@@ -1508,6 +1508,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		// ── Storage buffer allocation ────────────────────────────────────────
 		const storageBufferMap = new Map<string, GPUBuffer>();
 		const pingPongTexturePairs = new Map<string, PingPongTexturePair>();
+		const pingPongComputeIterationTotals = new WeakMap<RuntimeComputePass, number>();
 		const pingPongShaderTexturePairs = new Map<
 			RuntimePingPongShaderPass,
 			PingPongShaderTexturePair
@@ -1784,6 +1785,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				computeSource: string;
 				pingPongTarget?: string;
 				pingPongFormat?: GPUTextureFormat;
+				pingPongReadAlias?: string;
+				pingPongWriteAlias?: string;
 			}
 		): ComputePipelineCacheState => {
 			const storageBufferDefs: Record<
@@ -1806,7 +1809,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			}
 
 			const isPingPongPipeline = Boolean(
-				buildOptions.pingPongTarget && buildOptions.pingPongFormat
+				buildOptions.pingPongTarget &&
+				buildOptions.pingPongFormat &&
+				buildOptions.pingPongReadAlias &&
+				buildOptions.pingPongWriteAlias
 			);
 			const builtComputeShader = isPingPongPipeline
 				? buildPingPongComputeShaderSourceWithMap({
@@ -1814,7 +1820,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						uniformLayout: options.uniformLayout,
 						storageBufferKeys,
 						storageBufferDefinitions: storageBufferDefs,
-						target: buildOptions.pingPongTarget!,
+						readAlias: buildOptions.pingPongReadAlias!,
+						writeAlias: buildOptions.pingPongWriteAlias!,
 						targetFormat: buildOptions.pingPongFormat!
 					})
 				: buildComputeShaderSourceWithMap({
@@ -2014,10 +2021,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			computeSource: string;
 			pingPongTarget?: string;
 			pingPongFormat?: GPUTextureFormat;
+			pingPongReadAlias?: string;
+			pingPongWriteAlias?: string;
 		}): ComputePipelineEntry => {
 			const cacheKey =
-				buildOptions.pingPongTarget && buildOptions.pingPongFormat
-					? `pingpong:${buildOptions.pingPongTarget}:${buildOptions.pingPongFormat}:${buildOptions.computeSource}`
+				buildOptions.pingPongTarget &&
+				buildOptions.pingPongFormat &&
+				buildOptions.pingPongReadAlias &&
+				buildOptions.pingPongWriteAlias
+					? `pingpong:${buildOptions.pingPongTarget}:${buildOptions.pingPongFormat}:${buildOptions.pingPongReadAlias}:${buildOptions.pingPongWriteAlias}:${buildOptions.computeSource}`
 					: `compute:${buildOptions.computeSource}`;
 			const cached = computePipelineCache.get(cacheKey);
 			if (cached) {
@@ -3188,18 +3200,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						computePass.getWorkgroupSize
 					) {
 						const computeSource = computePass.getCompute();
-						const pingPongTarget =
-							computePass.isPingPong && computePass.getTarget ? computePass.getTarget() : undefined;
-						if (computePass.isPingPong && !pingPongTarget) {
-							throw new Error('PingPongComputePass must provide a target texture key.');
+						const pingPongResources = computePass.isPingPong
+							? computePass.getResources?.()
+							: undefined;
+						if (computePass.isPingPong && !pingPongResources) {
+							throw new Error('PingPongComputePass must provide a resource map.');
 						}
+						const pingPongResourcePair = pingPongResources
+							? resolveComputePingPongResourcePair(pingPongResources)
+							: null;
+						if (pingPongResourcePair && typeof pingPongResourcePair.texture !== 'string') {
+							throw new Error(
+								'PingPongComputePass external texture references require the compute resource resolver.'
+							);
+						}
+						const pingPongTarget =
+							typeof pingPongResourcePair?.texture === 'string'
+								? pingPongResourcePair.texture
+								: undefined;
 						const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
 						const pipelineEntry = buildComputePipelineEntry({
 							computeSource,
-							...(pingPongPair
+							...(pingPongPair && pingPongResourcePair
 								? {
 										pingPongTarget: pingPongPair.target,
-										pingPongFormat: pingPongPair.format
+										pingPongFormat: pingPongPair.format,
+										pingPongReadAlias: pingPongResourcePair.readAlias,
+										pingPongWriteAlias: pingPongResourcePair.writeAlias
 									}
 								: {})
 						});
@@ -3208,12 +3235,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						const storageTextureBindGroup = getComputeStorageTextureBindGroup();
 						const iterations =
 							computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
-						const currentOutput =
-							computePass.isPingPong && computePass.getCurrentOutput
-								? computePass.getCurrentOutput()
-								: null;
-						const readFromAAtIterationZero =
-							pingPongPair && currentOutput ? currentOutput !== `${pingPongPair.target}B` : true;
+						const completedIterations = pingPongComputeIterationTotals.get(computePass) ?? 0;
+						const readFromAAtIterationZero = completedIterations % 2 === 0;
 
 						for (let iter = 0; iter < iterations; iter += 1) {
 							const dispatchLabel =
@@ -3249,8 +3272,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 							cPass.end();
 						}
 
-						if (computePass.isPingPong && computePass.advanceFrame) {
-							computePass.advanceFrame();
+						if (computePass.isPingPong) {
+							pingPongComputeIterationTotals.set(computePass, completedIterations + iterations);
 						}
 					}
 					continue;

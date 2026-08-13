@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
@@ -12,12 +13,41 @@ import {
 import { findDirtyFloatRanges } from '../../src/lib/core/renderer';
 import { createFrameRegistry } from '../../src/lib/core/frame-registry';
 import { createComputeBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache';
-import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
+import {
+	copyComputeResourceMap,
+	normalizeComputeResourceMap,
+	resolveComputePassResources,
+	type ComputeResourceResolverContext,
+	type ComputeResourceResolverLimits
+} from '../../src/lib/core/compute-resources';
+import type {
+	RuntimeStorageBufferResource,
+	RuntimeTextureResource
+} from '../../src/lib/core/resource-registry';
+import type {
+	ComputeResourceDescriptor,
+	ComputeResourceMap,
+	FrameState,
+	RenderPass,
+	UniformValue
+} from '../../src/lib/core/types';
+import {
+	BENCHMARK_SCHEMA_VERSION,
+	collectBenchmarkEnvironment,
+	compareBenchmarkEnvironments,
+	type BenchmarkEnvironment
+} from './benchmark-schema';
+import { computeRobustStats, type RobustStats } from './statistics';
 
 const SCRIPT_DIR = import.meta.dirname;
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '../..');
+const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, '../..');
 const BASELINE_PATH = resolve(PACKAGE_ROOT, 'benchmarks/baselines/core.json');
 const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/core-latest.json');
+const DEFAULT_PROCESS_COUNT = 10;
+const DEFAULT_SAMPLE_COUNT = 24;
+const DEFAULT_WARMUP_MS = 400;
+const WORKER_TIMEOUT_MS = 5 * 60_000;
 
 const METRIC_RULES = {
 	resolve_material_cached_hz: { direction: 'higher', maxRegressionPct: 15 },
@@ -37,35 +67,56 @@ const METRIC_RULES = {
 	resolve_render_targets_8_hz: { direction: 'higher', maxRegressionPct: 15 },
 	frame_registry_run_64_tasks_hz: { direction: 'higher', maxRegressionPct: 15 },
 	frame_registry_run_64_tasks_profiled_hz: { direction: 'higher', maxRegressionPct: 18 },
-	compute_bindgroup_cache_hit_hz: { direction: 'higher', maxRegressionPct: 15 }
+	compute_bindgroup_cache_hit_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_0_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_1_pass_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_8_passes_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_32_passes_hz: { direction: 'higher', maxRegressionPct: 15 }
 } as const;
 
 type MetricKey = keyof typeof METRIC_RULES;
 type MetricMap = Record<MetricKey, number>;
 
-interface BenchmarkStats {
-	meanHz: number;
-	p95Hz: number;
-	minHz: number;
-	maxHz: number;
-	samples: number[];
+interface ProcessBenchmarkStats extends RobustStats {
+	checksum: number;
 }
 
 interface CoreBenchmarkDocument {
-	schemaVersion: 2;
+	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	generatedAt: string;
-	environment: {
-		node: string;
-		platform: NodeJS.Platform;
-		arch: string;
+	environment: BenchmarkEnvironment;
+	config: {
+		processCount: number;
+		sampleCount: number;
+		warmupMs: number;
+		seed: number;
+		caseOrder: 'seeded-per-process';
 	};
 	metrics: MetricMap;
-	stats: Record<MetricKey, BenchmarkStats>;
+	stats: Record<
+		MetricKey,
+		{
+			processMediansHz: number[];
+			distribution: RobustStats;
+			processes: ProcessBenchmarkStats[];
+		}
+	>;
 }
 
 interface CoreBaselineDocument {
-	schemaVersion: 2;
+	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	updatedAt: string;
+	environment: BenchmarkEnvironment;
+	config: CoreBenchmarkDocument['config'];
 	metrics: Partial<MetricMap>;
 }
 
@@ -82,45 +133,74 @@ interface BenchmarkCase {
 	name: MetricKey;
 	batchSize: number;
 	fn: () => void;
+	checksum?: () => number;
 }
 
-function parseArgs(argv: string[]): {
+interface BenchmarkArgs {
 	updateBaseline: boolean;
 	strict: boolean;
-} {
+	worker: boolean;
+	processCount: number;
+	sampleCount: number;
+	warmupMs: number;
+	seed: number;
+}
+
+function numericArg(argv: string[], name: string, fallback: number): number {
+	const prefix = `--${name}=`;
+	const raw = argv.find((value) => value.startsWith(prefix))?.slice(prefix.length);
+	if (raw === undefined) {
+		return fallback;
+	}
+	const value = Number(raw);
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new Error(`--${name} must be a positive integer, received ${raw}`);
+	}
+	return value;
+}
+
+function parseArgs(argv: string[]): BenchmarkArgs {
 	const flags = new Set(argv);
 	return {
 		updateBaseline: flags.has('--update-baseline'),
-		strict: flags.has('--strict')
+		strict: flags.has('--strict'),
+		worker: flags.has('--worker'),
+		processCount: numericArg(argv, 'processes', DEFAULT_PROCESS_COUNT),
+		sampleCount: numericArg(argv, 'samples', DEFAULT_SAMPLE_COUNT),
+		warmupMs: numericArg(argv, 'warmup-ms', DEFAULT_WARMUP_MS),
+		seed: numericArg(argv, 'seed', Date.now() & 0x7fff_ffff)
 	};
 }
 
-function computeStats(samples: number[]): BenchmarkStats {
-	const sorted = [...samples].sort((a, b) => a - b);
-	const sampleCount = sorted.length;
-	const sum = sorted.reduce((acc, value) => acc + value, 0);
-	const p95Index = Math.min(sampleCount - 1, Math.floor(sampleCount * 0.95));
-	const p95Hz = sorted[p95Index] ?? 0;
-	const minHz = sorted[0] ?? 0;
-	const maxHz = sorted[sampleCount - 1] ?? 0;
-
-	return {
-		meanHz: sampleCount > 0 ? sum / sampleCount : 0,
-		p95Hz,
-		minHz,
-		maxHz,
-		samples
+function createRandom(seed: number): () => number {
+	let state = seed >>> 0;
+	return () => {
+		state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+		return state / 0x1_0000_0000;
 	};
 }
 
-function runCase(target: BenchmarkCase): BenchmarkStats {
-	const warmupUntil = performance.now() + 400;
+function shuffleCases(cases: BenchmarkCase[], seed: number): BenchmarkCase[] {
+	const random = createRandom(seed);
+	const shuffled = [...cases];
+	for (let index = shuffled.length - 1; index > 0; index -= 1) {
+		const swapIndex = Math.floor(random() * (index + 1));
+		[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
+	}
+	return shuffled;
+}
+
+function runCase(
+	target: BenchmarkCase,
+	config: Pick<BenchmarkArgs, 'sampleCount' | 'warmupMs'>
+): ProcessBenchmarkStats {
+	const warmupUntil = performance.now() + config.warmupMs;
 	while (performance.now() < warmupUntil) {
 		target.fn();
 	}
 
 	const samples: number[] = [];
-	for (let sampleIndex = 0; sampleIndex < 24; sampleIndex += 1) {
+	for (let sampleIndex = 0; sampleIndex < config.sampleCount; sampleIndex += 1) {
 		const startedAt = performance.now();
 		for (let index = 0; index < target.batchSize; index += 1) {
 			target.fn();
@@ -129,7 +209,7 @@ function runCase(target: BenchmarkCase): BenchmarkStats {
 		samples.push(target.batchSize / elapsedSec);
 	}
 
-	return computeStats(samples);
+	return { ...computeRobustStats(samples), checksum: target.checksum?.() ?? 1 };
 }
 
 function compareAgainstBaseline(
@@ -200,6 +280,207 @@ async function writeJsonFile(filePath: string, payload: unknown): Promise<void> 
 
 function formatNumber(value: number): string {
 	return value.toFixed(2);
+}
+
+function createComputeResourceBenchmarkCases(): BenchmarkCase[] {
+	const limits: ComputeResourceResolverLimits = {
+		maxBindingsPerBindGroup: 32,
+		maxSampledTexturesPerShaderStage: 16,
+		maxSamplersPerShaderStage: 16,
+		maxStorageTexturesPerShaderStage: 8,
+		maxStorageBuffersPerShaderStage: 8,
+		maxStorageBufferBindingSize: 1 << 20
+	};
+	const view = {} as GPUTextureView;
+	const textures = new Map<string, RuntimeTextureResource>();
+	const buffers = new Map<string, RuntimeStorageBufferResource>();
+	for (let index = 0; index < 8; index += 1) {
+		const texture = {
+			format: 'rgba8unorm',
+			usage: 12,
+			dimension: '2d',
+			sampleCount: 1,
+			depthOrArrayLayers: 1,
+			mipLevelCount: 1,
+			createView: () => view
+		} as unknown as GPUTexture;
+		textures.set(`texture${index}`, {
+			logicalId: `texture${index}`,
+			ownedTexture: texture,
+			storageView: view,
+			sampledView: view,
+			publishedView: view,
+			format: 'rgba8unorm',
+			width: 64,
+			height: 64,
+			mipLevelCount: 1,
+			sampleType: 'float',
+			usage: 12 as GPUTextureUsageFlags,
+			resourceVersion: 0
+		});
+		buffers.set(`buffer${index}`, {
+			logicalId: `buffer${index}`,
+			buffer: { size: 4096, usage: 128 } as GPUBuffer,
+			size: 4096,
+			wgslType: 'array<vec4f>',
+			access: 'read-write',
+			usage: 128 as GPUBufferUsageFlags,
+			resourceVersion: 0
+		});
+	}
+
+	const context: ComputeResourceResolverContext = {
+		passLabel: 'Core benchmark compute pass',
+		deviceFeatures: new Set(),
+		limits,
+		externalContext: {
+			device: {} as GPUDevice,
+			width: 1920,
+			height: 1080,
+			time: 1,
+			delta: 1 / 60
+		},
+		getMaterialTexture: (logicalId) => textures.get(logicalId),
+		getMaterialStorageBuffer: (logicalId) => buffers.get(logicalId),
+		getMaterialSampler: () => undefined,
+		createTextureView: () => view
+	};
+
+	const resourceMap = (count: 0 | 1 | 4 | 16): ComputeResourceMap => {
+		const resources: Record<string, ComputeResourceDescriptor> = {};
+		for (let index = 0; index < Math.min(count, 8); index += 1) {
+			resources[`buffer${index}`] = {
+				buffer: `buffer${index}`,
+				access: 'storage-read'
+			};
+		}
+		for (let index = 8; index < count; index += 1) {
+			resources[`texture${index - 8}`] = {
+				texture: `texture${index - 8}`,
+				access: 'sampled'
+			};
+		}
+		return normalizeComputeResourceMap(resources);
+	};
+	const externalResourceMap = (count: 1 | 4 | 16): ComputeResourceMap => {
+		const resources: Record<string, ComputeResourceDescriptor> = {};
+		for (let index = 0; index < Math.min(count, 8); index += 1) {
+			const buffer = buffers.get(`buffer${index}`)?.buffer;
+			if (!buffer) {
+				throw new Error(`Missing benchmark buffer ${index}`);
+			}
+			resources[`buffer${index}`] = {
+				buffer: {
+					externalBuffer: () => buffer,
+					resourceId: `external-buffer-${index}`,
+					wgslType: 'array<vec4f>',
+					size: 4096,
+					usage: 128
+				},
+				access: 'storage-read'
+			};
+		}
+		for (let index = 8; index < count; index += 1) {
+			const texture = textures.get(`texture${index - 8}`)?.ownedTexture;
+			if (!texture) {
+				throw new Error(`Missing benchmark texture ${index - 8}`);
+			}
+			resources[`texture${index - 8}`] = {
+				texture: {
+					externalTexture: () => texture,
+					resourceId: `external-texture-${index - 8}`,
+					format: 'rgba8unorm',
+					usage: 12
+				},
+				access: 'sampled'
+			};
+		}
+		return normalizeComputeResourceMap(resources);
+	};
+
+	const staticMaps = {
+		0: resourceMap(0),
+		1: resourceMap(1),
+		4: resourceMap(4),
+		16: resourceMap(16)
+	};
+	const externalMaps = {
+		1: externalResourceMap(1),
+		4: externalResourceMap(4),
+		16: externalResourceMap(16)
+	};
+
+	const copyCase = (count: 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = 0;
+		return {
+			name: `compute_resources_copy_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = Object.keys(copyComputeResourceMap(staticMaps[count])).length;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const staticResolveCase = (count: 0 | 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		return {
+			name: `compute_resources_resolve_static_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = resolveComputePassResources(staticMaps[count], context).bindingCount;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const externalResolveCase = (count: 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		return {
+			name: `compute_resources_resolve_external_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = resolveComputePassResources(externalMaps[count], context).bindingCount;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const passScalingCase = (passCount: 1 | 8 | 32, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		const metricByPassCount = {
+			1: 'compute_resources_copy_resolve_1_pass_hz',
+			8: 'compute_resources_copy_resolve_8_passes_hz',
+			32: 'compute_resources_copy_resolve_32_passes_hz'
+		} as const;
+		return {
+			name: metricByPassCount[passCount],
+			batchSize,
+			fn: () => {
+				bindingCount = 0;
+				for (let index = 0; index < passCount; index += 1) {
+					bindingCount += resolveComputePassResources(
+						copyComputeResourceMap(staticMaps[4]),
+						context
+					).bindingCount;
+				}
+			},
+			checksum: () => bindingCount
+		};
+	};
+
+	return [
+		copyCase(1, 20_000),
+		copyCase(4, 10_000),
+		copyCase(16, 3_000),
+		staticResolveCase(0, 20_000),
+		staticResolveCase(1, 10_000),
+		staticResolveCase(4, 4_000),
+		staticResolveCase(16, 1_000),
+		externalResolveCase(1, 8_000),
+		externalResolveCase(4, 3_000),
+		externalResolveCase(16, 750),
+		passScalingCase(1, 4_000),
+		passScalingCase(8, 500),
+		passScalingCase(32, 125)
+	];
 }
 
 function createCases(): BenchmarkCase[] {
@@ -499,37 +780,199 @@ fn frag(uv: vec2f) -> vec4f {
 					}
 				};
 			})()
-		}
+		},
+		...createComputeResourceBenchmarkCases()
 	];
 }
 
-function runCoreBenchmark(): CoreBenchmarkDocument {
-	const cases = createCases();
-	const stats = {} as Record<MetricKey, BenchmarkStats>;
-	const metrics = {} as MetricMap;
+type WorkerResult = Record<MetricKey, ProcessBenchmarkStats>;
 
-	for (const entry of cases) {
-		const caseStats = runCase(entry);
-		stats[entry.name] = caseStats;
-		metrics[entry.name] = caseStats.meanHz;
+function runWorker(args: BenchmarkArgs): WorkerResult {
+	const result = {} as WorkerResult;
+	for (const entry of shuffleCases(createCases(), args.seed)) {
+		result[entry.name] = runCase(entry, args);
+	}
+	return result;
+}
+
+async function runWorkerProcess(args: BenchmarkArgs, processIndex: number): Promise<WorkerResult> {
+	const workerSeed = (args.seed + Math.imul(processIndex + 1, 0x9e37_79b1)) >>> 0;
+	const childArgs = [
+		...process.execArgv,
+		import.meta.filename,
+		'--worker',
+		`--samples=${args.sampleCount}`,
+		`--warmup-ms=${args.warmupMs}`,
+		`--seed=${Math.max(1, workerSeed)}`
+	];
+
+	return new Promise<WorkerResult>((resolveWorker, rejectWorker) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: PACKAGE_ROOT,
+			stdio: ['ignore', 'pipe', 'pipe'],
+			env: process.env
+		});
+		let stdout = '';
+		let stderr = '';
+		let settled = false;
+		const settle = (callback: () => void): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeoutId);
+			callback();
+		};
+		child.stdout.setEncoding('utf8');
+		child.stderr.setEncoding('utf8');
+		child.stdout.on('data', (chunk: string) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk: string) => {
+			stderr += chunk;
+		});
+		const timeoutId = setTimeout(() => {
+			if (settled) {
+				return;
+			}
+			child.kill('SIGKILL');
+			settle(() => {
+				rejectWorker(
+					new Error(
+						`Core benchmark worker ${processIndex + 1} timed out after ${WORKER_TIMEOUT_MS}ms: ${stderr}`
+					)
+				);
+			});
+		}, WORKER_TIMEOUT_MS);
+		child.once('error', (error) => {
+			settle(() => {
+				rejectWorker(
+					new Error(
+						`Core benchmark worker ${processIndex + 1} failed to start: ${String(error)}\n${stderr}`
+					)
+				);
+			});
+		});
+		child.once('close', (code, signal) => {
+			if (code !== 0) {
+				settle(() => {
+					rejectWorker(
+						new Error(
+							`Core benchmark worker ${processIndex + 1} failed (code=${String(code)}, signal=${String(signal)}): ${stderr}`
+						)
+					);
+				});
+				return;
+			}
+			try {
+				const result = JSON.parse(stdout) as WorkerResult;
+				settle(() => resolveWorker(result));
+			} catch (error) {
+				settle(() => {
+					rejectWorker(
+						new Error(
+							`Core benchmark worker ${processIndex + 1} returned invalid JSON: ${String(error)}\n${stdout}\n${stderr}`
+						)
+					);
+				});
+			}
+		});
+	});
+}
+
+async function runCoreBenchmark(args: BenchmarkArgs): Promise<CoreBenchmarkDocument> {
+	const processResults: WorkerResult[] = [];
+	for (let processIndex = 0; processIndex < args.processCount; processIndex += 1) {
+		console.error(`Core benchmark process ${processIndex + 1}/${args.processCount}`);
+		processResults.push(await runWorkerProcess(args, processIndex));
 	}
 
+	const stats = {} as CoreBenchmarkDocument['stats'];
+	const metrics = {} as MetricMap;
+	for (const metric of Object.keys(METRIC_RULES) as MetricKey[]) {
+		const processes = processResults.map((result) => {
+			const value = result[metric];
+			if (value === undefined) {
+				throw new Error(`Core benchmark worker did not report metric ${metric}`);
+			}
+			return value;
+		});
+		const processMediansHz = processes.map((result) => result.median);
+		const distribution = computeRobustStats(processMediansHz);
+		stats[metric] = { processMediansHz, distribution, processes };
+		metrics[metric] = distribution.median;
+	}
+
+	const environment = await collectBenchmarkEnvironment({
+		repositoryRoot: REPOSITORY_ROOT,
+		suiteFiles: [
+			import.meta.filename,
+			resolve(SCRIPT_DIR, 'benchmark-schema.ts'),
+			resolve(SCRIPT_DIR, 'statistics.ts')
+		]
+	});
+
 	return {
-		schemaVersion: 2,
+		schemaVersion: BENCHMARK_SCHEMA_VERSION,
 		generatedAt: new Date().toISOString(),
-		environment: {
-			node: process.version,
-			platform: process.platform,
-			arch: process.arch
+		environment,
+		config: {
+			processCount: args.processCount,
+			sampleCount: args.sampleCount,
+			warmupMs: args.warmupMs,
+			seed: args.seed,
+			caseOrder: 'seeded-per-process'
 		},
 		metrics,
 		stats
 	};
 }
 
+function baselineIncompatibilities(
+	result: CoreBenchmarkDocument,
+	baseline: CoreBaselineDocument
+): string[] {
+	const differences = compareBenchmarkEnvironments(
+		result.environment,
+		baseline.environment
+	).differences;
+	for (const field of ['processCount', 'sampleCount', 'warmupMs', 'caseOrder'] as const) {
+		if (result.config[field] !== baseline.config[field]) {
+			differences.push(
+				`config.${field}: current=${String(result.config[field])} baseline=${String(baseline.config[field])}`
+			);
+		}
+	}
+	return differences;
+}
+
+function assertBaselineCaptureIsControlled(result: CoreBenchmarkDocument): void {
+	if (result.environment.dirty) {
+		throw new Error('Refusing to update a performance baseline from a dirty worktree');
+	}
+	if (result.environment.powerMode !== 'ac-high-power') {
+		throw new Error(
+			`Refusing to update a performance baseline with powerMode=${result.environment.powerMode}; set MOTION_GPU_PERF_POWER_MODE=ac-high-power after controlling the host`
+		);
+	}
+	if (result.config.processCount < DEFAULT_PROCESS_COUNT) {
+		throw new Error(
+			`Refusing to update a performance baseline with ${result.config.processCount} processes; at least ${DEFAULT_PROCESS_COUNT} are required`
+		);
+	}
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
-	const result = runCoreBenchmark();
+	if (args.worker) {
+		process.stdout.write(JSON.stringify(runWorker(args)));
+		return;
+	}
+
+	const result = await runCoreBenchmark(args);
+	if (args.updateBaseline) {
+		assertBaselineCaptureIsControlled(result);
+	}
 	await writeJsonFile(LATEST_PATH, result);
 
 	console.log(`Core benchmark saved: ${LATEST_PATH}`);
@@ -539,8 +982,10 @@ async function main(): Promise<void> {
 
 	if (args.updateBaseline) {
 		const baselinePayload: CoreBaselineDocument = {
-			schemaVersion: 2,
+			schemaVersion: BENCHMARK_SCHEMA_VERSION,
 			updatedAt: new Date().toISOString(),
+			environment: result.environment,
+			config: result.config,
 			metrics: result.metrics
 		};
 		await writeJsonFile(BASELINE_PATH, baselinePayload);
@@ -552,6 +997,26 @@ async function main(): Promise<void> {
 	if (!baseline) {
 		console.log(`Baseline not found: ${BASELINE_PATH}`);
 		console.log('Run with --update-baseline to capture the first reference.');
+		return;
+	}
+	if (baseline.schemaVersion !== BENCHMARK_SCHEMA_VERSION) {
+		console.error(
+			`Incompatible baseline schema: current=${BENCHMARK_SCHEMA_VERSION} baseline=${String(baseline.schemaVersion)}. Preserve and triage the old baseline before capturing schema v3.`
+		);
+		if (args.strict) {
+			process.exitCode = 1;
+		}
+		return;
+	}
+	const incompatibilities = baselineIncompatibilities(result, baseline);
+	if (incompatibilities.length > 0) {
+		console.error('Incompatible baseline environment/configuration:');
+		for (const difference of incompatibilities) {
+			console.error(`- ${difference}`);
+		}
+		if (args.strict) {
+			process.exitCode = 1;
+		}
 		return;
 	}
 

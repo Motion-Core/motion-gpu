@@ -58,6 +58,22 @@ fn helper(@builtin(global_invocation_id) id: vec3u) {}
 fn compute() {}
 `;
 		expect(() => assertComputeContract(source)).toThrow(/global_invocation_id/);
+
+		const prefixedHelper = `
+fn computeHelper(@builtin(global_invocation_id) id: vec3u) {}
+@compute @workgroup_size(8, 8)
+fn compute() {}
+`;
+		expect(() => assertComputeContract(prefixedHelper)).toThrow(/global_invocation_id/);
+	});
+
+	it('accepts a newline between the compute function keyword and name', () => {
+		const source = `
+@compute @workgroup_size(8, 8)
+fn
+compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(source)).not.toThrow();
 	});
 
 	it('rejects zero and oversized workgroup dimensions', () => {

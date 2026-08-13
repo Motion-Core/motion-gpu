@@ -59,11 +59,9 @@ export interface BuildComputeShaderSourceOptions {
 }
 
 function extractComputeParamList(compute: string): string | null {
-	const computeFnIndex = compute.indexOf('fn compute');
-	if (computeFnIndex === -1) return null;
-
-	const openParenIndex = compute.indexOf('(', computeFnIndex);
-	if (openParenIndex === -1) return null;
+	const entrypoint = COMPUTE_ENTRY_CONTRACT.exec(compute);
+	if (!entrypoint) return null;
+	const openParenIndex = entrypoint.index + entrypoint[0].length - 1;
 
 	let depth = 0;
 	for (let index = openParenIndex; index < compute.length; index += 1) {
@@ -153,10 +151,13 @@ export function buildComputeResourceBindings(
 					return `@group(1) @binding(${resource.binding}) var<storage, ${resource.access === 'storage-read' ? 'read' : 'read_write'}> ${resource.alias}: ${resource.wgslType};`;
 				case 'sampler':
 					return `@group(1) @binding(${resource.binding}) var ${resource.alias}: ${resource.samplerType === 'comparison' ? 'sampler_comparison' : 'sampler'};`;
-				default:
+				default: {
+					const unsupportedKind = (resource as { kind: unknown }).kind;
+					resource satisfies never;
 					throw new Error(
-						`Unsupported resolved compute shader resource kind: ${resource satisfies never}`
+						`Unsupported resolved compute shader resource kind: ${String(unsupportedKind)}`
 					);
+				}
 			}
 		})
 		.join('\n');

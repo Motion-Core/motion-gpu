@@ -19,3 +19,10 @@ test('the web sentinel rejects an unconfigured production-like extension', async
 		/has no matching ESLint configuration/
 	);
 });
+
+test('the Svelte config remains serializable for ESLint tooling', async () => {
+	const eslint = new ESLint({ cwd: process.cwd() });
+	const config = await eslint.calculateConfigForFile('src/routes/+layout.svelte');
+
+	assert.doesNotThrow(() => JSON.stringify(config));
+});

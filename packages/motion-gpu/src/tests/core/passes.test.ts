@@ -155,8 +155,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		pass.render(context);
 
 		const descriptor = device.createShaderModule.mock.calls[0]?.[0] as
-			| GPUShaderModuleDescriptor
-			| undefined;
+			GPUShaderModuleDescriptor | undefined;
 		const source = String(descriptor?.code ?? '');
 		expect(source).toContain('var<private> motiongpuFragment: MotionGPUFragment;');
 		expect(source).toContain('return motiongpuFragment.uv;');

@@ -16,6 +16,15 @@ import {
 import svelteConfig from './svelte.config';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
+const lintSvelteConfig = {
+	...svelteConfig,
+	kit: svelteConfig.kit
+		? {
+				...svelteConfig.kit,
+				typescript: undefined
+			}
+		: undefined
+};
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
@@ -31,7 +40,7 @@ export default defineConfig(
 		tsconfigRootDir: import.meta.dirname
 	}),
 	createSharedSvelteLanguageConfig({
-		svelteConfig,
+		svelteConfig: lintSvelteConfig,
 		ts,
 		tsconfigRootDir: import.meta.dirname
 	}),

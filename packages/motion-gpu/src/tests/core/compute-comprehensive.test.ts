@@ -895,8 +895,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 				input.entries.length === 2 &&
 				input.entries.every((entry) => {
 					const resource = entry.resource as
-						| { textureDescriptor?: GPUTextureDescriptor }
-						| undefined;
+						{ textureDescriptor?: GPUTextureDescriptor } | undefined;
 					return Boolean(
 						resource && typeof resource === 'object' && 'textureDescriptor' in resource
 					);

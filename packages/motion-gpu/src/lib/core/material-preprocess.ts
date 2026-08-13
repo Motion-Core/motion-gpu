@@ -1,11 +1,19 @@
 import { assertUniformName } from './uniforms.js';
 import type {
+	MaterialDefines,
 	MaterialDefineVectorType,
 	MaterialDefineValue,
-	MaterialDefines,
 	MaterialIncludes,
+	MaterialLineMap,
+	MaterialSourceLocation,
+	PreprocessedMaterialFragment,
 	TypedMaterialDefineValue
-} from './material.js';
+} from './material-contracts.js';
+export type {
+	MaterialLineMap,
+	MaterialSourceLocation,
+	PreprocessedMaterialFragment
+} from './material-contracts.js';
 
 const INCLUDE_DIRECTIVE_PATTERN = /^\s*#include\s+<([A-Za-z_][A-Za-z0-9_]*)>\s*$/;
 const DEFINE_VECTOR_LENGTHS: Record<MaterialDefineVectorType, number> = {
@@ -13,51 +21,6 @@ const DEFINE_VECTOR_LENGTHS: Record<MaterialDefineVectorType, number> = {
 	vec3f: 3,
 	vec4f: 4
 };
-
-/**
- * Source location metadata for one generated fragment line.
- */
-export interface MaterialSourceLocation {
-	/**
-	 * Origin category for this generated line.
-	 */
-	kind: 'fragment' | 'include' | 'define';
-	/**
-	 * 1-based line in the origin source.
-	 */
-	line: number;
-	/**
-	 * Include chunk identifier when `kind === "include"`.
-	 */
-	include?: string;
-	/**
-	 * Define identifier when `kind === "define"`.
-	 */
-	define?: string;
-}
-
-/**
- * 1-based line map from generated fragment WGSL to user source locations.
- */
-export type MaterialLineMap = Array<MaterialSourceLocation | null>;
-
-/**
- * Preprocess output used by material resolution and diagnostics mapping.
- */
-export interface PreprocessedMaterialFragment {
-	/**
-	 * Final fragment source after defines/include expansion.
-	 */
-	fragment: string;
-	/**
-	 * 1-based generated-line source map.
-	 */
-	lineMap: MaterialLineMap;
-	/**
-	 * Deterministic WGSL define block used to build the final fragment source.
-	 */
-	defineBlockSource: string;
-}
 
 function normalizeTypedDefine(
 	name: string,

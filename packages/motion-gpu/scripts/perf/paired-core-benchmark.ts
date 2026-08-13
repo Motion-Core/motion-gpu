@@ -135,11 +135,7 @@ async function gitOutput(args: string[]): Promise<string> {
 }
 
 async function extractRef(ref: string, destination: string): Promise<void> {
-	const archivePath = resolve(
-		destination,
-		'..',
-		`${createHash('sha256').update(ref).digest('hex')}.tar`
-	);
+	const archivePath = `${destination}.tar`;
 	await execFileAsync('git', ['archive', '--format=tar', `--output=${archivePath}`, ref], {
 		cwd: REPOSITORY_ROOT
 	});

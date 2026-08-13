@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import {
 	collectBenchmarkEnvironment,
 	compareBenchmarkEnvironments,
+	gitSubprocessEnvironment,
 	hashSuiteFiles,
 	type BenchmarkEnvironment
 } from './benchmark-schema';
@@ -50,22 +51,53 @@ test('commit and dirty state are evidence, not compatibility dimensions', () => 
 	});
 });
 
+test('Git subprocesses do not inherit a parent commit context', () => {
+	const previousIndexFile = process.env['GIT_INDEX_FILE'];
+	process.env['GIT_INDEX_FILE'] = '/tmp/parent-index';
+	try {
+		const environment = gitSubprocessEnvironment();
+		assert.equal(environment['GIT_INDEX_FILE'], undefined);
+		assert.equal(
+			Object.keys(environment).some((name) => name.startsWith('GIT_')),
+			false
+		);
+		assert.equal(environment['PATH'], process.env['PATH']);
+	} finally {
+		if (previousIndexFile === undefined) {
+			delete process.env['GIT_INDEX_FILE'];
+		} else {
+			process.env['GIT_INDEX_FILE'] = previousIndexFile;
+		}
+	}
+});
+
 test('untracked benchmark source makes the environment dirty', async () => {
 	const repository = await mkdtemp(join(tmpdir(), 'motion-gpu-perf-git-'));
 	const suiteFile = join(repository, 'suite.ts');
-	await execFileAsync('git', ['init'], { cwd: repository });
-	await execFileAsync('git', ['config', 'user.email', 'perf@example.invalid'], { cwd: repository });
-	await execFileAsync('git', ['config', 'user.name', 'Perf Test'], { cwd: repository });
+	const gitOptions = { cwd: repository, env: gitSubprocessEnvironment() };
+	await execFileAsync('git', ['init'], gitOptions);
+	await execFileAsync('git', ['config', 'user.email', 'perf@example.invalid'], gitOptions);
+	await execFileAsync('git', ['config', 'user.name', 'Perf Test'], gitOptions);
 	await writeFile(suiteFile, 'export {};\n');
-	await execFileAsync('git', ['add', 'suite.ts'], { cwd: repository });
-	await execFileAsync('git', ['commit', '-m', 'test fixture'], { cwd: repository });
+	await execFileAsync('git', ['add', 'suite.ts'], gitOptions);
+	await execFileAsync('git', ['commit', '-m', 'test fixture'], gitOptions);
 	await writeFile(join(repository, 'untracked-benchmark.ts'), 'export {};\n');
 
-	const result = await collectBenchmarkEnvironment({
-		repositoryRoot: repository,
-		suiteFiles: [suiteFile]
-	});
-	assert.equal(result.dirty, true);
+	const previousUserAgent = process.env['npm_config_user_agent'];
+	process.env['npm_config_user_agent'] = 'pnpm/0.0.0-test npm/? node/? test';
+	try {
+		const result = await collectBenchmarkEnvironment({
+			repositoryRoot: repository,
+			suiteFiles: [suiteFile]
+		});
+		assert.equal(result.dirty, true);
+	} finally {
+		if (previousUserAgent === undefined) {
+			delete process.env['npm_config_user_agent'];
+		} else {
+			process.env['npm_config_user_agent'] = previousUserAgent;
+		}
+	}
 });
 
 test('runtime, hardware and suite differences reject comparisons', () => {

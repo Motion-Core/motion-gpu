@@ -582,6 +582,7 @@ async function readAdapterIdentity(page: Page): Promise<AdapterIdentity> {
 			type?: string;
 			driver?: string;
 		};
+		const isFallbackAdapter = info.isFallbackAdapter ?? false;
 		return {
 			vendor: info.vendor ?? '',
 			architecture: info.architecture ?? '',
@@ -590,7 +591,7 @@ async function readAdapterIdentity(page: Page): Promise<AdapterIdentity> {
 			backend: info.backend ?? '',
 			type: info.type ?? '',
 			driver: info.driver ?? '',
-			isFallbackAdapter: true
+			isFallbackAdapter
 		};
 	});
 }
@@ -724,8 +725,19 @@ async function main(): Promise<void> {
 		for (const metricName of Object.keys(METRIC_RULES) as MetricKey[]) {
 			console.log(`${metricName}: ${formatNumber(result.metrics[metricName])}`);
 		}
+		const failedInvariants = Object.entries(result.invariants).filter(([, passed]) => !passed);
+		for (const [name, passed] of Object.entries(result.invariants)) {
+			console.log(`invariant.${name}: ${passed ? 'ok' : 'FAILED'}`);
+		}
 
 		if (args.updateBaseline) {
+			if (failedInvariants.length > 0) {
+				throw new Error(
+					`Refusing to update a performance baseline with failing invariants: ${failedInvariants
+						.map(([name]) => name)
+						.join(', ')}`
+				);
+			}
 			if (result.environment.dirty) {
 				throw new Error('Refusing to update a performance baseline from a dirty worktree');
 			}
@@ -744,10 +756,6 @@ async function main(): Promise<void> {
 			await writeJsonFile(BASELINE_PATH, baselinePayload);
 			console.log(`Baseline updated: ${BASELINE_PATH}`);
 			return;
-		}
-		const failedInvariants = Object.entries(result.invariants).filter(([, passed]) => !passed);
-		for (const [name, passed] of Object.entries(result.invariants)) {
-			console.log(`invariant.${name}: ${passed ? 'ok' : 'FAILED'}`);
 		}
 		if (failedInvariants.length > 0) {
 			console.error(`Detected ${failedInvariants.length} runtime semantic invariant failure(s).`);

@@ -90,6 +90,7 @@
 		"check:consumers:peers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs --peer-matrix",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
+		"test:perf-tools": "tsx --test ./scripts/perf/benchmark-schema.test.ts ./scripts/perf/statistics.test.ts ./scripts/perf/real-renderer-results.test.ts",
 		"test:watch": "vitest",
 		"test:e2e": "playwright test",
 		"test:e2e:headed": "playwright test --headed",

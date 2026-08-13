@@ -47,6 +47,7 @@ const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/core-latest.json')
 const DEFAULT_PROCESS_COUNT = 10;
 const DEFAULT_SAMPLE_COUNT = 24;
 const DEFAULT_WARMUP_MS = 400;
+const WORKER_TIMEOUT_MS = 5 * 60_000;
 
 const METRIC_RULES = {
 	resolve_material_cached_hz: { direction: 'higher', maxRegressionPct: 15 },
@@ -813,6 +814,15 @@ async function runWorkerProcess(args: BenchmarkArgs, processIndex: number): Prom
 		});
 		let stdout = '';
 		let stderr = '';
+		let settled = false;
+		const settle = (callback: () => void): void => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timeoutId);
+			callback();
+		};
 		child.stdout.setEncoding('utf8');
 		child.stderr.setEncoding('utf8');
 		child.stdout.on('data', (chunk: string) => {
@@ -821,24 +831,50 @@ async function runWorkerProcess(args: BenchmarkArgs, processIndex: number): Prom
 		child.stderr.on('data', (chunk: string) => {
 			stderr += chunk;
 		});
-		child.once('error', rejectWorker);
-		child.once('exit', (code, signal) => {
-			if (code !== 0) {
+		const timeoutId = setTimeout(() => {
+			if (settled) {
+				return;
+			}
+			child.kill('SIGKILL');
+			settle(() => {
 				rejectWorker(
 					new Error(
-						`Core benchmark worker ${processIndex + 1} failed (code=${String(code)}, signal=${String(signal)}): ${stderr}`
+						`Core benchmark worker ${processIndex + 1} timed out after ${WORKER_TIMEOUT_MS}ms: ${stderr}`
 					)
 				);
+			});
+		}, WORKER_TIMEOUT_MS);
+		child.once('error', (error) => {
+			settle(() => {
+				rejectWorker(
+					new Error(
+						`Core benchmark worker ${processIndex + 1} failed to start: ${String(error)}\n${stderr}`
+					)
+				);
+			});
+		});
+		child.once('exit', (code, signal) => {
+			if (code !== 0) {
+				settle(() => {
+					rejectWorker(
+						new Error(
+							`Core benchmark worker ${processIndex + 1} failed (code=${String(code)}, signal=${String(signal)}): ${stderr}`
+						)
+					);
+				});
 				return;
 			}
 			try {
-				resolveWorker(JSON.parse(stdout) as WorkerResult);
+				const result = JSON.parse(stdout) as WorkerResult;
+				settle(() => resolveWorker(result));
 			} catch (error) {
-				rejectWorker(
-					new Error(
-						`Core benchmark worker ${processIndex + 1} returned invalid JSON: ${String(error)}\n${stdout}\n${stderr}`
-					)
-				);
+				settle(() => {
+					rejectWorker(
+						new Error(
+							`Core benchmark worker ${processIndex + 1} returned invalid JSON: ${String(error)}\n${stdout}\n${stderr}`
+						)
+					);
+				});
 			}
 		});
 	});
@@ -854,7 +890,13 @@ async function runCoreBenchmark(args: BenchmarkArgs): Promise<CoreBenchmarkDocum
 	const stats = {} as CoreBenchmarkDocument['stats'];
 	const metrics = {} as MetricMap;
 	for (const metric of Object.keys(METRIC_RULES) as MetricKey[]) {
-		const processes = processResults.map((result) => result[metric]);
+		const processes = processResults.map((result) => {
+			const value = result[metric];
+			if (value === undefined) {
+				throw new Error(`Core benchmark worker did not report metric ${metric}`);
+			}
+			return value;
+		});
 		const processMediansHz = processes.map((result) => result.median);
 		const distribution = computeRobustStats(processMediansHz);
 		stats[metric] = { processMediansHz, distribution, processes };
@@ -928,6 +970,9 @@ async function main(): Promise<void> {
 	}
 
 	const result = await runCoreBenchmark(args);
+	if (args.updateBaseline) {
+		assertBaselineCaptureIsControlled(result);
+	}
 	await writeJsonFile(LATEST_PATH, result);
 
 	console.log(`Core benchmark saved: ${LATEST_PATH}`);
@@ -936,7 +981,6 @@ async function main(): Promise<void> {
 	}
 
 	if (args.updateBaseline) {
-		assertBaselineCaptureIsControlled(result);
 		const baselinePayload: CoreBaselineDocument = {
 			schemaVersion: BENCHMARK_SCHEMA_VERSION,
 			updatedAt: new Date().toISOString(),

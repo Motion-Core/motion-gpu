@@ -53,18 +53,40 @@ export interface EnvironmentCompatibility {
 	differences: string[];
 }
 
-async function commandOutput(command: string, args: string[], cwd: string): Promise<string> {
+export function gitSubprocessEnvironment(): NodeJS.ProcessEnv {
+	const environment = { ...process.env };
+	for (const name of Object.keys(environment)) {
+		if (name.startsWith('GIT_')) {
+			delete environment[name];
+		}
+	}
+	return environment;
+}
+
+async function commandOutput(
+	command: string,
+	args: string[],
+	cwd: string,
+	env?: NodeJS.ProcessEnv
+): Promise<string> {
 	const { stdout } = await execFileAsync(command, args, {
 		cwd,
+		env,
 		encoding: 'utf8'
 	});
 	return stdout.trim();
 }
 
 async function gitIdentity(repositoryRoot: string): Promise<{ commitSha: string; dirty: boolean }> {
+	const environment = gitSubprocessEnvironment();
 	const [commitSha, status] = await Promise.all([
-		commandOutput('git', ['rev-parse', 'HEAD'], repositoryRoot),
-		commandOutput('git', ['status', '--porcelain', '--untracked-files=normal'], repositoryRoot)
+		commandOutput('git', ['rev-parse', 'HEAD'], repositoryRoot, environment),
+		commandOutput(
+			'git',
+			['status', '--porcelain', '--untracked-files=normal'],
+			repositoryRoot,
+			environment
+		)
 	]);
 	return { commitSha, dirty: status.length > 0 };
 }

@@ -3,6 +3,7 @@ import { createRenderer } from '../../../src/lib/core/renderer';
 import type { AnyPass, Renderer } from '../../../src/lib/core/types';
 import { ComputePass } from '../../../src/lib/passes/ComputePass';
 import { ShaderPass } from '../../../src/lib/passes/ShaderPass';
+import { summarizeSamples } from '../real-renderer-results';
 
 export interface Stats {
 	samples: number[];
@@ -67,21 +68,6 @@ const WARMUP_FRAMES = 16;
 const SAMPLE_FRAMES = 100;
 const CPU_SAMPLE_BATCHES = 30;
 const CPU_FRAMES_PER_BATCH = 25;
-
-function stats(samples: number[]): Stats {
-	const sorted = [...samples].sort((a, b) => a - b);
-	const mean = samples.reduce((sum, sample) => sum + sample, 0) / samples.length;
-	const variance = samples.reduce((sum, sample) => sum + (sample - mean) ** 2, 0) / samples.length;
-	return {
-		samples,
-		median: sorted[Math.floor((sorted.length - 1) * 0.5)] ?? 0,
-		p95: sorted[Math.floor((sorted.length - 1) * 0.95)] ?? 0,
-		p99: sorted[Math.floor((sorted.length - 1) * 0.99)] ?? 0,
-		min: sorted[0] ?? 0,
-		max: sorted.at(-1) ?? 0,
-		coefficientOfVariationPct: mean === 0 ? 0 : (Math.sqrt(variance) / mean) * 100
-	};
-}
 
 function measurePerformanceNowResolution(): number {
 	let previous = performance.now();
@@ -407,9 +393,9 @@ async function runScenario(name: 'no-pass' | 'sixteen-pass' | 'compute'): Promis
 		return {
 			name,
 			passCount: passes.length,
-			cpuSubmitMs: stats(cpuSubmitSamples),
-			queueCompletionMs: stats(queueCompletionSamples),
-			gpuFrameNs: stats(gpuFrameSamples),
+			cpuSubmitMs: summarizeSamples(cpuSubmitSamples),
+			queueCompletionMs: summarizeSamples(queueCompletionSamples),
+			gpuFrameNs: summarizeSamples(gpuFrameSamples),
 			correctness: {
 				before: before.checksum,
 				after: after.checksum,
@@ -450,9 +436,10 @@ async function run(): Promise<RealRendererBrowserResult> {
 	]
 		.join(' ')
 		.toLowerCase();
-	const isSoftware = /swiftshader|llvmpipe|software|cpu|null/u.test(softwareIdentity);
-	const isFallbackAdapter =
-		(adapter as GPUAdapter & { isFallbackAdapter?: boolean }).isFallbackAdapter ?? false;
+	const isSoftware = /swiftshader|llvmpipe|software|(?:^|[^a-z])(?:cpu|null)(?:[^a-z]|$)/u.test(
+		softwareIdentity
+	);
+	const isFallbackAdapter = info.isFallbackAdapter ?? false;
 	if (isFallbackAdapter || isSoftware) {
 		throw new Error(`Physical GPU required; received ${softwareIdentity}`);
 	}

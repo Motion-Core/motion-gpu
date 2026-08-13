@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
@@ -117,7 +117,12 @@ async function startServer(): Promise<{ server: PreviewServer; url: string; outD
 			configFile: false,
 			root: BROWSER_ROOT,
 			logLevel: process.env['MOTION_GPU_PERF_VERBOSE'] === '1' ? 'info' : 'warn',
-			build: { outDir, emptyOutDir: true, rollupOptions: { input: HTML_PATH } }
+			build: {
+				outDir,
+				emptyOutDir: true,
+				modulePreload: false,
+				rollupOptions: { input: HTML_PATH }
+			}
 		});
 		server = await preview({
 			configFile: false,
@@ -159,6 +164,18 @@ async function runBrowser(page: Page): Promise<RealRendererBrowserResult> {
 async function writeJson(path: string, value: unknown): Promise<void> {
 	await mkdir(dirname(path), { recursive: true });
 	await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+async function pathExists(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return false;
+		}
+		throw error;
+	}
 }
 
 async function run(args: Args): Promise<RealRendererDocument> {
@@ -274,7 +291,7 @@ async function main(): Promise<void> {
 			BASELINE_DIRECTORY,
 			`${adapterSlug}-real-renderer-${result.fingerprint}.json`
 		);
-		if (await readFile(path, 'utf8').catch(() => null)) {
+		if (await pathExists(path)) {
 			throw new Error(`Refusing to overwrite existing real-renderer baseline: ${path}`);
 		}
 		await writeJson(path, result);
@@ -282,4 +299,7 @@ async function main(): Promise<void> {
 	}
 }
 
-void main();
+void main().catch((error: unknown) => {
+	console.error(error instanceof Error ? error.message : error);
+	process.exitCode = 1;
+});

@@ -76,6 +76,11 @@ compute(@builtin(global_invocation_id) id: vec3u) {}
 		expect(() => assertComputeContract(source)).not.toThrow();
 	});
 
+	it('rejects repeated incomplete entrypoint prefixes in bounded time', () => {
+		const source = '@compute @workgroup_size('.repeat(10_000);
+		expect(() => assertComputeContract(source)).toThrow(/workgroup_size/i);
+	}, 250);
+
 	it('rejects zero and oversized workgroup dimensions', () => {
 		for (const size of [0, 65_536]) {
 			const source = `@compute @workgroup_size(${size}) fn compute(@builtin(global_invocation_id) id: vec3u) {}`;

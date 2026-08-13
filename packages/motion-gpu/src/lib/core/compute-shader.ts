@@ -2,8 +2,12 @@ import type { StorageBufferType, UniformLayout } from './types.js';
 
 /**
  * Regex contract for the single public compute entrypoint.
+ *
+ * Keep the workgroup-size grammar aligned with `extractWorkgroupSize` so a
+ * malformed attribute cannot make the expression scan across later attributes.
  */
-export const COMPUTE_ENTRY_CONTRACT = /@compute\s+@workgroup_size\s*\([^)]+\)\s*fn\s+compute\s*\(/;
+export const COMPUTE_ENTRY_CONTRACT =
+	/@compute\s+@workgroup_size\s*\(\s*\d+(?:\s*,\s*\d+){0,2}\s*\)\s*fn\s+compute\s*\(/;
 
 const WORKGROUP_SIZE_PATTERN =
 	/@workgroup_size\s*\(\s*(\d+)(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)/;

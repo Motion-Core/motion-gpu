@@ -14,7 +14,7 @@
 	import fragmentShader from './shaders/fragment.wgsl?raw';
 	import dataMoshShader from './shaders/mosh.wgsl?raw';
 
-	const WIDTH = 1080;
+	const WIDTH = 1280;
 	const HEIGHT = 720;
 	const FLOW_WIDTH = WIDTH / 8;
 	const FLOW_HEIGHT = HEIGHT / 8;

@@ -15,8 +15,9 @@ fn bloomSample(uv: vec2f) -> vec3f {
 
 fn frag(uv: vec2f) -> vec4f {
     let resolution = max(motiongpuFrame.resolution, vec2f(1.0));
-    let sourceUv = coverUv(uv, resolution, 16.0 / 9.0);
-    let texel = 1.0 / vec2f(textureDimensions(feedback));
+    let feedbackSize = vec2f(textureDimensions(feedback));
+    let sourceUv = coverUv(uv, resolution, feedbackSize.x / feedbackSize.y);
+    let texel = 1.0 / feedbackSize;
     let center = textureSample(feedback, feedbackSampler, sourceUv).rgb;
 
     var bloom = vec3f(0.0);

@@ -32,29 +32,12 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     }
     rimGradient *= gradientScale * 0.015625;
 
-    let energyWeights = array<f32, 3>(1.0, 2.0, 1.0);
-    var waveSlope = 0.0;
-    for (var slopeY = 1u; slopeY < 4u; slopeY++) {
-        for (var slopeX = 1u; slopeX < 4u; slopeX++) {
-            let localGradient = vec2f(
-                heights[slopeY * 5u + slopeX + 1u] - heights[slopeY * 5u + slopeX - 1u],
-                heights[(slopeY + 1u) * 5u + slopeX] - heights[(slopeY - 1u) * 5u + slopeX]
-            );
-            waveSlope += length(localGradient * gradientScale)
-                * energyWeights[slopeX - 1u]
-                * energyWeights[slopeY - 1u];
-        }
-    }
-    waveSlope *= 0.0625;
-
     let normal = normalize(vec3f(-rimGradient * 96.0, 1.0));
     let rimSlope = 1.0 - normal.z;
     let rim = pow(rimSlope, 2.2);
-    let slopeStrength = clamp(waveSlope * 0.0, 0.0, 1.0);
     let displacementStrength = clamp(abs(center.x) * 3.0, 0.0, 1.0);
-    let slopeWave = smoothstep(0.0, 1.0, slopeStrength);
     let displacementWave = smoothstep(0.0, 1.0, displacementStrength) * 100.45;
-    let wave = 1.0 - (1.0 - slopeWave) * (1.0 - displacementWave);
+    let wave = displacementWave;
 
     let background = vec3f(0.0049, 0.00567, 0.0074);
     let glass = vec3f(0.001, 0.0011, 0.0013) * (0.25 + center.z * 0.7);

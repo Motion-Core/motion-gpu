@@ -343,10 +343,12 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 				activeMaterial = materialWithStorageTexture;
 				break;
 			case 'sample-nearest':
+				// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 				activePasses = [sampledTextureComputePass, seedSampleTexturePass];
 				activeMaterial = materialWithNearestSampler;
 				break;
 			case 'sample-linear':
+				// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 				activePasses = [sampledTextureComputePass, seedSampleTexturePass];
 				activeMaterial = materialWithLinearSampler;
 				break;

@@ -2190,6 +2190,7 @@ describe('createRenderer', () => {
 		expect(encoder?.beginComputePass.mock.invocationCallOrder.at(-1)).toBeLessThan(
 			encoder?.beginRenderPass.mock.invocationCallOrder.at(-1) ?? 0
 		);
+		renderer.destroy();
 	});
 
 	it('omits fragment-stage texture bindings for texture slots marked fragmentVisible:false', async () => {
@@ -2552,6 +2553,7 @@ describe('createRenderer', () => {
 			(call) => Array.from((call[0] as GPUBindGroupDescriptor).entries).length === 1
 		).length;
 		expect(resourceBindGroupsAfterSecond).toBe(resourceBindGroupsAfterFirst);
+		renderer.destroy();
 	});
 
 	it('snapshots raw texture and sampler resources and refreshes only their bind group', async () => {
@@ -2945,6 +2947,7 @@ describe('createRenderer', () => {
 		)?.code;
 		expect(firstCode).toContain('var next: texture_storage_2d');
 		expect(secondCode).toContain('var latestSim: texture_2d');
+		renderer.destroy();
 	});
 
 	it('destroys ping-pong texture pairs during renderer.destroy()', async () => {

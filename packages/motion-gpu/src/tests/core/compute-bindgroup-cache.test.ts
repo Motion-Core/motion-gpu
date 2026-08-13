@@ -47,12 +47,22 @@ describe('createComputeBindGroupCache', () => {
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
-	it('invalidates state when topology or pipeline-owned layout changes', () => {
+	it('invalidates state when the topology key changes', () => {
+		const device = createMockDevice();
+		const cache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
+		const view = {} as GPUTextureView;
+		cache.getOrCreate(request(layout, 'float', [view]));
+		cache.getOrCreate(request(layout, 'uint', [view]));
+		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
+	});
+
+	it('invalidates state when the pipeline-owned layout changes', () => {
 		const device = createMockDevice();
 		const cache = createComputeBindGroupCache(device);
 		const view = {} as GPUTextureView;
 		cache.getOrCreate(request({} as GPUBindGroupLayout, 'float', [view]));
-		cache.getOrCreate(request({} as GPUBindGroupLayout, 'uint', [view]));
+		cache.getOrCreate(request({} as GPUBindGroupLayout, 'float', [view]));
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 

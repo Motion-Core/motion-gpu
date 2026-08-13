@@ -356,10 +356,12 @@ export function ComputeScenario() {
 				setActiveMaterial(materialWithStorageTexture);
 				break;
 			case 'sample-nearest':
+				// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 				setActivePasses([sampledTextureComputePass, seedSampleTexturePass]);
 				setActiveMaterial(materialWithNearestSampler);
 				break;
 			case 'sample-linear':
+				// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 				setActivePasses([sampledTextureComputePass, seedSampleTexturePass]);
 				setActiveMaterial(materialWithLinearSampler);
 				break;

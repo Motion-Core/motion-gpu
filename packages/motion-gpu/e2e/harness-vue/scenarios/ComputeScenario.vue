@@ -346,11 +346,13 @@ function applyMode(mode: ComputeMode): void {
 		return;
 	}
 	if (mode === 'sample-nearest') {
+		// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 		activePasses.value = [sampledTextureComputePass, seedSampleTexturePass];
 		activeMaterial.value = materialWithNearestSampler;
 		return;
 	}
 	if (mode === 'sample-linear') {
+		// Deliberately list the reader first; the current-version dependency schedules the seed pass first.
 		activePasses.value = [sampledTextureComputePass, seedSampleTexturePass];
 		activeMaterial.value = materialWithLinearSampler;
 		return;

@@ -111,7 +111,7 @@ describe('public api contract', () => {
 
 		expect(
 			acceptComputeResourceMaps(resources, resources, resources, resources, resources)
-		).toHaveLength(5);
+		).toEqual([resources, resources, resources, resources, resources]);
 	});
 
 	it('rejects incomplete or incompatible compute resource descriptors at compile time', () => {

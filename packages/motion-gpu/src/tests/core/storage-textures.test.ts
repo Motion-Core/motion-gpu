@@ -241,6 +241,17 @@ describe('storage textures', () => {
 		it('returns empty string when there are no resources', () => {
 			expect(buildComputeResourceBindings([])).toBe('');
 		});
+
+		it('generates sampled texture and sampler bindings', () => {
+			const wgsl = buildComputeResourceBindings([
+				{ kind: 'sampled-texture', alias: 'inputTex', binding: 0, scalarType: 'f32' },
+				{ kind: 'sampler', alias: 'linearSampler', binding: 1, samplerType: 'filtering' },
+				{ kind: 'sampler', alias: 'depthSampler', binding: 2, samplerType: 'comparison' }
+			]);
+			expect(wgsl).toContain('@group(1) @binding(0) var inputTex: texture_2d<f32>;');
+			expect(wgsl).toContain('@group(1) @binding(1) var linearSampler: sampler;');
+			expect(wgsl).toContain('@group(1) @binding(2) var depthSampler: sampler_comparison;');
+		});
 	});
 
 	describe('buildComputeShaderSource', () => {

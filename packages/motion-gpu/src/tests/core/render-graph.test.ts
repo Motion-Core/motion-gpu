@@ -383,6 +383,7 @@ describe('render graph planner', () => {
 					[second, computeResources({ writes: [{ logicalId: 'motion' }] })]
 				])
 			);
+			expect.fail('Expected duplicate compute writers to throw.');
 		} catch (error) {
 			expect(toMotionGPUErrorReport(error, 'render').code).toBe('COMPUTE_GRAPH_MULTIPLE_WRITERS');
 		}
@@ -424,6 +425,7 @@ describe('render graph planner', () => {
 					[passB, computeResources({ reads: [{ logicalId: 'a' }], writes: [{ logicalId: 'b' }] })]
 				])
 			);
+			expect.fail('Expected a compute dependency cycle to throw.');
 		} catch (error) {
 			expect(toMotionGPUErrorReport(error, 'render').code).toBe('COMPUTE_GRAPH_CYCLE');
 		}

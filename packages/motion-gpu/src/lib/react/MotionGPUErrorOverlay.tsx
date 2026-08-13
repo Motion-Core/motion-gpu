@@ -5,6 +5,7 @@ import {
 	useState,
 	type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
+import { createMotionGPUErrorOverlayModel } from '../core/error-overlay-model.js';
 import type { MotionGPUErrorReport } from '../core/error-report.js';
 import { Portal } from './Portal.js';
 
@@ -600,98 +601,8 @@ const MOTIONGPU_ERROR_OVERLAY_STYLES = `
 	}
 `;
 
-function normalizeErrorText(value: string): string {
-	return value
-		.trim()
-		.replace(/[.:!]+$/g, '')
-		.toLowerCase();
-}
-
-function shouldShowErrorMessage(value: MotionGPUErrorReport): boolean {
-	return resolveDisplayMessage(value).length > 0;
-}
-
-function resolveDisplayMessage(value: MotionGPUErrorReport): string {
-	const rawMessage = value.message.trim();
-	if (rawMessage.length === 0) {
-		return '';
-	}
-
-	const normalizedMessage = normalizeErrorText(rawMessage);
-	const normalizedTitle = normalizeErrorText(value.title);
-	if (normalizedMessage === normalizedTitle) {
-		return '';
-	}
-
-	const escapedTitle = value.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-	const prefixPattern = new RegExp(`^${escapedTitle}\\s*[:\\-|]\\s*`, 'i');
-	const stripped = rawMessage.replace(prefixPattern, '').trim();
-	return stripped.length > 0 ? stripped : rawMessage;
-}
-
-function formatRuntimeContext(context: MotionGPUErrorReport['context']): string {
-	if (!context) {
-		return '';
-	}
-
-	const indentBlock = (value: string, spaces = 2): string => {
-		const prefix = ' '.repeat(spaces);
-		return value
-			.split('\n')
-			.map((line) => `${prefix}${line}`)
-			.join('\n');
-	};
-
-	const formatMaterialSignature = (value: string): string => {
-		const trimmed = value.trim();
-		if (trimmed.length === 0) {
-			return '<empty>';
-		}
-		try {
-			return JSON.stringify(JSON.parse(trimmed), null, 2);
-		} catch {
-			return trimmed;
-		}
-	};
-
-	const lines: string[] = [];
-	if (context.materialSignature) {
-		lines.push('materialSignature:');
-		lines.push(indentBlock(formatMaterialSignature(context.materialSignature)));
-	}
-	if (context.passGraph) {
-		lines.push('passGraph:');
-		lines.push(`  passCount: ${context.passGraph.passCount}`);
-		lines.push(`  enabledPassCount: ${context.passGraph.enabledPassCount}`);
-		lines.push('  inputs:');
-		if (context.passGraph.inputs.length === 0) {
-			lines.push('    - <none>');
-		} else {
-			for (const input of context.passGraph.inputs) {
-				lines.push(`    - ${input}`);
-			}
-		}
-		lines.push('  outputs:');
-		if (context.passGraph.outputs.length === 0) {
-			lines.push('    - <none>');
-		} else {
-			for (const output of context.passGraph.outputs) {
-				lines.push(`    - ${output}`);
-			}
-		}
-	}
-	lines.push('activeRenderTargets:');
-	if (context.activeRenderTargets.length === 0) {
-		lines.push('  - <none>');
-	} else {
-		for (const target of context.activeRenderTargets) {
-			lines.push(`  - ${target}`);
-		}
-	}
-	return lines.join('\n');
-}
-
 export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
+	const model = createMotionGPUErrorOverlayModel(report);
 	const detailsSummary = report.source ? 'Additional diagnostics' : 'Technical details';
 	const componentId = useId();
 	const titleId = `${componentId}-title`;
@@ -818,8 +729,8 @@ export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
 							</div>
 						</header>
 						<div id={descriptionId} className="motiongpu-error-body">
-							{shouldShowErrorMessage(report) ? (
-								<p className="motiongpu-error-message">{resolveDisplayMessage(report)}</p>
+							{model.displayMessage.length > 0 ? (
+								<p className="motiongpu-error-message">{model.displayMessage}</p>
 							) : null}
 							<p className="motiongpu-error-hint">{report.hint}</p>
 						</div>
@@ -893,7 +804,7 @@ export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
 										<ChevronDownIcon />
 										<span>Runtime context</span>
 									</summary>
-									<pre>{formatRuntimeContext(report.context)}</pre>
+									<pre>{model.runtimeContextText}</pre>
 								</details>
 							) : null}
 						</div>

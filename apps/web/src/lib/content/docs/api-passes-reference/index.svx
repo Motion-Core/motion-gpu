@@ -52,6 +52,7 @@ Both expose `setSize`, `render`, and `dispose` through the render-pass lifecycle
 ```ts
 new ComputePass({
 	compute: string,
+	resources?: ComputeResourceMap,
 	dispatch?: tuple | 'auto' | (context) => [number, number, number],
 	enabled?: boolean
 })
@@ -59,10 +60,42 @@ new ComputePass({
 
 The source requires `@compute`, numeric `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature.
 
+`resources` is keyed by WGSL alias. An omitted map is equivalent to `{}`; no material storage resource is injected implicitly.
+
+```ts
+type ComputeResourceDescriptor =
+	| {
+			texture: string | ComputeExternalTextureReference | ComputeExternalTextureViewReference;
+			access: 'sampled';
+			view?: ComputeTextureViewDescriptor;
+			version?: 'current' | 'initial';
+			pingPong?: 'read';
+	  }
+	| {
+			texture: string | ComputeExternalTextureReference | ComputeExternalTextureViewReference;
+			access: 'storage-write';
+			view?: ComputeTextureViewDescriptor;
+			pingPong?: 'write';
+	  }
+	| {
+			buffer: string | ComputeExternalBufferReference;
+			access: 'storage-read';
+			version?: 'current' | 'initial';
+	  }
+	| {
+			buffer: string | ComputeExternalBufferReference;
+			access: 'storage-read-write';
+	  }
+	| { sampler: string | ComputeExternalSamplerReference };
+```
+
+Texture views support `baseMipLevel`, `mipLevelCount`, `baseArrayLayer`, and `arrayLayerCount: 1`. String references are material keys. External references are borrowed typed objects with a stable `resourceId`; see [Compute Shaders](/docs/compute-shaders#borrowed-webgpu-resources) for their metadata and ownership contract.
+
 ```ts
 setCompute(source): void
 setDispatch(dispatch): void
 getCompute(): string
+getResources(): ComputeResourceMap
 getWorkgroupSize(): [number, number, number]
 resolveDispatch(context): [number, number, number]
 dispose(): void
@@ -72,23 +105,34 @@ dispose(): void
 
 ## `PingPongComputePass`
 
-Adds required `target`, optional positive-integer `iterations` (default `1`), and the `isPingPong` discriminant. Its target must be a declared storage texture with explicit dimensions.
+Requires `resources`, accepts a positive-integer `iterations` (default `1`), and adds the `isPingPong` discriminant. The map must contain exactly one sampled `pingPong: 'read'` descriptor and one storage-write `pingPong: 'write'` descriptor. Both point to the same storage texture.
 
 ```ts
-getCurrentOutput(): string
-advanceFrame(): void
+new PingPongComputePass({
+	compute,
+	resources: {
+		previous: { texture: 'velocity', access: 'sampled', pingPong: 'read' },
+		next: { texture: 'velocity', access: 'storage-write', pingPong: 'write' },
+		obstacles: { texture: 'obstacles', access: 'sampled' }
+	},
+	iterations: 8,
+	dispatch: 'auto'
+});
+```
+
+The renderer keeps A/B names and parity private. It publishes the latest result under the logical material key after the iteration batch.
+
+```ts
 setIterations(count): void
 setCompute(source): void
 setDispatch(dispatch): void
-getTarget(): string
 getIterations(): number
 getCompute(): string
+getResources(): ComputeResourceMap
 getWorkgroupSize(): [number, number, number]
 resolveDispatch(context): [number, number, number]
 dispose(): void
 ```
-
-The renderer calls `advanceFrame()` after the current iteration batch. Output A/B parity therefore remains correct when iteration count changes between frames.
 
 ## `PingPongShaderPass`
 

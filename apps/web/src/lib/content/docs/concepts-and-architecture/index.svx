@@ -10,7 +10,7 @@ Motion GPU separates immutable pipeline declarations from mutable frame data. Th
 | Layer | Owns | Changes |
 | --- | --- | --- |
 | Material | Fragment source, uniforms and their types, texture definitions, defines, includes, storage-buffer definitions | Create a new material |
-| Canvas | Device options, color pipeline, passes, render targets, render mode, DPR | Update `FragCanvas` props |
+| Canvas | Device options, color pipeline, passes and their immutable resource topology, render targets, render mode, DPR | Update `FragCanvas` props |
 | Frame | Uniform values, texture sources, storage-buffer writes, invalidation | Use `FrameState` or runtime context methods |
 
 `defineMaterial(...)` validates and freezes its result. `resolveMaterial(...)` preprocesses WGSL, builds the uniform layout, resolves texture and storage metadata, and computes a deterministic material signature.
@@ -35,13 +35,29 @@ Each animation-frame tick follows this order:
 2. Run scheduled `useFrame` tasks in resolved stage and task order.
 3. Evaluate `autoRender` and the active render mode.
 4. When rendering, merge material defaults with runtime overrides, flush pending storage-buffer writes, upload eligible textures, and write dirty uniform ranges.
-5. Execute enabled compute and fragment-feedback passes in declaration order.
+5. Resolve external compute providers, validate resource accesses, and execute each compute graph segment in stable dependency order. Fragment-feedback passes remain opaque barriers in their declaration positions.
 6. Render the base material.
 7. Execute enabled render passes through the slot graph.
 8. Present the final surface, applying the private color presentation pass when configured.
 9. Clear one-frame invalidation and manual-advance state.
 
 Compute and fragment-feedback passes are always pre-scene. Their position relative to render passes in the `passes` array cannot place them between post-processing passes.
+
+## Compute resource graph
+
+Each compute descriptor resolves to a logical resource, a physical GPU allocation, and a read or write role. The same resolved model drives shader bindings and scheduling.
+
+For every consecutive compute segment, the planner:
+
+1. finds the single writer for each logical resource;
+2. places `version: 'current'` readers after that writer;
+3. places `version: 'initial'` readers before it;
+4. adds publication edges from ping-pong writers to downstream readers;
+5. performs a stable topological sort, using declaration order only for independent passes.
+
+Multiple writers, dependency cycles, and overlapping sampled/write subresources fail before command submission. A fragment-feedback pass splits compute segments because it has no compute resource descriptors. Work never moves across that barrier.
+
+Material textures and buffers enter a frame as the `initial` version. A normal writer or completed ping-pong batch publishes `current`. The base fragment render reads the latest published view. Ping-pong A/B allocations and parity are renderer internals.
 
 ## Renderer rebuild boundary
 
@@ -51,6 +67,7 @@ Compute and fragment-feedback passes are always pre-scene. Their position relati
 | Uniform name or type | Rebuild |
 | Texture definition, including sampling, upload, storage, dimensions, format, or `fragmentVisible` | Rebuild |
 | Storage-buffer name, size, type, access, or `initialData` | Rebuild |
+| Pass resource topology or external-resource metadata | New pass instance; compute pipeline/layout selected for the new topology |
 | `color`, `adapterOptions`, or `deviceDescriptor` | Rebuild |
 | Runtime uniform value | Dirty-range buffer update |
 | Runtime texture source | Upload; reallocate only when required by size or format |
@@ -59,6 +76,8 @@ Compute and fragment-feedback passes are always pre-scene. Their position relati
 | `clearColor`, render mode, `autoRender`, `maxDelta`, or DPR | Apply through runtime state |
 
 Material signatures cover material-owned declarations. The runtime combines them with canvas-owned pipeline inputs to decide whether to destroy and recreate the renderer.
+
+Physical resource identity is not part of a compute pipeline key. A per-frame video upload, resized owned texture, or external provider swap can refresh a bind group while reusing the same pipeline. External providers are evaluated once per pass per rendered frame so graph validation and command encoding see the same object.
 
 ## Render graph
 

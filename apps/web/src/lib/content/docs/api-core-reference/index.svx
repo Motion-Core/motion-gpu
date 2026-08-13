@@ -17,6 +17,6 @@ description: Framework-neutral exports for adapters, tooling, and low-level runt
 | `ComputePass`, `PingPongComputePass` | Pre-scene compute passes |
 | `PingPongShaderPass` | Pre-scene fragment-feedback pass |
 
-The entrypoint also exports the related public types: materials, resources, frame registry, runtime loop, errors, passes, render targets, and color pipeline contracts.
+The entrypoint also exports the related public types: materials, resources, frame registry, runtime loop, errors, passes, render targets, and color pipeline contracts. Compute resource exports include `ComputeResourceMap`, every descriptor variant, texture view selection, current/initial versions, and typed external texture, view, buffer, and sampler references.
 
 Use an adapter entrypoint when an application needs `FragCanvas` or hooks. Use core for custom adapters, headless validation, shader tooling, and direct runtime integration.

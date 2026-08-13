@@ -105,8 +105,9 @@
 		"perf:gpu:check": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --strict",
 		"perf:gpu:baseline": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --update-baseline",
 		"perf:gpu:headed": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --headed",
-		"lint": "prettier --check . && eslint . --max-warnings 0 && pnpm run lint:config",
+		"lint": "prettier --check . && eslint . --max-warnings 0 && pnpm run lint:config && pnpm run lint:imports",
 		"lint:config": "node --test ./scripts/lint/config-coverage.test.mjs && node ./scripts/lint/config-coverage.mjs",
+		"lint:imports": "node --test ./scripts/lint/import-boundaries.test.mjs && node ./scripts/lint/import-boundaries.mjs",
 		"format": "prettier --write ."
 	},
 	"peerDependencies": {

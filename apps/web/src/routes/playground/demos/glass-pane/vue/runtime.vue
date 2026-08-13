@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useFrame, useTexture } from '@motion-core/motion-gpu/vue';
 
-const image = useTexture(['/sample-image-21.jpg'], {
+const image = useTexture(['/playground-media/sample-image-21.jpg'], {
 	flipY: true,
 	colorSpace: 'srgb'
 });

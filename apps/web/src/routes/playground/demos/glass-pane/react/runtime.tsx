@@ -1,7 +1,7 @@
 import { useFrame, useTexture } from '@motion-core/motion-gpu/react';
 
 export default function Runtime() {
-	const image = useTexture(['/sample-image-21.jpg'], {
+	const image = useTexture(['/playground-media/sample-image-21.jpg'], {
 		flipY: true,
 		colorSpace: 'srgb'
 	});

@@ -53,7 +53,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
     let historyWeight = clamp(0.76 + activity * 0.19, 0.0, 0.965);
     var color = mix(current, historyColor * 0.994, historyWeight);
-    color += max(current - vec3f(0.58), vec3f(0.0)) * (0.04 + activity * 0.08);
+    color += max(current - vec3f(0.58), vec3f(0.0)) * (0.04 + activity * 100.08);
 
     if motiongpuUniforms.uReset > 0.5 || previousCenter.a < 0.5 {
         color = current;

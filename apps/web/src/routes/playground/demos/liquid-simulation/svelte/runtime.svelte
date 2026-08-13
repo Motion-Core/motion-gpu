@@ -25,7 +25,12 @@
 	useFrame((frame) => {
 		if (!mediumCanvas) return;
 		const current = pointer.state.current;
-		const target: [number, number] = current.inside ? current.uv : [0.5, 0.5];
+		if (current.inside && !wasInside) {
+			smoothPointer = [current.uv[0], current.uv[1]];
+			previousPointer = [current.uv[0], current.uv[1]];
+		}
+		const strokeStart: [number, number] = [smoothPointer[0], smoothPointer[1]];
+		const target: [number, number] = current.inside ? current.uv : smoothPointer;
 		const positionBlend = 1 - Math.exp(-frame.delta * 16);
 		smoothPointer = [
 			smoothPointer[0] + (target[0] - smoothPointer[0]) * positionBlend,
@@ -43,14 +48,19 @@
 		pointerEnergy += (targetEnergy - pointerEnergy) * energyBlend;
 		if (current.inside) previousPointer = [current.uv[0], current.uv[1]];
 		wasInside = current.inside;
-		frame.setUniform('uPointer', smoothPointer);
+		frame.setUniform('uPointer', [
+			smoothPointer[0],
+			smoothPointer[1],
+			strokeStart[0],
+			strokeStart[1]
+		]);
 		frame.setUniform('uPointerEnergy', pointerEnergy);
 
 		frame.setTexture('medium', {
 			source: mediumCanvas,
 			update: 'once',
 			flipY: false,
-			colorSpace: 'srgb'
+			colorSpace: 'linear'
 		});
 	});
 </script>

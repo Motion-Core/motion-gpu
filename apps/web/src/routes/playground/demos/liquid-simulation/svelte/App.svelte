@@ -31,7 +31,14 @@
 				filter: 'linear',
 				fragmentVisible: false
 			},
-			medium: { filter: 'linear', update: 'once', fragmentVisible: false, flipY: false },
+			medium: {
+				format: 'rgba8unorm',
+				colorSpace: 'linear',
+				filter: 'linear',
+				update: 'once',
+				fragmentVisible: false,
+				flipY: false
+			},
 			finalOutput: {
 				storage: true,
 				format: 'rgba16float',
@@ -40,7 +47,7 @@
 				filter: 'linear'
 			}
 		},
-		uniforms: { uPointer: [0.5, 0.5], uPointerEnergy: 0 }
+		uniforms: { uPointer: [0.5, 0.5, 0.5, 0.5], uPointerEnergy: 0 }
 	});
 
 	const simulate = new PingPongComputePass({

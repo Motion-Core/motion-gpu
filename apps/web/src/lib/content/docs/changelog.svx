@@ -20,12 +20,10 @@ description: All notable changes to Motion GPU will be documented in this file. 
 - Added current/initial read versions, 2D texture subresource views, format-aware sampled WGSL types, typed fallback textures, sampler compatibility checks, and device-limit preflight.
 - Added borrowed `GPUTexture`, `GPUTextureView`, `GPUBuffer`, and `GPUSampler` references with stable logical IDs, per-frame providers, typed metadata, and non-owning lifecycle rules.
 - Added compute graph scheduling, normal and ping-pong output publication, same-dispatch hazard validation, and stable diagnostic codes for descriptor, resource, external-object, limit, multiple-writer, and cycle failures.
-- Added Svelte, React, and Vue playground examples for video motion estimation with temporal data moshing and compute ping-pong propagation with a downstream consumer.
 
 ### Changed
 
 - Unified compute shader generation, bind-group layouts, graph access sets, resource validation, and cache topology around one resolved resource model in group 1.
-- Migrated package E2E scenarios and the Svelte, React, and Vue Particle Icosahedron, Rubik's Cube, and TanStack demos to explicit resource descriptors.
 
 ### Performance
 

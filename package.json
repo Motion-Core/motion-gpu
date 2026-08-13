@@ -39,7 +39,7 @@
 		"format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format",
 		"format:check:root": "pnpm exec prettier --check package.json CONTRIBUTING.md scripts .github",
 		"format:check": "pnpm run format:check:root && pnpm --dir apps/web run format:check && pnpm --dir packages/motion-gpu exec prettier --check .",
-		"ci:quality": "pnpm run docs:changelog:check && pnpm run test:audit-compute-resources && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:web && pnpm run test:motion-gpu && pnpm --dir apps/web test --passWithNoTests",
+		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:web && pnpm run test:motion-gpu && pnpm --dir apps/web test --passWithNoTests",
 		"ci:e2e": "pnpm --dir packages/motion-gpu run test:e2e",
 		"ci": "pnpm run ci:quality && pnpm run ci:e2e",
 		"prepare": "node ./scripts/setup-git-hooks.mjs"

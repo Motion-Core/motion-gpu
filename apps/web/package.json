@@ -22,8 +22,7 @@
 		"github-slugger": "^2.0.0",
 		"globals": "^17.11.0",
 		"mdsvex": "^0.12.6",
-		"prettier": "catalog:",
-		"prettier-plugin-svelte": "^3.5.2",
+		"oxfmt": "catalog:",
 		"rehype-pretty-code": "^0.14.1",
 		"rehype-slug": "^6.0.0",
 		"shiki": "^4.0.1",
@@ -55,8 +54,8 @@
 		"test:watch": "vitest",
 		"lint": "eslint . && pnpm run lint:config",
 		"lint:config": "node --test ../../scripts/eslint/shared-preset.test.mjs ./scripts/lint/config-coverage.test.mjs && node ./scripts/lint/config-coverage.mjs",
-		"format": "prettier --write .",
-		"format:check": "prettier --check ."
+		"format": "oxfmt",
+		"format:check": "oxfmt --check"
 	},
 	"type": "module",
 	"dependencies": {

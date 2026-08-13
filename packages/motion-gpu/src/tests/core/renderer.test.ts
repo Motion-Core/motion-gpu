@@ -1145,7 +1145,8 @@ describe('createRenderer', () => {
 		});
 		const viewB = textureB?.createView.mock.results[0]?.value as GPUTextureView | undefined;
 		const latestBindGroup = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
-			GPUBindGroupDescriptor | undefined;
+			| GPUBindGroupDescriptor
+			| undefined;
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCountAfterA + 1);
 		expect(
 			Array.from(latestBindGroup?.entries ?? []).some((entry) => entry.resource === viewB)
@@ -1245,7 +1246,8 @@ describe('createRenderer', () => {
 		const pipelinesAfterInit = runtime.device.createRenderPipeline.mock.calls.length;
 		const bindGroupsAfterInit = runtime.device.createBindGroup.mock.calls.length;
 		const initialBindGroupDescriptor = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
-			GPUBindGroupDescriptor | undefined;
+			| GPUBindGroupDescriptor
+			| undefined;
 		const initialTextureView = Array.from(initialBindGroupDescriptor?.entries ?? []).find(
 			(entry) => entry.binding === 3
 		)?.resource;
@@ -1288,7 +1290,8 @@ describe('createRenderer', () => {
 		expect(runtime.device.createBindGroup).toHaveBeenCalledTimes(bindGroupsAfterUpload + 1);
 		expect(runtime.device.createRenderPipeline).toHaveBeenCalledTimes(pipelinesAfterInit);
 		const restoredBindGroupDescriptor = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
-			GPUBindGroupDescriptor | undefined;
+			| GPUBindGroupDescriptor
+			| undefined;
 		expect(
 			Array.from(restoredBindGroupDescriptor?.entries ?? []).find((entry) => entry.binding === 3)
 				?.resource
@@ -1463,7 +1466,8 @@ describe('createRenderer', () => {
 		expect(runtime.renderPasses[0]?.setPipeline).toHaveBeenCalledWith(directCanvasPipeline);
 
 		const descriptor = runtime.commandEncoders[0]?.beginRenderPass.mock.calls[0]?.[0] as
-			GPURenderPassDescriptor | undefined;
+			| GPURenderPassDescriptor
+			| undefined;
 		const attachment = Array.from(descriptor?.colorAttachments ?? [])[0];
 		expect(attachment?.clearValue).toEqual({ r: 0.25, g: 0, b: 0, a: 0.25 });
 	});
@@ -1666,7 +1670,8 @@ describe('createRenderer', () => {
 		const canvasTexture = runtime.context.getCurrentTexture.mock.results[0]?.value;
 		const passRender = pass.render as ReturnType<typeof vi.fn>;
 		const passContext = passRender.mock.calls[0]?.[0] as
-			Parameters<NonNullable<RenderPass['render']>>[0] | undefined;
+			| Parameters<NonNullable<RenderPass['render']>>[0]
+			| undefined;
 		expect(passContext).toEqual(
 			expect.objectContaining({
 				output: expect.objectContaining({ width: 10, height: 10, format: 'rgba8unorm' }),
@@ -2169,9 +2174,11 @@ describe('createRenderer', () => {
 		expect(runtime.commandEncoders[0]?.beginComputePass).toHaveBeenCalledTimes(2);
 		const computeEncoder = runtime.computePasses[0];
 		const firstPipeline = runtime.device.createComputePipeline.mock.calls[0]?.[0] as
-			GPUComputePipelineDescriptor | undefined;
+			| GPUComputePipelineDescriptor
+			| undefined;
 		const secondPipeline = runtime.device.createComputePipeline.mock.calls[1]?.[0] as
-			GPUComputePipelineDescriptor | undefined;
+			| GPUComputePipelineDescriptor
+			| undefined;
 		const firstCode = (firstPipeline?.compute.module as unknown as { code?: string })?.code;
 		const secondCode = (secondPipeline?.compute.module as unknown as { code?: string })?.code;
 		expect(firstCode).toContain('var sourceTex: texture_2d');

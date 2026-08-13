@@ -111,11 +111,12 @@
 		"perf:renderer": "tsx ./scripts/perf/real-renderer-benchmark.ts",
 		"perf:renderer:baseline": "tsx ./scripts/perf/real-renderer-benchmark.ts --update-baseline",
 		"perf:renderer:headed": "tsx ./scripts/perf/real-renderer-benchmark.ts --headed",
-		"lint": "prettier --check . && pnpm run lint:oxlint && eslint . --max-warnings 0 && pnpm run lint:config && pnpm run lint:imports",
+		"lint": "pnpm run lint:oxlint && eslint . --max-warnings 0 && pnpm run lint:config && pnpm run lint:imports",
 		"lint:config": "node --test ./scripts/lint/config-coverage.test.mjs && node ./scripts/lint/config-coverage.mjs",
 		"lint:imports": "node --test ./scripts/lint/import-boundaries.test.mjs && node ./scripts/lint/import-boundaries.mjs",
 		"lint:oxlint": "oxlint --deny-warnings src/lib && oxlint --type-aware -A all -D typescript/await-thenable -D typescript/no-floating-promises -D typescript/no-misused-promises --deny-warnings src/lib && node --test ./scripts/lint/oxlint-equivalence.test.mjs && node ./scripts/lint/oxlint-equivalence.mjs",
-		"format": "prettier --write ."
+		"format": "oxfmt",
+		"format:check": "oxfmt --check"
 	},
 	"peerDependencies": {
 		"react": "^19.0.0",
@@ -163,9 +164,7 @@
 		"happy-dom": "^20.11.2",
 		"oxlint": "^1.78.0",
 		"oxlint-tsgolint": "^7.0.2001",
-		"prettier": "catalog:",
-		"prettier-plugin-svelte": "^3.5.2",
-		"prettier-plugin-tailwindcss": "catalog:",
+		"oxfmt": "catalog:",
 		"publint": "^0.3.23",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",

@@ -17,7 +17,7 @@
 
 	let { onProbe }: Props = $props();
 	const pluginStore = useMotionGPUUserContext<UserMap>('plugin');
-	const assertType = <T,>(value: T): void => {
+	const assertType = <T>(value: T): void => {
 		void value;
 	};
 	setMotionGPUUserContext('plugin', () => ({ enabled: true }), {

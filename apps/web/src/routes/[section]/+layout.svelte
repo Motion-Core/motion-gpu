@@ -177,12 +177,12 @@
 		<meta name="twitter:description" content={docDescription} />
 		<meta name="twitter:image" content={docOgImage} />
 		{#if docStructuredData}
-			<svelte:element this={'script'} type="application/ld+json">
+			<svelte:element this={"script"} type="application/ld+json">
 				{docStructuredData}
 			</svelte:element>
 		{/if}
 		{#if breadcrumbStructuredData}
-			<svelte:element this={'script'} type="application/ld+json">
+			<svelte:element this={"script"} type="application/ld+json">
 				{breadcrumbStructuredData}
 			</svelte:element>
 		{/if}

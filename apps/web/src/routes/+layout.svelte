@@ -99,7 +99,7 @@
 		<meta name="twitter:title" content={homeTitle} />
 		<meta name="twitter:description" content={homeDescription} />
 		<meta name="twitter:image" content={sharedOgImage} />
-		<svelte:element this={'script'} type="application/ld+json">
+		<svelte:element this={"script"} type="application/ld+json">
 			{homeStructuredData}
 		</svelte:element>
 	{:else if !currentSection}

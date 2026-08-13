@@ -8,6 +8,5 @@ catalog:
   '@eslint/js': ^10.0.1
   eslint: ^10.8.1
   eslint-config-prettier: ^10.1.8
-  prettier: ^3.9.6
-  prettier-plugin-tailwindcss: ^0.7.4
+  oxfmt: ^0.63.0
   typescript: ^5.9.3

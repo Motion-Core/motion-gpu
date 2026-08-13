@@ -120,7 +120,7 @@ const pass = new ComputePass({
 });
 ```
 
-External texture, view, buffer, and sampler references are borrowed. Motion GPU never destroys them. Providers run once per pass per rendered frame and receive `{ device, width, height, time, delta }`; the returned object is snapshot for graph validation and binding. `resourceId` must remain the same for the same logical allocation, including aliases and views. A provider must return a resource created for the current device after device recovery.
+External texture, view, buffer, and sampler references are borrowed. Motion GPU never destroys them. Providers run once per pass per rendered frame and receive `{ device, width, height, time, delta }`; the returned object is captured for graph validation and binding. `resourceId` must remain the same for the same logical allocation, including aliases and views. A provider must return a resource created for the current device after device recovery.
 
 Metadata is part of the contract: textures declare format and usage, views add dimension and mip count, buffers add WGSL type and size, and samplers add binding type. Object changes refresh a bind group but do not rebuild a pipeline while topology and metadata remain unchanged.
 

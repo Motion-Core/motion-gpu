@@ -3,3 +3,4 @@ dist/
 .svelte-kit/
 .DS_Store
 packages/motion-gpu/benchmarks/results/*.json
+packages/motion-gpu/coverage/

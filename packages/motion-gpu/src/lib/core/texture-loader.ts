@@ -460,6 +460,7 @@ export async function loadTextureFromUrl(
 
 		if (normalized.signal?.aborted) {
 			bitmap.close();
+			bitmap = null;
 			throw createAbortError();
 		}
 

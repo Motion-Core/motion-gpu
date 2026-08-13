@@ -21,8 +21,11 @@
 		"check": "pnpm run build:motion-gpu && pnpm run check:motion-gpu && pnpm run check:web",
 		"check:web": "pnpm --dir apps/web run check",
 		"check:motion-gpu": "pnpm --dir packages/motion-gpu run check",
+		"check:motion-gpu:consumers": "pnpm --dir packages/motion-gpu run check:consumers",
+		"check:motion-gpu:consumers:peers": "pnpm --dir packages/motion-gpu run check:consumers:peers",
 		"test": "pnpm run build:motion-gpu && pnpm run test:motion-gpu && pnpm --dir apps/web test --passWithNoTests",
 		"test:motion-gpu": "pnpm --dir packages/motion-gpu run test",
+		"test:motion-gpu:coverage": "pnpm --dir packages/motion-gpu run test:coverage",
 		"perf:motion-gpu:core": "pnpm --dir packages/motion-gpu run perf:core",
 		"perf:motion-gpu:core:check": "pnpm --dir packages/motion-gpu run perf:core:check",
 		"perf:motion-gpu:core:baseline": "pnpm --dir packages/motion-gpu run perf:core:baseline",
@@ -39,25 +42,19 @@
 		"format": "pnpm --dir apps/web run format && pnpm --dir packages/motion-gpu run format",
 		"format:check:root": "pnpm exec prettier --check package.json CONTRIBUTING.md scripts .github",
 		"format:check": "pnpm run format:check:root && pnpm --dir apps/web run format:check && pnpm --dir packages/motion-gpu exec prettier --check .",
-		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:web && pnpm run test:motion-gpu && pnpm --dir apps/web test --passWithNoTests",
+		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:motion-gpu:consumers && pnpm run check:motion-gpu:consumers:peers && pnpm run check:web && pnpm run test:motion-gpu:coverage && pnpm --dir apps/web test --passWithNoTests",
 		"ci:e2e": "pnpm --dir packages/motion-gpu run test:e2e",
 		"ci": "pnpm run ci:quality && pnpm run ci:e2e",
 		"prepare": "node ./scripts/setup-git-hooks.mjs"
 	},
 	"dependencies": {
-		"prettier-plugin-tailwindcss": "^0.7.2"
+		"prettier-plugin-tailwindcss": "catalog:"
 	},
 	"devDependencies": {
-		"prettier": "^3.8.1",
-		"prettier-plugin-svelte": "^3.5.0"
+		"prettier": "catalog:",
+		"prettier-plugin-svelte": "^3.5.2"
 	},
 	"pnpm": {
-		"overrides": {
-			"@vitest/coverage-v8": "4.1.6",
-			"react": "19.2.6",
-			"react-dom": "19.2.6",
-			"tinyest": "0.3.1"
-		},
 		"onlyBuiltDependencies": [
 			"esbuild",
 			"sharp",

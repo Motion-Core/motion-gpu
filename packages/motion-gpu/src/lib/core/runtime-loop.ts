@@ -669,7 +669,7 @@ export function createMotionGPURuntimeLoop(
 		}
 	};
 
-	(async () => {
+	void (async () => {
 		try {
 			const initialMaterial = resolveActiveMaterial();
 			materialResolveAttempts = 0;

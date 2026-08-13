@@ -1,0 +1,20 @@
+{
+	"name": "@motion-gpu-consumers/vue",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"check": "vue-tsc --noEmit --project ./tsconfig.json"
+	},
+	"dependencies": {
+		"@motion-core/motion-gpu": "file:__MOTION_GPU_TARBALL__",
+		"vue": "^3.5.0"
+	},
+	"devDependencies": {
+		"@types/node": "^25.8.0",
+		"@vitejs/plugin-vue": "^6.0.3",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.1",
+		"vue-tsc": "^3.1.0"
+	}
+}

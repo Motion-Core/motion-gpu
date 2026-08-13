@@ -1,0 +1,15 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["eslint", "typescript", "oxc"],
+	"categories": {
+		"correctness": "error"
+	},
+	"ignorePatterns": [
+		"dist/**",
+		".svelte-kit/**",
+		"coverage/**",
+		"scripts/lint/fixtures/**",
+		"**/*.svelte",
+		"**/*.vue"
+	]
+}

@@ -1,16 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
-import {
-	createCurrentWritable as currentWritable,
-	type CurrentReadable
-} from '../core/current-value.js';
-import {
-	isAbortError,
-	loadTexturesFromUrls,
-	mergeAbortSignals,
-	type LoadedTexture,
-	type TextureLoadOptions
-} from '../core/texture-loader.js';
-import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report.js';
+import { useEffect, useRef } from 'react';
+import { type CurrentReadable } from '../core/current-value.js';
+import { createTextureLoadController } from '../core/texture-load-controller.js';
+import { type LoadedTexture, type TextureLoadOptions } from '../core/texture-loader.js';
+import { type MotionGPUErrorReport } from '../core/error-report.js';
 
 /**
  * Reactive state returned by `useTexture`.
@@ -44,26 +36,6 @@ export interface UseTextureResult {
 export type TextureUrlInput = string[] | (() => string[]);
 
 /**
- * Normalizes unknown thrown values to an `Error` instance.
- */
-function toError(error: unknown): Error {
-	if (error instanceof Error) {
-		return error;
-	}
-
-	return new Error('Unknown texture loading error');
-}
-
-/**
- * Releases GPU-side resources for a list of loaded textures.
- */
-function disposeTextures(list: LoadedTexture[] | null): void {
-	for (const texture of list ?? []) {
-		texture.dispose();
-	}
-}
-
-/**
  * Loads textures from URLs and exposes reactive loading/error state.
  *
  * @param urlInput - URLs array or lazy URL provider.
@@ -74,117 +46,32 @@ export function useTexture(
 	urlInput: TextureUrlInput,
 	options: TextureLoadOptions = {}
 ): UseTextureResult {
-	const texturesRef = useRef(currentWritable<LoadedTexture[] | null>(null));
-	const loadingRef = useRef(currentWritable(true));
-	const errorRef = useRef(currentWritable<Error | null>(null));
-	const errorReportRef = useRef(currentWritable<MotionGPUErrorReport | null>(null));
-	const activeControllerRef = useRef<AbortController | null>(null);
-	const runningLoadRef = useRef<Promise<void> | null>(null);
-	const reloadQueuedRef = useRef(false);
-	const requestVersionRef = useRef(0);
-	const disposedRef = useRef(false);
 	const optionsRef = useRef(options);
 	const urlInputRef = useRef(urlInput);
+	const controllerRef = useRef<ReturnType<typeof createTextureLoadController> | null>(null);
 
 	optionsRef.current = options;
 	urlInputRef.current = urlInput;
-
-	const getUrls = useCallback((): string[] => {
-		const currentInput = urlInputRef.current;
-		return typeof currentInput === 'function' ? currentInput() : currentInput;
-	}, []);
-
-	const executeLoad = useCallback(async (): Promise<void> => {
-		if (disposedRef.current) {
-			return;
-		}
-
-		const version = ++requestVersionRef.current;
-		const controller = new AbortController();
-		activeControllerRef.current = controller;
-		loadingRef.current.set(true);
-		errorRef.current.set(null);
-		errorReportRef.current.set(null);
-
-		const previous = texturesRef.current.current;
-		const mergedSignal = mergeAbortSignals(controller.signal, optionsRef.current.signal);
-		try {
-			const loaded = await loadTexturesFromUrls(getUrls(), {
-				...optionsRef.current,
-				signal: mergedSignal.signal
-			});
-			if (disposedRef.current || version !== requestVersionRef.current) {
-				disposeTextures(loaded);
-				return;
-			}
-
-			texturesRef.current.set(loaded);
-			disposeTextures(previous);
-		} catch (nextError) {
-			if (disposedRef.current || version !== requestVersionRef.current) {
-				return;
-			}
-
-			if (isAbortError(nextError)) {
-				return;
-			}
-
-			disposeTextures(previous);
-			texturesRef.current.set(null);
-			const normalizedError = toError(nextError);
-			errorRef.current.set(normalizedError);
-			errorReportRef.current.set(toMotionGPUErrorReport(normalizedError, 'initialization'));
-		} finally {
-			if (!disposedRef.current && version === requestVersionRef.current) {
-				loadingRef.current.set(false);
-			}
-			if (activeControllerRef.current === controller) {
-				activeControllerRef.current = null;
-			}
-			mergedSignal.dispose();
-		}
-	}, [getUrls]);
-
-	const runLoadLoop = useCallback(async (): Promise<void> => {
-		do {
-			reloadQueuedRef.current = false;
-			await executeLoad();
-		} while (reloadQueuedRef.current && !disposedRef.current);
-	}, [executeLoad]);
-
-	const load = useCallback((): Promise<void> => {
-		activeControllerRef.current?.abort();
-		if (runningLoadRef.current) {
-			reloadQueuedRef.current = true;
-			return runningLoadRef.current;
-		}
-
-		const pending = runLoadLoop();
-		const trackedPending = pending.finally(() => {
-			if (runningLoadRef.current === trackedPending) {
-				runningLoadRef.current = null;
-			}
-		});
-		runningLoadRef.current = trackedPending;
-		return trackedPending;
-	}, [runLoadLoop]);
+	controllerRef.current ??= createTextureLoadController({
+		getUrls: () => {
+			const input = urlInputRef.current;
+			return typeof input === 'function' ? input() : input;
+		},
+		getOptions: () => optionsRef.current
+	});
+	const controller = controllerRef.current;
 
 	useEffect(() => {
-		void load();
-
-		return () => {
-			disposedRef.current = true;
-			requestVersionRef.current += 1;
-			activeControllerRef.current?.abort();
-			disposeTextures(texturesRef.current.current);
-		};
-	}, [load]);
+		controller.resume();
+		void controller.reload();
+		return controller.dispose;
+	}, [controller]);
 
 	return {
-		textures: texturesRef.current,
-		loading: loadingRef.current,
-		error: errorRef.current,
-		errorReport: errorReportRef.current,
-		reload: load
+		textures: controller.textures,
+		loading: controller.loading,
+		error: controller.error,
+		errorReport: controller.errorReport,
+		reload: controller.reload
 	};
 }

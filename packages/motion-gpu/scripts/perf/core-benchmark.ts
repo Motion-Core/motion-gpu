@@ -13,7 +13,24 @@ import {
 import { findDirtyFloatRanges } from '../../src/lib/core/renderer';
 import { createFrameRegistry } from '../../src/lib/core/frame-registry';
 import { createComputeBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache';
-import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
+import {
+	copyComputeResourceMap,
+	normalizeComputeResourceMap,
+	resolveComputePassResources,
+	type ComputeResourceResolverContext,
+	type ComputeResourceResolverLimits
+} from '../../src/lib/core/compute-resources';
+import type {
+	RuntimeStorageBufferResource,
+	RuntimeTextureResource
+} from '../../src/lib/core/resource-registry';
+import type {
+	ComputeResourceDescriptor,
+	ComputeResourceMap,
+	FrameState,
+	RenderPass,
+	UniformValue
+} from '../../src/lib/core/types';
 import {
 	BENCHMARK_SCHEMA_VERSION,
 	collectBenchmarkEnvironment,
@@ -49,7 +66,20 @@ const METRIC_RULES = {
 	resolve_render_targets_8_hz: { direction: 'higher', maxRegressionPct: 15 },
 	frame_registry_run_64_tasks_hz: { direction: 'higher', maxRegressionPct: 15 },
 	frame_registry_run_64_tasks_profiled_hz: { direction: 'higher', maxRegressionPct: 18 },
-	compute_bindgroup_cache_hit_hz: { direction: 'higher', maxRegressionPct: 15 }
+	compute_bindgroup_cache_hit_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_0_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_static_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_1_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_4_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_resolve_external_16_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_1_pass_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_8_passes_hz: { direction: 'higher', maxRegressionPct: 15 },
+	compute_resources_copy_resolve_32_passes_hz: { direction: 'higher', maxRegressionPct: 15 }
 } as const;
 
 type MetricKey = keyof typeof METRIC_RULES;
@@ -249,6 +279,207 @@ async function writeJsonFile(filePath: string, payload: unknown): Promise<void> 
 
 function formatNumber(value: number): string {
 	return value.toFixed(2);
+}
+
+function createComputeResourceBenchmarkCases(): BenchmarkCase[] {
+	const limits: ComputeResourceResolverLimits = {
+		maxBindingsPerBindGroup: 32,
+		maxSampledTexturesPerShaderStage: 16,
+		maxSamplersPerShaderStage: 16,
+		maxStorageTexturesPerShaderStage: 8,
+		maxStorageBuffersPerShaderStage: 8,
+		maxStorageBufferBindingSize: 1 << 20
+	};
+	const view = {} as GPUTextureView;
+	const textures = new Map<string, RuntimeTextureResource>();
+	const buffers = new Map<string, RuntimeStorageBufferResource>();
+	for (let index = 0; index < 8; index += 1) {
+		const texture = {
+			format: 'rgba8unorm',
+			usage: 12,
+			dimension: '2d',
+			sampleCount: 1,
+			depthOrArrayLayers: 1,
+			mipLevelCount: 1,
+			createView: () => view
+		} as unknown as GPUTexture;
+		textures.set(`texture${index}`, {
+			logicalId: `texture${index}`,
+			ownedTexture: texture,
+			storageView: view,
+			sampledView: view,
+			publishedView: view,
+			format: 'rgba8unorm',
+			width: 64,
+			height: 64,
+			mipLevelCount: 1,
+			sampleType: 'float',
+			usage: 12 as GPUTextureUsageFlags,
+			resourceVersion: 0
+		});
+		buffers.set(`buffer${index}`, {
+			logicalId: `buffer${index}`,
+			buffer: { size: 4096, usage: 128 } as GPUBuffer,
+			size: 4096,
+			wgslType: 'array<vec4f>',
+			access: 'read-write',
+			usage: 128 as GPUBufferUsageFlags,
+			resourceVersion: 0
+		});
+	}
+
+	const context: ComputeResourceResolverContext = {
+		passLabel: 'Core benchmark compute pass',
+		deviceFeatures: new Set(),
+		limits,
+		externalContext: {
+			device: {} as GPUDevice,
+			width: 1920,
+			height: 1080,
+			time: 1,
+			delta: 1 / 60
+		},
+		getMaterialTexture: (logicalId) => textures.get(logicalId),
+		getMaterialStorageBuffer: (logicalId) => buffers.get(logicalId),
+		getMaterialSampler: () => undefined,
+		createTextureView: () => view
+	};
+
+	const resourceMap = (count: 0 | 1 | 4 | 16): ComputeResourceMap => {
+		const resources: Record<string, ComputeResourceDescriptor> = {};
+		for (let index = 0; index < Math.min(count, 8); index += 1) {
+			resources[`buffer${index}`] = {
+				buffer: `buffer${index}`,
+				access: 'storage-read'
+			};
+		}
+		for (let index = 8; index < count; index += 1) {
+			resources[`texture${index - 8}`] = {
+				texture: `texture${index - 8}`,
+				access: 'sampled'
+			};
+		}
+		return normalizeComputeResourceMap(resources);
+	};
+	const externalResourceMap = (count: 1 | 4 | 16): ComputeResourceMap => {
+		const resources: Record<string, ComputeResourceDescriptor> = {};
+		for (let index = 0; index < Math.min(count, 8); index += 1) {
+			const buffer = buffers.get(`buffer${index}`)?.buffer;
+			if (!buffer) {
+				throw new Error(`Missing benchmark buffer ${index}`);
+			}
+			resources[`buffer${index}`] = {
+				buffer: {
+					externalBuffer: () => buffer,
+					resourceId: `external-buffer-${index}`,
+					wgslType: 'array<vec4f>',
+					size: 4096,
+					usage: 128
+				},
+				access: 'storage-read'
+			};
+		}
+		for (let index = 8; index < count; index += 1) {
+			const texture = textures.get(`texture${index - 8}`)?.ownedTexture;
+			if (!texture) {
+				throw new Error(`Missing benchmark texture ${index - 8}`);
+			}
+			resources[`texture${index - 8}`] = {
+				texture: {
+					externalTexture: () => texture,
+					resourceId: `external-texture-${index - 8}`,
+					format: 'rgba8unorm',
+					usage: 12
+				},
+				access: 'sampled'
+			};
+		}
+		return normalizeComputeResourceMap(resources);
+	};
+
+	const staticMaps = {
+		0: resourceMap(0),
+		1: resourceMap(1),
+		4: resourceMap(4),
+		16: resourceMap(16)
+	};
+	const externalMaps = {
+		1: externalResourceMap(1),
+		4: externalResourceMap(4),
+		16: externalResourceMap(16)
+	};
+
+	const copyCase = (count: 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = 0;
+		return {
+			name: `compute_resources_copy_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = Object.keys(copyComputeResourceMap(staticMaps[count])).length;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const staticResolveCase = (count: 0 | 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		return {
+			name: `compute_resources_resolve_static_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = resolveComputePassResources(staticMaps[count], context).bindingCount;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const externalResolveCase = (count: 1 | 4 | 16, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		return {
+			name: `compute_resources_resolve_external_${count}_hz`,
+			batchSize,
+			fn: () => {
+				bindingCount = resolveComputePassResources(externalMaps[count], context).bindingCount;
+			},
+			checksum: () => bindingCount
+		};
+	};
+	const passScalingCase = (passCount: 1 | 8 | 32, batchSize: number): BenchmarkCase => {
+		let bindingCount = -1;
+		const metricByPassCount = {
+			1: 'compute_resources_copy_resolve_1_pass_hz',
+			8: 'compute_resources_copy_resolve_8_passes_hz',
+			32: 'compute_resources_copy_resolve_32_passes_hz'
+		} as const;
+		return {
+			name: metricByPassCount[passCount],
+			batchSize,
+			fn: () => {
+				bindingCount = 0;
+				for (let index = 0; index < passCount; index += 1) {
+					bindingCount += resolveComputePassResources(
+						copyComputeResourceMap(staticMaps[4]),
+						context
+					).bindingCount;
+				}
+			},
+			checksum: () => bindingCount
+		};
+	};
+
+	return [
+		copyCase(1, 20_000),
+		copyCase(4, 10_000),
+		copyCase(16, 3_000),
+		staticResolveCase(0, 20_000),
+		staticResolveCase(1, 10_000),
+		staticResolveCase(4, 4_000),
+		staticResolveCase(16, 1_000),
+		externalResolveCase(1, 8_000),
+		externalResolveCase(4, 3_000),
+		externalResolveCase(16, 750),
+		passScalingCase(1, 4_000),
+		passScalingCase(8, 500),
+		passScalingCase(32, 125)
+	];
 }
 
 function createCases(): BenchmarkCase[] {
@@ -548,7 +779,8 @@ fn frag(uv: vec2f) -> vec4f {
 					}
 				};
 			})()
-		}
+		},
+		...createComputeResourceBenchmarkCases()
 	];
 }
 

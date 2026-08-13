@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assertPublicExportMap, injectTarballPath } from './packed-consumers.mjs';
+import {
+	applyExactVersions,
+	assertPublicExportMap,
+	injectTarballPath
+} from './packed-consumers.mjs';
 
 const publicEntries = Object.fromEntries(
 	[
@@ -44,5 +48,21 @@ test('accepts only the complete public entrypoint contract', () => {
 	assert.throws(
 		() => assertPublicExportMap({ ...publicEntries, './src': publicEntries['.'] }),
 		/Packed manifest public entrypoints changed/
+	);
+});
+
+test('pins only declared fixture dependencies without mutating the template', () => {
+	const template = {
+		dependencies: { react: '^19.0.0' },
+		devDependencies: { '@types/react': '^19.0.0' }
+	};
+	assert.deepEqual(applyExactVersions(template, { react: '19.0.0' }), {
+		dependencies: { react: '19.0.0' },
+		devDependencies: { '@types/react': '^19.0.0' }
+	});
+	assert.equal(template.dependencies.react, '^19.0.0');
+	assert.throws(
+		() => applyExactVersions(template, { 'react-dom': '19.0.0' }),
+		/Cannot pin undeclared fixture dependency react-dom/
 	);
 });

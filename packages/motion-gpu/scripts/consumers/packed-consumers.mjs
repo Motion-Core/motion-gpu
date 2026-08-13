@@ -21,6 +21,48 @@ const expectedPublicEntries = [
 	'./vue',
 	'./vue/advanced'
 ];
+const currentVersions = {
+	core: { typescript: '5.9.3', vite: '8.2.1' },
+	react: {
+		'@types/react': '19.2.18',
+		'@types/react-dom': '19.2.4',
+		react: '19.2.8',
+		'react-dom': '19.2.8',
+		typescript: '5.9.3',
+		vite: '8.2.1'
+	},
+	svelte: {
+		'@sveltejs/vite-plugin-svelte': '7.3.0',
+		'svelte-check': '4.7.6',
+		svelte: '5.56.9',
+		typescript: '5.9.3',
+		vite: '8.2.1'
+	},
+	vue: {
+		'@vitejs/plugin-vue': '6.0.8',
+		typescript: '5.9.3',
+		vite: '8.2.1',
+		vue: '3.5.41',
+		'vue-tsc': '3.3.9'
+	}
+};
+const minimumVersions = {
+	...currentVersions,
+	react: {
+		...currentVersions.react,
+		'@types/react': '19.0.0',
+		'@types/react-dom': '19.0.0',
+		react: '19.0.0',
+		'react-dom': '19.0.0'
+	},
+	svelte: {
+		...currentVersions.svelte,
+		'@sveltejs/vite-plugin-svelte': '4.0.0',
+		svelte: '5.29.0',
+		vite: '5.4.21'
+	},
+	vue: { ...currentVersions.vue, vue: '3.5.2' }
+};
 
 function normalizePath(file) {
 	return file.split(path.sep).join('/');
@@ -43,6 +85,23 @@ export function assertPublicExportMap(exportsMap) {
 		[...expectedPublicEntries].sort(),
 		'Packed manifest public entrypoints changed.'
 	);
+}
+
+export function applyExactVersions(manifest, versions) {
+	const result = structuredClone(manifest);
+	for (const [dependency, version] of Object.entries(versions)) {
+		let found = false;
+		for (const group of ['dependencies', 'devDependencies']) {
+			if (result[group]?.[dependency]) {
+				result[group][dependency] = version;
+				found = true;
+			}
+		}
+		if (!found) {
+			throw new Error(`Cannot pin undeclared fixture dependency ${dependency}.`);
+		}
+	}
+	return result;
 }
 
 async function runCommand(command, arguments_, { cwd, capture = false, allowFailure = false }) {
@@ -83,7 +142,7 @@ async function findPackedTarball(directory) {
 	return path.join(directory, tarballs[0]);
 }
 
-async function installFixtures(temporaryRoot, tarballPath) {
+async function installFixtures(temporaryRoot, tarballPath, profile) {
 	const consumerRoot = path.join(temporaryRoot, 'consumers');
 	await mkdir(consumerRoot, { recursive: true });
 
@@ -91,8 +150,9 @@ async function installFixtures(temporaryRoot, tarballPath) {
 		const fixtureDirectory = path.join(consumerRoot, fixtureName);
 		await cp(path.join(fixtureRoot, fixtureName), fixtureDirectory, { recursive: true });
 		const manifestPath = path.join(fixtureDirectory, 'package.json');
-		const manifest = injectTarballPath(await readFile(manifestPath, 'utf8'), tarballPath);
-		await writeFile(manifestPath, manifest);
+		const source = injectTarballPath(await readFile(manifestPath, 'utf8'), tarballPath);
+		const manifest = applyExactVersions(JSON.parse(source), profile.versions[fixtureName]);
+		await writeFile(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 	}
 
 	const repositoryManifest = JSON.parse(
@@ -126,6 +186,29 @@ async function installFixtures(temporaryRoot, tarballPath) {
 	);
 
 	return consumerRoot;
+}
+
+async function readInstalledVersion(consumerDirectory, dependency) {
+	const manifestPath = path.join(consumerDirectory, 'node_modules', dependency, 'package.json');
+	const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+	assert.equal(typeof manifest.version, 'string', `${dependency} has no installed version.`);
+	return manifest.version;
+}
+
+async function assertExactVersions(consumerRoot, profile) {
+	for (const [fixtureName, versions] of Object.entries(profile.versions)) {
+		for (const [dependency, expectedVersion] of Object.entries(versions)) {
+			const installedVersion = await readInstalledVersion(
+				path.join(consumerRoot, fixtureName),
+				dependency
+			);
+			assert.equal(
+				installedVersion,
+				expectedVersion,
+				`${profile.name} ${fixtureName} resolved ${dependency}@${installedVersion}; expected ${expectedVersion}.`
+			);
+		}
+	}
 }
 
 async function assertPackedArtifacts(coreConsumerDirectory) {
@@ -198,23 +281,41 @@ async function checkAndBuildFixtures(consumerRoot) {
 	}
 }
 
-export async function runPackedConsumerChecks() {
-	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'motion-gpu-packed-consumers-'));
+async function prepareTarball(temporaryRoot) {
 	const artifactDirectory = path.join(temporaryRoot, 'artifacts');
 	await mkdir(artifactDirectory, { recursive: true });
+	await runCommand('pnpm', ['pack', '--pack-destination', artifactDirectory], {
+		cwd: packageRoot
+	});
+	return findPackedTarball(artifactDirectory);
+}
+
+async function checkProfile(temporaryRoot, tarballPath, profile) {
+	const profileRoot = path.join(temporaryRoot, profile.name);
+	await mkdir(profileRoot, { recursive: true });
+	console.log(`[packed-consumers] checking ${profile.name} dependency profile`);
+	const consumerRoot = await installFixtures(profileRoot, tarballPath, profile);
+	await assertExactVersions(consumerRoot, profile);
+	const coreConsumerDirectory = path.join(consumerRoot, 'core');
+	await assertPackedArtifacts(coreConsumerDirectory);
+	await assertInternalImportsAreBlocked(coreConsumerDirectory);
+	await checkAndBuildFixtures(consumerRoot);
+}
+
+export async function runPackedConsumerChecks({ includeMinimumPeers = false } = {}) {
+	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'motion-gpu-packed-consumers-'));
 
 	try {
-		await runCommand('pnpm', ['pack', '--pack-destination', artifactDirectory], {
-			cwd: packageRoot
-		});
-		const tarballPath = await findPackedTarball(artifactDirectory);
-		const consumerRoot = await installFixtures(temporaryRoot, tarballPath);
-		const coreConsumerDirectory = path.join(consumerRoot, 'core');
-		await assertPackedArtifacts(coreConsumerDirectory);
-		await assertInternalImportsAreBlocked(coreConsumerDirectory);
-		await checkAndBuildFixtures(consumerRoot);
+		const tarballPath = await prepareTarball(temporaryRoot);
+		const profiles = [{ name: 'current', versions: currentVersions }];
+		if (includeMinimumPeers) {
+			profiles.push({ name: 'minimum', versions: minimumVersions });
+		}
+		for (const profile of profiles) {
+			await checkProfile(temporaryRoot, tarballPath, profile);
+		}
 		console.log(
-			'Packed core, React, Svelte and Vue consumer checks passed for all 10 entrypoints.'
+			`Packed consumer checks passed for all 10 entrypoints (${profiles.map(({ name }) => name).join(' + ')} profiles).`
 		);
 	} finally {
 		if (process.env.MOTION_GPU_KEEP_CONSUMERS === '1') {
@@ -226,5 +327,11 @@ export async function runPackedConsumerChecks() {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-	await runPackedConsumerChecks();
+	const arguments_ = new Set(process.argv.slice(2));
+	for (const argument of arguments_) {
+		if (argument !== '--peer-matrix') {
+			throw new Error(`Unknown packed consumer option: ${argument}`);
+		}
+	}
+	await runPackedConsumerChecks({ includeMinimumPeers: arguments_.has('--peer-matrix') });
 }

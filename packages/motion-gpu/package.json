@@ -87,6 +87,7 @@
 		"prepack": "pnpm run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && vue-tsc --project ./tsconfig.vue.json --noEmit && publint",
 		"check:consumers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs",
+		"check:consumers:peers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs --peer-matrix",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest",
@@ -115,8 +116,8 @@
 	"peerDependencies": {
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
-		"svelte": "^5.0.0",
-		"vue": "^3.5.0"
+		"svelte": "^5.29.0",
+		"vue": "^3.5.2"
 	},
 	"peerDependenciesMeta": {
 		"react": {

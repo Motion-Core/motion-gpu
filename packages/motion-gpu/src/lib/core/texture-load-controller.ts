@@ -14,6 +14,7 @@ interface TextureLoadController {
 	error: CurrentReadable<Error | null>;
 	errorReport: CurrentReadable<MotionGPUErrorReport | null>;
 	reload: () => Promise<void>;
+	resume: () => void;
 	dispose: () => void;
 }
 
@@ -106,13 +107,19 @@ export function createTextureLoadController({
 		return trackedPending;
 	};
 
+	const resume = (): void => {
+		disposed = false;
+	};
+
 	const dispose = (): void => {
 		if (disposed) return;
 		disposed = true;
 		requestVersion += 1;
 		activeController?.abort();
 		disposeTextures(textures.current);
+		textures.set(null);
+		loading.set(false);
 	};
 
-	return { textures, loading, error, errorReport, reload, dispose };
+	return { textures, loading, error, errorReport, reload, resume, dispose };
 }

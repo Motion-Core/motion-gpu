@@ -1,0 +1,16 @@
+{
+	"name": "@motion-gpu-consumers/core",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@motion-core/motion-gpu": "file:__MOTION_GPU_TARBALL__"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3",
+		"vite": "^8.0.1"
+	}
+}

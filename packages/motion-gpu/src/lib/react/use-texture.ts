@@ -62,6 +62,7 @@ export function useTexture(
 	const controller = controllerRef.current;
 
 	useEffect(() => {
+		controller.resume();
 		void controller.reload();
 		return controller.dispose;
 	}, [controller]);

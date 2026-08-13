@@ -1,3 +1,13 @@
 packages:
   - apps/*
   - packages/*
+
+# Versions shared verbatim by multiple workspaces. Framework and parser ranges
+# that intentionally differ remain local to their consumers.
+catalog:
+  '@eslint/js': ^10.0.1
+  eslint: ^10.8.1
+  eslint-config-prettier: ^10.1.8
+  prettier: ^3.9.6
+  prettier-plugin-tailwindcss: ^0.7.4
+  typescript: ^5.9.3

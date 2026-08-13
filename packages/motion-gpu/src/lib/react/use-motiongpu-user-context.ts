@@ -84,5 +84,6 @@ export function setMotionGPUUserContext<UCT = unknown>(
 	value: UCT | (() => UCT),
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
+	// eslint-disable-next-line react-hooks/rules-of-hooks -- Lifecycle-bound cross-adapter API; useSetMotionGPUUserContext is the conventional callback-safe React form.
 	return setMotionGPUUserContextValue(useMotionGPU().user, namespace, value, options);
 }

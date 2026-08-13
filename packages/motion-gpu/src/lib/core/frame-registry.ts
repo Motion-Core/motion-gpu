@@ -75,8 +75,7 @@ export interface UseFrameOptions {
  * Invalidation token value or resolver.
  */
 export type FrameTaskInvalidationToken =
-	| FrameInvalidationToken
-	| (() => FrameInvalidationToken | null | undefined);
+	FrameInvalidationToken | (() => FrameInvalidationToken | null | undefined);
 
 /**
  * Explicit task invalidation policy.

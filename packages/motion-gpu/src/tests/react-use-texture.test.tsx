@@ -1,5 +1,6 @@
 import { render, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { StrictMode, useEffect } from 'react';
+import { expect, it, vi } from 'vitest';
 import type { TextureLoadOptions } from '../lib/core/texture-loader.js';
 import { useTexture, type UseTextureResult } from '../lib/react/use-texture.js';
 import {
@@ -39,5 +40,38 @@ defineTextureHookContract({
 			},
 			unmount: view.unmount
 		};
+	}
+});
+
+it('reloads after StrictMode replays effect cleanup and setup', async () => {
+	vi.stubGlobal(
+		'fetch',
+		vi.fn(async () => ({
+			ok: true,
+			status: 200,
+			blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+		}))
+	);
+	vi.stubGlobal(
+		'createImageBitmap',
+		vi.fn(async () => ({ width: 24, height: 24, close: vi.fn() }))
+	);
+
+	const onProbe = vi.fn();
+	const view = render(
+		<StrictMode>
+			<TextureProbe urls={['/assets/strict-mode.png']} options={{}} onProbe={onProbe} />
+		</StrictMode>
+	);
+
+	try {
+		await waitFor(() => {
+			const result = onProbe.mock.lastCall?.[0];
+			expect(result?.loading.current).toBe(false);
+			expect(result?.textures.current).toHaveLength(1);
+		});
+	} finally {
+		view.unmount();
+		vi.unstubAllGlobals();
 	}
 });

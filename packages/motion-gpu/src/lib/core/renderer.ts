@@ -29,6 +29,7 @@ import {
 } from './compute-shader.js';
 import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
 import { resolveComputePingPongResourcePair } from './compute-resources.js';
+import { MaterialResourceRegistry, type RuntimeTextureResource } from './resource-registry.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import {
 	buildCanvasConfiguration,
@@ -74,20 +75,14 @@ const FIRST_TEXTURE_BINDING = 2;
  */
 interface RuntimeTextureBinding {
 	key: string;
+	resource: RuntimeTextureResource;
 	samplerBinding: number;
 	textureBinding: number;
 	fragmentVisible: boolean;
 	sampler: GPUSampler;
 	fallbackTexture: GPUTexture;
 	fallbackView: GPUTextureView;
-	texture: GPUTexture | null;
-	view: GPUTextureView;
 	source: TextureSource | null;
-	width: number | undefined;
-	height: number | undefined;
-	mipLevelCount: number;
-	format: GPUTextureFormat;
-	sampleType: GPUTextureSampleType;
 	samplerType: GPUSamplerBindingType;
 	effectiveFilter: GPUFilterMode;
 	colorSpace: 'srgb' | 'linear';
@@ -850,7 +845,7 @@ function createBindGroupLayoutEntries(
 			binding: binding.textureBinding,
 			visibility: GPUShaderStage.FRAGMENT,
 			texture: {
-				sampleType: binding.sampleType,
+				sampleType: binding.resource.sampleType,
 				viewDimension: '2d',
 				multisampled: false
 			}
@@ -1214,6 +1209,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
 		const storageTextureKeys = options.storageTextureKeys ?? [];
 		const storageTextureKeySet = new Set(storageTextureKeys);
+		const resourceRegistry = new MaterialResourceRegistry();
 		const fragmentTextureIndexByKey = new Map(
 			fragmentTextureKeys.map((key, index) => [key, index] as const)
 		);
@@ -1254,23 +1250,29 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				fallbackTexture.destroy();
 			});
 			const fallbackView = fallbackTexture.createView();
+			const fallbackUsage =
+				GPUTextureUsage.TEXTURE_BINDING |
+				GPUTextureUsage.COPY_DST |
+				GPUTextureUsage.RENDER_ATTACHMENT;
+			const resource = resourceRegistry.registerTexture({
+				logicalId: key,
+				sampledView: fallbackView,
+				format: config.format,
+				mipLevelCount: 1,
+				sampleType: samplingLayout.sampleType,
+				usage: fallbackUsage
+			});
 
 			const runtimeBinding: RuntimeTextureBinding = {
 				key,
+				resource,
 				samplerBinding,
 				textureBinding,
 				fragmentVisible,
 				sampler,
 				fallbackTexture,
 				fallbackView,
-				texture: null,
-				view: fallbackView,
 				source: null,
-				width: undefined,
-				height: undefined,
-				mipLevelCount: 1,
-				format: config.format,
-				sampleType: samplingLayout.sampleType,
 				samplerType: samplingLayout.samplerType,
 				effectiveFilter: samplingLayout.effectiveFilter,
 				colorSpace: config.colorSpace,
@@ -1305,10 +1307,17 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				registerInitializationCleanup(() => {
 					storageTexture.destroy();
 				});
-				runtimeBinding.texture = storageTexture as unknown as GPUTexture;
-				runtimeBinding.view = storageTexture.createView();
-				runtimeBinding.width = config.width;
-				runtimeBinding.height = config.height;
+				const storageView = storageTexture.createView();
+				resourceRegistry.replaceTextureAllocation(key, {
+					ownedTexture: storageTexture,
+					storageView,
+					sampledView: storageView,
+					format: config.format,
+					width: config.width,
+					height: config.height,
+					mipLevelCount: 1,
+					usage: storageUsage
+				});
 			}
 
 			return runtimeBinding;
@@ -1506,7 +1515,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let presentationBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		// ── Storage buffer allocation ────────────────────────────────────────
-		const storageBufferMap = new Map<string, GPUBuffer>();
 		const pingPongTexturePairs = new Map<string, PingPongTexturePair>();
 		const pingPongComputeIterationTotals = new WeakMap<RuntimeComputePass, number>();
 		const pingPongShaderTexturePairs = new Map<
@@ -1520,9 +1528,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				continue;
 			}
 			const normalized = normalizeStorageBufferDefinition(definition);
+			const usage = GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
 			const buffer = device.createBuffer({
 				size: normalized.size,
-				usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
+				usage
 			});
 			registerInitializationCleanup(() => {
 				buffer.destroy();
@@ -1537,18 +1546,22 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					data.byteLength
 				);
 			}
-			storageBufferMap.set(key, buffer);
+			resourceRegistry.registerStorageBuffer({
+				logicalId: key,
+				buffer,
+				size: normalized.size,
+				wgslType: normalized.type,
+				access: normalized.access,
+				usage
+			});
 		}
 		const fragmentStorageBindGroup =
 			fragmentStorageBindGroupLayout && storageBufferKeys.length > 0
 				? device.createBindGroup({
 						layout: fragmentStorageBindGroupLayout,
 						entries: storageBufferKeys.map((key, index) => {
-							const buffer = storageBufferMap.get(key);
-							if (!buffer) {
-								throw new Error(`Storage buffer "${key}" not allocated.`);
-							}
-							return { binding: index, resource: { buffer } };
+							const resource = resourceRegistry.requireStorageBuffer(key);
+							return { binding: index, resource: { buffer: resource.buffer } };
 						})
 					})
 				: null;
@@ -2168,13 +2181,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			if (computeStorageBufferLayoutEntries.length === 0) {
 				return null;
 			}
-			const resources: GPUBuffer[] = storageBufferKeys.map((key) => {
-				const buffer = storageBufferMap.get(key);
-				if (!buffer) {
-					throw new Error(`Storage buffer "${key}" not allocated.`);
-				}
-				return buffer;
-			});
+			const resources: GPUBuffer[] = storageBufferKeys.map(
+				(key) => resourceRegistry.requireStorageBuffer(key).buffer
+			);
 			const storageEntries: GPUBindGroupEntry[] = resources.map((buffer, index) => {
 				return { binding: index, resource: { buffer } };
 			});
@@ -2192,11 +2201,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				return null;
 			}
 			const resources: GPUTextureView[] = storageTextureKeys.map((key) => {
-				const binding = textureBindingByKey.get(key);
-				if (!binding || !binding.texture) {
+				const view = resourceRegistry.requireTexture(key).storageView;
+				if (!view) {
 					throw new Error(`Storage texture "${key}" not allocated.`);
 				}
-				return binding.view;
+				return view;
 			});
 			const bgEntries: GPUBindGroupEntry[] = resources.map((view, index) => {
 				return { binding: index, resource: view };
@@ -2330,7 +2339,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				});
 				entries.push({
 					binding: binding.textureBinding,
-					resource: binding.view
+					resource: binding.resource.publishedView
 				});
 			}
 
@@ -2353,14 +2362,25 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			binding: RuntimeTextureBinding,
 			view: GPUTextureView
 		): boolean => {
-			const changed = binding.view !== view || !binding.feedbackViewActive;
-			binding.texture?.destroy();
-			binding.texture = null;
-			binding.view = view;
+			const resource = binding.resource;
+			const changed = resource.publishedView !== view || !binding.feedbackViewActive;
+			resource.ownedTexture?.destroy();
+			resourceRegistry.replaceTextureAllocation(binding.key, {
+				ownedTexture: null,
+				storageView: null,
+				sampledView: binding.fallbackView,
+				format: resource.format,
+				width: undefined,
+				height: undefined,
+				mipLevelCount: 1,
+				usage:
+					GPUTextureUsage.TEXTURE_BINDING |
+					GPUTextureUsage.COPY_DST |
+					GPUTextureUsage.RENDER_ATTACHMENT
+			});
+			resourceRegistry.publishTextureView(binding.key, view);
 			binding.feedbackViewActive = true;
 			binding.source = null;
-			binding.width = undefined;
-			binding.height = undefined;
 			binding.lastToken = null;
 			binding.mipmapsDirty = false;
 			return changed;
@@ -2377,27 +2397,41 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			renderMode: RenderMode
 		): boolean => {
 			const nextData = toTextureData(value);
+			const resource = binding.resource;
 
 			if (!nextData) {
-				if (binding.source === null && binding.texture === null && !binding.feedbackViewActive) {
+				if (
+					binding.source === null &&
+					resource.ownedTexture === null &&
+					!binding.feedbackViewActive
+				) {
 					return false;
 				}
 
-				binding.texture?.destroy();
-				binding.texture = null;
-				binding.view = binding.fallbackView;
+				resource.ownedTexture?.destroy();
+				const changed = resourceRegistry.replaceTextureAllocation(binding.key, {
+					ownedTexture: null,
+					storageView: null,
+					sampledView: binding.fallbackView,
+					format: resource.format,
+					width: undefined,
+					height: undefined,
+					mipLevelCount: 1,
+					usage:
+						GPUTextureUsage.TEXTURE_BINDING |
+						GPUTextureUsage.COPY_DST |
+						GPUTextureUsage.RENDER_ATTACHMENT
+				});
 				binding.feedbackViewActive = false;
 				binding.source = null;
-				binding.width = undefined;
-				binding.height = undefined;
 				binding.lastToken = null;
 				binding.mipmapsDirty = false;
-				return true;
+				return changed;
 			}
 
 			const source = nextData.source;
 			const colorSpace = nextData.colorSpace ?? binding.defaultColorSpace;
-			const format = binding.format;
+			const format = resource.format;
 			const flipY = nextData.flipY ?? binding.defaultFlipY;
 			const premultipliedAlpha = nextData.premultipliedAlpha ?? binding.defaultPremultipliedAlpha;
 			const generateMipmaps = nextData.generateMipmaps ?? binding.defaultGenerateMipmaps;
@@ -2411,12 +2445,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const sourceChanged = binding.source !== source;
 			const tokenChanged = binding.lastToken !== value;
 			const requiresReallocation =
-				binding.texture === null ||
+				resource.ownedTexture === null ||
 				binding.feedbackViewActive ||
-				binding.width !== width ||
-				binding.height !== height ||
-				binding.mipLevelCount !== mipLevelCount ||
-				binding.format !== format;
+				resource.width !== width ||
+				resource.height !== height ||
+				resource.mipLevelCount !== mipLevelCount ||
+				resource.format !== format;
 
 			if (!requiresReallocation) {
 				const shouldUpload =
@@ -2424,10 +2458,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					update === 'perFrame' ||
 					(update === 'onInvalidate' && (renderMode !== 'always' || tokenChanged));
 
-				if (shouldUpload && binding.texture) {
+				if (shouldUpload && resource.ownedTexture) {
 					uploadTextureBaseLevel(
 						device,
-						binding.texture,
+						resource.ownedTexture,
 						{ flipY, premultipliedAlpha },
 						source,
 						width,
@@ -2441,9 +2475,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 
 				binding.source = source;
-				binding.width = width;
-				binding.height = height;
-				binding.mipLevelCount = mipLevelCount;
 				binding.update = update;
 				binding.lastToken = value;
 				binding.feedbackViewActive = false;
@@ -2482,41 +2513,46 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				texture.destroy();
 			});
 
-			binding.texture?.destroy();
-			binding.texture = texture;
-			binding.view = view;
+			resource.ownedTexture?.destroy();
+			const publishedViewChanged = resourceRegistry.replaceTextureAllocation(binding.key, {
+				ownedTexture: texture,
+				storageView: storageTextureKeySet.has(binding.key) ? view : null,
+				sampledView: view,
+				format,
+				width,
+				height,
+				mipLevelCount,
+				usage: textureUsage
+			});
 			binding.feedbackViewActive = false;
 			binding.source = source;
-			binding.width = width;
-			binding.height = height;
-			binding.mipLevelCount = mipLevelCount;
 			binding.update = update;
 			binding.flipY = flipY;
 			binding.generateMipmaps = generateMipmaps;
 			binding.premultipliedAlpha = premultipliedAlpha;
 			binding.colorSpace = colorSpace;
-			binding.format = format;
 			binding.lastToken = value;
 			markTextureMipmapsDirty(binding, mipLevelCount);
-			return true;
+			return publishedViewChanged;
 		};
 
 		const generateDirtyTextureMipmaps = (commandEncoder: GPUCommandEncoder): void => {
 			for (const binding of textureBindings) {
+				const resource = binding.resource;
 				if (
 					!binding.mipmapsDirty ||
-					!binding.texture ||
+					!resource.ownedTexture ||
 					!binding.generateMipmaps ||
-					binding.mipLevelCount <= 1
+					resource.mipLevelCount <= 1
 				) {
 					continue;
 				}
 
 				mipmapGenerator.generate({
 					commandEncoder,
-					texture: binding.texture,
-					format: binding.format,
-					mipLevelCount: binding.mipLevelCount
+					texture: resource.ownedTexture,
+					format: resource.format,
+					mipLevelCount: resource.mipLevelCount
 				});
 				binding.mipmapsDirty = false;
 			}
@@ -2965,13 +3001,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		const flushStorageWrites = (writes: Parameters<Renderer['flushStorageWrites']>[0]): void => {
 			for (const write of writes) {
-				const buffer = storageBufferMap.get(write.name);
-				if (!buffer) {
+				const resource = resourceRegistry.getStorageBuffer(write.name);
+				if (!resource) {
 					continue;
 				}
 				const data = write.data;
 				device.queue.writeBuffer(
-					buffer,
+					resource.buffer,
 					write.offset,
 					data.buffer as ArrayBuffer,
 					data.byteOffset,
@@ -3516,7 +3552,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			render,
 			flushStorageWrites,
 			getStorageBuffer: (name: string): GPUBuffer | undefined => {
-				return storageBufferMap.get(name);
+				return resourceRegistry.getStorageBuffer(name)?.buffer;
 			},
 			getDevice: (): GPUDevice => {
 				return device;
@@ -3529,10 +3565,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				device.removeEventListener('uncapturederror', handleUncapturedError);
 				frameBuffer.destroy();
 				uniformBuffer.destroy();
-				for (const buffer of storageBufferMap.values()) {
-					buffer.destroy();
+				for (const key of storageBufferKeys) {
+					resourceRegistry.getStorageBuffer(key)?.buffer.destroy();
 				}
-				storageBufferMap.clear();
 				for (const pair of pingPongTexturePairs.values()) {
 					pair.textureA.destroy();
 					pair.textureB.destroy();
@@ -3557,9 +3592,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				activePasses.length = 0;
 				lifecyclePassesRef = null;
 				for (const binding of textureBindings) {
-					binding.texture?.destroy();
+					binding.resource.ownedTexture?.destroy();
 					binding.fallbackTexture.destroy();
 				}
+				resourceRegistry.clear();
 				presentationBindGroupByView = new WeakMap();
 				cachedGraphPlan = null;
 				cachedGraphPasses.length = 0;

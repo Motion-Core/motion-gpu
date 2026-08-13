@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
@@ -78,10 +78,10 @@ async function pnpmVersion(repositoryRoot: string): Promise<string> {
 	return commandOutput('pnpm', ['--version'], repositoryRoot);
 }
 
-export async function hashSuiteFiles(paths: readonly string[]): Promise<string> {
+export async function hashSuiteFiles(paths: readonly string[], root?: string): Promise<string> {
 	const hash = createHash('sha256');
 	for (const path of [...paths].sort()) {
-		hash.update(path);
+		hash.update(root ? relative(root, path) : path);
 		hash.update('\0');
 		hash.update(await readFile(path));
 		hash.update('\0');
@@ -98,7 +98,7 @@ export async function collectBenchmarkEnvironment(input: {
 	const [{ commitSha, dirty }, pnpm, suiteHash] = await Promise.all([
 		gitIdentity(repositoryRoot),
 		pnpmVersion(repositoryRoot),
-		hashSuiteFiles(input.suiteFiles)
+		hashSuiteFiles(input.suiteFiles, repositoryRoot)
 	]);
 
 	return {

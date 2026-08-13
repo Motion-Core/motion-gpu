@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
@@ -13,11 +14,22 @@ import { findDirtyFloatRanges } from '../../src/lib/core/renderer';
 import { createFrameRegistry } from '../../src/lib/core/frame-registry';
 import { createComputeBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache';
 import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
+import {
+	BENCHMARK_SCHEMA_VERSION,
+	collectBenchmarkEnvironment,
+	compareBenchmarkEnvironments,
+	type BenchmarkEnvironment
+} from './benchmark-schema';
+import { computeRobustStats, type RobustStats } from './statistics';
 
 const SCRIPT_DIR = import.meta.dirname;
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '../..');
+const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, '../..');
 const BASELINE_PATH = resolve(PACKAGE_ROOT, 'benchmarks/baselines/core.json');
 const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/core-latest.json');
+const DEFAULT_PROCESS_COUNT = 10;
+const DEFAULT_SAMPLE_COUNT = 24;
+const DEFAULT_WARMUP_MS = 400;
 
 const METRIC_RULES = {
 	resolve_material_cached_hz: { direction: 'higher', maxRegressionPct: 15 },
@@ -43,29 +55,37 @@ const METRIC_RULES = {
 type MetricKey = keyof typeof METRIC_RULES;
 type MetricMap = Record<MetricKey, number>;
 
-interface BenchmarkStats {
-	meanHz: number;
-	p95Hz: number;
-	minHz: number;
-	maxHz: number;
-	samples: number[];
+interface ProcessBenchmarkStats extends RobustStats {
+	checksum: number;
 }
 
 interface CoreBenchmarkDocument {
-	schemaVersion: 2;
+	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	generatedAt: string;
-	environment: {
-		node: string;
-		platform: NodeJS.Platform;
-		arch: string;
+	environment: BenchmarkEnvironment;
+	config: {
+		processCount: number;
+		sampleCount: number;
+		warmupMs: number;
+		seed: number;
+		caseOrder: 'seeded-per-process';
 	};
 	metrics: MetricMap;
-	stats: Record<MetricKey, BenchmarkStats>;
+	stats: Record<
+		MetricKey,
+		{
+			processMediansHz: number[];
+			distribution: RobustStats;
+			processes: ProcessBenchmarkStats[];
+		}
+	>;
 }
 
 interface CoreBaselineDocument {
-	schemaVersion: 2;
+	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	updatedAt: string;
+	environment: BenchmarkEnvironment;
+	config: CoreBenchmarkDocument['config'];
 	metrics: Partial<MetricMap>;
 }
 
@@ -82,45 +102,74 @@ interface BenchmarkCase {
 	name: MetricKey;
 	batchSize: number;
 	fn: () => void;
+	checksum?: () => number;
 }
 
-function parseArgs(argv: string[]): {
+interface BenchmarkArgs {
 	updateBaseline: boolean;
 	strict: boolean;
-} {
+	worker: boolean;
+	processCount: number;
+	sampleCount: number;
+	warmupMs: number;
+	seed: number;
+}
+
+function numericArg(argv: string[], name: string, fallback: number): number {
+	const prefix = `--${name}=`;
+	const raw = argv.find((value) => value.startsWith(prefix))?.slice(prefix.length);
+	if (raw === undefined) {
+		return fallback;
+	}
+	const value = Number(raw);
+	if (!Number.isInteger(value) || value <= 0) {
+		throw new Error(`--${name} must be a positive integer, received ${raw}`);
+	}
+	return value;
+}
+
+function parseArgs(argv: string[]): BenchmarkArgs {
 	const flags = new Set(argv);
 	return {
 		updateBaseline: flags.has('--update-baseline'),
-		strict: flags.has('--strict')
+		strict: flags.has('--strict'),
+		worker: flags.has('--worker'),
+		processCount: numericArg(argv, 'processes', DEFAULT_PROCESS_COUNT),
+		sampleCount: numericArg(argv, 'samples', DEFAULT_SAMPLE_COUNT),
+		warmupMs: numericArg(argv, 'warmup-ms', DEFAULT_WARMUP_MS),
+		seed: numericArg(argv, 'seed', Date.now() & 0x7fff_ffff)
 	};
 }
 
-function computeStats(samples: number[]): BenchmarkStats {
-	const sorted = [...samples].sort((a, b) => a - b);
-	const sampleCount = sorted.length;
-	const sum = sorted.reduce((acc, value) => acc + value, 0);
-	const p95Index = Math.min(sampleCount - 1, Math.floor(sampleCount * 0.95));
-	const p95Hz = sorted[p95Index] ?? 0;
-	const minHz = sorted[0] ?? 0;
-	const maxHz = sorted[sampleCount - 1] ?? 0;
-
-	return {
-		meanHz: sampleCount > 0 ? sum / sampleCount : 0,
-		p95Hz,
-		minHz,
-		maxHz,
-		samples
+function createRandom(seed: number): () => number {
+	let state = seed >>> 0;
+	return () => {
+		state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+		return state / 0x1_0000_0000;
 	};
 }
 
-function runCase(target: BenchmarkCase): BenchmarkStats {
-	const warmupUntil = performance.now() + 400;
+function shuffleCases(cases: BenchmarkCase[], seed: number): BenchmarkCase[] {
+	const random = createRandom(seed);
+	const shuffled = [...cases];
+	for (let index = shuffled.length - 1; index > 0; index -= 1) {
+		const swapIndex = Math.floor(random() * (index + 1));
+		[shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex]!, shuffled[index]!];
+	}
+	return shuffled;
+}
+
+function runCase(
+	target: BenchmarkCase,
+	config: Pick<BenchmarkArgs, 'sampleCount' | 'warmupMs'>
+): ProcessBenchmarkStats {
+	const warmupUntil = performance.now() + config.warmupMs;
 	while (performance.now() < warmupUntil) {
 		target.fn();
 	}
 
 	const samples: number[] = [];
-	for (let sampleIndex = 0; sampleIndex < 24; sampleIndex += 1) {
+	for (let sampleIndex = 0; sampleIndex < config.sampleCount; sampleIndex += 1) {
 		const startedAt = performance.now();
 		for (let index = 0; index < target.batchSize; index += 1) {
 			target.fn();
@@ -129,7 +178,7 @@ function runCase(target: BenchmarkCase): BenchmarkStats {
 		samples.push(target.batchSize / elapsedSec);
 	}
 
-	return computeStats(samples);
+	return { ...computeRobustStats(samples), checksum: target.checksum?.() ?? 1 };
 }
 
 function compareAgainstBaseline(
@@ -503,33 +552,150 @@ fn frag(uv: vec2f) -> vec4f {
 	];
 }
 
-function runCoreBenchmark(): CoreBenchmarkDocument {
-	const cases = createCases();
-	const stats = {} as Record<MetricKey, BenchmarkStats>;
-	const metrics = {} as MetricMap;
+type WorkerResult = Record<MetricKey, ProcessBenchmarkStats>;
 
-	for (const entry of cases) {
-		const caseStats = runCase(entry);
-		stats[entry.name] = caseStats;
-		metrics[entry.name] = caseStats.meanHz;
+function runWorker(args: BenchmarkArgs): WorkerResult {
+	const result = {} as WorkerResult;
+	for (const entry of shuffleCases(createCases(), args.seed)) {
+		result[entry.name] = runCase(entry, args);
+	}
+	return result;
+}
+
+async function runWorkerProcess(args: BenchmarkArgs, processIndex: number): Promise<WorkerResult> {
+	const workerSeed = (args.seed + Math.imul(processIndex + 1, 0x9e37_79b1)) >>> 0;
+	const childArgs = [
+		...process.execArgv,
+		import.meta.filename,
+		'--worker',
+		`--samples=${args.sampleCount}`,
+		`--warmup-ms=${args.warmupMs}`,
+		`--seed=${Math.max(1, workerSeed)}`
+	];
+
+	return new Promise<WorkerResult>((resolveWorker, rejectWorker) => {
+		const child = spawn(process.execPath, childArgs, {
+			cwd: PACKAGE_ROOT,
+			stdio: ['ignore', 'pipe', 'pipe'],
+			env: process.env
+		});
+		let stdout = '';
+		let stderr = '';
+		child.stdout.setEncoding('utf8');
+		child.stderr.setEncoding('utf8');
+		child.stdout.on('data', (chunk: string) => {
+			stdout += chunk;
+		});
+		child.stderr.on('data', (chunk: string) => {
+			stderr += chunk;
+		});
+		child.once('error', rejectWorker);
+		child.once('exit', (code, signal) => {
+			if (code !== 0) {
+				rejectWorker(
+					new Error(
+						`Core benchmark worker ${processIndex + 1} failed (code=${String(code)}, signal=${String(signal)}): ${stderr}`
+					)
+				);
+				return;
+			}
+			try {
+				resolveWorker(JSON.parse(stdout) as WorkerResult);
+			} catch (error) {
+				rejectWorker(
+					new Error(
+						`Core benchmark worker ${processIndex + 1} returned invalid JSON: ${String(error)}\n${stdout}\n${stderr}`
+					)
+				);
+			}
+		});
+	});
+}
+
+async function runCoreBenchmark(args: BenchmarkArgs): Promise<CoreBenchmarkDocument> {
+	const processResults: WorkerResult[] = [];
+	for (let processIndex = 0; processIndex < args.processCount; processIndex += 1) {
+		console.error(`Core benchmark process ${processIndex + 1}/${args.processCount}`);
+		processResults.push(await runWorkerProcess(args, processIndex));
 	}
 
+	const stats = {} as CoreBenchmarkDocument['stats'];
+	const metrics = {} as MetricMap;
+	for (const metric of Object.keys(METRIC_RULES) as MetricKey[]) {
+		const processes = processResults.map((result) => result[metric]);
+		const processMediansHz = processes.map((result) => result.median);
+		const distribution = computeRobustStats(processMediansHz);
+		stats[metric] = { processMediansHz, distribution, processes };
+		metrics[metric] = distribution.median;
+	}
+
+	const environment = await collectBenchmarkEnvironment({
+		repositoryRoot: REPOSITORY_ROOT,
+		suiteFiles: [
+			import.meta.filename,
+			resolve(SCRIPT_DIR, 'benchmark-schema.ts'),
+			resolve(SCRIPT_DIR, 'statistics.ts')
+		]
+	});
+
 	return {
-		schemaVersion: 2,
+		schemaVersion: BENCHMARK_SCHEMA_VERSION,
 		generatedAt: new Date().toISOString(),
-		environment: {
-			node: process.version,
-			platform: process.platform,
-			arch: process.arch
+		environment,
+		config: {
+			processCount: args.processCount,
+			sampleCount: args.sampleCount,
+			warmupMs: args.warmupMs,
+			seed: args.seed,
+			caseOrder: 'seeded-per-process'
 		},
 		metrics,
 		stats
 	};
 }
 
+function baselineIncompatibilities(
+	result: CoreBenchmarkDocument,
+	baseline: CoreBaselineDocument
+): string[] {
+	const differences = compareBenchmarkEnvironments(
+		result.environment,
+		baseline.environment
+	).differences;
+	for (const field of ['processCount', 'sampleCount', 'warmupMs', 'caseOrder'] as const) {
+		if (result.config[field] !== baseline.config[field]) {
+			differences.push(
+				`config.${field}: current=${String(result.config[field])} baseline=${String(baseline.config[field])}`
+			);
+		}
+	}
+	return differences;
+}
+
+function assertBaselineCaptureIsControlled(result: CoreBenchmarkDocument): void {
+	if (result.environment.dirty) {
+		throw new Error('Refusing to update a performance baseline from a dirty worktree');
+	}
+	if (result.environment.powerMode !== 'ac-high-power') {
+		throw new Error(
+			`Refusing to update a performance baseline with powerMode=${result.environment.powerMode}; set MOTION_GPU_PERF_POWER_MODE=ac-high-power after controlling the host`
+		);
+	}
+	if (result.config.processCount < DEFAULT_PROCESS_COUNT) {
+		throw new Error(
+			`Refusing to update a performance baseline with ${result.config.processCount} processes; at least ${DEFAULT_PROCESS_COUNT} are required`
+		);
+	}
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
-	const result = runCoreBenchmark();
+	if (args.worker) {
+		process.stdout.write(JSON.stringify(runWorker(args)));
+		return;
+	}
+
+	const result = await runCoreBenchmark(args);
 	await writeJsonFile(LATEST_PATH, result);
 
 	console.log(`Core benchmark saved: ${LATEST_PATH}`);
@@ -538,9 +704,12 @@ async function main(): Promise<void> {
 	}
 
 	if (args.updateBaseline) {
+		assertBaselineCaptureIsControlled(result);
 		const baselinePayload: CoreBaselineDocument = {
-			schemaVersion: 2,
+			schemaVersion: BENCHMARK_SCHEMA_VERSION,
 			updatedAt: new Date().toISOString(),
+			environment: result.environment,
+			config: result.config,
 			metrics: result.metrics
 		};
 		await writeJsonFile(BASELINE_PATH, baselinePayload);
@@ -552,6 +721,26 @@ async function main(): Promise<void> {
 	if (!baseline) {
 		console.log(`Baseline not found: ${BASELINE_PATH}`);
 		console.log('Run with --update-baseline to capture the first reference.');
+		return;
+	}
+	if (baseline.schemaVersion !== BENCHMARK_SCHEMA_VERSION) {
+		console.error(
+			`Incompatible baseline schema: current=${BENCHMARK_SCHEMA_VERSION} baseline=${String(baseline.schemaVersion)}. Preserve and triage the old baseline before capturing schema v3.`
+		);
+		if (args.strict) {
+			process.exitCode = 1;
+		}
+		return;
+	}
+	const incompatibilities = baselineIncompatibilities(result, baseline);
+	if (incompatibilities.length > 0) {
+		console.error('Incompatible baseline environment/configuration:');
+		for (const difference of incompatibilities) {
+			console.error(`- ${difference}`);
+		}
+		if (args.strict) {
+			process.exitCode = 1;
+		}
 		return;
 	}
 

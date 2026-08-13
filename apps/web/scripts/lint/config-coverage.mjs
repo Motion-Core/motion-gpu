@@ -1,6 +1,8 @@
 import { access } from 'node:fs/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ESLint } from 'eslint';
+
+const appRoot = fileURLToPath(new URL('../..', import.meta.url));
 
 export const webLintCoverageExpectations = [
 	{
@@ -79,7 +81,7 @@ run();`;
 }
 
 export async function runWebLintConfigChecks() {
-	const eslint = new ESLint({ cwd: process.cwd() });
+	const eslint = new ESLint({ cwd: appRoot });
 
 	for (const expectation of webLintCoverageExpectations) {
 		await assertConfiguredFile(eslint, expectation);

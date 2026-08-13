@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const execFileAsync = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const mutationFixture = 'scripts/lint/fixtures/oxlint-promise-safety.ts';
+const mutationConfig = 'scripts/lint/oxlint-mutation.config.json';
 
 export const oxlintPromiseRules = [
 	'typescript/await-thenable',
@@ -47,7 +48,17 @@ async function lintMutation(arguments_) {
 	try {
 		await execFileAsync(
 			'pnpm',
-			['exec', 'oxlint', ...arguments_, '--no-ignore', '--format', 'json', mutationFixture],
+			[
+				'exec',
+				'oxlint',
+				...arguments_,
+				'--config',
+				mutationConfig,
+				'--no-ignore',
+				'--format',
+				'json',
+				mutationFixture
+			],
 			{ cwd: packageRoot }
 		);
 		throw new Error('Oxlint mutation unexpectedly passed.');

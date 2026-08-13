@@ -4,5 +4,12 @@
 	"categories": {
 		"correctness": "error"
 	},
-	"ignorePatterns": ["dist/**", ".svelte-kit/**", "coverage/**", "**/*.svelte", "**/*.vue"]
+	"ignorePatterns": [
+		"dist/**",
+		".svelte-kit/**",
+		"coverage/**",
+		"scripts/lint/fixtures/**",
+		"**/*.svelte",
+		"**/*.vue"
+	]
 }

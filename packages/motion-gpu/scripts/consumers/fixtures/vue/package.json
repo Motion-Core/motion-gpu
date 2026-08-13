@@ -11,7 +11,8 @@
 		"vue": "^3.5.0"
 	},
 	"devDependencies": {
-		"@vitejs/plugin-vue": "^6.0.0",
+		"@types/node": "^25.8.0",
+		"@vitejs/plugin-vue": "^6.0.3",
 		"typescript": "^5.9.3",
 		"vite": "^8.0.1",
 		"vue-tsc": "^3.1.0"

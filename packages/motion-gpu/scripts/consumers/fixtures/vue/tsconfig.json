@@ -7,5 +7,5 @@
 		"skipLibCheck": false,
 		"lib": ["ES2022", "DOM"]
 	},
-	"include": ["src/**/*.ts", "src/**/*.vue"]
+	"include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
 }

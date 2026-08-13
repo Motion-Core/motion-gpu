@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,6 +9,14 @@ const repositoryRoot = path.resolve(packageRoot, '../..');
 const libraryRoot = path.join(packageRoot, 'src/lib');
 const sourceExtensions = ['.ts', '.tsx', '.svelte', '.vue'];
 const adapterLayers = new Set(['react', 'svelte', 'vue']);
+const ignoredDirectories = new Set([
+	'node_modules',
+	'dist',
+	'build',
+	'coverage',
+	'.svelte-kit',
+	'.output'
+]);
 
 function normalizeFile(file) {
 	return file.split(path.sep).join('/');
@@ -151,7 +160,7 @@ async function collectSourceFiles(root, relativeTo) {
 
 	async function visit(directory) {
 		for (const entry of await readdir(directory, { withFileTypes: true })) {
-			if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.svelte-kit') {
+			if (ignoredDirectories.has(entry.name)) {
 				continue;
 			}
 
@@ -173,7 +182,10 @@ async function collectSourceFiles(root, relativeTo) {
 
 export async function runImportBoundaryChecks() {
 	const libraryFiles = await collectSourceFiles(libraryRoot, libraryRoot);
-	const consumerFiles = await collectSourceFiles(path.join(repositoryRoot, 'apps'), repositoryRoot);
+	const appsRoot = path.join(repositoryRoot, 'apps');
+	const consumerFiles = existsSync(appsRoot)
+		? await collectSourceFiles(appsRoot, repositoryRoot)
+		: new Map();
 	const result = analyzeImportBoundaries({ libraryFiles, consumerFiles });
 
 	if (result.violations.length > 0) {

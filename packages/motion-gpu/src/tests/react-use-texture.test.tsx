@@ -1,5 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearTextureBlobCache } from '../lib/core/texture-loader.js';
 import { useTexture, type UseTextureResult } from '../lib/react/use-texture.js';
@@ -83,6 +83,30 @@ describe('react useTexture', () => {
 			expect(result.error.current).toBeNull();
 			expect(result.errorReport.current).toBeNull();
 			expect(result.textures.current).toHaveLength(2);
+		});
+	});
+
+	it('reloads after StrictMode replays effect cleanup and setup', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => ({
+				ok: true,
+				status: 200,
+				blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+			}))
+		);
+
+		const onProbe = vi.fn();
+		render(
+			<StrictMode>
+				<TextureProbe urls={['/assets/strict-mode.png']} onProbe={onProbe} />
+			</StrictMode>
+		);
+
+		await waitFor(() => {
+			const result = getProbeResult(onProbe, onProbe.mock.calls.length - 1);
+			expect(result.loading.current).toBe(false);
+			expect(result.textures.current).toHaveLength(1);
 		});
 	});
 

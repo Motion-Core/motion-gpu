@@ -1,5 +1,20 @@
 import { normalizeTextureDefinition } from './textures.js';
-import type { MaterialSourceMetadata } from './error-diagnostics.js';
+import type {
+	MaterialDefines,
+	MaterialIncludes,
+	MaterialLineMap,
+	MaterialSourceMetadata,
+	PreprocessedMaterialFragment
+} from './material-contracts.js';
+export type {
+	MaterialDefines,
+	MaterialDefineVectorType,
+	MaterialDefineVectorValue,
+	MaterialDefineValue,
+	MaterialIncludes,
+	TypedMaterialDefineValue,
+	TypedMaterialVectorDefineValue
+} from './material-contracts.js';
 import {
 	assertUniformName,
 	assertUniformValueForType,
@@ -10,9 +25,7 @@ import {
 	normalizeDefines,
 	normalizeIncludes,
 	preprocessMaterialFragment,
-	toDefineLine,
-	type MaterialLineMap,
-	type PreprocessedMaterialFragment
+	toDefineLine
 } from './material-preprocess.js';
 import { assertStorageBufferDefinition, assertStorageTextureFormat } from './storage-buffers.js';
 import type {
@@ -26,78 +39,6 @@ import type {
 	UniformMap,
 	UniformValue
 } from './types.js';
-
-/**
- * WGSL float-vector types accepted by compile-time define declarations.
- */
-export type MaterialDefineVectorType = 'vec2f' | 'vec3f' | 'vec4f';
-
-/**
- * Tuple value for a WGSL float-vector define declaration.
- */
-export type MaterialDefineVectorValue<TType extends MaterialDefineVectorType> =
-	TType extends 'vec2f'
-		? readonly [number, number]
-		: TType extends 'vec3f'
-			? readonly [number, number, number]
-			: readonly [number, number, number, number];
-
-/**
- * Typed WGSL float-vector define declaration.
- */
-export type TypedMaterialVectorDefineValue = {
-	[TType in MaterialDefineVectorType]: {
-		/**
-		 * WGSL float-vector type.
-		 */
-		type: TType;
-		/**
-		 * Literal vector components for the selected WGSL type.
-		 */
-		value: MaterialDefineVectorValue<TType>;
-	};
-}[MaterialDefineVectorType];
-
-/**
- * Typed compile-time define declaration.
- */
-export type TypedMaterialDefineValue =
-	| {
-			/**
-			 * WGSL scalar type.
-			 */
-			type: 'bool';
-			/**
-			 * Literal value for the selected WGSL type.
-			 */
-			value: boolean;
-	  }
-	| {
-			/**
-			 * WGSL scalar type.
-			 */
-			type: 'f32' | 'i32' | 'u32';
-			/**
-			 * Literal value for the selected WGSL type.
-			 */
-			value: number;
-	  }
-	| TypedMaterialVectorDefineValue;
-
-/**
- * Allowed value types for WGSL `const` define injection.
- */
-export type MaterialDefineValue = boolean | number | TypedMaterialDefineValue;
-
-/**
- * Define map keyed by uniform-compatible identifier names.
- */
-export type MaterialDefines<TKey extends string = string> = Record<TKey, MaterialDefineValue>;
-
-/**
- * Include map keyed by include identifier used in `#include <name>` directives.
- */
-export type MaterialIncludes<TKey extends string = string> = Record<TKey, string>;
 
 /**
  * External material input accepted by {@link defineMaterial}.

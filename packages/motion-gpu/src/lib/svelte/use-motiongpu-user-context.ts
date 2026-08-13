@@ -1,45 +1,17 @@
+import {
+	createMotionGPUUserContextReadable,
+	setMotionGPUUserContextValue,
+	type SetMotionGPUUserContextOptions
+} from '../core/motiongpu-context.js';
 import type { CurrentReadable } from '../core/current-value.js';
 import { useMotionGPU, type MotionGPUUserNamespace } from './motiongpu-context.js';
+
+export type { SetMotionGPUUserContextOptions } from '../core/motiongpu-context.js';
 
 /**
  * Internal shape of the user context store.
  */
 type UserContextStore = Record<MotionGPUUserNamespace, unknown>;
-
-/**
- * Object-like context payload used by merge semantics.
- */
-type UserContextEntry = Record<string, unknown>;
-
-/**
- * Controls how a namespaced user context value behaves when already present.
- */
-export interface SetMotionGPUUserContextOptions {
-	/**
-	 * Conflict strategy when namespace already exists:
-	 * - `skip`: keep current value
-	 * - `replace`: replace current value
-	 * - `merge`: shallow merge object values, fallback to replace otherwise
-	 *
-	 * @default 'skip'
-	 */
-	existing?: 'merge' | 'replace' | 'skip';
-	/**
-	 * How function inputs should be interpreted:
-	 * - `factory`: call function and store its return value
-	 * - `value`: store function itself
-	 *
-	 * @default 'factory'
-	 */
-	functionValue?: 'factory' | 'value';
-}
-
-/**
- * Checks whether a value is a non-array object suitable for shallow merge.
- */
-function isObjectEntry(value: unknown): value is UserContextEntry {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /**
  * Returns a read-only view of the entire motiongpu user context store.
@@ -70,28 +42,10 @@ export function useMotionGPUUserContext<
 	const userStore = useMotionGPU().user;
 
 	if (namespace === undefined) {
-		const allStore: CurrentReadable<UC> = {
-			get current() {
-				return userStore.current as UC;
-			},
-			subscribe(run) {
-				return userStore.subscribe((context) => run(context as UC));
-			}
-		};
-
-		return allStore;
+		return createMotionGPUUserContextReadable<UC>(userStore);
 	}
 
-	const scopedStore: CurrentReadable<UC[K] | undefined> = {
-		get current() {
-			return userStore.current[namespace] as UC[K] | undefined;
-		},
-		subscribe(run) {
-			return userStore.subscribe((context) => run(context[namespace] as UC[K] | undefined));
-		}
-	};
-
-	return scopedStore;
+	return createMotionGPUUserContextReadable<UC, K>(userStore, namespace);
 }
 
 /**
@@ -104,42 +58,5 @@ export function setMotionGPUUserContext<UCT = unknown>(
 	value: UCT | (() => UCT),
 	options?: SetMotionGPUUserContextOptions
 ): UCT | undefined {
-	const userStore = useMotionGPU().user;
-	const mode = options?.existing ?? 'skip';
-	const functionValueMode = options?.functionValue ?? 'factory';
-	let resolvedValue: UCT | undefined;
-
-	userStore.update((context) => {
-		const hasExisting = namespace in context;
-		if (hasExisting && mode === 'skip') {
-			resolvedValue = context[namespace] as UCT | undefined;
-			return context;
-		}
-
-		const nextValue =
-			typeof value === 'function' && functionValueMode === 'factory'
-				? (value as () => UCT)()
-				: (value as UCT);
-		if (hasExisting && mode === 'merge') {
-			const currentValue = context[namespace];
-			if (isObjectEntry(currentValue) && isObjectEntry(nextValue)) {
-				resolvedValue = {
-					...currentValue,
-					...nextValue
-				} as UCT;
-				return {
-					...context,
-					[namespace]: resolvedValue
-				};
-			}
-		}
-
-		resolvedValue = nextValue;
-		return {
-			...context,
-			[namespace]: nextValue
-		};
-	});
-
-	return resolvedValue;
+	return setMotionGPUUserContextValue(useMotionGPU().user, namespace, value, options);
 }

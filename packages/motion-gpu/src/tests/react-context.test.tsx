@@ -255,7 +255,6 @@ describe('react adapter runtime hooks', () => {
 				beforeInitial,
 				initial,
 				merged,
-				onProbe,
 				pluginStore,
 				replaced,
 				skipped,

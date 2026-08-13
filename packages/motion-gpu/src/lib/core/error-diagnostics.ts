@@ -1,15 +1,5 @@
-import type { MaterialSourceLocation } from './material-preprocess.js';
-
-/**
- * Source metadata for material declaration callsite.
- */
-export interface MaterialSourceMetadata {
-	component?: string;
-	file?: string;
-	line?: number;
-	column?: number;
-	functionName?: string;
-}
+import type { MaterialSourceLocation, MaterialSourceMetadata } from './material-contracts.js';
+export type { MaterialSourceMetadata } from './material-contracts.js';
 
 export interface ComputeSourceLocation {
 	kind: 'compute';

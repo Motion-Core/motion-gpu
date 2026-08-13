@@ -9,6 +9,7 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ### Breaking
 
+- Raised the Svelte adapter peer minimum to 5.29.0 for published `{@attach}` syntax and the Vue adapter peer minimum to 3.5.2 for the emitted `DefineComponent` contract.
 - Compute shaders no longer receive every material storage buffer and storage texture implicitly. `ComputePass.resources` now declares the complete pass-local binding topology; an omitted map means no user resource bindings.
 - Replaced `PingPongComputePass.target` and generated `${target}A`/`${target}B` WGSL names with required sampled-read and storage-write descriptors marked by `pingPong` roles.
 - Removed `PingPongComputePass.getCurrentOutput()`, `getTarget()`, and `advanceFrame()`. The renderer publishes the latest ping-pong view under its logical material texture key.

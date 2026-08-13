@@ -14,10 +14,10 @@ export default defineConfig(() => ({
 			include: ['src/lib/**/*.{ts,tsx,svelte,vue}'],
 			exclude: ['**/*.d.ts'],
 			thresholds: {
-				statements: 82,
-				branches: 72,
-				functions: 84,
-				lines: 83
+				statements: 90,
+				branches: 82,
+				functions: 92,
+				lines: 90
 			}
 		}
 	}

@@ -32,5 +32,6 @@
 		"scripts/**/*.ts",
 		"vite.config.ts",
 		"playwright.config.ts"
-	]
+	],
+	"exclude": ["scripts/consumers/fixtures"]
 }

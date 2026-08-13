@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { createMotionGPUErrorOverlayModel } from '../core/error-overlay-model';
 	import type { MotionGPUErrorReport } from '../core/error-report';
 	import Portal from './Portal.svelte';
 
@@ -8,6 +9,7 @@
 	}
 
 	let { report }: Props = $props();
+	const model = $derived(createMotionGPUErrorOverlayModel(report));
 
 	const componentId = $props.id();
 	const titleId = `${componentId}-title`;
@@ -99,97 +101,6 @@
 			}
 		};
 	});
-
-	const normalizeErrorText = (value: string): string => {
-		return value
-			.trim()
-			.replace(/[.:!]+$/g, '')
-			.toLowerCase();
-	};
-
-	const shouldShowErrorMessage = (value: MotionGPUErrorReport): boolean => {
-		return resolveDisplayMessage(value).length > 0;
-	};
-
-	const resolveDisplayMessage = (value: MotionGPUErrorReport): string => {
-		const rawMessage = value.message.trim();
-		if (rawMessage.length === 0) {
-			return '';
-		}
-
-		const normalizedMessage = normalizeErrorText(rawMessage);
-		const normalizedTitle = normalizeErrorText(value.title);
-		if (normalizedMessage === normalizedTitle) {
-			return '';
-		}
-
-		const escapedTitle = value.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const prefixPattern = new RegExp(`^${escapedTitle}\\s*[:\\-|]\\s*`, 'i');
-		const stripped = rawMessage.replace(prefixPattern, '').trim();
-		return stripped.length > 0 ? stripped : rawMessage;
-	};
-
-	const formatRuntimeContext = (context: MotionGPUErrorReport['context']): string => {
-		if (!context) {
-			return '';
-		}
-
-		const indentBlock = (value: string, spaces = 2): string => {
-			const prefix = ' '.repeat(spaces);
-			return value
-				.split('\n')
-				.map((line) => `${prefix}${line}`)
-				.join('\n');
-		};
-
-		const formatMaterialSignature = (value: string): string => {
-			const trimmed = value.trim();
-			if (trimmed.length === 0) {
-				return '<empty>';
-			}
-			try {
-				return JSON.stringify(JSON.parse(trimmed), null, 2);
-			} catch {
-				return trimmed;
-			}
-		};
-
-		const lines: string[] = [];
-		if (context.materialSignature) {
-			lines.push('materialSignature:');
-			lines.push(indentBlock(formatMaterialSignature(context.materialSignature)));
-		}
-		if (context.passGraph) {
-			lines.push('passGraph:');
-			lines.push(`  passCount: ${context.passGraph.passCount}`);
-			lines.push(`  enabledPassCount: ${context.passGraph.enabledPassCount}`);
-			lines.push('  inputs:');
-			if (context.passGraph.inputs.length === 0) {
-				lines.push('    - <none>');
-			} else {
-				for (const input of context.passGraph.inputs) {
-					lines.push(`    - ${input}`);
-				}
-			}
-			lines.push('  outputs:');
-			if (context.passGraph.outputs.length === 0) {
-				lines.push('    - <none>');
-			} else {
-				for (const output of context.passGraph.outputs) {
-					lines.push(`    - ${output}`);
-				}
-			}
-		}
-		lines.push('activeRenderTargets:');
-		if (context.activeRenderTargets.length === 0) {
-			lines.push('  - <none>');
-		} else {
-			for (const target of context.activeRenderTargets) {
-				lines.push(`  - ${target}`);
-			}
-		}
-		return lines.join('\n');
-	};
 </script>
 
 {#snippet chevronDownIcon()}
@@ -247,8 +158,8 @@
 					</div>
 				</header>
 				<div id={descriptionId} class="motiongpu-error-body">
-					{#if shouldShowErrorMessage(report)}
-						<p class="motiongpu-error-message">{resolveDisplayMessage(report)}</p>
+					{#if model.displayMessage.length > 0}
+						<p class="motiongpu-error-message">{model.displayMessage}</p>
 					{/if}
 					<p class="motiongpu-error-hint">{report.hint}</p>
 				</div>
@@ -313,7 +224,7 @@
 								{@render chevronDownIcon()}
 								<span>Runtime context</span>
 							</summary>
-							<pre>{formatRuntimeContext(report.context)}</pre>
+							<pre>{model.runtimeContextText}</pre>
 						</details>
 					{/if}
 				</div>

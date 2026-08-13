@@ -398,9 +398,7 @@ export interface ComputeExternalSamplerReference {
 
 /** Material texture key or a borrowed WebGPU texture/view reference. */
 export type ComputeTextureReference =
-	| string
-	| ComputeExternalTextureReference
-	| ComputeExternalTextureViewReference;
+	string | ComputeExternalTextureReference | ComputeExternalTextureViewReference;
 
 /** Material storage-buffer key or a borrowed WebGPU buffer reference. */
 export type ComputeBufferReference = string | ComputeExternalBufferReference;
@@ -479,11 +477,7 @@ export type OutputEncoding = 'srgb' | 'linear';
  * Final tone mapper applied by the private presentation pass.
  */
 export type ToneMapping =
-	| 'none'
-	| 'khronos-pbr-neutral'
-	| 'uncharted2-filmic'
-	| 'aces-hill'
-	| 'gran-turismo';
+	'none' | 'khronos-pbr-neutral' | 'uncharted2-filmic' | 'aces-hill' | 'gran-turismo';
 
 /**
  * Requested display dynamic range for final canvas presentation.

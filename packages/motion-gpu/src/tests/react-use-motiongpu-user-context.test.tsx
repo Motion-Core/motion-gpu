@@ -139,7 +139,6 @@ describe('react useMotionGPUUserContext', () => {
 				beforeInitial,
 				initial,
 				merged,
-				onProbe,
 				pluginStore,
 				replaced,
 				skipped,
@@ -237,7 +236,7 @@ describe('react useMotionGPUUserContext', () => {
 					mergedFallback,
 					currentPlugin: pluginStore.current
 				});
-			}, [allStore, onProbe, pluginStore, setUserContext]);
+			}, [allStore, pluginStore, setUserContext]);
 
 			return null;
 		}
@@ -284,7 +283,7 @@ describe('react useMotionGPUUserContext', () => {
 				});
 
 				onProbe({ mergedFallback });
-			}, [onProbe, setUserContext]);
+			}, [setUserContext]);
 
 			return null;
 		}
@@ -322,7 +321,7 @@ describe('react useMotionGPUUserContext', () => {
 					allStore,
 					pluginStore
 				};
-			}, [allStore, onProbe, pluginStore, step]);
+			}, [allStore, pluginStore, step]);
 
 			return null;
 		}
@@ -377,7 +376,7 @@ describe('react useMotionGPUUserContext', () => {
 					invokedValue,
 					callsAfterInvoke
 				});
-			}, [onProbe, pluginStore, setUserContext]);
+			}, [pluginStore, setUserContext]);
 
 			return null;
 		}
@@ -418,7 +417,7 @@ describe('react useMotionGPUUserContext', () => {
 				setUserContext('plugin', () => ({ enabled: true }), { existing: 'replace' });
 				const enabled = pluginStore.current?.enabled ?? false;
 				onProbe({ enabled });
-			}, [onProbe, pluginStore, setUserContext]);
+			}, [pluginStore, setUserContext]);
 
 			// @ts-expect-error mapped namespace value should not expose unknown fields
 			assertType<boolean>(pluginStore.current?.missing);

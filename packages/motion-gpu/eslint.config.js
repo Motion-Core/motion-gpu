@@ -2,6 +2,7 @@ import prettier from 'eslint-config-prettier';
 import path from 'node:path';
 import { includeIgnoreFile } from '@eslint/compat';
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import svelte from 'eslint-plugin-svelte';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
@@ -10,6 +11,11 @@ import vue from 'eslint-plugin-vue';
 import svelteConfig from './svelte.config.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '../../.gitignore');
+const reactFiles = [
+	'src/lib/react/**/*.{ts,tsx}',
+	'src/tests/react-*.{ts,tsx}',
+	'e2e/harness-react/**/*.{ts,tsx}'
+];
 const typeAwareProductionFiles = ['src/lib/**/*.{ts,tsx}'];
 const vueFiles = ['**/*.vue'];
 const vueRecommended = vue.configs['flat/recommended-error'].map((config) => ({
@@ -39,6 +45,16 @@ export default defineConfig(
 		}
 	},
 	...svelte.configs.recommended,
+	{
+		files: reactFiles,
+		plugins: {
+			'react-hooks': reactHooks
+		},
+		rules: {
+			'react-hooks/exhaustive-deps': 'error',
+			'react-hooks/rules-of-hooks': 'error'
+		}
+	},
 	...vueRecommended,
 	prettier,
 	...svelte.configs.prettier,

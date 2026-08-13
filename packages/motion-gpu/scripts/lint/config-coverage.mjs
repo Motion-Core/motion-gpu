@@ -18,7 +18,11 @@ export const lintCoverageExpectations = [
 	{
 		file: 'src/lib/react/FragCanvas.tsx',
 		parser: 'typescript-eslint/parser',
-		rules: ['@typescript-eslint/no-unused-vars']
+		rules: [
+			'@typescript-eslint/no-unused-vars',
+			'react-hooks/rules-of-hooks',
+			'react-hooks/exhaustive-deps'
+		]
 	},
 	{
 		file: 'src/lib/svelte/FragCanvas.svelte',
@@ -119,10 +123,33 @@ run();`;
 	}
 }
 
+async function assertReactMutationCoverage(eslint) {
+	const source = `import { useEffect } from 'react';
+
+export function InvalidHooks({ enabled, value }: { enabled: boolean; value: string }) {
+	if (enabled) {
+		useEffect(() => console.log(value), []);
+	}
+
+	return null;
+}`;
+	const [result] = await eslint.lintText(source, {
+		filePath: 'src/lib/react/FragCanvas.tsx'
+	});
+	const ruleIds = new Set(result.messages.map(({ ruleId }) => ruleId));
+
+	for (const expectedRule of ['react-hooks/rules-of-hooks', 'react-hooks/exhaustive-deps']) {
+		if (!ruleIds.has(expectedRule)) {
+			throw new Error(`React Hooks lint mutation did not trigger ${expectedRule}.`);
+		}
+	}
+}
+
 export async function runLintConfigChecks() {
 	const eslint = new ESLint({ cwd: packageRoot });
 	await assertLintConfigCoverage(eslint);
 	await assertPromiseMutationCoverage(eslint);
+	await assertReactMutationCoverage(eslint);
 	await assertVueMutationCoverage(eslint);
 }
 

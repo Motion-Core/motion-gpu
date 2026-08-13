@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-13
+
 ### Breaking
 
 - Raised the Svelte adapter peer minimum to 5.29.0 for published `{@attach}` syntax and the Vue adapter peer minimum to 3.5.2 for the emitted `DefineComponent` contract.
@@ -416,7 +418,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/14760502...HEAD
+[0.15.0]: https://github.com/Motion-Core/motion-gpu/compare/2cd2bce...14760502
+[0.14.0]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...2cd2bce
 [0.13.0]: https://github.com/Motion-Core/motion-gpu/compare/572487f...eeeb14c
 [0.12.0]: https://github.com/Motion-Core/motion-gpu/compare/0481829...572487f
 [0.11.0]: https://github.com/Motion-Core/motion-gpu/compare/7376a48...0481829

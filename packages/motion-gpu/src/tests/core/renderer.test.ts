@@ -1243,6 +1243,14 @@ describe('createRenderer', () => {
 			textureKeys: ['uTex'],
 			textureDefinitions: { uTex: {} }
 		});
+		const pipelinesAfterInit = runtime.device.createRenderPipeline.mock.calls.length;
+		const bindGroupsAfterInit = runtime.device.createBindGroup.mock.calls.length;
+		const initialBindGroupDescriptor = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
+			| GPUBindGroupDescriptor
+			| undefined;
+		const initialTextureView = Array.from(initialBindGroupDescriptor?.entries ?? []).find(
+			(entry) => entry.binding === 3
+		)?.resource;
 
 		renderer.render({
 			time: 0,
@@ -1251,12 +1259,24 @@ describe('createRenderer', () => {
 			uniforms: {},
 			textures: { uTex: source }
 		});
+		const bindGroupsAfterUpload = runtime.device.createBindGroup.mock.calls.length;
+		expect(bindGroupsAfterUpload).toBe(bindGroupsAfterInit + 1);
+		expect(runtime.device.createRenderPipeline).toHaveBeenCalledTimes(pipelinesAfterInit);
 
 		const uploadedTexture = runtime.textures.find((texture) => {
 			const size = texture.descriptor.size as { width?: number; height?: number };
 			return size.width === 6 && size.height === 6;
 		});
 		expect(uploadedTexture).toBeDefined();
+
+		renderer.render({
+			time: 0.008,
+			delta: 0.008,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: source }
+		});
+		expect(runtime.device.createBindGroup).toHaveBeenCalledTimes(bindGroupsAfterUpload);
 
 		renderer.render({
 			time: 0.016,
@@ -1267,7 +1287,15 @@ describe('createRenderer', () => {
 		});
 
 		expect(uploadedTexture?.destroy).toHaveBeenCalledTimes(1);
-		expect(runtime.device.createBindGroup.mock.calls.length).toBeGreaterThanOrEqual(3);
+		expect(runtime.device.createBindGroup).toHaveBeenCalledTimes(bindGroupsAfterUpload + 1);
+		expect(runtime.device.createRenderPipeline).toHaveBeenCalledTimes(pipelinesAfterInit);
+		const restoredBindGroupDescriptor = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
+			| GPUBindGroupDescriptor
+			| undefined;
+		expect(
+			Array.from(restoredBindGroupDescriptor?.entries ?? []).find((entry) => entry.binding === 3)
+				?.resource
+		).toBe(initialTextureView);
 	});
 
 	it('generates texture mipmaps with GPU render passes after the base upload', async () => {

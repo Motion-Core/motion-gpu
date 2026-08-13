@@ -353,7 +353,7 @@ describe('storage textures', () => {
 			expect(storageTexture!.createView).toHaveBeenCalled();
 		});
 
-		it('uses safe fallback format for storage textures to avoid writeTexture size mismatch', async () => {
+		it('does not allocate a sampled-only fallback for storage textures', async () => {
 			const runtime = createWebGpuRuntime();
 			const textureDefinitions: TextureDefinitionMap = {
 				uDensity: {
@@ -372,28 +372,25 @@ describe('storage textures', () => {
 				})
 			);
 
-			// The fallback texture (1x1) should use rgba8unorm, not rgba16float,
-			// to avoid bytesPerRow mismatch in writeTexture (4 bytes vs 8 bytes).
-			const fallbackTexture = runtime.textures.find(
+			const sampledFallback = runtime.textures.find(
 				(t) =>
 					t.descriptor.size &&
 					typeof t.descriptor.size === 'object' &&
 					'width' in t.descriptor.size &&
-					t.descriptor.size.width === 1 &&
-					t.descriptor.format === 'rgba8unorm'
+					t.descriptor.size.width === 1
 			);
-			expect(fallbackTexture).toBeDefined();
+			expect(sampledFallback).toBeUndefined();
 
-			// Should NOT have a 1x1 rgba16float fallback
-			const badFallback = runtime.textures.find(
+			const storageTexture = runtime.textures.find(
 				(t) =>
 					t.descriptor.size &&
 					typeof t.descriptor.size === 'object' &&
 					'width' in t.descriptor.size &&
-					t.descriptor.size.width === 1 &&
+					t.descriptor.size.width === 64 &&
+					t.descriptor.size.height === 64 &&
 					t.descriptor.format === 'rgba16float'
 			);
-			expect(badFallback).toBeUndefined();
+			expect(storageTexture).toBeDefined();
 		});
 
 		it('fragment bind group references storage texture view, not fallback', async () => {

@@ -29,6 +29,10 @@ import {
 } from './compute-shader.js';
 import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
 import { resolveComputePingPongResourcePair } from './compute-resources.js';
+import {
+	ComputeSampledFallbackTexturePool,
+	toComputeSampledFallbackClass
+} from './compute-fallback-textures.js';
 import { MaterialResourceRegistry, type RuntimeTextureResource } from './resource-registry.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import {
@@ -80,7 +84,6 @@ interface RuntimeTextureBinding {
 	textureBinding: number;
 	fragmentVisible: boolean;
 	sampler: GPUSampler;
-	fallbackTexture: GPUTexture;
 	fallbackView: GPUTextureView;
 	source: TextureSource | null;
 	samplerType: GPUSamplerBindingType;
@@ -599,28 +602,6 @@ function buildShaderCompilationRuntimeContext(
 		passGraph: buildPassGraphSnapshot(passList),
 		activeRenderTargets: Object.keys(renderTargetMap ?? {}).sort((a, b) => a.localeCompare(b))
 	};
-}
-
-/**
- * Creates a 1x1 white fallback texture used before user textures become available.
- */
-function createFallbackTexture(device: GPUDevice, format: GPUTextureFormat): GPUTexture {
-	const texture = device.createTexture({
-		size: { width: 1, height: 1, depthOrArrayLayers: 1 },
-		format,
-		usage:
-			GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
-	});
-
-	const pixel = new Uint8Array([255, 255, 255, 255]);
-	device.queue.writeTexture(
-		{ texture },
-		pixel,
-		{ offset: 0, bytesPerRow: 4, rowsPerImage: 1 },
-		{ width: 1, height: 1, depthOrArrayLayers: 1 }
-	);
-
-	return texture;
 }
 
 /**
@@ -1210,6 +1191,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const storageTextureKeys = options.storageTextureKeys ?? [];
 		const storageTextureKeySet = new Set(storageTextureKeys);
 		const resourceRegistry = new MaterialResourceRegistry();
+		const sampledFallbackPool = new ComputeSampledFallbackTexturePool(device);
+		registerInitializationCleanup(() => sampledFallbackPool.destroy());
+		const sampledFallbackUsage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST;
 		const fragmentTextureIndexByKey = new Map(
 			fragmentTextureKeys.map((key, index) => [key, index] as const)
 		);
@@ -1243,25 +1227,50 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						? config.anisotropy
 						: 1
 			});
-			const fallbackFormat: GPUTextureFormat =
-				config.format === 'rgba8unorm-srgb' ? 'rgba8unorm-srgb' : 'rgba8unorm';
-			const fallbackTexture = createFallbackTexture(device, fallbackFormat);
-			registerInitializationCleanup(() => {
-				fallbackTexture.destroy();
-			});
-			const fallbackView = fallbackTexture.createView();
-			const fallbackUsage =
-				GPUTextureUsage.TEXTURE_BINDING |
-				GPUTextureUsage.COPY_DST |
-				GPUTextureUsage.RENDER_ATTACHMENT;
-			const resource = resourceRegistry.registerTexture({
-				logicalId: key,
-				sampledView: fallbackView,
-				format: config.format,
-				mipLevelCount: 1,
-				sampleType: samplingLayout.sampleType,
-				usage: fallbackUsage
-			});
+			let fallbackView: GPUTextureView;
+			let resource: RuntimeTextureResource;
+			if (config.storage) {
+				if (!config.storage || !config.width || !config.height) {
+					throw new Error(
+						`Storage texture "${key}" requires storage: true and explicit positive width and height.`
+					);
+				}
+				const storageUsage =
+					GPUTextureUsage.TEXTURE_BINDING |
+					GPUTextureUsage.STORAGE_BINDING |
+					GPUTextureUsage.COPY_DST;
+				const storageTexture = device.createTexture({
+					size: { width: config.width, height: config.height, depthOrArrayLayers: 1 },
+					format: config.format,
+					usage: storageUsage
+				});
+				registerInitializationCleanup(() => storageTexture.destroy());
+				fallbackView = storageTexture.createView();
+				resource = resourceRegistry.registerTexture({
+					logicalId: key,
+					ownedTexture: storageTexture,
+					storageView: fallbackView,
+					sampledView: fallbackView,
+					format: config.format,
+					width: config.width,
+					height: config.height,
+					mipLevelCount: 1,
+					sampleType: samplingLayout.sampleType,
+					usage: storageUsage
+				});
+			} else {
+				fallbackView = sampledFallbackPool.get(
+					toComputeSampledFallbackClass(samplingLayout.sampleType)
+				).view;
+				resource = resourceRegistry.registerTexture({
+					logicalId: key,
+					sampledView: fallbackView,
+					format: config.format,
+					mipLevelCount: 1,
+					sampleType: samplingLayout.sampleType,
+					usage: sampledFallbackUsage
+				});
+			}
 
 			const runtimeBinding: RuntimeTextureBinding = {
 				key,
@@ -1270,7 +1279,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				textureBinding,
 				fragmentVisible,
 				sampler,
-				fallbackTexture,
 				fallbackView,
 				source: null,
 				samplerType: samplingLayout.samplerType,
@@ -1291,33 +1299,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			if (config.update !== undefined) {
 				runtimeBinding.defaultUpdate = config.update;
-			}
-
-			// Storage textures: eagerly create GPU texture with explicit dimensions
-			if (config.storage && config.width && config.height) {
-				const storageUsage =
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.STORAGE_BINDING |
-					GPUTextureUsage.COPY_DST;
-				const storageTexture = device.createTexture({
-					size: { width: config.width, height: config.height, depthOrArrayLayers: 1 },
-					format: config.format,
-					usage: storageUsage
-				});
-				registerInitializationCleanup(() => {
-					storageTexture.destroy();
-				});
-				const storageView = storageTexture.createView();
-				resourceRegistry.replaceTextureAllocation(key, {
-					ownedTexture: storageTexture,
-					storageView,
-					sampledView: storageView,
-					format: config.format,
-					width: config.width,
-					height: config.height,
-					mipLevelCount: 1,
-					usage: storageUsage
-				});
 			}
 
 			return runtimeBinding;
@@ -2373,10 +2354,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				width: undefined,
 				height: undefined,
 				mipLevelCount: 1,
-				usage:
-					GPUTextureUsage.TEXTURE_BINDING |
-					GPUTextureUsage.COPY_DST |
-					GPUTextureUsage.RENDER_ATTACHMENT
+				usage: sampledFallbackUsage
 			});
 			resourceRegistry.publishTextureView(binding.key, view);
 			binding.feedbackViewActive = true;
@@ -2417,10 +2395,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					width: undefined,
 					height: undefined,
 					mipLevelCount: 1,
-					usage:
-						GPUTextureUsage.TEXTURE_BINDING |
-						GPUTextureUsage.COPY_DST |
-						GPUTextureUsage.RENDER_ATTACHMENT
+					usage: sampledFallbackUsage
 				});
 				binding.feedbackViewActive = false;
 				binding.source = null;
@@ -3593,8 +3568,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				lifecyclePassesRef = null;
 				for (const binding of textureBindings) {
 					binding.resource.ownedTexture?.destroy();
-					binding.fallbackTexture.destroy();
 				}
+				sampledFallbackPool.destroy();
 				resourceRegistry.clear();
 				presentationBindGroupByView = new WeakMap();
 				cachedGraphPlan = null;

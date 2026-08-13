@@ -1,5 +1,0 @@
-dist
-.svelte-kit
-benchmarks/results
-coverage
-test-results

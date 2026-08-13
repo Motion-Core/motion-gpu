@@ -738,7 +738,8 @@ describe('FragCanvas runtime', () => {
 		});
 
 		const firstRenderInput = created[0]?.render.mock.calls[0]?.[0] as
-			{ uniforms: Record<string, unknown>; textures: Record<string, unknown> } | undefined;
+			| { uniforms: Record<string, unknown>; textures: Record<string, unknown> }
+			| undefined;
 		expect(firstRenderInput?.uniforms['uGain']).toBe(0.75);
 		expect(firstRenderInput?.textures['uTex']).toBeTruthy();
 
@@ -757,7 +758,8 @@ describe('FragCanvas runtime', () => {
 		});
 
 		const secondRenderInput = created[1]?.render.mock.calls[0]?.[0] as
-			{ uniforms: Record<string, unknown>; textures: Record<string, unknown> } | undefined;
+			| { uniforms: Record<string, unknown>; textures: Record<string, unknown> }
+			| undefined;
 		expect('uGain' in (secondRenderInput?.uniforms ?? {})).toBe(false);
 		expect('uTex' in (secondRenderInput?.textures ?? {})).toBe(false);
 	});
@@ -844,7 +846,8 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(32);
 		await waitFor(() => {
 			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
-				Array<{ rawMessage: string }> | undefined;
+				| Array<{ rawMessage: string }>
+				| undefined;
 			expect(latest).toHaveLength(1);
 			expect(latest?.[0]?.rawMessage).toContain('Unknown uniform "uMissing"');
 		});
@@ -859,7 +862,8 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(48);
 		await waitFor(() => {
 			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
-				Array<{ rawMessage: string }> | undefined;
+				| Array<{ rawMessage: string }>
+				| undefined;
 			expect(latest).toHaveLength(2);
 			expect(latest?.[0]?.rawMessage).toContain('Unknown uniform "uMissing"');
 			expect(latest?.[1]?.rawMessage).toContain('Unknown texture "uMissing"');
@@ -875,7 +879,8 @@ describe('FragCanvas runtime', () => {
 		await flushFrame(64);
 		await waitFor(() => {
 			const latest = onErrorHistory.mock.calls[onErrorHistory.mock.calls.length - 1]?.[0] as
-				Array<{ rawMessage: string }> | undefined;
+				| Array<{ rawMessage: string }>
+				| undefined;
 			expect(latest).toHaveLength(2);
 			expect(latest?.[0]?.rawMessage).toContain('Unknown texture "uMissing"');
 			expect(latest?.[1]?.rawMessage).toContain('Unknown uniform "uMissing"');

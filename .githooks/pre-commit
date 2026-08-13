@@ -9,5 +9,5 @@ if ! command -v pnpm >/dev/null 2>&1; then
 	exit 1
 fi
 
-echo "pre-commit: running the full CI gate"
-pnpm run ci
+echo "pre-commit: checking changelog, formatting, and lint"
+pnpm run precommit

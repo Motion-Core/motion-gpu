@@ -105,6 +105,9 @@
 		"perf:gpu:check": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --strict",
 		"perf:gpu:baseline": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --update-baseline",
 		"perf:gpu:headed": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --headed",
+		"perf:renderer": "tsx ./scripts/perf/real-renderer-benchmark.ts",
+		"perf:renderer:baseline": "tsx ./scripts/perf/real-renderer-benchmark.ts --update-baseline",
+		"perf:renderer:headed": "tsx ./scripts/perf/real-renderer-benchmark.ts --headed",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write ."
 	},

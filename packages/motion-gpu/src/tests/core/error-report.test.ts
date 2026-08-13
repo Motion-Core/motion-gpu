@@ -34,6 +34,14 @@ describe('error report', () => {
 		}
 	});
 
+	it('preserves an explicit diagnostic code without a dedicated title mapping', () => {
+		const report = toMotionGPUErrorReport(
+			createMotionGPUError('RENDER_GRAPH_INVALID', 'An opaque failure occurred.'),
+			'render'
+		);
+		expect(report.code).toBe('RENDER_GRAPH_INVALID');
+	});
+
 	it('classifies WebGPU unavailable errors', () => {
 		const report = toMotionGPUErrorReport(
 			new Error('WebGPU is not available in this browser'),

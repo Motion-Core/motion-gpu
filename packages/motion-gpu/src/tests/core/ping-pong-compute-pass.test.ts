@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import type { ComputeResourceMap } from '../../lib/core/types';
 import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
 
@@ -79,14 +80,20 @@ describe('PingPongComputePass', () => {
 	});
 
 	it('requires both roles to reference the same material texture', () => {
-		expect(() =>
+		const createInvalidPass = () =>
 			createPass({
 				resources: {
 					uPrevious: { texture: 'simulationA', access: 'sampled', pingPong: 'read' },
 					uNext: { texture: 'simulationB', access: 'storage-write', pingPong: 'write' }
 				}
-			})
-		).toThrow(/must reference the same texture/);
+			});
+		expect(createInvalidPass).toThrow(/must reference the same texture/);
+		try {
+			createInvalidPass();
+			expect.fail('Expected invalid ping-pong resources to throw.');
+		} catch (error) {
+			expect(toMotionGPUErrorReport(error, 'render').code).toBe('PINGPONG_CONFIGURATION_INVALID');
+		}
 	});
 
 	it('compares external ping-pong identity by resourceId', () => {

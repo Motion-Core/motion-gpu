@@ -12,7 +12,7 @@ import {
 	type ShaderCompilationDiagnostic,
 	type ShaderCompilationRuntimeContext
 } from './error-diagnostics.js';
-import { attachMotionGPUErrorContext } from './error-report.js';
+import { attachMotionGPUErrorContext, createMotionGPUError } from './error-report.js';
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
@@ -130,7 +130,6 @@ interface PingPongTexturePair {
 	textureB: GPUTexture;
 	viewB: GPUTextureView;
 	readFromA: boolean;
-	initialized: boolean;
 }
 
 /**
@@ -1257,10 +1256,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			let fallbackView: GPUTextureView;
 			let resource: RuntimeTextureResource;
 			if (config.storage) {
-				if (!config.storage || !config.width || !config.height) {
-					throw new Error(
-						`Storage texture "${key}" requires storage: true and explicit positive width and height.`
-					);
+				if (!config.width || !config.height) {
+					throw new Error(`Storage texture "${key}" requires explicit positive width and height.`);
 				}
 				const storageUsage =
 					GPUTextureUsage.TEXTURE_BINDING |
@@ -1591,8 +1588,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				viewA: textureA.createView(),
 				textureB,
 				viewB: textureB.createView(),
-				readFromA: true,
-				initialized: true
+				readFromA: true
 			};
 			pingPongTexturePairs.set(pass, pair);
 			return pair;
@@ -3241,7 +3237,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 								typeof pingPongRead.logicalId !== 'string' ||
 								!Object.is(pingPongRead.logicalId, pingPongWrite.logicalId)
 							) {
-								throw new Error(
+								throw createMotionGPUError(
+									'PINGPONG_CONFIGURATION_INVALID',
 									`${computeStepLabel} ping-pong pair must reference one renderer-managed material texture.`
 								);
 							}

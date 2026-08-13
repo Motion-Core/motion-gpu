@@ -1,3 +1,4 @@
+import { createMotionGPUError } from './error-report.js';
 import type { StorageBufferAccess, StorageBufferType } from './types.js';
 
 /**
@@ -62,7 +63,10 @@ function assertUniqueResource(
 	resources: ReadonlyMap<string, unknown>
 ): void {
 	if (resources.has(logicalId)) {
-		throw new Error(`Material ${kind} resource "${logicalId}" is already registered.`);
+		throw createMotionGPUError(
+			'RESOURCE_REGISTRY_DUPLICATE',
+			`Material ${kind} resource "${logicalId}" is already registered.`
+		);
 	}
 }
 
@@ -115,7 +119,10 @@ export class MaterialResourceRegistry {
 	requireTexture(logicalId: string): RuntimeTextureResource {
 		const resource = this.getTexture(logicalId);
 		if (!resource) {
-			throw new Error(`Unknown material texture resource "${logicalId}".`);
+			throw createMotionGPUError(
+				'RESOURCE_REGISTRY_TEXTURE_MISSING',
+				`Unknown material texture resource "${logicalId}".`
+			);
 		}
 		return resource;
 	}
@@ -127,7 +134,10 @@ export class MaterialResourceRegistry {
 	requireStorageBuffer(logicalId: string): RuntimeStorageBufferResource {
 		const resource = this.getStorageBuffer(logicalId);
 		if (!resource) {
-			throw new Error(`Unknown material storage buffer resource "${logicalId}".`);
+			throw createMotionGPUError(
+				'RESOURCE_REGISTRY_STORAGE_BUFFER_MISSING',
+				`Unknown material storage buffer resource "${logicalId}".`
+			);
 		}
 		return resource;
 	}

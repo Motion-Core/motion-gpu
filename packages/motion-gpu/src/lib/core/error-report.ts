@@ -22,6 +22,9 @@ export type MotionGPUErrorCode =
 	| 'WEBGPU_UNCAPTURED_ERROR'
 	| 'BIND_GROUP_MISMATCH'
 	| 'RUNTIME_RESOURCE_MISSING'
+	| 'RESOURCE_REGISTRY_DUPLICATE'
+	| 'RESOURCE_REGISTRY_TEXTURE_MISSING'
+	| 'RESOURCE_REGISTRY_STORAGE_BUFFER_MISSING'
 	| 'UNIFORM_VALUE_INVALID'
 	| 'STORAGE_BUFFER_OUT_OF_BOUNDS'
 	| 'STORAGE_BUFFER_READ_FAILED'
@@ -224,6 +227,24 @@ function classifyErrorCode(
 				...common,
 				title: 'External compute resource is stale or incompatible',
 				hint: 'Return a live resource from the current device and keep resourceId, format, usage and size metadata accurate.'
+			};
+		case 'RESOURCE_REGISTRY_DUPLICATE':
+			return {
+				...common,
+				title: 'Material resource is already registered',
+				hint: 'Register each logical material texture or storage buffer key only once.'
+			};
+		case 'RESOURCE_REGISTRY_TEXTURE_MISSING':
+			return {
+				...common,
+				title: 'Material texture resource is missing',
+				hint: 'Declare the texture on the active material before resolving or publishing it.'
+			};
+		case 'RESOURCE_REGISTRY_STORAGE_BUFFER_MISSING':
+			return {
+				...common,
+				title: 'Material storage buffer resource is missing',
+				hint: 'Declare the storage buffer on the active material before resolving or updating it.'
 			};
 		default:
 			return null;
@@ -670,7 +691,9 @@ export function toMotionGPUErrorReport(
 			: [];
 	let classification =
 		(classifiedError?.motiongpuCode ? classifyErrorCode(classifiedError.motiongpuCode) : null) ??
-		classifyErrorMessage(rawMessage);
+		(classifiedError?.motiongpuCode
+			? { ...classifyErrorMessage(rawMessage), code: classifiedError.motiongpuCode }
+			: classifyErrorMessage(rawMessage));
 	if (
 		shaderDiagnostics?.shaderStage === 'compute' &&
 		classification.code === 'WGSL_COMPILATION_FAILED'

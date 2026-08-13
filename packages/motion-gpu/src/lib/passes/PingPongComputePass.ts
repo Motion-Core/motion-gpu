@@ -4,6 +4,7 @@ import {
 	normalizeComputeResourceMap,
 	resolveComputePingPongResourcePair
 } from '../core/compute-resources.js';
+import { createMotionGPUError } from '../core/error-report.js';
 import type { ComputeResourceMap } from '../core/types.js';
 import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.js';
 
@@ -68,7 +69,17 @@ export class PingPongComputePass {
 		assertComputeContract(options.compute);
 		const workgroupSize = extractWorkgroupSize(options.compute);
 		const resources = normalizeComputeResourceMap(options.resources);
-		resolveComputePingPongResourcePair(resources);
+		try {
+			resolveComputePingPongResourcePair(resources);
+		} catch (error) {
+			throw createMotionGPUError(
+				'PINGPONG_CONFIGURATION_INVALID',
+				error instanceof Error
+					? error.message
+					: 'PingPongComputePass resource pair configuration is invalid.',
+				{ cause: error }
+			);
+		}
 		this.compute = options.compute;
 		this.resources = resources;
 		this.iterations = PingPongComputePass.assertIterations(options.iterations ?? 1);
@@ -79,7 +90,8 @@ export class PingPongComputePass {
 
 	private static assertIterations(count: number): number {
 		if (!Number.isFinite(count) || count < 1 || !Number.isInteger(count)) {
-			throw new Error(
+			throw createMotionGPUError(
+				'PINGPONG_CONFIGURATION_INVALID',
 				`PingPongComputePass iterations must be a positive integer >= 1, got ${count}`
 			);
 		}

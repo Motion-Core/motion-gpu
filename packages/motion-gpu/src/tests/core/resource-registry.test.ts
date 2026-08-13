@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import { MaterialResourceRegistry } from '../../lib/core/resource-registry';
 
 function textureView(label: string): GPUTextureView {
@@ -170,13 +171,24 @@ describe('MaterialResourceRegistry', () => {
 			usage: 1 as GPUTextureUsageFlags
 		};
 		registry.registerTexture(input);
-		expect(() => registry.registerTexture(input)).toThrow(/already registered/);
-		expect(() => registry.requireTexture('missing')).toThrow(
-			/Unknown material texture resource "missing"/
-		);
-		expect(() => registry.requireStorageBuffer('missing')).toThrow(
-			/Unknown material storage buffer resource "missing"/
-		);
+		const duplicate = () => registry.registerTexture(input);
+		const missingTexture = () => registry.requireTexture('missing');
+		const missingBuffer = () => registry.requireStorageBuffer('missing');
+		expect(duplicate).toThrow(/already registered/);
+		expect(missingTexture).toThrow(/Unknown material texture resource "missing"/);
+		expect(missingBuffer).toThrow(/Unknown material storage buffer resource "missing"/);
+		for (const [operation, code] of [
+			[duplicate, 'RESOURCE_REGISTRY_DUPLICATE'],
+			[missingTexture, 'RESOURCE_REGISTRY_TEXTURE_MISSING'],
+			[missingBuffer, 'RESOURCE_REGISTRY_STORAGE_BUFFER_MISSING']
+		] as const) {
+			try {
+				operation();
+				expect.fail(`Expected ${code} to be thrown.`);
+			} catch (error) {
+				expect(toMotionGPUErrorReport(error, 'render').code).toBe(code);
+			}
+		}
 	});
 
 	it('clears metadata without destroying borrowed WebGPU objects', () => {

@@ -8,7 +8,12 @@ export const lintCoverageExpectations = [
 	{
 		file: 'src/lib/core/renderer.ts',
 		parser: 'typescript-eslint/parser',
-		rules: ['@typescript-eslint/no-unused-vars']
+		rules: [
+			'@typescript-eslint/await-thenable',
+			'@typescript-eslint/no-floating-promises',
+			'@typescript-eslint/no-misused-promises',
+			'@typescript-eslint/no-unused-vars'
+		]
 	},
 	{
 		file: 'src/lib/react/FragCanvas.tsx',
@@ -90,9 +95,34 @@ const unused = 1;
 	}
 }
 
+async function assertPromiseMutationCoverage(eslint) {
+	const source = `async function run(): Promise<void> {
+	await 42;
+}
+
+declare function register(callback: () => void): void;
+register(async () => {});
+run();`;
+	const [result] = await eslint.lintText(source, {
+		filePath: 'src/lib/core/current-value.ts'
+	});
+	const ruleIds = new Set(result.messages.map(({ ruleId }) => ruleId));
+
+	for (const expectedRule of [
+		'@typescript-eslint/await-thenable',
+		'@typescript-eslint/no-floating-promises',
+		'@typescript-eslint/no-misused-promises'
+	]) {
+		if (!ruleIds.has(expectedRule)) {
+			throw new Error(`Promise-safety lint mutation did not trigger ${expectedRule}.`);
+		}
+	}
+}
+
 export async function runLintConfigChecks() {
 	const eslint = new ESLint({ cwd: packageRoot });
 	await assertLintConfigCoverage(eslint);
+	await assertPromiseMutationCoverage(eslint);
 	await assertVueMutationCoverage(eslint);
 }
 

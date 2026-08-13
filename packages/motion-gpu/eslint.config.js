@@ -10,6 +10,7 @@ import vue from 'eslint-plugin-vue';
 import svelteConfig from './svelte.config.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '../../.gitignore');
+const typeAwareProductionFiles = ['src/lib/**/*.{ts,tsx}'];
 const vueFiles = ['**/*.vue'];
 const vueRecommended = vue.configs['flat/recommended-error'].map((config) => ({
 	...config,
@@ -19,10 +20,24 @@ const vueRecommended = vue.configs['flat/recommended-error'].map((config) => ({
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
 	{
-		ignores: ['dist/**', '.svelte-kit/**']
+		ignores: ['dist/**', '.svelte-kit/**', 'coverage/**']
 	},
 	js.configs.recommended,
 	...ts.configs.recommended,
+	{
+		files: typeAwareProductionFiles,
+		languageOptions: {
+			parserOptions: {
+				projectService: true,
+				tsconfigRootDir: import.meta.dirname
+			}
+		},
+		rules: {
+			'@typescript-eslint/await-thenable': 'error',
+			'@typescript-eslint/no-floating-promises': 'error',
+			'@typescript-eslint/no-misused-promises': 'error'
+		}
+	},
 	...svelte.configs.recommended,
 	...vueRecommended,
 	prettier,

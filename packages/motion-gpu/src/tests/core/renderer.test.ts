@@ -1000,6 +1000,44 @@ describe('createRenderer', () => {
 		expect(uploads()).toBe(2);
 	});
 
+	it('uploads dynamic textures before encoding pre-scene compute work', async () => {
+		const runtime = createWebGpuRuntime();
+		const source = document.createElement('canvas');
+		source.width = 4;
+		source.height = 4;
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computePass = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			dispatch: [1, 1, 1]
+		});
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uDynamic'],
+			textureDefinitions: {
+				uDynamic: { update: 'perFrame' }
+			},
+			passes: [computePass as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uDynamic: source }
+		});
+
+		const uploadOrder = runtime.device.queue.copyExternalImageToTexture.mock.invocationCallOrder[0];
+		const computeOrder = runtime.commandEncoders[0]?.beginComputePass.mock.invocationCallOrder[0];
+		if (uploadOrder === undefined || computeOrder === undefined) {
+			throw new Error('Missing texture upload or compute dispatch order');
+		}
+		expect(uploadOrder).toBeLessThan(computeOrder);
+
+		renderer.destroy();
+	});
+
 	it('uploads a new same-sized source without reallocating the GPU texture', async () => {
 		const runtime = createWebGpuRuntime();
 		const sourceA = document.createElement('canvas');
@@ -1053,6 +1091,72 @@ describe('createRenderer', () => {
 		});
 		expect(allocatedTextures).toHaveLength(1);
 		expect(allocatedTexture?.destroy).toHaveBeenCalledTimes(0);
+	});
+
+	it('rebuilds the fragment bind group with a reallocated texture view', async () => {
+		const runtime = createWebGpuRuntime();
+		const sourceA = document.createElement('canvas');
+		sourceA.width = 4;
+		sourceA.height = 4;
+		const sourceB = document.createElement('canvas');
+		sourceB.width = 8;
+		sourceB.height = 8;
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: { uTex: {} }
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceA }
+		});
+
+		const textureA = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 4 && size.height === 4;
+		});
+		const viewA = textureA?.createView.mock.results[0]?.value as GPUTextureView | undefined;
+		const bindGroupCountAfterA = runtime.device.createBindGroup.mock.calls.length;
+		expect(viewA).toBeDefined();
+		expect(
+			runtime.device.createBindGroup.mock.calls.some(([descriptor]) =>
+				Array.from((descriptor as GPUBindGroupDescriptor).entries).some(
+					(entry) => entry.resource === viewA
+				)
+			)
+		).toBe(true);
+
+		renderer.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { uTex: sourceB }
+		});
+
+		const textureB = runtime.textures.find((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return size.width === 8 && size.height === 8;
+		});
+		const viewB = textureB?.createView.mock.results[0]?.value as GPUTextureView | undefined;
+		const latestBindGroup = runtime.device.createBindGroup.mock.calls.at(-1)?.[0] as
+			| GPUBindGroupDescriptor
+			| undefined;
+		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCountAfterA + 1);
+		expect(
+			Array.from(latestBindGroup?.entries ?? []).some((entry) => entry.resource === viewB)
+		).toBe(true);
+		expect(
+			Array.from(latestBindGroup?.entries ?? []).some((entry) => entry.resource === viewA)
+		).toBe(false);
+		expect(textureA?.destroy).toHaveBeenCalledTimes(1);
+
+		renderer.destroy();
 	});
 
 	it('keeps existing runtime texture usable when same-sized upload fails', async () => {

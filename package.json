@@ -46,10 +46,10 @@
 		"prepare": "node ./scripts/setup-git-hooks.mjs"
 	},
 	"dependencies": {
-		"prettier-plugin-tailwindcss": "^0.7.2"
+		"prettier-plugin-tailwindcss": "catalog:"
 	},
 	"devDependencies": {
-		"prettier": "^3.8.1",
+		"prettier": "catalog:",
 		"prettier-plugin-svelte": "^3.5.0"
 	},
 	"pnpm": {

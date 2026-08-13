@@ -6,43 +6,38 @@ import path from 'node:path';
 import prettier from 'eslint-config-prettier';
 import { includeIgnoreFile } from 'eslint/config';
 import { defineConfig } from 'eslint/config';
+import {
+	createSharedBaseLanguageConfig,
+	createSharedPrettierConfigs,
+	createSharedRecommendedConfigs,
+	createSharedSvelteLanguageConfig,
+	createSharedSvelteRecommendedConfigs
+} from '../../scripts/eslint/shared-preset.mjs';
 import svelteConfig from './svelte.config';
 
 const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
-	js.configs.recommended,
-	ts.configs.strictTypeChecked,
-	ts.configs.stylisticTypeChecked,
-	svelte.configs.recommended,
-	prettier,
-	svelte.configs.prettier,
+	createSharedRecommendedConfigs({
+		js,
+		typescriptConfigs: [ts.configs.strictTypeChecked, ts.configs.stylisticTypeChecked]
+	}),
+	createSharedSvelteRecommendedConfigs({ svelte }),
+	createSharedPrettierConfigs({ prettier, svelte }),
+	createSharedBaseLanguageConfig({
+		globals,
+		projectService: true,
+		tsconfigRootDir: import.meta.dirname
+	}),
+	createSharedSvelteLanguageConfig({
+		svelteConfig,
+		ts,
+		tsconfigRootDir: import.meta.dirname
+	}),
 	{
-		languageOptions: {
-			globals: { ...globals.browser, ...globals.node },
-			parserOptions: {
-				tsconfigRootDir: import.meta.dirname,
-				projectService: true
-			}
-		},
-		rules: {
-			// typescript-eslint strongly recommend that you do not use the no-undef lint rule on TypeScript projects.
-			// see: https://typescript-eslint.io/troubleshooting/faqs/eslint/#i-get-errors-from-the-no-undef-rule-about-global-variables-not-being-defined-even-though-there-are-no-typescript-errors
-			'no-undef': 'off'
-		}
-	},
-	{
-		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
-		languageOptions: {
-			parserOptions: {
-				tsconfigRootDir: import.meta.dirname,
-				projectService: true,
-				extraFileExtensions: ['.svelte'],
-				parser: ts.parser,
-				svelteConfig
-			}
-		}
+		...ts.configs.disableTypeChecked,
+		files: ['scripts/**/*.mjs']
 	},
 	{
 		ignores: [

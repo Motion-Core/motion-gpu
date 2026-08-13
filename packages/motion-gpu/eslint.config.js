@@ -8,6 +8,13 @@ import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import ts from 'typescript-eslint';
 import vue from 'eslint-plugin-vue';
+import {
+	createSharedBaseLanguageConfig,
+	createSharedPrettierConfigs,
+	createSharedRecommendedConfigs,
+	createSharedSvelteLanguageConfig,
+	createSharedSvelteRecommendedConfigs
+} from '../../scripts/eslint/shared-preset.mjs';
 import svelteConfig from './svelte.config.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '../../.gitignore');
@@ -28,8 +35,10 @@ export default defineConfig(
 	{
 		ignores: ['dist/**', '.svelte-kit/**', 'coverage/**', 'scripts/lint/fixtures/**']
 	},
-	js.configs.recommended,
-	...ts.configs.recommended,
+	createSharedRecommendedConfigs({
+		js,
+		typescriptConfigs: [ts.configs.recommended]
+	}),
 	{
 		files: typeAwareProductionFiles,
 		languageOptions: {
@@ -44,7 +53,7 @@ export default defineConfig(
 			'@typescript-eslint/no-misused-promises': 'error'
 		}
 	},
-	...svelte.configs.recommended,
+	createSharedSvelteRecommendedConfigs({ svelte }),
 	{
 		files: reactFiles,
 		plugins: {
@@ -56,21 +65,11 @@ export default defineConfig(
 		}
 	},
 	...vueRecommended,
-	prettier,
-	...svelte.configs.prettier,
-	{
-		languageOptions: {
-			parserOptions: {
-				tsconfigRootDir: import.meta.dirname
-			}
-		}
-	},
-	{
-		languageOptions: { globals: { ...globals.browser, ...globals.node } },
-		rules: {
-			'no-undef': 'off'
-		}
-	},
+	createSharedPrettierConfigs({ prettier, svelte }),
+	createSharedBaseLanguageConfig({
+		globals,
+		tsconfigRootDir: import.meta.dirname
+	}),
 	{
 		files: vueFiles,
 		languageOptions: {
@@ -101,16 +100,5 @@ export default defineConfig(
 			'vue/valid-template-root': 'off'
 		}
 	},
-	{
-		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
-		languageOptions: {
-			parserOptions: {
-				tsconfigRootDir: import.meta.dirname,
-				projectService: true,
-				extraFileExtensions: ['.svelte'],
-				parser: ts.parser,
-				svelteConfig
-			}
-		}
-	}
+	createSharedSvelteLanguageConfig({ svelteConfig, ts, tsconfigRootDir: import.meta.dirname })
 );

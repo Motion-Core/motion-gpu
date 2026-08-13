@@ -20,9 +20,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added borrowed `GPUTexture`, `GPUTextureView`, `GPUBuffer`, and `GPUSampler` references with stable logical IDs, per-frame providers, typed metadata, and non-owning lifecycle rules.
 - Added compute graph scheduling, normal and ping-pong output publication, same-dispatch hazard validation, and stable diagnostic codes for descriptor, resource, external-object, limit, multiple-writer, and cycle failures.
 
-### Changed
+### Fixed
 
-- Unified compute shader generation, bind-group layouts, graph access sets, resource validation, and cache topology around one resolved resource model in group 1.
+- Fixed aborted texture loads closing a decoded `ImageBitmap` more than once.
 
 ### Performance
 

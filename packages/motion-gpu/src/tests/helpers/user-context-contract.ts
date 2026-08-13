@@ -49,7 +49,6 @@ export interface UserContextFunctionValueResult {
 	callsAfterSet: number;
 	invokedValue: string | null;
 	callsAfterInvoke: number;
-	lazyValue?: { mode: string };
 }
 
 interface UserContextStabilityResult {
@@ -267,7 +266,6 @@ export function defineUserContextContract(driver: UserContextContractDriver): vo
 			expect(result.callsAfterSet).toBe(0);
 			expect(result.invokedValue).toBe(`${driver.framework}-function`);
 			expect(result.callsAfterInvoke).toBe(1);
-			if (result.lazyValue) expect(result.lazyValue).toEqual({ mode: 'lazy' });
 		});
 
 		it('infers scoped namespace value type from typed context map', async () => {

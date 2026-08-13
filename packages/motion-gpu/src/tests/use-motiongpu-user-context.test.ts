@@ -12,33 +12,21 @@ import {
 	type UserContextSubscriptionResult
 } from './helpers/user-context-contract.js';
 
+async function runProbe<T>(component: Parameters<typeof render>[0]): Promise<T> {
+	const onProbe = vi.fn();
+	render(component, { props: { onProbe } });
+	await waitFor(() => expect(onProbe).toHaveBeenCalledTimes(1));
+	return onProbe.mock.calls[0]?.[0] as T;
+}
+
 defineUserContextContract({
 	framework: 'svelte',
 	readOutside: () => {
 		render(MotionGPUUserOutside);
 	},
-	async runSemantics() {
-		const onProbe = vi.fn();
-		render(MotionGPUWithUserProbe, { props: { onProbe } });
-		await waitFor(() => expect(onProbe).toHaveBeenCalledTimes(1));
-		return onProbe.mock.calls[0]?.[0] as UserContextSemanticsResult;
-	},
-	async runSubscriptions() {
-		const onProbe = vi.fn();
-		render(MotionGPUWithUserSubscribeProbe, { props: { onProbe } });
-		await waitFor(() => expect(onProbe).toHaveBeenCalledTimes(1));
-		return onProbe.mock.calls[0]?.[0] as UserContextSubscriptionResult;
-	},
-	async runFunctionValue() {
-		const onProbe = vi.fn();
-		render(MotionGPUWithUserFunctionValueProbe, { props: { onProbe } });
-		await waitFor(() => expect(onProbe).toHaveBeenCalledTimes(1));
-		return onProbe.mock.calls[0]?.[0] as UserContextFunctionValueResult;
-	},
-	async runTypedNamespace() {
-		const onProbe = vi.fn();
-		render(MotionGPUWithUserTypedNamespaceProbe, { props: { onProbe } });
-		await waitFor(() => expect(onProbe).toHaveBeenCalledTimes(1));
-		return onProbe.mock.calls[0]?.[0] as { enabled: boolean };
-	}
+	runSemantics: () => runProbe<UserContextSemanticsResult>(MotionGPUWithUserProbe),
+	runSubscriptions: () => runProbe<UserContextSubscriptionResult>(MotionGPUWithUserSubscribeProbe),
+	runFunctionValue: () =>
+		runProbe<UserContextFunctionValueResult>(MotionGPUWithUserFunctionValueProbe),
+	runTypedNamespace: () => runProbe<{ enabled: boolean }>(MotionGPUWithUserTypedNamespaceProbe)
 });

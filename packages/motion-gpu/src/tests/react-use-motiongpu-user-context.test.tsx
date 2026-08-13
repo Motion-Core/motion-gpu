@@ -37,11 +37,11 @@ function withProvider(
 function SemanticsProbe({ onProbe }: { onProbe: (value: UserContextSemanticsResult) => void }) {
 	const allStore = useMotionGPUUserContext<Record<string | symbol, unknown>>();
 	const pluginStore = useMotionGPUUserContext<{ plugin: Record<string, unknown> }>('plugin');
-	const result = runUserContextSemantics(allStore, pluginStore, setMotionGPUUserContext);
+	const setUserContext = useSetMotionGPUUserContext();
 
 	useEffect(() => {
-		onProbe(result);
-	}, [onProbe, result]);
+		onProbe(runUserContextSemantics(allStore, pluginStore, setUserContext));
+	}, [allStore, onProbe, pluginStore, setUserContext]);
 	return null;
 }
 

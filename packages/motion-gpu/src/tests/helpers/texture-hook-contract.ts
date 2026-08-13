@@ -175,7 +175,7 @@ export function defineTextureHookContract({
 			expect(fetch).toHaveBeenCalledWith('/assets/missing.png', expect.any(Object));
 		});
 
-		it('cancels in-flight load and disposes bitmaps on unmount', async () => {
+		it('cancels in-flight load on unmount', async () => {
 			let aborted = false;
 			vi.stubGlobal(
 				'fetch',
@@ -203,7 +203,26 @@ export function defineTextureHookContract({
 
 			view.unmount();
 			await waitFor(() => expect(aborted).toBe(true));
-			for (const bitmap of bitmaps) expect(bitmap.close).toHaveBeenCalledTimes(1);
+		});
+
+		it('disposes loaded bitmaps on unmount', async () => {
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () => ({
+					ok: true,
+					status: 200,
+					blob: async () => new Blob([new Uint8Array([1, 2, 3, 4])], { type: 'image/png' })
+				}))
+			);
+			const view = mount(['/assets/dispose-loaded.png']);
+
+			await waitFor(() => {
+				expect(bitmaps).toHaveLength(1);
+				expect(requireResult(view).textures.current).toHaveLength(1);
+			});
+			view.unmount();
+
+			expect(bitmaps[0]?.close).toHaveBeenCalledTimes(1);
 		});
 
 		it('shares in-flight blob requests across concurrent hook instances', async () => {

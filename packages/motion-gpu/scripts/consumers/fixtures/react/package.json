@@ -1,0 +1,20 @@
+{
+	"name": "@motion-gpu-consumers/react",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@motion-core/motion-gpu": "file:__MOTION_GPU_TARBALL__",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0"
+	},
+	"devDependencies": {
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.1"
+	}
+}

@@ -86,6 +86,7 @@
 		"build:watch": "vite build --watch --config ./vite.package.config.ts",
 		"prepack": "pnpm run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && vue-tsc --project ./tsconfig.vue.json --noEmit && publint",
+		"check:consumers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",
 		"test:watch": "vitest",

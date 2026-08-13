@@ -2076,6 +2076,7 @@ describe('createRenderer', () => {
 		const { ComputePass } = await import('../../lib/passes/ComputePass');
 		const computePass = new ComputePass({
 			compute: `@compute @workgroup_size(64) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 			dispatch: [4, 1, 1]
 		});
 
@@ -2114,6 +2115,81 @@ describe('createRenderer', () => {
 		expect(computeOrder).toBeLessThan(renderOrder);
 
 		renderer.destroy();
+	});
+
+	it('schedules explicit texture resources through compute A, compute B, then scene', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const computeA = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureLoad(sourceTex, vec2u(id.xy), 0);
+	textureStore(motionOut, vec2u(id.xy), value);
+}`,
+			resources: {
+				sourceTex: { texture: 'camera', access: 'sampled' },
+				motionOut: { texture: 'motion', access: 'storage-write' }
+			},
+			dispatch: [1, 1, 1]
+		});
+		const computeB = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureLoad(motionIn, vec2u(id.xy), 0);
+	textureStore(finalOut, vec2u(id.xy), value);
+}`,
+			resources: {
+				motionIn: { texture: 'motion', access: 'sampled' },
+				finalOut: { texture: 'result', access: 'storage-write' }
+			},
+			dispatch: [1, 1, 1]
+		});
+		const source = document.createElement('canvas');
+		source.width = 8;
+		source.height = 8;
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['camera', 'motion', 'result'],
+			textureDefinitions: {
+				camera: { fragmentVisible: false },
+				motion: {
+					storage: true,
+					format: 'rgba8unorm',
+					width: 8,
+					height: 8,
+					fragmentVisible: false
+				},
+				result: { storage: true, format: 'rgba8unorm', width: 8, height: 8 }
+			},
+			// Deliberately reverse declaration order; the graph must move A before B.
+			passes: [computeB as unknown as RenderPass, computeA as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: { camera: source }
+		});
+
+		expect(runtime.commandEncoders[0]?.beginComputePass).toHaveBeenCalledTimes(2);
+		const computeEncoder = runtime.computePasses[0];
+		const firstPipeline = runtime.device.createComputePipeline.mock.calls[0]?.[0] as
+			| GPUComputePipelineDescriptor
+			| undefined;
+		const secondPipeline = runtime.device.createComputePipeline.mock.calls[1]?.[0] as
+			| GPUComputePipelineDescriptor
+			| undefined;
+		const firstCode = (firstPipeline?.compute.module as unknown as { code?: string })?.code;
+		const secondCode = (secondPipeline?.compute.module as unknown as { code?: string })?.code;
+		expect(firstCode).toContain('var sourceTex: texture_2d');
+		expect(firstCode).toContain('var motionOut: texture_storage_2d');
+		expect(secondCode).toContain('var motionIn: texture_2d');
+		expect(secondCode).toContain('var finalOut: texture_storage_2d');
+		expect(computeEncoder?.setBindGroup.mock.calls.map((call) => call[0])).toEqual([0, 1, 0, 1]);
+		const encoder = runtime.commandEncoders[0];
+		expect(encoder?.beginComputePass.mock.invocationCallOrder.at(-1)).toBeLessThan(
+			encoder?.beginRenderPass.mock.invocationCallOrder.at(-1) ?? 0
+		);
 	});
 
 	it('omits fragment-stage texture bindings for texture slots marked fragmentVisible:false', async () => {
@@ -2248,11 +2324,12 @@ describe('createRenderer', () => {
 		});
 	});
 
-	it('reuses compute storage buffer bind group layout and bind group across stable frames', async () => {
+	it('reuses compute buffer resource layout and bind group across stable frames', async () => {
 		const runtime = createWebGpuRuntime();
 		const { ComputePass } = await import('../../lib/passes/ComputePass');
 		const computePass = new ComputePass({
 			compute: `@compute @workgroup_size(64) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 			dispatch: [4, 1, 1]
 		});
 
@@ -2332,11 +2409,14 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
-	it('reuses compute storage texture bind group layout and bind group across stable frames', async () => {
+	it('reuses compute texture resource layout and bind group across stable frames', async () => {
 		const runtime = createWebGpuRuntime();
 		const { ComputePass } = await import('../../lib/passes/ComputePass');
 		const computePass = new ComputePass({
 			compute: `@compute @workgroup_size(8, 8, 1) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			resources: {
+				computeOutput: { texture: 'computeOutput', access: 'storage-write' }
+			},
 			dispatch: [2, 2, 1]
 		});
 
@@ -2422,6 +2502,150 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
+	it('keeps pass-local resource bind groups when two passes share one pipeline topology', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const compute = `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureLoad(inputTex, vec2u(id.xy), 0);
+}`;
+		const passA = new ComputePass({
+			compute,
+			resources: { inputTex: { texture: 'cameraA', access: 'sampled' } },
+			dispatch: [1, 1, 1]
+		});
+		const passB = new ComputePass({
+			compute,
+			resources: { inputTex: { texture: 'cameraB', access: 'sampled' } },
+			dispatch: [1, 1, 1]
+		});
+		const sourceA = document.createElement('canvas');
+		const sourceB = document.createElement('canvas');
+		sourceA.width = sourceA.height = sourceB.width = sourceB.height = 8;
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['cameraA', 'cameraB'],
+			textureDefinitions: {
+				cameraA: { fragmentVisible: false },
+				cameraB: { fragmentVisible: false }
+			},
+			passes: [passA as unknown as RenderPass, passB as unknown as RenderPass]
+		});
+
+		const render = (time: number) =>
+			renderer.render({
+				time,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: { cameraA: sourceA, cameraB: sourceB }
+			});
+		render(0);
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
+		const resourceBindGroupsAfterFirst = runtime.device.createBindGroup.mock.calls.filter(
+			(call) => Array.from((call[0] as GPUBindGroupDescriptor).entries).length === 1
+		).length;
+		expect(resourceBindGroupsAfterFirst).toBe(2);
+
+		render(0.016);
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
+		const resourceBindGroupsAfterSecond = runtime.device.createBindGroup.mock.calls.filter(
+			(call) => Array.from((call[0] as GPUBindGroupDescriptor).entries).length === 1
+		).length;
+		expect(resourceBindGroupsAfterSecond).toBe(resourceBindGroupsAfterFirst);
+	});
+
+	it('snapshots raw texture and sampler resources and refreshes only their bind group', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const createExternalTexture = (label: string) => {
+			const view = { label: `${label}-view` } as unknown as GPUTextureView;
+			return {
+				texture: {
+					label,
+					format: 'rgba8unorm',
+					usage: GPUTextureUsage.TEXTURE_BINDING,
+					dimension: '2d',
+					sampleCount: 1,
+					depthOrArrayLayers: 1,
+					mipLevelCount: 1,
+					createView: vi.fn(() => view),
+					destroy: vi.fn()
+				} as unknown as GPUTexture,
+				view
+			};
+		};
+		const externalA = createExternalTexture('external-a');
+		const externalB = createExternalTexture('external-b');
+		let currentTexture = externalA.texture;
+		const textureProvider = vi.fn(() => currentTexture);
+		const externalSampler = { label: 'external-sampler' } as unknown as GPUSampler;
+		const pass = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureSampleLevel(inputTex, linearSampler, vec2f(0.5), 0.0);
+}`,
+			resources: {
+				inputTex: {
+					texture: {
+						externalTexture: textureProvider,
+						resourceId: 'external-input',
+						format: 'rgba8unorm',
+						usage: GPUTextureUsage.TEXTURE_BINDING
+					},
+					access: 'sampled'
+				},
+				linearSampler: {
+					sampler: {
+						externalSampler,
+						resourceId: 'external-sampler',
+						type: 'filtering'
+					}
+				}
+			},
+			dispatch: [1, 1, 1]
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass as unknown as RenderPass]
+		});
+
+		const render = (time: number) =>
+			renderer.render({
+				time,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+		render(0);
+		expect(textureProvider).toHaveBeenCalledTimes(1);
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
+		expect(externalA.texture.createView).toHaveBeenCalledTimes(1);
+
+		currentTexture = externalB.texture;
+		render(0.016);
+		expect(textureProvider).toHaveBeenCalledTimes(2);
+		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
+		expect(externalA.texture.createView).toHaveBeenCalledTimes(1);
+		expect(externalB.texture.createView).toHaveBeenCalledTimes(1);
+		const rawGroups = runtime.device.createBindGroup.mock.calls
+			.map((call) => call[0] as GPUBindGroupDescriptor)
+			.filter((descriptor) => {
+				const entries = Array.from(descriptor.entries);
+				return entries.some(
+					(entry) => entry.resource === externalA.view || entry.resource === externalB.view
+				);
+			});
+		expect(rawGroups).toHaveLength(2);
+
+		renderer.destroy();
+		expect(
+			(externalA.texture as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy
+		).not.toHaveBeenCalled();
+		expect(
+			(externalB.texture as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy
+		).not.toHaveBeenCalled();
+	});
+
 	it('attaches structured diagnostics when compute shader compilation fails', async () => {
 		const runtime = createWebGpuRuntime();
 		runtime.device.createComputePipeline.mockImplementation(() => {
@@ -2439,6 +2663,7 @@ describe('createRenderer', () => {
 				'\t}',
 				'}'
 			].join('\n'),
+			resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 			dispatch: [4, 1, 1]
 		});
 
@@ -2523,6 +2748,7 @@ describe('createRenderer', () => {
 				'\t}',
 				'}'
 			].join('\n'),
+			resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 			dispatch: [4, 1, 1]
 		});
 
@@ -2646,6 +2872,79 @@ describe('createRenderer', () => {
 		expect(secondEntries[0]?.resource).toBe(firstEntries[1]?.resource);
 		expect(secondEntries[1]?.resource).toBe(firstEntries[0]?.resource);
 		expect(runtime.computePasses[0]?.dispatchWorkgroups).toHaveBeenCalledTimes(2);
+	});
+
+	it('publishes ping-pong output to a later compute pass and the scene', async () => {
+		const runtime = createWebGpuRuntime();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const { PingPongComputePass } = await import('../../lib/passes/PingPongComputePass');
+		const pingPong = new PingPongComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureLoad(previous, vec2u(id.xy), 0);
+	textureStore(next, vec2u(id.xy), value);
+}`,
+			resources: {
+				previous: { texture: 'sim', access: 'sampled', pingPong: 'read' },
+				next: { texture: 'sim', access: 'storage-write', pingPong: 'write' }
+			},
+			iterations: 1,
+			dispatch: [1, 1, 1]
+		});
+		const consumer = new ComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let value = textureLoad(latestSim, vec2u(id.xy), 0);
+}`,
+			resources: { latestSim: { texture: 'sim', access: 'sampled' } },
+			dispatch: [1, 1, 1]
+		});
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['sim'],
+			textureDefinitions: {
+				sim: { storage: true, format: 'rgba8unorm', width: 8, height: 8 }
+			},
+			// The dependency graph must put the ping-pong writer first.
+			passes: [consumer as unknown as RenderPass, pingPong as unknown as RenderPass]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		const storageTextures = runtime.textures.filter((texture) => {
+			const size = texture.descriptor.size as { width?: number; height?: number };
+			return (
+				size.width === 8 &&
+				size.height === 8 &&
+				((texture.descriptor.usage as number) & GPUTextureUsage.STORAGE_BINDING) !== 0
+			);
+		});
+		expect(storageTextures).toHaveLength(3);
+		const latestView = storageTextures[2]?.createView.mock.results[0]?.value;
+		expect(latestView).toBeDefined();
+
+		const resourceBindGroups = runtime.device.createBindGroup.mock.calls
+			.map((call) => call[0] as GPUBindGroupDescriptor)
+			.filter((descriptor) =>
+				Array.from(descriptor.entries).some((entry) => entry.resource === latestView)
+			);
+		// One consumer group and the refreshed fragment group both observe B.
+		expect(resourceBindGroups.length).toBeGreaterThanOrEqual(2);
+		const computePipelineCalls = runtime.device.createComputePipeline.mock.calls;
+		const firstCode = (
+			(computePipelineCalls[0]?.[0] as GPUComputePipelineDescriptor | undefined)?.compute
+				.module as unknown as { code?: string }
+		)?.code;
+		const secondCode = (
+			(computePipelineCalls[1]?.[0] as GPUComputePipelineDescriptor | undefined)?.compute
+				.module as unknown as { code?: string }
+		)?.code;
+		expect(firstCode).toContain('var next: texture_storage_2d');
+		expect(secondCode).toContain('var latestSim: texture_2d');
 	});
 
 	it('destroys ping-pong texture pairs during renderer.destroy()', async () => {

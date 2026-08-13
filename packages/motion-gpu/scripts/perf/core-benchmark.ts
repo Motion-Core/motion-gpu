@@ -11,7 +11,7 @@ import {
 } from '../../src/lib/core/uniforms';
 import { findDirtyFloatRanges } from '../../src/lib/core/renderer';
 import { createFrameRegistry } from '../../src/lib/core/frame-registry';
-import { createComputeStorageBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache';
+import { createComputeBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache';
 import type { FrameState, RenderPass, UniformValue } from '../../src/lib/core/types';
 
 const SCRIPT_DIR = import.meta.dirname;
@@ -302,20 +302,14 @@ fn frag(uv: vec2f) -> vec4f {
 	};
 
 	const bindGroupResource = {} as GPUBuffer;
+	const bindGroupLayout = {} as GPUBindGroupLayout;
 	const bindGroupRequest = {
 		topologyKey: 'data:read-write',
-		layoutEntries: [
-			{
-				binding: 0,
-				visibility: 0x20,
-				buffer: { type: 'storage' as const }
-			}
-		],
-		bindGroupEntries: [{ binding: 0, resource: { buffer: bindGroupResource } }],
+		layout: bindGroupLayout,
+		entries: [{ binding: 0, resource: { buffer: bindGroupResource } }],
 		resourceRefs: [bindGroupResource]
 	};
-	const bindGroupCache = createComputeStorageBindGroupCache({
-		createBindGroupLayout: () => ({}) as GPUBindGroupLayout,
+	const bindGroupCache = createComputeBindGroupCache({
 		createBindGroup: () => ({}) as GPUBindGroup
 	} as unknown as GPUDevice);
 	bindGroupCache.getOrCreate(bindGroupRequest);

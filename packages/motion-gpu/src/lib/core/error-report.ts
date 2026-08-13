@@ -33,6 +33,15 @@ export type MotionGPUErrorCode =
 	| 'TEXTURE_REQUEST_ABORTED'
 	| 'COMPUTE_COMPILATION_FAILED'
 	| 'COMPUTE_CONTRACT_INVALID'
+	| 'COMPUTE_RESOURCE_DESCRIPTOR_INVALID'
+	| 'COMPUTE_RESOURCE_UNKNOWN'
+	| 'COMPUTE_RESOURCE_INCOMPATIBLE'
+	| 'COMPUTE_RESOURCE_ALIAS_COLLISION'
+	| 'COMPUTE_RESOURCE_HAZARD'
+	| 'COMPUTE_GRAPH_MULTIPLE_WRITERS'
+	| 'COMPUTE_GRAPH_CYCLE'
+	| 'COMPUTE_RESOURCE_LIMIT_EXCEEDED'
+	| 'COMPUTE_EXTERNAL_RESOURCE_INVALID'
 	| 'MOTIONGPU_RUNTIME_ERROR';
 
 /**
@@ -126,6 +135,99 @@ export interface MotionGPUErrorReport {
 	 * Optional runtime context snapshot (material/pass graph/render targets).
 	 */
 	context: MotionGPUErrorContext | null;
+}
+
+type MotionGPUClassifiedError = Error & {
+	motiongpuCode?: MotionGPUErrorCode;
+	motiongpuContext?: MotionGPUErrorContext;
+};
+
+/** Creates an error carrying a stable MotionGPU diagnostic code. */
+export function createMotionGPUError(
+	code: MotionGPUErrorCode,
+	message: string,
+	options?: ErrorOptions
+): Error {
+	const error = new Error(message, options) as MotionGPUClassifiedError;
+	error.motiongpuCode = code;
+	return error;
+}
+
+/** Attaches renderer context without replacing a more specific error or stack. */
+export function attachMotionGPUErrorContext(error: unknown, context: MotionGPUErrorContext): Error {
+	const normalized = (
+		error instanceof Error
+			? error
+			: new Error(typeof error === 'string' ? error : 'Unknown FragCanvas error')
+	) as MotionGPUClassifiedError;
+	if (normalized.motiongpuContext === undefined) {
+		normalized.motiongpuContext = context;
+	}
+	return normalized;
+}
+
+function classifyErrorCode(
+	code: MotionGPUErrorCode
+): Pick<MotionGPUErrorReport, 'code' | 'severity' | 'recoverable' | 'title' | 'hint'> | null {
+	const common = { code, severity: 'error' as const, recoverable: true };
+	switch (code) {
+		case 'COMPUTE_RESOURCE_DESCRIPTOR_INVALID':
+			return {
+				...common,
+				title: 'Compute resource descriptor is invalid',
+				hint: 'Check the descriptor discriminant, access mode, resource metadata and view range.'
+			};
+		case 'COMPUTE_RESOURCE_UNKNOWN':
+			return {
+				...common,
+				title: 'Compute resource is unknown',
+				hint: 'Declare the referenced texture, sampler or storage buffer on the active material.'
+			};
+		case 'COMPUTE_RESOURCE_INCOMPATIBLE':
+			return {
+				...common,
+				title: 'Compute resource is incompatible',
+				hint: 'Match access, usage flags, texture format, sample type and buffer access to the shader.'
+			};
+		case 'COMPUTE_RESOURCE_ALIAS_COLLISION':
+			return {
+				...common,
+				title: 'Compute resource alias is invalid',
+				hint: 'Use a unique WGSL identifier that is not reserved by MotionGPU.'
+			};
+		case 'COMPUTE_RESOURCE_HAZARD':
+			return {
+				...common,
+				title: 'Compute dispatch has a resource hazard',
+				hint: 'Do not bind overlapping writable and readable subresources in one dispatch.'
+			};
+		case 'COMPUTE_GRAPH_MULTIPLE_WRITERS':
+			return {
+				...common,
+				title: 'Compute graph has multiple writers',
+				hint: 'Choose one writer for each logical resource inside a compute graph segment.'
+			};
+		case 'COMPUTE_GRAPH_CYCLE':
+			return {
+				...common,
+				title: 'Compute dependency cycle detected',
+				hint: 'Break the cycle or mark a read as version "initial" when it needs pre-frame data.'
+			};
+		case 'COMPUTE_RESOURCE_LIMIT_EXCEEDED':
+			return {
+				...common,
+				title: 'Compute resources exceed device limits',
+				hint: 'Reduce bindings per pass or split the work into multiple compute passes.'
+			};
+		case 'COMPUTE_EXTERNAL_RESOURCE_INVALID':
+			return {
+				...common,
+				title: 'External compute resource is stale or incompatible',
+				hint: 'Return a live resource from the current device and keep resourceId, format, usage and size metadata accurate.'
+			};
+		default:
+			return null;
+	}
 }
 
 /**
@@ -553,7 +655,8 @@ export function toMotionGPUErrorReport(
 	const defaultMessage = rawLines[0] ?? rawMessage;
 	const defaultDetails = rawLines.slice(1);
 	const source = buildSourceFromDiagnostics(error);
-	const context = shaderDiagnostics?.runtimeContext ?? null;
+	const classifiedError = error instanceof Error ? (error as MotionGPUClassifiedError) : null;
+	const context = classifiedError?.motiongpuContext ?? shaderDiagnostics?.runtimeContext ?? null;
 	const message =
 		shaderDiagnostics && shaderDiagnostics.diagnostics[0]
 			? formatDiagnosticMessage(shaderDiagnostics.diagnostics[0])
@@ -565,7 +668,9 @@ export function toMotionGPUErrorReport(
 		error instanceof Error && error.stack
 			? splitLines(error.stack).filter((line) => line !== message)
 			: [];
-	let classification = classifyErrorMessage(rawMessage);
+	let classification =
+		(classifiedError?.motiongpuCode ? classifyErrorCode(classifiedError.motiongpuCode) : null) ??
+		classifyErrorMessage(rawMessage);
 	if (
 		shaderDiagnostics?.shaderStage === 'compute' &&
 		classification.code === 'WGSL_COMPILATION_FAILED'

@@ -1,197 +1,91 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-	createComputeStorageBindGroupCache,
-	type ComputeStorageBindGroupCache
+	createComputeBindGroupCache,
+	type ComputeBindGroupCache
 } from '../../lib/core/compute-bindgroup-cache';
-
-type CacheWithDebug = ComputeStorageBindGroupCache & {
-	readonly _refAt: (index: number) => unknown;
-};
 
 function createMockDevice() {
 	return {
-		createBindGroupLayout: vi.fn(
-			(descriptor: GPUBindGroupLayoutDescriptor) =>
-				({ descriptor }) as unknown as GPUBindGroupLayout
-		),
 		createBindGroup: vi.fn(
 			(descriptor: GPUBindGroupDescriptor) => ({ descriptor }) as unknown as GPUBindGroup
 		)
 	} as unknown as GPUDevice;
 }
 
-function createTwoBufferRequest(
+function request(
+	layout: GPUBindGroupLayout,
 	topologyKey: string,
-	refA: GPUBuffer,
-	refB: GPUBuffer
-): {
-	topologyKey: string;
-	layoutEntries: GPUBindGroupLayoutEntry[];
-	bindGroupEntries: GPUBindGroupEntry[];
-	resourceRefs: unknown[];
-} {
+	resources: readonly GPUBindingResource[]
+) {
 	return {
 		topologyKey,
-		layoutEntries: [
-			{ binding: 0, visibility: 0x20, buffer: { type: 'storage' } },
-			{ binding: 1, visibility: 0x20, buffer: { type: 'storage' } }
-		],
-		bindGroupEntries: [
-			{ binding: 0, resource: { buffer: refA } },
-			{ binding: 1, resource: { buffer: refB } }
-		],
-		resourceRefs: [refA, refB]
+		layout,
+		entries: resources.map((resource, binding) => ({ binding, resource })),
+		resourceRefs: resources.map((resource) => ('buffer' in resource ? resource.buffer : resource))
 	};
 }
 
-function createStorageBufferRequest(
-	topologyKey: string,
-	resourceRef: GPUBuffer
-): {
-	topologyKey: string;
-	layoutEntries: GPUBindGroupLayoutEntry[];
-	bindGroupEntries: GPUBindGroupEntry[];
-	resourceRefs: unknown[];
-} {
-	return {
-		topologyKey,
-		layoutEntries: [
-			{
-				binding: 0,
-				visibility: 0x20,
-				buffer: { type: 'storage' }
-			}
-		],
-		bindGroupEntries: [{ binding: 0, resource: { buffer: resourceRef } }],
-		resourceRefs: [resourceRef]
-	};
-}
-
-describe('createComputeStorageBindGroupCache', () => {
-	it('reuses layout and bind group when topology and resource refs are stable', () => {
+describe('createComputeBindGroupCache', () => {
+	it('reuses a bind group when the pipeline layout and physical refs are stable', () => {
 		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device);
-		const buffer = {} as GPUBuffer;
-		const request = createStorageBufferRequest('data:read-write', buffer);
-
-		const first = cache.getOrCreate(request);
-		const second = cache.getOrCreate(request);
-
+		const cache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
+		const resources = [{} as GPUTextureView, {} as GPUSampler];
+		const first = cache.getOrCreate(request(layout, 'sampled|sampler', resources));
+		const second = cache.getOrCreate(request(layout, 'sampled|sampler', resources));
 		expect(first).toBe(second);
-		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(1);
 		expect(device.createBindGroup).toHaveBeenCalledTimes(1);
 	});
 
-	it('recreates bind group when resource refs change but topology is unchanged', () => {
+	it('recreates only the bind group when a physical resource changes', () => {
 		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device);
-		const firstRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
-		const secondRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
-
-		const first = cache.getOrCreate(firstRequest);
-		const second = cache.getOrCreate(secondRequest);
-
+		const cache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
+		const first = cache.getOrCreate(request(layout, 'sampled', [{} as GPUTextureView]));
+		const second = cache.getOrCreate(request(layout, 'sampled', [{} as GPUTextureView]));
 		expect(first).not.toBe(second);
-		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(1);
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
-	it('reuses the internal resource refs backing array across cache misses of the same arity', () => {
+	it('invalidates state when topology or pipeline-owned layout changes', () => {
 		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device);
-		const firstRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
-		const secondRequest = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
-		const resourceRefsIterator = vi.fn(
-			secondRequest.resourceRefs[Symbol.iterator].bind(secondRequest.resourceRefs)
-		);
-		Object.defineProperty(secondRequest.resourceRefs, Symbol.iterator, {
-			value: resourceRefsIterator
-		});
-
-		cache.getOrCreate(firstRequest);
-		cache.getOrCreate(secondRequest);
-
-		expect(resourceRefsIterator).not.toHaveBeenCalled();
+		const cache = createComputeBindGroupCache(device);
+		const view = {} as GPUTextureView;
+		cache.getOrCreate(request({} as GPUBindGroupLayout, 'float', [view]));
+		cache.getOrCreate(request({} as GPUBindGroupLayout, 'uint', [view]));
+		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
-	it('recreates layout when topology changes', () => {
+	it('compares buffer objects rather than freshly-created GPUBufferBinding wrappers', () => {
 		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device);
+		const cache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
 		const buffer = {} as GPUBuffer;
+		const first = cache.getOrCreate(request(layout, 'buffer', [{ buffer, size: 64 }]));
+		const second = cache.getOrCreate(request(layout, 'buffer', [{ buffer, size: 64 }]));
+		expect(first).toBe(second);
+		expect(device.createBindGroup).toHaveBeenCalledTimes(1);
+	});
 
-		cache.getOrCreate(createStorageBufferRequest('data:read-write', buffer));
-		cache.getOrCreate({
-			topologyKey: 'data:read',
-			layoutEntries: [
-				{
-					binding: 0,
-					visibility: 0x20,
-					buffer: { type: 'read-only-storage' }
-				}
-			],
-			bindGroupEntries: [{ binding: 0, resource: { buffer } }],
-			resourceRefs: [buffer]
-		});
-
-		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(2);
+	it('returns null for an empty group and clears prior state', () => {
+		const device = createMockDevice();
+		const cache: ComputeBindGroupCache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
+		const resources = [{} as GPUTextureView];
+		cache.getOrCreate(request(layout, 'sampled', resources));
+		expect(cache.getOrCreate(request(layout, '', []))).toBeNull();
+		cache.getOrCreate(request(layout, 'sampled', resources));
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
-	it('nulls out stale backing-array slots when resource-ref count shrinks', () => {
+	it('reset discards the previous bind group', () => {
 		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
-		const bufferA = {} as GPUBuffer;
-		const bufferB = {} as GPUBuffer;
-		const bufferC = {} as GPUBuffer;
-
-		cache.getOrCreate(createTwoBufferRequest('two-buf', bufferA, bufferB));
-		cache.getOrCreate(createStorageBufferRequest('two-buf', bufferC));
-
-		expect(cache._refAt(1)).toBeNull();
-	});
-
-	it('nulls out backing-array slots on reset', () => {
-		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
-		const bufferA = {} as GPUBuffer;
-		const bufferB = {} as GPUBuffer;
-
-		cache.getOrCreate(createTwoBufferRequest('two-buf', bufferA, bufferB));
+		const cache = createComputeBindGroupCache(device);
+		const layout = {} as GPUBindGroupLayout;
+		const resources = [{} as GPUTextureView];
+		cache.getOrCreate(request(layout, 'sampled', resources));
 		cache.reset();
-
-		expect(cache._refAt(0)).toBeNull();
-		expect(cache._refAt(1)).toBeNull();
-	});
-
-	it('nulls out stale backing-array slots on topology change', () => {
-		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device) as unknown as CacheWithDebug;
-		const bufferA = {} as GPUBuffer;
-		const bufferB = {} as GPUBuffer;
-		const bufferC = {} as GPUBuffer;
-
-		cache.getOrCreate(createTwoBufferRequest('topology-A', bufferA, bufferB));
-		cache.getOrCreate(createStorageBufferRequest('topology-B', bufferC));
-
-		expect(cache._refAt(1)).toBeNull();
-	});
-
-	it('returns null for empty entries and clears cached state', () => {
-		const device = createMockDevice();
-		const cache = createComputeStorageBindGroupCache(device);
-		const request = createStorageBufferRequest('data:read-write', {} as GPUBuffer);
-
-		cache.getOrCreate(request);
-		const empty = cache.getOrCreate({
-			topologyKey: 'empty',
-			layoutEntries: [],
-			bindGroupEntries: [],
-			resourceRefs: []
-		});
-		cache.getOrCreate(request);
-
-		expect(empty).toBeNull();
-		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(2);
+		cache.getOrCreate(request(layout, 'sampled', resources));
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 });

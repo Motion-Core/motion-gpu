@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+	createComputeExternalResolutionState,
+	normalizeComputeResourceMap,
 	resolveComputePassResources,
 	resolveComputeTextureFormat,
 	type ComputeMaterialSamplerResource,
 	type ComputeResourceResolverContext,
 	type ComputeResourceResolverLimits
 } from '../../lib/core/compute-resources';
+import { toMotionGPUErrorReport, type MotionGPUErrorCode } from '../../lib/core/error-report';
 import type {
 	RuntimeStorageBufferResource,
 	RuntimeTextureResource
@@ -90,6 +93,7 @@ function resolverContext(
 		features?: string[];
 		limits?: Partial<ComputeResourceResolverLimits>;
 		pingPong?: boolean;
+		externalState?: ReturnType<typeof createComputeExternalResolutionState>;
 	} = {}
 ): ComputeResourceResolverContext {
 	const textures = new Map(
@@ -119,8 +123,18 @@ function resolverContext(
 			(resource.createView as (descriptor?: GPUTextureViewDescriptor) => GPUTextureView)(
 				descriptor
 			),
-		...(options.pingPong !== undefined ? { pingPong: options.pingPong } : {})
+		...(options.pingPong !== undefined ? { pingPong: options.pingPong } : {}),
+		...(options.externalState ? { externalState: options.externalState } : {})
 	};
+}
+
+function diagnosticCode(run: () => unknown): MotionGPUErrorCode {
+	try {
+		run();
+	} catch (error) {
+		return toMotionGPUErrorReport(error, 'render').code;
+	}
+	throw new Error('Expected diagnostic operation to throw.');
 }
 
 describe('resolveComputeTextureFormat', () => {
@@ -147,6 +161,76 @@ describe('resolveComputeTextureFormat', () => {
 });
 
 describe('resolveComputePassResources', () => {
+	it('emits stable diagnostic codes at resolver failure sites', () => {
+		expect(() => normalizeComputeResourceMap([] as unknown as ComputeResourceMap)).toThrow();
+		expect(
+			diagnosticCode(() => normalizeComputeResourceMap([] as unknown as ComputeResourceMap))
+		).toBe('COMPUTE_RESOURCE_DESCRIPTOR_INVALID');
+		expect(
+			diagnosticCode(() =>
+				normalizeComputeResourceMap({
+					motiongpuFrame: { texture: 'camera', access: 'sampled' }
+				})
+			)
+		).toBe('COMPUTE_RESOURCE_ALIAS_COLLISION');
+		expect(
+			diagnosticCode(() =>
+				resolveComputePassResources(
+					{ uMissing: { texture: 'missing', access: 'sampled' } },
+					resolverContext()
+				)
+			)
+		).toBe('COMPUTE_RESOURCE_UNKNOWN');
+		expect(
+			diagnosticCode(() =>
+				resolveComputePassResources(
+					{ uOutput: { texture: 'sampled-only', access: 'storage-write' } },
+					resolverContext({ textures: [materialTexture('sampled-only', { usage: 4 })] })
+				)
+			)
+		).toBe('COMPUTE_RESOURCE_INCOMPATIBLE');
+		expect(
+			diagnosticCode(() =>
+				resolveComputePassResources(
+					{
+						uRead: { texture: 'shared', access: 'sampled' },
+						uWrite: { texture: 'shared', access: 'storage-write' }
+					},
+					resolverContext({ textures: [materialTexture('shared')] })
+				)
+			)
+		).toBe('COMPUTE_RESOURCE_HAZARD');
+		expect(
+			diagnosticCode(() =>
+				resolveComputePassResources(
+					{ uInput: { texture: 'camera', access: 'sampled' } },
+					resolverContext({
+						textures: [materialTexture('camera')],
+						limits: { maxBindingsPerBindGroup: 0 }
+					})
+				)
+			)
+		).toBe('COMPUTE_RESOURCE_LIMIT_EXCEEDED');
+		expect(
+			diagnosticCode(() =>
+				resolveComputePassResources(
+					{
+						uRaw: {
+							texture: {
+								externalTexture: texture('wrong-format'),
+								resourceId: 'raw',
+								format: 'rgba16float',
+								usage: 12
+							},
+							access: 'sampled'
+						}
+					},
+					resolverContext()
+				)
+			)
+		).toBe('COMPUTE_EXTERNAL_RESOURCE_INVALID');
+	});
+
 	it('resolves an empty map without a pass-local bind group', () => {
 		const resolved = resolveComputePassResources({}, resolverContext());
 		expect(resolved).toEqual({
@@ -602,14 +686,13 @@ describe('resolveComputePassResources', () => {
 	});
 
 	it('rejects conflicting metadata for one stable external identity', () => {
-		const first = texture('first');
-		const second = texture('second', { format: 'rgba16float' });
+		const external = texture('shared');
 		expect(() =>
 			resolveComputePassResources(
 				{
 					uFirst: {
 						texture: {
-							externalTexture: first,
+							externalTexture: external,
 							resourceId: 'shared',
 							format: 'rgba8unorm',
 							usage: 12
@@ -618,7 +701,7 @@ describe('resolveComputePassResources', () => {
 					},
 					uSecond: {
 						texture: {
-							externalTexture: second,
+							externalTexture: external,
 							resourceId: 'shared',
 							format: 'rgba16float',
 							usage: 12
@@ -629,6 +712,57 @@ describe('resolveComputePassResources', () => {
 				resolverContext()
 			)
 		).toThrow(/declares metadata.*previously declared/);
+	});
+
+	it('snapshots one external provider across all passes in a frame', () => {
+		const provider = vi.fn(() => texture('frame-texture'));
+		const externalState = createComputeExternalResolutionState();
+		const descriptor = {
+			texture: {
+				externalTexture: provider,
+				resourceId: 'frame-texture',
+				format: 'rgba8unorm' as GPUTextureFormat,
+				usage: 12
+			},
+			access: 'sampled' as const
+		};
+		resolveComputePassResources({ firstInput: descriptor }, resolverContext({ externalState }));
+		resolveComputePassResources({ secondInput: descriptor }, resolverContext({ externalState }));
+		expect(provider).toHaveBeenCalledTimes(1);
+	});
+
+	it('rejects one external identity resolving to multiple texture objects in a frame', () => {
+		const externalState = createComputeExternalResolutionState();
+		resolveComputePassResources(
+			{
+				firstInput: {
+					texture: {
+						externalTexture: texture('first-object'),
+						resourceId: 'shared-texture',
+						format: 'rgba8unorm',
+						usage: 12
+					},
+					access: 'sampled'
+				}
+			},
+			resolverContext({ externalState })
+		);
+		expect(() =>
+			resolveComputePassResources(
+				{
+					secondInput: {
+						texture: {
+							externalTexture: texture('second-object'),
+							resourceId: 'shared-texture',
+							format: 'rgba8unorm',
+							usage: 12
+						},
+						access: 'sampled'
+					}
+				},
+				resolverContext({ externalState })
+			)
+		).toThrow(/resolved to multiple physical objects in one frame/);
 	});
 
 	it('validates external buffers and fixed external texture views', () => {

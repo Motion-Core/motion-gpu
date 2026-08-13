@@ -120,6 +120,30 @@ test.describe('motion-gpu compute pass e2e', () => {
 		await expect(page.getByTestId('last-error')).toHaveText('none');
 	});
 
+	test('samples a compute texture with nearest and linear samplers', async ({ page }) => {
+		const renderSamplerMode = async (mode: 'nearest' | 'linear'): Promise<string> => {
+			await page.goto('/?scenario=compute');
+			await expect(page.getByTestId('gpu-status')).toHaveText('ready');
+			await expect(page.getByTestId('controls-ready')).toHaveText('yes');
+			await page.getByTestId(`set-compute-sample-${mode}`).click();
+			await expect(page.getByTestId('compute-mode')).toHaveText(`sample-${mode}`);
+			await expect(page.getByTestId('pass-count')).toHaveText('2');
+			for (let frame = 0; frame < 3; frame += 1) {
+				const frameBeforeAdvance = toNumber(await page.getByTestId('frame-count').textContent());
+				await page.getByTestId('advance-once').click();
+				await expect
+					.poll(async () => toNumber(await page.getByTestId('frame-count').textContent()))
+					.toBeGreaterThan(frameBeforeAdvance);
+			}
+			await expect(page.getByTestId('last-error')).toHaveText('none');
+			return getCanvasHash(page);
+		};
+
+		const nearestHash = await renderSamplerMode('nearest');
+		const linearHash = await renderSamplerMode('linear');
+		expect(linearHash).not.toBe(nearestHash);
+	});
+
 	/* ────────────────────────────────────────────────────────
 	 * 6. Ping-pong compute pass (single iteration)
 	 * ──────────────────────────────────────────────────────── */

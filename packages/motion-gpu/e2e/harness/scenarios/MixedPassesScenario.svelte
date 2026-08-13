@@ -64,6 +64,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+		resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 		dispatch: [4, 1, 1]
 	});
 

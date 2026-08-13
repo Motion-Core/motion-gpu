@@ -71,6 +71,34 @@ fn frag(uv: vec2f) -> vec4f {
 	}
 });
 
+const createSamplerMaterial = (filter: GPUFilterMode) =>
+	defineMaterial({
+		fragment: `
+fn frag(uv: vec2f) -> vec4f {
+	let pos = vec2i(uv * vec2f(textureDimensions(sampleOutput)));
+	return textureLoad(sampleOutput, pos, 0);
+}
+`,
+		textures: {
+			sampleInput: {
+				storage: true,
+				format: 'rgba8unorm' as GPUTextureFormat,
+				width: 2,
+				height: 2,
+				filter
+			},
+			sampleOutput: {
+				storage: true,
+				format: 'rgba8unorm' as GPUTextureFormat,
+				width: 64,
+				height: 64
+			}
+		}
+	});
+
+const materialWithNearestSampler = createSamplerMaterial('nearest');
+const materialWithLinearSampler = createSamplerMaterial('linear');
+
 /* ───── compute passes ───── */
 
 const basicComputePass = new ComputePass({
@@ -83,6 +111,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 	dispatch: [4, 1, 1]
 });
 
@@ -96,6 +125,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 	dispatch: 'auto'
 });
 
@@ -109,6 +139,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 	dispatch: (ctx) => [Math.ceil(ctx.width / 16), 1, 1]
 });
 
@@ -122,6 +153,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 	dispatch: [4, 1, 1],
 	enabled: false
 });
@@ -138,6 +170,42 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { computeOutput: { texture: 'computeOutput', access: 'storage-write' } },
+	dispatch: [8, 8, 1]
+});
+
+const seedSampleTexturePass = new ComputePass({
+	compute: `
+@compute @workgroup_size(2, 2, 1)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	if (id.x < 2u && id.y < 2u) {
+		let color = vec4f(f32(id.x), f32(id.y), f32(id.x ^ id.y), 1.0);
+		textureStore(uSeed, id.xy, color);
+	}
+}
+`,
+	resources: { uSeed: { texture: 'sampleInput', access: 'storage-write' } },
+	dispatch: [1, 1, 1]
+});
+
+const sampledTextureComputePass = new ComputePass({
+	compute: `
+@compute @workgroup_size(8, 8, 1)
+fn compute(@builtin(global_invocation_id) id: vec3u) {
+	let pos = id.xy;
+	let dims = textureDimensions(uOutput);
+	if (pos.x < dims.x && pos.y < dims.y) {
+		let uv = (vec2f(pos) + vec2f(0.5)) / vec2f(dims);
+		let color = textureSampleLevel(uInput, uSampler, uv, 0.0);
+		textureStore(uOutput, pos, color);
+	}
+}
+`,
+	resources: {
+		uInput: { texture: 'sampleInput', access: 'sampled' },
+		uOutput: { texture: 'sampleOutput', access: 'storage-write' },
+		uSampler: { sampler: 'sampleInput' }
+	},
 	dispatch: [8, 8, 1]
 });
 
@@ -194,6 +262,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { particles: { buffer: 'particles', access: 'storage-read-write' } },
 	dispatch: [4, 1, 1]
 });
 
@@ -207,6 +276,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	}
 }
 `,
+	resources: { data: { buffer: 'data', access: 'storage-read-write' } },
 	dispatch: [1]
 });
 
@@ -219,6 +289,8 @@ type ComputeMode =
 	| 'dynamic-dispatch'
 	| 'disabled'
 	| 'storage-texture'
+	| 'sample-nearest'
+	| 'sample-linear'
 	| 'ping-pong'
 	| 'ping-pong-multi'
 	| 'particle'
@@ -282,6 +354,14 @@ export function ComputeScenario() {
 			case 'storage-texture':
 				setActivePasses([storageTextureComputePass]);
 				setActiveMaterial(materialWithStorageTexture);
+				break;
+			case 'sample-nearest':
+				setActivePasses([sampledTextureComputePass, seedSampleTexturePass]);
+				setActiveMaterial(materialWithNearestSampler);
+				break;
+			case 'sample-linear':
+				setActivePasses([sampledTextureComputePass, seedSampleTexturePass]);
+				setActiveMaterial(materialWithLinearSampler);
 				break;
 			case 'ping-pong':
 				setActivePasses([pingPongComputePass]);
@@ -364,6 +444,20 @@ export function ComputeScenario() {
 					onClick={() => applyMode('storage-texture')}
 				>
 					storage texture
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-sample-nearest"
+					onClick={() => applyMode('sample-nearest')}
+				>
+					sample nearest
+				</button>
+				<button
+					className="harness-button"
+					data-testid="set-compute-sample-linear"
+					onClick={() => applyMode('sample-linear')}
+				>
+					sample linear
 				</button>
 				<button
 					className="harness-button"

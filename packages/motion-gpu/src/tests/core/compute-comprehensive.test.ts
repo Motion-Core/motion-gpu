@@ -4,8 +4,7 @@ import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
 import {
 	assertComputeContract,
 	buildComputeShaderSource,
-	buildComputeStorageBufferBindings,
-	buildComputeStorageTextureBindings,
+	buildComputeResourceBindings,
 	extractWorkgroupSize
 } from '../../lib/core/compute-shader';
 import {
@@ -258,60 +257,52 @@ fn compute(
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).toContain('motiongpu_unused: vec4f');
 	});
 
-	it('buildComputeShaderSource omits group(1) when no storage buffers, omits group(2) when no storage textures', () => {
+	it('buildComputeShaderSource omits the optional resource group when resources are empty', () => {
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).not.toContain('@group(1)');
 		expect(source).not.toContain('@group(2)');
 	});
 
-	it('buildComputeShaderSource includes group(2) with storage textures but no group(1) bindings', () => {
+	it('buildComputeShaderSource puts a lone storage texture in group 1', () => {
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: ['outTex'],
-			storageTextureDefinitions: { outTex: { format: 'rgba8unorm' as GPUTextureFormat } }
+			resources: [
+				{
+					kind: 'storage-texture',
+					alias: 'outTex',
+					binding: 0,
+					format: 'rgba8unorm'
+				}
+			]
 		});
-		expect(source).not.toContain('@group(1)');
 		expect(source).toContain(
-			'@group(2) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>'
+			'@group(1) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>'
 		);
+		expect(source).not.toContain('@group(2)');
 	});
 
-	it('storage buffer bindings skip undefined definitions gracefully', () => {
-		const bindings = buildComputeStorageBufferBindings(
-			['exists', 'missing'],
-			{ exists: { type: 'array<f32>', access: 'read' } },
-			1
-		);
-		expect(bindings).toContain('exists');
-		expect(bindings).not.toContain('missing');
-	});
-
-	it('storage texture bindings skip undefined definitions gracefully', () => {
-		const bindings = buildComputeStorageTextureBindings(
-			['exists', 'missing'],
-			{ exists: { format: 'rgba8unorm' as GPUTextureFormat } },
-			2
-		);
-		expect(bindings).toContain('exists');
-		expect(bindings).not.toContain('missing');
+	it('resolved bindings never silently skip an entry', () => {
+		expect(() =>
+			buildComputeResourceBindings([
+				{
+					kind: 'storage-buffer',
+					alias: 'exists',
+					binding: 1,
+					access: 'storage-read',
+					wgslType: 'array<f32>'
+				}
+			])
+		).toThrow(/expected binding 0/);
 	});
 
 	it('buildComputeShaderSource with multiple uniforms', () => {
@@ -322,10 +313,7 @@ fn compute(
 				uMouse: [0, 0],
 				uColor: [1, 0, 0, 1]
 			}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).toContain('uTime: f32');
 		expect(source).toContain('uMouse: vec2f');
@@ -669,7 +657,10 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			getCompute: () =>
 				'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  textureStore(uOutput, vec2u(id.x, id.y), vec4f(1.0));\n}',
 			resolveDispatch: () => [4, 4, 1] as [number, number, number],
-			getWorkgroupSize: () => [8, 8, 1] as [number, number, number]
+			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
+			getResources: () => ({
+				uOutput: { texture: 'uOutput', access: 'storage-write' as const }
+			})
 		};
 
 		const renderer = await createRenderer(
@@ -698,17 +689,15 @@ describe('renderer: compute pipeline bind group alignment', () => {
 
 		// Group 0 = uniforms (always present)
 		expect(calls.some((c: unknown[]) => c[0] === 0)).toBe(true);
-		// Group 1 = storage buffers — should NOT be bound (no buffers)
-		// But the empty placeholder BGL should exist in the pipeline layout
-		// The renderer should not call setBindGroup(1, ...) when there are no storage buffers
-		// Group 2 = storage textures — MUST be bound
-		expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(true);
+		// Group 1 is the only heterogeneous resource group.
+		expect(calls.some((c: unknown[]) => c[0] === 1)).toBe(true);
+		expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(false);
 
-		// Verify pipeline layout was created with 3 bind group layouts (with empty placeholder at index 1)
+		// No placeholder layouts are inserted.
 		const pipelineLayoutCalls = runtime.device.createPipelineLayout.mock.calls;
 		const computeLayoutCall = pipelineLayoutCalls.find((call: unknown[]) => {
 			const arg = call[0] as { bindGroupLayouts?: unknown[] };
-			return arg.bindGroupLayouts && arg.bindGroupLayouts.length === 3;
+			return arg.bindGroupLayouts && arg.bindGroupLayouts.length === 2;
 		});
 		expect(computeLayoutCall).toBeDefined();
 	});
@@ -838,10 +827,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		}
 		const [shaderModuleInput] = computeShaderCall as unknown[];
 		const shaderInput = shaderModuleInput as { code: string };
-		expect(shaderInput.code).toContain('@group(2) @binding(0) var uPrevious: texture_2d<f32>;');
 		expect(shaderInput.code).toContain(
-			'@group(2) @binding(1) var uNext: texture_storage_2d<rgba16float, write>;'
+			'@group(1) @binding(0) var uNext: texture_storage_2d<rgba16float, write>;'
 		);
+		expect(shaderInput.code).toContain('@group(1) @binding(1) var uPrevious: texture_2d<f32>;');
+		expect(shaderInput.code).not.toContain('@group(2)');
 	});
 
 	it('ping-pong compute swaps A/B bindings between iterations and frames', async () => {
@@ -937,25 +927,25 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
 		// Verify frame 2 reuses the same cached objects in the same order via setBindGroup
 		// calls on each frame's compute pass encoder.
-		const getGroup2Bindings = (encoder: {
+		const getGroup1Bindings = (encoder: {
 			beginComputePass: {
 				mock: { results: Array<{ value: { setBindGroup: { mock: { calls: unknown[][] } } } }> };
 			};
 		}): unknown[] =>
 			(encoder.beginComputePass.mock.results[0]?.value.setBindGroup.mock.calls ?? [])
-				.filter((c: unknown[]) => c[0] === 2)
+				.filter((c: unknown[]) => c[0] === 1)
 				.map((c: unknown[]) => c[1]);
 
 		const frame1Encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
 		const frame2Encoder = runtime.device.createCommandEncoder.mock.results[1]?.value;
-		const frame1Group2 = getGroup2Bindings(frame1Encoder);
-		const frame2Group2 = getGroup2Bindings(frame2Encoder);
+		const frame1Group1 = getGroup1Bindings(frame1Encoder);
+		const frame2Group1 = getGroup1Bindings(frame2Encoder);
 
-		expect(frame1Group2[0]).toBe(readAWriteBBindGroup); // frame 1, iter 0: A→B
-		expect(frame1Group2[1]).toBe(readBWriteABindGroup); // frame 1, iter 1: B→A
+		expect(frame1Group1[0]).toBe(readAWriteBBindGroup); // frame 1, iter 0: A→B
+		expect(frame1Group1[1]).toBe(readBWriteABindGroup); // frame 1, iter 1: B→A
 		// With 2 iterations (even count) frame 2 restarts from the same A→B orientation.
-		expect(frame2Group2[0]).toBe(readAWriteBBindGroup); // frame 2, iter 0: A→B (reused)
-		expect(frame2Group2[1]).toBe(readBWriteABindGroup); // frame 2, iter 1: B→A (reused)
+		expect(frame2Group1[0]).toBe(readAWriteBBindGroup); // frame 2, iter 0: A→B (reused)
+		expect(frame2Group1[1]).toBe(readBWriteABindGroup); // frame 2, iter 1: B→A (reused)
 	});
 
 	it('compute pass caches pipeline by shader source', async () => {
@@ -1008,7 +998,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			getCompute: () =>
 				'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  data[id.x] = 1.0;\n}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
-			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
+			getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+			getResources: () => ({
+				data: { buffer: 'data', access: 'storage-read-write' as const }
+			})
 		};
 
 		const renderer = await createRenderer(

@@ -11,6 +11,12 @@ import type {
 	StorageBufferType
 } from './types.js';
 import { assertUniformName } from './uniforms.js';
+import {
+	attachMotionGPUErrorContext,
+	createMotionGPUError,
+	type MotionGPUErrorCode,
+	type MotionGPUErrorContext
+} from './error-report.js';
 import type { RuntimeStorageBufferResource, RuntimeTextureResource } from './resource-registry.js';
 import { STORAGE_TEXTURE_FORMATS } from './storage-buffers.js';
 
@@ -160,6 +166,8 @@ export interface ComputeResourceResolverContext {
 	getMaterialSampler: (logicalId: string) => ComputeMaterialSamplerResource | undefined;
 	createTextureView?: (texture: GPUTexture, descriptor: GPUTextureViewDescriptor) => GPUTextureView;
 	pingPong?: boolean;
+	externalState?: ComputeExternalResolutionState;
+	diagnosticContext?: MotionGPUErrorContext;
 }
 
 export interface ResolvedComputeTextureFormat {
@@ -495,7 +503,10 @@ export function normalizeComputeResourceMap(
 		return Object.freeze({});
 	}
 	if (!isObjectRecord(resources)) {
-		throw new Error('Compute resources must be an object map keyed by WGSL aliases.');
+		throw createMotionGPUError(
+			'COMPUTE_RESOURCE_DESCRIPTOR_INVALID',
+			'Compute resources must be an object map keyed by WGSL aliases.'
+		);
 	}
 
 	const normalized: Record<string, ComputeResourceDescriptor> = Object.create(null) as Record<
@@ -503,12 +514,33 @@ export function normalizeComputeResourceMap(
 		ComputeResourceDescriptor
 	>;
 	for (const alias of Object.keys(resources).sort()) {
-		assertUniformName(alias);
+		try {
+			assertUniformName(alias);
+		} catch (error) {
+			throw createMotionGPUError(
+				'COMPUTE_RESOURCE_ALIAS_COLLISION',
+				error instanceof Error ? error.message : `Invalid compute resource alias "${alias}".`,
+				{ cause: error }
+			);
+		}
 		if (RESERVED_COMPUTE_RESOURCE_ALIASES.has(alias)) {
-			throw new Error(`Compute resource alias "${alias}" is reserved by MotionGPU.`);
+			throw createMotionGPUError(
+				'COMPUTE_RESOURCE_ALIAS_COLLISION',
+				`Compute resource alias "${alias}" is reserved by MotionGPU.`
+			);
 		}
 		const descriptor = resources[alias];
-		assertComputeResourceDescriptor(alias, descriptor);
+		try {
+			assertComputeResourceDescriptor(alias, descriptor);
+		} catch (error) {
+			throw createMotionGPUError(
+				'COMPUTE_RESOURCE_DESCRIPTOR_INVALID',
+				error instanceof Error
+					? error.message
+					: `Compute resource "${alias}" descriptor is invalid.`,
+				{ cause: error }
+			);
+		}
 		normalized[alias] = freezeComputeResourceDescriptor(cloneComputeResourceDescriptor(descriptor));
 	}
 	return Object.freeze(normalized);
@@ -592,10 +624,21 @@ export function resolveComputePingPongResourcePair(
 	return { readAlias, writeAlias, texture: readDescriptor.texture };
 }
 
-const COMPUTE_SHADER_VISIBILITY = 4 as GPUShaderStageFlags;
-const TEXTURE_BINDING_USAGE = 4;
-const STORAGE_TEXTURE_BINDING_USAGE = 8;
-const STORAGE_BUFFER_BINDING_USAGE = 128;
+function computeShaderVisibility(): GPUShaderStageFlags {
+	return typeof GPUShaderStage === 'object' ? GPUShaderStage.COMPUTE : (4 as GPUShaderStageFlags);
+}
+
+function textureBindingUsage(): GPUTextureUsageFlags {
+	return typeof GPUTextureUsage === 'object' ? GPUTextureUsage.TEXTURE_BINDING : 4;
+}
+
+function storageTextureBindingUsage(): GPUTextureUsageFlags {
+	return typeof GPUTextureUsage === 'object' ? GPUTextureUsage.STORAGE_BINDING : 8;
+}
+
+function storageBufferBindingUsage(): GPUBufferUsageFlags {
+	return typeof GPUBufferUsage === 'object' ? GPUBufferUsage.STORAGE : 128;
+}
 
 interface ResolvedTextureReference {
 	logicalId: string | symbol;
@@ -629,18 +672,44 @@ interface ResolvedSamplerReference {
 	materialSampleType: GPUTextureSampleType | undefined;
 }
 
-interface ExternalResolutionState {
+export interface ComputeExternalResolutionState {
 	providerResults: Map<object, object>;
 	resourceIdByObject: Map<object, string | symbol>;
 	metadataByResourceId: Map<string | symbol, string>;
+	textureByResourceId: Map<string | symbol, object>;
+	bufferByResourceId: Map<string | symbol, object>;
+	samplerByResourceId: Map<string | symbol, object>;
+}
+
+export function createComputeExternalResolutionState(): ComputeExternalResolutionState {
+	return {
+		providerResults: new Map(),
+		resourceIdByObject: new Map(),
+		metadataByResourceId: new Map(),
+		textureByResourceId: new Map(),
+		bufferByResourceId: new Map(),
+		samplerByResourceId: new Map()
+	};
 }
 
 function resourceError(
 	context: ComputeResourceResolverContext,
 	alias: string,
+	message: string,
+	code: MotionGPUErrorCode = 'COMPUTE_RESOURCE_INCOMPATIBLE'
+): Error {
+	const error = createMotionGPUError(code, `${context.passLabel} resource "${alias}" ${message}`);
+	return context.diagnosticContext
+		? attachMotionGPUErrorContext(error, context.diagnosticContext)
+		: error;
+}
+
+function externalResourceError(
+	context: ComputeResourceResolverContext,
+	alias: string,
 	message: string
 ): Error {
-	return new Error(`${context.passLabel} resource "${alias}" ${message}`);
+	return resourceError(context, alias, message, 'COMPUTE_EXTERNAL_RESOURCE_INVALID');
 }
 
 function hasUsage(usage: number, required: number): boolean {
@@ -655,7 +724,7 @@ function resolveProvider<T extends object>(
 	provider: T | ((context: ComputeExternalResourceContext) => T),
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState
 ): T {
 	if (typeof provider !== 'function') {
 		return provider;
@@ -669,10 +738,14 @@ function resolveProvider<T extends object>(
 		result = provider(context.externalContext);
 	} catch (error) {
 		const detail = error instanceof Error ? `: ${error.message}` : '.';
-		throw resourceError(context, alias, `external provider failed${detail}`);
+		throw externalResourceError(context, alias, `external provider failed${detail}`);
 	}
 	if (typeof result !== 'object' || result === null) {
-		throw resourceError(context, alias, 'external provider returned an invalid WebGPU object.');
+		throw externalResourceError(
+			context,
+			alias,
+			'external provider returned an invalid WebGPU object.'
+		);
 	}
 	state.providerResults.set(provider, result);
 	return result;
@@ -683,17 +756,35 @@ function registerExternalIdentity(
 	resourceId: string | symbol,
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState,
+	kind?: 'texture' | 'buffer' | 'sampler'
 ): void {
 	const existing = state.resourceIdByObject.get(object);
 	if (existing !== undefined && !Object.is(existing, resourceId)) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`uses external object identity "${identityLabel(resourceId)}" but the same object was already declared as "${identityLabel(existing)}".`
 		);
 	}
 	state.resourceIdByObject.set(object, resourceId);
+	if (kind) {
+		const objects =
+			kind === 'texture'
+				? state.textureByResourceId
+				: kind === 'buffer'
+					? state.bufferByResourceId
+					: state.samplerByResourceId;
+		const existingObject = objects.get(resourceId);
+		if (existingObject !== undefined && existingObject !== object) {
+			throw externalResourceError(
+				context,
+				alias,
+				`external ${kind} identity "${identityLabel(resourceId)}" resolved to multiple physical objects in one frame.`
+			);
+		}
+		objects.set(resourceId, object);
+	}
 }
 
 function registerExternalMetadata(
@@ -701,11 +792,11 @@ function registerExternalMetadata(
 	metadata: string,
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState
 ): void {
 	const existing = state.metadataByResourceId.get(resourceId);
 	if (existing !== undefined && existing !== metadata) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`declares metadata "${metadata}" for external identity "${identityLabel(resourceId)}", previously declared as "${existing}".`
@@ -819,27 +910,35 @@ function validateExternalTextureMetadata(
 	alias: string
 ): number {
 	if (texture.format !== undefined && texture.format !== reference.format) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`declares format "${reference.format}" but the external texture reports "${texture.format}".`
 		);
 	}
 	if (texture.usage !== undefined && texture.usage !== reference.usage) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`declares usage ${reference.usage} but the external texture reports ${texture.usage}.`
 		);
 	}
 	if (texture.dimension !== undefined && texture.dimension !== '2d') {
-		throw resourceError(context, alias, `external texture dimension must be "2d".`);
+		throw externalResourceError(context, alias, `external texture dimension must be "2d".`);
 	}
 	if (texture.sampleCount !== undefined && texture.sampleCount !== 1) {
-		throw resourceError(context, alias, 'multisampled external textures are not supported.');
+		throw externalResourceError(
+			context,
+			alias,
+			'multisampled external textures are not supported.'
+		);
 	}
 	if (texture.depthOrArrayLayers !== undefined && texture.depthOrArrayLayers !== 1) {
-		throw resourceError(context, alias, 'array, cube, and 3D external textures are not supported.');
+		throw externalResourceError(
+			context,
+			alias,
+			'array, cube, and 3D external textures are not supported.'
+		);
 	}
 	return texture.mipLevelCount ?? 1;
 }
@@ -850,15 +949,20 @@ function resolveTextureReferenceForAccess(
 	viewDescriptor: ComputeTextureViewDescriptor | undefined,
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState
 ): { reference: ResolvedTextureReference; range: ResolvedTextureSubresourceRange } {
 	if (typeof reference === 'string') {
 		const resource = context.getMaterialTexture(reference);
 		if (!resource) {
-			throw resourceError(context, alias, `references unknown material texture "${reference}".`);
+			throw resourceError(
+				context,
+				alias,
+				`references unknown material texture "${reference}".`,
+				'COMPUTE_RESOURCE_UNKNOWN'
+			);
 		}
 		const requiredUsage =
-			access === 'sampled' ? TEXTURE_BINDING_USAGE : STORAGE_TEXTURE_BINDING_USAGE;
+			access === 'sampled' ? textureBindingUsage() : storageTextureBindingUsage();
 		if (!hasUsage(resource.usage, requiredUsage)) {
 			const usageName = access === 'sampled' ? 'TEXTURE_BINDING' : 'STORAGE_BINDING';
 			throw resourceError(
@@ -907,7 +1011,7 @@ function resolveTextureReferenceForAccess(
 
 	if ('externalTexture' in reference) {
 		const texture = resolveProvider(reference.externalTexture, context, alias, state);
-		registerExternalIdentity(texture, reference.resourceId, context, alias, state);
+		registerExternalIdentity(texture, reference.resourceId, context, alias, state, 'texture');
 		registerExternalMetadata(
 			reference.resourceId,
 			`texture:${reference.format}:${reference.usage}`,
@@ -917,10 +1021,10 @@ function resolveTextureReferenceForAccess(
 		);
 		const mipLevelCount = validateExternalTextureMetadata(texture, reference, context, alias);
 		const requiredUsage =
-			access === 'sampled' ? TEXTURE_BINDING_USAGE : STORAGE_TEXTURE_BINDING_USAGE;
+			access === 'sampled' ? textureBindingUsage() : storageTextureBindingUsage();
 		if (!hasUsage(reference.usage, requiredUsage)) {
 			const usageName = access === 'sampled' ? 'TEXTURE_BINDING' : 'STORAGE_BINDING';
-			throw resourceError(
+			throw externalResourceError(
 				context,
 				alias,
 				`external texture "${identityLabel(reference.resourceId)}" lacks GPUTextureUsage.${usageName}.`
@@ -952,11 +1056,10 @@ function resolveTextureReferenceForAccess(
 		alias,
 		state
 	);
-	const requiredUsage =
-		access === 'sampled' ? TEXTURE_BINDING_USAGE : STORAGE_TEXTURE_BINDING_USAGE;
+	const requiredUsage = access === 'sampled' ? textureBindingUsage() : storageTextureBindingUsage();
 	if (!hasUsage(reference.usage, requiredUsage)) {
 		const usageName = access === 'sampled' ? 'TEXTURE_BINDING' : 'STORAGE_BINDING';
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`external texture view "${identityLabel(reference.resourceId)}" lacks GPUTextureUsage.${usageName}.`
@@ -970,7 +1073,7 @@ function resolveTextureReferenceForAccess(
 		alias
 	);
 	if (!isFullTextureRange(range, reference.mipLevelCount)) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			'externalView already represents a fixed view and cannot be narrowed by a view descriptor.'
@@ -996,7 +1099,7 @@ function resolveBufferReferenceForAccess(
 	reference: ComputeBufferReference,
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState
 ): ResolvedBufferReference {
 	if (typeof reference === 'string') {
 		const resource = context.getMaterialStorageBuffer(reference);
@@ -1004,7 +1107,8 @@ function resolveBufferReferenceForAccess(
 			throw resourceError(
 				context,
 				alias,
-				`references unknown material storage buffer "${reference}".`
+				`references unknown material storage buffer "${reference}".`,
+				'COMPUTE_RESOURCE_UNKNOWN'
 			);
 		}
 		return {
@@ -1020,7 +1124,7 @@ function resolveBufferReferenceForAccess(
 	}
 
 	const buffer = resolveProvider(reference.externalBuffer, context, alias, state);
-	registerExternalIdentity(buffer, reference.resourceId, context, alias, state);
+	registerExternalIdentity(buffer, reference.resourceId, context, alias, state, 'buffer');
 	registerExternalMetadata(
 		reference.resourceId,
 		`buffer:${reference.wgslType}:${reference.size}:${reference.usage}`,
@@ -1029,14 +1133,14 @@ function resolveBufferReferenceForAccess(
 		state
 	);
 	if (buffer.size !== undefined && buffer.size !== reference.size) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`declares size ${reference.size} but the external buffer reports ${buffer.size}.`
 		);
 	}
 	if (buffer.usage !== undefined && buffer.usage !== reference.usage) {
-		throw resourceError(
+		throw externalResourceError(
 			context,
 			alias,
 			`declares usage ${reference.usage} but the external buffer reports ${buffer.usage}.`
@@ -1058,12 +1162,17 @@ function resolveSamplerReferenceForBinding(
 	reference: ComputeSamplerReference,
 	context: ComputeResourceResolverContext,
 	alias: string,
-	state: ExternalResolutionState
+	state: ComputeExternalResolutionState
 ): ResolvedSamplerReference {
 	if (typeof reference === 'string') {
 		const resource = context.getMaterialSampler(reference);
 		if (!resource) {
-			throw resourceError(context, alias, `references unknown material sampler "${reference}".`);
+			throw resourceError(
+				context,
+				alias,
+				`references unknown material sampler "${reference}".`,
+				'COMPUTE_RESOURCE_UNKNOWN'
+			);
 		}
 		return {
 			logicalId: resource.logicalId,
@@ -1076,7 +1185,7 @@ function resolveSamplerReferenceForBinding(
 	}
 
 	const sampler = resolveProvider(reference.externalSampler, context, alias, state);
-	registerExternalIdentity(sampler, reference.resourceId, context, alias, state);
+	registerExternalIdentity(sampler, reference.resourceId, context, alias, state, 'sampler');
 	registerExternalMetadata(
 		reference.resourceId,
 		`sampler:${reference.type}`,
@@ -1149,7 +1258,8 @@ function validateResolvedResourceHazards(
 				throw resourceError(
 					context,
 					right.alias,
-					`overlaps ${context.passLabel} resource "${left.alias}" on ${formatRange(right.subresource)} while at least one alias is writable.`
+					`overlaps ${context.passLabel} resource "${left.alias}" on ${formatRange(right.subresource)} while at least one alias is writable.`,
+					'COMPUTE_RESOURCE_HAZARD'
 				);
 			}
 
@@ -1158,7 +1268,8 @@ function validateResolvedResourceHazards(
 				throw resourceError(
 					context,
 					right.alias,
-					`aliases the same storage buffer as ${context.passLabel} resource "${left.alias}" with an incompatible writable access.`
+					`aliases the same storage buffer as ${context.passLabel} resource "${left.alias}" with an incompatible writable access.`,
+					'COMPUTE_RESOURCE_HAZARD'
 				);
 			}
 		}
@@ -1198,9 +1309,13 @@ function validateResolvedResourceLimits(
 	];
 	for (const [required, limit, name] of checks) {
 		if (required > limit) {
-			throw new Error(
+			const error = createMotionGPUError(
+				'COMPUTE_RESOURCE_LIMIT_EXCEEDED',
 				`${context.passLabel} requires ${required} ${name}, device limit is ${limit}.`
 			);
+			throw context.diagnosticContext
+				? attachMotionGPUErrorContext(error, context.diagnosticContext)
+				: error;
 		}
 	}
 	for (const entry of entries) {
@@ -1208,7 +1323,8 @@ function validateResolvedResourceLimits(
 			throw resourceError(
 				context,
 				entry.alias,
-				`requires ${entry.size} bytes, exceeding maxStorageBufferBindingSize ${limits.maxStorageBufferBindingSize}.`
+				`requires ${entry.size} bytes, exceeding maxStorageBufferBindingSize ${limits.maxStorageBufferBindingSize}.`,
+				'COMPUTE_RESOURCE_LIMIT_EXCEEDED'
 			);
 		}
 	}
@@ -1263,11 +1379,7 @@ export function resolveComputePassResources(
 		}
 	}
 
-	const state: ExternalResolutionState = {
-		providerResults: new Map(),
-		resourceIdByObject: new Map(),
-		metadataByResourceId: new Map()
-	};
+	const state = context.externalState ?? createComputeExternalResolutionState();
 	const entries: ResolvedComputeResource[] = [];
 	const reads: ResolvedComputeAccess[] = [];
 	const writes: ResolvedComputeAccess[] = [];
@@ -1311,7 +1423,7 @@ export function resolveComputePassResources(
 					subresource: resolved.range,
 					layoutEntry: {
 						binding,
-						visibility: COMPUTE_SHADER_VISIBILITY,
+						visibility: computeShaderVisibility(),
 						texture: {
 							sampleType: format.sampleType,
 							viewDimension: '2d',
@@ -1346,7 +1458,7 @@ export function resolveComputePassResources(
 				subresource: resolved.range,
 				layoutEntry: {
 					binding,
-					visibility: COMPUTE_SHADER_VISIBILITY,
+					visibility: computeShaderVisibility(),
 					storageTexture: {
 						access: 'write-only',
 						format: resolved.reference.format,
@@ -1363,7 +1475,7 @@ export function resolveComputePassResources(
 
 		if ('buffer' in descriptor) {
 			const resolved = resolveBufferReferenceForAccess(descriptor.buffer, context, alias, state);
-			if (!hasUsage(resolved.usage, STORAGE_BUFFER_BINDING_USAGE)) {
+			if (!hasUsage(resolved.usage, storageBufferBindingUsage())) {
 				throw resourceError(
 					context,
 					alias,
@@ -1392,7 +1504,7 @@ export function resolveComputePassResources(
 				version,
 				layoutEntry: {
 					binding,
-					visibility: COMPUTE_SHADER_VISIBILITY,
+					visibility: computeShaderVisibility(),
 					buffer: {
 						type: descriptor.access === 'storage-read' ? 'read-only-storage' : 'storage'
 					}
@@ -1435,7 +1547,7 @@ export function resolveComputePassResources(
 			samplerType: resolved.type,
 			layoutEntry: {
 				binding,
-				visibility: COMPUTE_SHADER_VISIBILITY,
+				visibility: computeShaderVisibility(),
 				sampler: { type: resolved.type }
 			},
 			bindingResource: resolved.sampler,

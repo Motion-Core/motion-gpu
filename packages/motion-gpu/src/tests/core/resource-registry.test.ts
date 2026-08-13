@@ -129,6 +129,36 @@ describe('MaterialResourceRegistry', () => {
 		expect(registry.getStorageBuffer('particles')).toBe(resource);
 	});
 
+	it('advances logical resource versions for normal and ping-pong compute writes', () => {
+		const registry = new MaterialResourceRegistry();
+		const initialView = textureView('initial');
+		const latestView = textureView('latest');
+		const texture = registry.registerTexture({
+			logicalId: 'velocity',
+			sampledView: initialView,
+			format: 'rgba16float',
+			mipLevelCount: 1,
+			sampleType: 'float',
+			usage: 3 as GPUTextureUsageFlags
+		});
+		const buffer = registry.registerStorageBuffer({
+			logicalId: 'particles',
+			buffer: {} as GPUBuffer,
+			size: 64,
+			wgslType: 'array<f32>',
+			access: 'read-write',
+			usage: 1 as GPUBufferUsageFlags
+		});
+
+		expect(registry.markTextureWritten('velocity')).toBe(false);
+		expect(texture.resourceVersion).toBe(1);
+		expect(registry.markTextureWritten('velocity', latestView)).toBe(true);
+		expect(texture.publishedView).toBe(latestView);
+		expect(texture.resourceVersion).toBe(2);
+		registry.markStorageBufferWritten('particles');
+		expect(buffer.resourceVersion).toBe(1);
+	});
+
 	it('rejects duplicate resources and reports required lookup failures', () => {
 		const registry = new MaterialResourceRegistry();
 		const input = {

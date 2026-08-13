@@ -28,7 +28,7 @@ export interface RuntimeStorageBufferResource {
 	readonly wgslType: StorageBufferType;
 	readonly access: StorageBufferAccess;
 	readonly usage: GPUBufferUsageFlags;
-	readonly resourceVersion: number;
+	resourceVersion: number;
 }
 
 export interface RuntimeTextureResourceInput {
@@ -175,6 +175,21 @@ export class MaterialResourceRegistry {
 		resource.publishedView = view;
 		resource.resourceVersion += 1;
 		return true;
+	}
+
+	markTextureWritten(logicalId: string, publishedView?: GPUTextureView): boolean {
+		const resource = this.requireTexture(logicalId);
+		const publishedViewChanged =
+			publishedView !== undefined && resource.publishedView !== publishedView;
+		if (publishedView !== undefined) {
+			resource.publishedView = publishedView;
+		}
+		resource.resourceVersion += 1;
+		return publishedViewChanged;
+	}
+
+	markStorageBufferWritten(logicalId: string): void {
+		this.requireStorageBuffer(logicalId).resourceVersion += 1;
 	}
 
 	clear(): void {

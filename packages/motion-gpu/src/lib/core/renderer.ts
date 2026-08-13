@@ -12,6 +12,7 @@ import {
 	type ShaderCompilationDiagnostic,
 	type ShaderCompilationRuntimeContext
 } from './error-diagnostics.js';
+import { attachMotionGPUErrorContext } from './error-report.js';
 import {
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
@@ -21,14 +22,18 @@ import {
 	toTextureData
 } from './textures.js';
 import { packUniformsIntoFast } from './uniforms.js';
+import { buildComputeShaderSourceWithMap, extractWorkgroupSize } from './compute-shader.js';
 import {
-	buildComputeShaderSourceWithMap,
-	buildPingPongComputeShaderSourceWithMap,
-	extractWorkgroupSize,
-	storageTextureSampleScalarType
-} from './compute-shader.js';
-import { createComputeStorageBindGroupCache } from './compute-bindgroup-cache.js';
-import { resolveComputePingPongResourcePair } from './compute-resources.js';
+	createComputeBindGroupCache,
+	type ComputeBindGroupCache
+} from './compute-bindgroup-cache.js';
+import {
+	createComputeExternalResolutionState,
+	resolveComputePassResources,
+	type ComputeResourceResolverLimits,
+	type ResolvedComputePassResources,
+	type ResolvedComputeResource
+} from './compute-resources.js';
 import {
 	ComputeSampledFallbackTexturePool,
 	toComputeSampledFallbackClass
@@ -52,8 +57,6 @@ import type {
 	RenderTarget,
 	Renderer,
 	RendererOptions,
-	StorageBufferAccess,
-	StorageBufferType,
 	TextureSource,
 	TextureUpdateMode,
 	TextureValue
@@ -118,7 +121,7 @@ interface RuntimeRenderTarget {
  * Runtime ping-pong storage textures for a single logical target key.
  */
 interface PingPongTexturePair {
-	target: string;
+	logicalId: string;
 	format: GPUTextureFormat;
 	width: number;
 	height: number;
@@ -126,9 +129,8 @@ interface PingPongTexturePair {
 	viewA: GPUTextureView;
 	textureB: GPUTexture;
 	viewB: GPUTextureView;
-	bindGroupLayout: GPUBindGroupLayout;
-	readAWriteBBindGroup: GPUBindGroup | null;
-	readBWriteABindGroup: GPUBindGroup | null;
+	readFromA: boolean;
+	initialized: boolean;
 }
 
 /**
@@ -246,6 +248,44 @@ function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
 	return DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION;
 }
 
+function getPositiveDeviceLimit(
+	device: GPUDevice,
+	name: keyof ComputeResourceResolverLimits,
+	fallback: number
+): number {
+	const value = (device.limits as unknown as Record<string, unknown> | undefined)?.[name];
+	return typeof value === 'number' && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: fallback;
+}
+
+function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceResolverLimits {
+	return {
+		maxBindingsPerBindGroup: getPositiveDeviceLimit(device, 'maxBindingsPerBindGroup', 1000),
+		maxSampledTexturesPerShaderStage: getPositiveDeviceLimit(
+			device,
+			'maxSampledTexturesPerShaderStage',
+			16
+		),
+		maxSamplersPerShaderStage: getPositiveDeviceLimit(device, 'maxSamplersPerShaderStage', 16),
+		maxStorageTexturesPerShaderStage: getPositiveDeviceLimit(
+			device,
+			'maxStorageTexturesPerShaderStage',
+			4
+		),
+		maxStorageBuffersPerShaderStage: getPositiveDeviceLimit(
+			device,
+			'maxStorageBuffersPerShaderStage',
+			8
+		),
+		maxStorageBufferBindingSize: getPositiveDeviceLimit(
+			device,
+			'maxStorageBufferBindingSize',
+			128 * 1024 * 1024
+		)
+	};
+}
+
 function validateComputeDispatch(
 	dispatch: unknown,
 	maxWorkgroupsPerDimension: number,
@@ -296,19 +336,6 @@ function getTextureBindings(index: number): {
 		samplerBinding,
 		textureBinding: samplerBinding + 1
 	};
-}
-
-/**
- * Maps WGSL scalar texture type to WebGPU sampled texture bind-group sample type.
- */
-function toGpuTextureSampleType(type: 'f32' | 'u32' | 'i32'): GPUTextureSampleType {
-	if (type === 'u32') {
-		return 'uint';
-	}
-	if (type === 'i32') {
-		return 'sint';
-	}
-	return 'float';
 }
 
 /**
@@ -1306,44 +1333,6 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const textureBindingByKey = new Map(textureBindings.map((binding) => [binding.key, binding]));
 		const fragmentTextureBindings = textureBindings.filter((binding) => binding.fragmentVisible);
 
-		const computeStorageBufferLayoutEntries: GPUBindGroupLayoutEntry[] = storageBufferKeys.map(
-			(key, index) => {
-				const def = storageBufferDefinitions[key];
-				const access = def?.access ?? 'read-write';
-				const bufferType: GPUBufferBindingType =
-					access === 'read' ? 'read-only-storage' : 'storage';
-				return {
-					binding: index,
-					visibility: GPUShaderStage.COMPUTE,
-					buffer: { type: bufferType }
-				};
-			}
-		);
-		const computeStorageBufferTopologyKey = storageBufferKeys
-			.map((key) => `${key}:${storageBufferDefinitions[key]?.access ?? 'read-write'}`)
-			.join('|');
-
-		const computeStorageTextureLayoutEntries: GPUBindGroupLayoutEntry[] = storageTextureKeys.map(
-			(key, index) => {
-				const config = normalizedTextureDefinitions[key];
-				return {
-					binding: index,
-					visibility: GPUShaderStage.COMPUTE,
-					storageTexture: {
-						access: 'write-only' as GPUStorageTextureAccess,
-						format: (config?.format ?? 'rgba8unorm') as GPUTextureFormat,
-						viewDimension: '2d'
-					}
-				};
-			}
-		);
-		const computeStorageTextureTopologyKey = storageTextureKeys
-			.map((key) => `${key}:${normalizedTextureDefinitions[key]?.format ?? 'rgba8unorm'}`)
-			.join('|');
-
-		const computeStorageBufferBindGroupCache = createComputeStorageBindGroupCache(device);
-		const computeStorageTextureBindGroupCache = createComputeStorageBindGroupCache(device);
-
 		const bindGroupLayout = device.createBindGroupLayout({
 			entries: createBindGroupLayoutEntries(fragmentTextureBindings)
 		});
@@ -1496,8 +1485,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let presentationBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		// ── Storage buffer allocation ────────────────────────────────────────
-		const pingPongTexturePairs = new Map<string, PingPongTexturePair>();
-		const pingPongComputeIterationTotals = new WeakMap<RuntimeComputePass, number>();
+		const pingPongTexturePairs = new Map<RuntimeComputePass, PingPongTexturePair>();
 		const pingPongShaderTexturePairs = new Map<
 			RuntimePingPongShaderPass,
 			PingPongShaderTexturePair
@@ -1547,21 +1535,29 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					})
 				: null;
 
-		const ensurePingPongTexturePair = (target: string): PingPongTexturePair => {
-			const existing = pingPongTexturePairs.get(target);
-			if (existing) {
+		const ensurePingPongTexturePair = (
+			pass: RuntimeComputePass,
+			logicalId: string
+		): PingPongTexturePair => {
+			const existing = pingPongTexturePairs.get(pass);
+			if (existing && existing.logicalId === logicalId) {
 				return existing;
 			}
+			if (existing) {
+				existing.textureA.destroy();
+				existing.textureB.destroy();
+				pingPongTexturePairs.delete(pass);
+			}
 
-			const config = normalizedTextureDefinitions[target];
+			const config = normalizedTextureDefinitions[logicalId];
 			if (!config || !config.storage) {
 				throw new Error(
-					`PingPongComputePass target "${target}" must reference a texture declared with storage:true.`
+					`PingPongComputePass resource "${logicalId}" must reference a texture declared with storage:true.`
 				);
 			}
 			if (!config.width || !config.height) {
 				throw new Error(
-					`PingPongComputePass target "${target}" requires explicit texture width and height.`
+					`PingPongComputePass resource "${logicalId}" requires explicit texture width and height.`
 				);
 			}
 
@@ -1586,33 +1582,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				textureB.destroy();
 			});
 
-			const sampleScalarType = storageTextureSampleScalarType(config.format);
-			const sampleType = toGpuTextureSampleType(sampleScalarType);
-			const bindGroupLayout = device.createBindGroupLayout({
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.COMPUTE,
-						texture: {
-							sampleType,
-							viewDimension: '2d',
-							multisampled: false
-						}
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.COMPUTE,
-						storageTexture: {
-							access: 'write-only' as GPUStorageTextureAccess,
-							format: config.format as GPUTextureFormat,
-							viewDimension: '2d'
-						}
-					}
-				]
-			});
-
 			const pair: PingPongTexturePair = {
-				target,
+				logicalId,
 				format: config.format as GPUTextureFormat,
 				width: config.width,
 				height: config.height,
@@ -1620,11 +1591,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				viewA: textureA.createView(),
 				textureB,
 				viewB: textureB.createView(),
-				bindGroupLayout,
-				readAWriteBBindGroup: null,
-				readBWriteABindGroup: null
+				readFromA: true,
+				initialized: true
 			};
-			pingPongTexturePairs.set(target, pair);
+			pingPongTexturePairs.set(pass, pair);
 			return pair;
 		};
 
@@ -1717,9 +1687,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		// ── Compute pipeline setup ──────────────────────────────────────────
 		interface ComputePipelineEntry {
 			pipeline: GPUComputePipeline;
-			bindGroup: GPUBindGroup;
+			uniformBindGroup: GPUBindGroup;
+			resourceBindGroupLayout: GPUBindGroupLayout | null;
+			resourceBindGroupCaches: WeakMap<object, ComputeBindGroupCache>;
+			pingPongResourceBindGroupCaches: WeakMap<
+				object,
+				{ readA: ComputeBindGroupCache; readB: ComputeBindGroupCache }
+			>;
 			workgroupSize: [number, number, number];
 			computeSource: string;
+			topologyKey: string;
 		}
 		// Per-source cache state. The renderer resolves the compute source for
 		// each pass once per frame and looks it up here. The state machine
@@ -1745,6 +1722,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const MAX_COMPUTE_PIPELINE_CACHE_ENTRIES = 32;
 		const computePipelineCache = new Map<string, ComputePipelineCacheState>();
 		let nextComputePipelineLabelIndex = 0;
+		const computeResourceLimits = getComputeResourceResolverLimits(device);
+		const computeUniformTopologyKey = options.uniformLayout.entries
+			.map((entry) => `${entry.name}:${entry.type}`)
+			.join(',');
+		const computeDeviceCapabilityKey = [
+			...Array.from(device.features as Iterable<string>).sort(),
+			...Object.entries(computeResourceLimits).map(([name, value]) => `${name}:${value}`)
+		].join(',');
 
 		const requestRender = options.requestRender;
 
@@ -1777,66 +1762,23 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			cacheKey: string,
 			buildOptions: {
 				computeSource: string;
-				pingPongTarget?: string;
-				pingPongFormat?: GPUTextureFormat;
-				pingPongReadAlias?: string;
-				pingPongWriteAlias?: string;
+				resources: ResolvedComputePassResources;
 			}
 		): ComputePipelineCacheState => {
-			const storageBufferDefs: Record<
-				string,
-				{ type: StorageBufferType; access: StorageBufferAccess }
-			> = {};
-			for (const key of storageBufferKeys) {
-				const def = storageBufferDefinitions[key];
-				if (def) {
-					const norm = normalizeStorageBufferDefinition(def);
-					storageBufferDefs[key] = { type: norm.type, access: norm.access };
-				}
-			}
-			const storageTextureDefs: Record<string, { format: GPUTextureFormat }> = {};
-			for (const key of storageTextureKeys) {
-				const texDef = options.textureDefinitions[key];
-				if (texDef?.format) {
-					storageTextureDefs[key] = { format: texDef.format };
-				}
-			}
-
-			const isPingPongPipeline = Boolean(
-				buildOptions.pingPongTarget &&
-				buildOptions.pingPongFormat &&
-				buildOptions.pingPongReadAlias &&
-				buildOptions.pingPongWriteAlias
-			);
-			const builtComputeShader = isPingPongPipeline
-				? buildPingPongComputeShaderSourceWithMap({
-						compute: buildOptions.computeSource,
-						uniformLayout: options.uniformLayout,
-						storageBufferKeys,
-						storageBufferDefinitions: storageBufferDefs,
-						readAlias: buildOptions.pingPongReadAlias!,
-						writeAlias: buildOptions.pingPongWriteAlias!,
-						targetFormat: buildOptions.pingPongFormat!
-					})
-				: buildComputeShaderSourceWithMap({
-						compute: buildOptions.computeSource,
-						uniformLayout: options.uniformLayout,
-						storageBufferKeys,
-						storageBufferDefinitions: storageBufferDefs,
-						storageTextureKeys,
-						storageTextureDefinitions: storageTextureDefs
-					});
+			const builtComputeShader = buildComputeShaderSourceWithMap({
+				compute: buildOptions.computeSource,
+				uniformLayout: options.uniformLayout,
+				resources: buildOptions.resources.entries
+			});
 
 			const labelIndex = (nextComputePipelineLabelIndex += 1);
-			const labelBase = isPingPongPipeline
-				? `compute-pingpong[${buildOptions.pingPongTarget}/${buildOptions.pingPongFormat}]#${labelIndex}`
-				: `compute#${labelIndex}`;
+			const labelBase = `compute[${buildOptions.resources.topologyKey || 'uniforms-only'}]#${labelIndex}`;
 			const moduleLabel = `${labelBase}:module`;
 			const pipelineLabel = `${labelBase}:pipeline`;
 
 			const workgroupSize = extractWorkgroupSize(buildOptions.computeSource);
 
-			// Compute bind group layout: group(0)=uniforms, group(1)=storage buffers, group(2)=storage textures
+			// group(0) is fixed uniforms; optional group(1) is the resolved heterogeneous topology.
 			const computeUniformBGL = device.createBindGroupLayout({
 				label: `${labelBase}:bgl-uniforms`,
 				entries: [
@@ -1853,62 +1795,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				]
 			});
 
-			const storageBGL =
-				computeStorageBufferLayoutEntries.length > 0
+			const resourceBindGroupLayout =
+				buildOptions.resources.entries.length > 0
 					? device.createBindGroupLayout({
-							label: `${labelBase}:bgl-storage`,
-							entries: computeStorageBufferLayoutEntries
+							label: `${labelBase}:bgl-resources`,
+							entries: buildOptions.resources.entries.map((entry) => entry.layoutEntry)
 						})
 					: null;
-
-			const storageTextureBGLEntries: GPUBindGroupLayoutEntry[] = isPingPongPipeline
-				? [
-						{
-							binding: 0,
-							visibility: GPUShaderStage.COMPUTE,
-							texture: {
-								sampleType: toGpuTextureSampleType(
-									storageTextureSampleScalarType(buildOptions.pingPongFormat!)
-								),
-								viewDimension: '2d',
-								multisampled: false
-							}
-						},
-						{
-							binding: 1,
-							visibility: GPUShaderStage.COMPUTE,
-							storageTexture: {
-								access: 'write-only' as GPUStorageTextureAccess,
-								format: buildOptions.pingPongFormat!,
-								viewDimension: '2d'
-							}
-						}
-					]
-				: computeStorageTextureLayoutEntries;
-			const storageTextureBGL =
-				storageTextureBGLEntries.length > 0
-					? device.createBindGroupLayout({
-							label: `${labelBase}:bgl-storage-textures`,
-							entries: storageTextureBGLEntries
-						})
-					: null;
-
-			// Bind group layout indices must match shader @group() indices:
-			// group(0) = uniforms, group(1) = storage buffers, group(2) = storage textures.
-			// When a group is unused, insert an empty placeholder to keep indices aligned.
 			const bindGroupLayouts: GPUBindGroupLayout[] = [computeUniformBGL];
-			if (storageBGL || storageTextureBGL) {
-				bindGroupLayouts.push(
-					storageBGL ??
-						device.createBindGroupLayout({
-							label: `${labelBase}:bgl-storage-empty`,
-							entries: []
-						})
-				);
-			}
-			if (storageTextureBGL) {
-				bindGroupLayouts.push(storageTextureBGL);
-			}
+			if (resourceBindGroupLayout) bindGroupLayouts.push(resourceBindGroupLayout);
 
 			const computePipelineLayout = device.createPipelineLayout({
 				label: `${labelBase}:layout`,
@@ -1968,9 +1863,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			const entry: ComputePipelineEntry = {
 				pipeline,
-				bindGroup: computeUniformBindGroup,
+				uniformBindGroup: computeUniformBindGroup,
+				resourceBindGroupLayout,
+				resourceBindGroupCaches: new WeakMap(),
+				pingPongResourceBindGroupCaches: new WeakMap(),
 				workgroupSize,
-				computeSource: buildOptions.computeSource
+				computeSource: buildOptions.computeSource,
+				topologyKey: buildOptions.resources.topologyKey
 			};
 
 			const validation = (async () => {
@@ -2013,18 +1912,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		const buildComputePipelineEntry = (buildOptions: {
 			computeSource: string;
-			pingPongTarget?: string;
-			pingPongFormat?: GPUTextureFormat;
-			pingPongReadAlias?: string;
-			pingPongWriteAlias?: string;
+			resources: ResolvedComputePassResources;
 		}): ComputePipelineEntry => {
-			const cacheKey =
-				buildOptions.pingPongTarget &&
-				buildOptions.pingPongFormat &&
-				buildOptions.pingPongReadAlias &&
-				buildOptions.pingPongWriteAlias
-					? `pingpong:${buildOptions.pingPongTarget}:${buildOptions.pingPongFormat}:${buildOptions.pingPongReadAlias}:${buildOptions.pingPongWriteAlias}:${buildOptions.computeSource}`
-					: `compute:${buildOptions.computeSource}`;
+			const cacheKey = `compute:${computeUniformTopologyKey}:${buildOptions.resources.topologyKey}:${computeDeviceCapabilityKey}:${buildOptions.computeSource}`;
 			const cached = computePipelineCache.get(cacheKey);
 			if (cached) {
 				touchComputePipelineCacheState(cacheKey, cached);
@@ -2157,77 +2047,131 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			return entry;
 		};
 
-		// Helper to get the storage bind group for dispatch
-		const getComputeStorageBindGroup = (): GPUBindGroup | null => {
-			if (computeStorageBufferLayoutEntries.length === 0) {
-				return null;
-			}
-			const resources: GPUBuffer[] = storageBufferKeys.map(
-				(key) => resourceRegistry.requireStorageBuffer(key).buffer
-			);
-			const storageEntries: GPUBindGroupEntry[] = resources.map((buffer, index) => {
-				return { binding: index, resource: { buffer } };
-			});
-			return computeStorageBufferBindGroupCache.getOrCreate({
-				topologyKey: computeStorageBufferTopologyKey,
-				layoutEntries: computeStorageBufferLayoutEntries,
-				bindGroupEntries: storageEntries,
-				resourceRefs: resources
-			});
-		};
-
-		// Helper to get the storage texture bind group for compute dispatch (group 2)
-		const getComputeStorageTextureBindGroup = (): GPUBindGroup | null => {
-			if (computeStorageTextureLayoutEntries.length === 0) {
-				return null;
-			}
-			const resources: GPUTextureView[] = storageTextureKeys.map((key) => {
-				const view = resourceRegistry.requireTexture(key).storageView;
-				if (!view) {
-					throw new Error(`Storage texture "${key}" not allocated.`);
+		const getComputeBindingResource = (entry: ResolvedComputeResource): GPUBindingResource => {
+			if (entry.source === 'external') return entry.bindingResource;
+			const logicalId = String(entry.logicalId);
+			switch (entry.kind) {
+				case 'sampled-texture': {
+					const resource = resourceRegistry.requireTexture(logicalId);
+					if (
+						entry.subresource.baseMipLevel === 0 &&
+						entry.subresource.mipLevelCount === resource.mipLevelCount
+					) {
+						return resource.publishedView;
+					}
+					return entry.bindingResource;
 				}
-				return view;
-			});
-			const bgEntries: GPUBindGroupEntry[] = resources.map((view, index) => {
-				return { binding: index, resource: view };
-			});
+				case 'storage-texture': {
+					const view = resourceRegistry.requireTexture(logicalId).storageView;
+					if (!view) throw new Error(`Storage texture "${logicalId}" is not allocated.`);
+					return view;
+				}
+				case 'storage-buffer': {
+					const buffer = resourceRegistry.requireStorageBuffer(logicalId).buffer;
+					return { buffer, size: entry.size };
+				}
+				case 'sampler': {
+					const binding = textureBindingByKey.get(logicalId);
+					if (!binding) throw new Error(`Material sampler "${logicalId}" is not available.`);
+					return binding.sampler;
+				}
+			}
+		};
 
-			return computeStorageTextureBindGroupCache.getOrCreate({
-				topologyKey: computeStorageTextureTopologyKey,
-				layoutEntries: computeStorageTextureLayoutEntries,
-				bindGroupEntries: bgEntries,
-				resourceRefs: resources
+		const getBindingReference = (resource: GPUBindingResource): unknown =>
+			'buffer' in resource ? resource.buffer : resource;
+
+		const createResolvedBindGroupEntries = (
+			resources: ResolvedComputePassResources,
+			pingPong?: { pair: PingPongTexturePair; readFromA: boolean }
+		): { entries: GPUBindGroupEntry[]; refs: unknown[] } => {
+			const entries: GPUBindGroupEntry[] = [];
+			const refs: unknown[] = [];
+			for (const entry of resources.entries) {
+				let resource = getComputeBindingResource(entry);
+				if (pingPong && entry.kind === 'sampled-texture' && entry.pingPong === 'read') {
+					resource = pingPong.readFromA ? pingPong.pair.viewA : pingPong.pair.viewB;
+				} else if (pingPong && entry.kind === 'storage-texture' && entry.pingPong === 'write') {
+					resource = pingPong.readFromA ? pingPong.pair.viewB : pingPong.pair.viewA;
+				}
+				entries.push({ binding: entry.binding, resource });
+				refs.push(getBindingReference(resource));
+			}
+			return { entries, refs };
+		};
+
+		const getComputeResourceBindGroup = (
+			pipelineEntry: ComputePipelineEntry,
+			pass: RuntimeComputePass,
+			resources: ResolvedComputePassResources
+		): GPUBindGroup | null => {
+			if (!pipelineEntry.resourceBindGroupLayout) return null;
+			let cache = pipelineEntry.resourceBindGroupCaches.get(pass as object);
+			if (!cache) {
+				cache = createComputeBindGroupCache(device);
+				pipelineEntry.resourceBindGroupCaches.set(pass as object, cache);
+			}
+			const runtimeEntries = createResolvedBindGroupEntries(resources);
+			return cache.getOrCreate({
+				topologyKey: resources.topologyKey,
+				layout: pipelineEntry.resourceBindGroupLayout,
+				entries: runtimeEntries.entries,
+				resourceRefs: runtimeEntries.refs
 			});
 		};
 
-		// Helper to get ping-pong storage texture bind group for compute dispatch (group 2)
-		const getPingPongStorageTextureBindGroup = (
-			target: string,
+		const getPingPongResourceBindGroup = (
+			pipelineEntry: ComputePipelineEntry,
+			pass: RuntimeComputePass,
+			resources: ResolvedComputePassResources,
+			pair: PingPongTexturePair,
 			readFromA: boolean
 		): GPUBindGroup => {
-			const pair = ensurePingPongTexturePair(target);
-			if (readFromA) {
-				if (!pair.readAWriteBBindGroup) {
-					pair.readAWriteBBindGroup = device.createBindGroup({
-						layout: pair.bindGroupLayout,
-						entries: [
-							{ binding: 0, resource: pair.viewA },
-							{ binding: 1, resource: pair.viewB }
-						]
-					});
-				}
-				return pair.readAWriteBBindGroup;
+			if (!pipelineEntry.resourceBindGroupLayout) {
+				throw new Error('Ping-pong compute pipeline is missing its resource bind group layout.');
 			}
-			if (!pair.readBWriteABindGroup) {
-				pair.readBWriteABindGroup = device.createBindGroup({
-					layout: pair.bindGroupLayout,
-					entries: [
-						{ binding: 0, resource: pair.viewB },
-						{ binding: 1, resource: pair.viewA }
-					]
-				});
+			let caches = pipelineEntry.pingPongResourceBindGroupCaches.get(pass as object);
+			if (!caches) {
+				caches = {
+					readA: createComputeBindGroupCache(device),
+					readB: createComputeBindGroupCache(device)
+				};
+				pipelineEntry.pingPongResourceBindGroupCaches.set(pass as object, caches);
 			}
-			return pair.readBWriteABindGroup;
+			const runtimeEntries = createResolvedBindGroupEntries(resources, { pair, readFromA });
+			const bindGroup = (readFromA ? caches.readA : caches.readB).getOrCreate({
+				topologyKey: resources.topologyKey,
+				layout: pipelineEntry.resourceBindGroupLayout,
+				entries: runtimeEntries.entries,
+				resourceRefs: runtimeEntries.refs
+			});
+			if (!bindGroup) throw new Error('Ping-pong compute resource bind group is empty.');
+			return bindGroup;
+		};
+
+		let externalTextureViewCache = new WeakMap<GPUTexture, Map<string, GPUTextureView>>();
+		const createCachedExternalTextureView = (
+			texture: GPUTexture,
+			descriptor: GPUTextureViewDescriptor
+		): GPUTextureView => {
+			const key = [
+				descriptor.dimension ?? '2d',
+				descriptor.baseMipLevel ?? 0,
+				descriptor.mipLevelCount ?? 1,
+				descriptor.baseArrayLayer ?? 0,
+				descriptor.arrayLayerCount ?? 1
+			].join(':');
+			let views = externalTextureViewCache.get(texture);
+			if (!views) {
+				views = new Map();
+				externalTextureViewCache.set(texture, views);
+			}
+			let view = views.get(key);
+			if (!view) {
+				view = texture.createView(descriptor);
+				views.set(key, view);
+			}
+			return view;
 		};
 
 		const getPingPongShaderPreviousBindGroup = (
@@ -2535,7 +2479,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		for (const binding of textureBindings) {
 			// Skip storage textures — they are eagerly allocated and not source-driven
-			if (storageTextureKeySet.has(binding.key)) continue;
+			if (normalizedTextureDefinitions[binding.key]?.storage) continue;
 			const defaultSource = normalizedTextureDefinitions[binding.key]?.source ?? null;
 			updateTextureBinding(binding, defaultSource, 'always');
 		}
@@ -2803,6 +2747,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 				destroyPingPongShaderTexturePair(pair);
 				pingPongShaderTexturePairs.delete(pass);
+			}
+		};
+
+		const syncPingPongComputeTextureLifecycle = (passes: AnyPass[]): void => {
+			const activeComputePasses = new Set(passes as RuntimeComputePass[]);
+			for (const [pass, pair] of pingPongTexturePairs.entries()) {
+				if (activeComputePasses.has(pass)) continue;
+				pair.textureA.destroy();
+				pair.textureB.destroy();
+				pingPongTexturePairs.delete(pass);
 			}
 		};
 
@@ -3113,7 +3067,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			let bindGroupDirty = false;
 			for (const binding of textureBindings) {
 				// Storage textures are managed by compute passes, skip source-driven updates
-				if (storageTextureKeySet.has(binding.key)) continue;
+				if (normalizedTextureDefinitions[binding.key]?.storage) continue;
 				if (activePingPongShaderTargets.has(binding.key)) continue;
 				const nextTexture =
 					textures[binding.key] ?? normalizedTextureDefinitions[binding.key]?.source ?? null;
@@ -3124,6 +3078,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			if (bindGroupDirty) {
 				bindGroup = createBindGroup();
+				bindGroupDirty = false;
 			}
 
 			// Apply pending storage buffer writes
@@ -3134,12 +3089,69 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			generateDirtyTextureMipmaps(commandEncoder);
 			const clearColor = options.getClearColor();
 			syncPassLifecycle(passes, width, height);
+			syncPingPongComputeTextureLifecycle(passes);
 			syncPingPongShaderTextureLifecycle(passes);
 			const runtimeTargets = syncRenderTargets(width, height);
+			const resolvedComputeResourcesByPass = new Map<AnyPass, ResolvedComputePassResources>();
+			const computeLabelsByPass = new Map<AnyPass, string>();
+			const computeExternalState = createComputeExternalResolutionState();
+			let computeDeclarationIndex = 0;
+			for (const pass of passes) {
+				if (pass.enabled === false) continue;
+				const isCompute =
+					'isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true;
+				if (!isCompute) continue;
+				const runtimePass = pass as RuntimeComputePass;
+				const passLabel = `Compute pass #${computeDeclarationIndex}`;
+				computeDeclarationIndex += 1;
+				const resources = resolveComputePassResources(runtimePass.getResources?.() ?? {}, {
+					passLabel,
+					deviceFeatures: device.features as ReadonlySet<string>,
+					limits: computeResourceLimits,
+					externalContext: { device, width, height, time, delta },
+					getMaterialTexture: (logicalId) => resourceRegistry.getTexture(logicalId),
+					getMaterialStorageBuffer: (logicalId) => resourceRegistry.getStorageBuffer(logicalId),
+					getMaterialSampler: (logicalId) => {
+						const binding = textureBindingByKey.get(logicalId);
+						return binding
+							? {
+									logicalId,
+									sampler: binding.sampler,
+									type: binding.samplerType,
+									sampleType: binding.resource.sampleType
+								}
+							: undefined;
+					},
+					createTextureView: createCachedExternalTextureView,
+					pingPong: runtimePass.isPingPong === true,
+					externalState: computeExternalState,
+					diagnosticContext: runtimeContext
+				});
+				resolvedComputeResourcesByPass.set(pass, resources);
+				computeLabelsByPass.set(pass, passLabel);
+			}
 			const graphPlan = isGraphPlanCacheValid(passes, clearColor)
-				? cachedGraphPlan!
+				? (() => {
+						const cached = cachedGraphPlan!;
+						for (const step of cached.computeSteps) {
+							const resources = resolvedComputeResourcesByPass.get(step.pass);
+							if (!resources) {
+								throw new Error('Cached compute graph step is missing resolved resources.');
+							}
+							step.resolvedResources = resources;
+						}
+						return cached;
+					})()
 				: (() => {
-						const nextPlan = planRenderGraph(passes, clearColor, renderTargetKeys);
+						let nextPlan: RenderGraphPlan;
+						try {
+							nextPlan = planRenderGraph(passes, clearColor, renderTargetKeys, {
+								getResolvedResources: (pass) => resolvedComputeResourcesByPass.get(pass),
+								getPassLabel: (pass) => computeLabelsByPass.get(pass) ?? 'Compute pass'
+							});
+						} catch (error) {
+							throw attachMotionGPUErrorContext(error, runtimeContext);
+						}
 						updateGraphPlanCache(passes, clearColor, nextPlan);
 						return nextPlan;
 					})();
@@ -3202,7 +3214,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			for (const step of graphPlan.preSceneSteps) {
 				if (step.kind === 'compute') {
 					ensureFrameBufferResolution(width, height);
-					const computeStepLabel = `Compute pass #${computeStepIndex}`;
+					const computeStepLabel = step.computeLabel ?? `Compute pass #${computeStepIndex}`;
 					computeStepIndex += 1;
 					const computePass = step.pass as RuntimeComputePass;
 					if (
@@ -3211,43 +3223,45 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						computePass.getWorkgroupSize
 					) {
 						const computeSource = computePass.getCompute();
-						const pingPongResources = computePass.isPingPong
-							? computePass.getResources?.()
-							: undefined;
-						if (computePass.isPingPong && !pingPongResources) {
-							throw new Error('PingPongComputePass must provide a resource map.');
+						const resources = step.resolvedResources;
+						if (!resources) throw new Error(`${computeStepLabel} is missing resolved resources.`);
+						const pingPongRead = resources.entries.find(
+							(entry) => entry.kind === 'sampled-texture' && entry.pingPong === 'read'
+						);
+						const pingPongWrite = resources.entries.find(
+							(entry) => entry.kind === 'storage-texture' && entry.pingPong === 'write'
+						);
+						let pingPongPair: PingPongTexturePair | null = null;
+						if (computePass.isPingPong) {
+							if (
+								!pingPongRead ||
+								!pingPongWrite ||
+								pingPongRead.source !== 'material' ||
+								pingPongWrite.source !== 'material' ||
+								typeof pingPongRead.logicalId !== 'string' ||
+								!Object.is(pingPongRead.logicalId, pingPongWrite.logicalId)
+							) {
+								throw new Error(
+									`${computeStepLabel} ping-pong pair must reference one renderer-managed material texture.`
+								);
+							}
+							pingPongPair = ensurePingPongTexturePair(computePass, pingPongRead.logicalId);
 						}
-						const pingPongResourcePair = pingPongResources
-							? resolveComputePingPongResourcePair(pingPongResources)
-							: null;
-						if (pingPongResourcePair && typeof pingPongResourcePair.texture !== 'string') {
-							throw new Error(
-								'PingPongComputePass external texture references require the compute resource resolver.'
-							);
-						}
-						const pingPongTarget =
-							typeof pingPongResourcePair?.texture === 'string'
-								? pingPongResourcePair.texture
-								: undefined;
-						const pingPongPair = pingPongTarget ? ensurePingPongTexturePair(pingPongTarget) : null;
 						const pipelineEntry = buildComputePipelineEntry({
 							computeSource,
-							...(pingPongPair && pingPongResourcePair
-								? {
-										pingPongTarget: pingPongPair.target,
-										pingPongFormat: pingPongPair.format,
-										pingPongReadAlias: pingPongResourcePair.readAlias,
-										pingPongWriteAlias: pingPongResourcePair.writeAlias
-									}
-								: {})
+							resources
 						});
 						const workgroupSize = computePass.getWorkgroupSize();
-						const storageBindGroup = getComputeStorageBindGroup();
-						const storageTextureBindGroup = getComputeStorageTextureBindGroup();
+						const resourceBindGroup = pingPongPair
+							? null
+							: getComputeResourceBindGroup(pipelineEntry, computePass, resources);
 						const iterations =
 							computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
-						const completedIterations = pingPongComputeIterationTotals.get(computePass) ?? 0;
-						const readFromAAtIterationZero = completedIterations % 2 === 0;
+						if (!Number.isInteger(iterations) || iterations < 1) {
+							throw new Error(
+								`${computeStepLabel} iterations must be a positive integer >= 1, got ${iterations}.`
+							);
+						}
 
 						for (let iter = 0; iter < iterations; iter += 1) {
 							const dispatchLabel =
@@ -3265,26 +3279,47 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 							);
 							const cPass = commandEncoder.beginComputePass();
 							cPass.setPipeline(pipelineEntry.pipeline);
-							cPass.setBindGroup(0, pipelineEntry.bindGroup);
-							if (storageBindGroup) {
-								cPass.setBindGroup(1, storageBindGroup);
-							}
+							cPass.setBindGroup(0, pipelineEntry.uniformBindGroup);
 							if (pingPongPair) {
-								const readFromA =
-									iter % 2 === 0 ? readFromAAtIterationZero : !readFromAAtIterationZero;
 								cPass.setBindGroup(
-									2,
-									getPingPongStorageTextureBindGroup(pingPongPair.target, readFromA)
+									1,
+									getPingPongResourceBindGroup(
+										pipelineEntry,
+										computePass,
+										resources,
+										pingPongPair,
+										pingPongPair.readFromA
+									)
 								);
-							} else if (storageTextureBindGroup) {
-								cPass.setBindGroup(2, storageTextureBindGroup);
+							} else if (resourceBindGroup) {
+								cPass.setBindGroup(1, resourceBindGroup);
 							}
 							cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
 							cPass.end();
+							if (pingPongPair) pingPongPair.readFromA = !pingPongPair.readFromA;
 						}
 
-						if (computePass.isPingPong) {
-							pingPongComputeIterationTotals.set(computePass, completedIterations + iterations);
+						if (pingPongPair) {
+							const latestView = pingPongPair.readFromA ? pingPongPair.viewA : pingPongPair.viewB;
+							if (resourceRegistry.markTextureWritten(pingPongPair.logicalId, latestView)) {
+								const binding = textureBindingByKey.get(pingPongPair.logicalId);
+								if (binding?.fragmentVisible) bindGroupDirty = true;
+							}
+						} else {
+							const written = new Set<string>();
+							for (const entry of resources.entries) {
+								if (entry.source !== 'material' || written.has(String(entry.logicalId))) continue;
+								if (entry.kind === 'storage-texture') {
+									written.add(String(entry.logicalId));
+									resourceRegistry.markTextureWritten(String(entry.logicalId));
+								} else if (
+									entry.kind === 'storage-buffer' &&
+									entry.access === 'storage-read-write'
+								) {
+									written.add(String(entry.logicalId));
+									resourceRegistry.markStorageBufferWritten(String(entry.logicalId));
+								}
+							}
 						}
 					}
 					continue;
@@ -3394,6 +3429,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				if (attachFeedbackTextureBinding(targetBinding, latestView)) {
 					bindGroup = createBindGroup();
 				}
+			}
+			if (bindGroupDirty) {
+				bindGroup = createBindGroup();
 			}
 			ensureFrameBufferResolution(width, height);
 
@@ -3553,6 +3591,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 				pingPongShaderTexturePairs.clear();
 				computePipelineCache.clear();
+				externalTextureViewCache = new WeakMap();
 				pingPongShaderPipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
 				destroyRenderTexture(targetSlotTarget);

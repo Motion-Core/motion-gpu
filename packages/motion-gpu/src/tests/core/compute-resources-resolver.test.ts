@@ -161,6 +161,18 @@ describe('resolveComputeTextureFormat', () => {
 });
 
 describe('resolveComputePassResources', () => {
+	it('reuses maps produced by the normalizer without trusting arbitrary frozen input', () => {
+		const normalized = normalizeComputeResourceMap({
+			uInput: { texture: 'camera', access: 'sampled' }
+		});
+		expect(normalizeComputeResourceMap(normalized)).toBe(normalized);
+
+		const invalidFrozen = Object.freeze({
+			uInput: Object.freeze({ texture: 'camera', access: 'invalid' })
+		}) as unknown as ComputeResourceMap;
+		expect(() => normalizeComputeResourceMap(invalidFrozen)).toThrow(/texture access/);
+	});
+
 	it('emits stable diagnostic codes at resolver failure sites', () => {
 		expect(() => normalizeComputeResourceMap([] as unknown as ComputeResourceMap)).toThrow();
 		expect(
@@ -544,8 +556,10 @@ describe('resolveComputePassResources', () => {
 	});
 
 	it('resolves borrowed texture, buffer, and sampler objects without taking ownership', () => {
-		const rawTexture = texture('raw');
-		const rawBuffer = { size: 64, usage: 128 } as GPUBuffer;
+		const destroyTexture = vi.fn();
+		const destroyBuffer = vi.fn();
+		const rawTexture = texture('raw', { destroy: destroyTexture });
+		const rawBuffer = { size: 64, usage: 128, destroy: destroyBuffer } as unknown as GPUBuffer;
 		const rawSampler = {} as GPUSampler;
 		const resolved = resolveComputePassResources(
 			{
@@ -588,7 +602,8 @@ describe('resolveComputePassResources', () => {
 		const samplerEntry = resolved.entries.find((entry) => entry.kind === 'sampler');
 		expect(bufferEntry?.bindingResource).toEqual({ buffer: rawBuffer, size: 64 });
 		expect(samplerEntry?.bindingResource).toBe(rawSampler);
-		expect('destroy' in rawBuffer).toBe(false);
+		expect(destroyTexture).not.toHaveBeenCalled();
+		expect(destroyBuffer).not.toHaveBeenCalled();
 	});
 
 	it('changes physical provider results without changing topology', () => {

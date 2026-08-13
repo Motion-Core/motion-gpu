@@ -175,6 +175,8 @@ export interface ResolvedComputeTextureFormat {
 	sampleType: GPUTextureSampleType;
 }
 
+const normalizedComputeResourceMaps = new WeakSet<object>();
+
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -500,13 +502,18 @@ export function normalizeComputeResourceMap(
 	resources: ComputeResourceMap | undefined
 ): ComputeResourceMap {
 	if (resources === undefined) {
-		return Object.freeze({});
+		const normalized = Object.freeze({});
+		normalizedComputeResourceMaps.add(normalized);
+		return normalized;
 	}
 	if (!isObjectRecord(resources)) {
 		throw createMotionGPUError(
 			'COMPUTE_RESOURCE_DESCRIPTOR_INVALID',
 			'Compute resources must be an object map keyed by WGSL aliases.'
 		);
+	}
+	if (normalizedComputeResourceMaps.has(resources)) {
+		return resources;
 	}
 
 	const normalized: Record<string, ComputeResourceDescriptor> = Object.create(null) as Record<
@@ -543,7 +550,9 @@ export function normalizeComputeResourceMap(
 		}
 		normalized[alias] = freezeComputeResourceDescriptor(cloneComputeResourceDescriptor(descriptor));
 	}
-	return Object.freeze(normalized);
+	const frozen = Object.freeze(normalized);
+	normalizedComputeResourceMaps.add(frozen);
+	return frozen;
 }
 
 /**

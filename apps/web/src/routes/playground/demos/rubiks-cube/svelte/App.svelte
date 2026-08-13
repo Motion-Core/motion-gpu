@@ -106,7 +106,18 @@
 
 	const transformPass = new ComputePass({
 		compute: transformPassShader,
-		dispatch: [1]
+		dispatch: [1],
+		resources: {
+			cubeBasePositions: { buffer: 'cubeBasePositions', access: 'storage-read' },
+			cubeBaseQuaternions: { buffer: 'cubeBaseQuaternions', access: 'storage-read' },
+			cubeGridPositions: { buffer: 'cubeGridPositions', access: 'storage-read-write' },
+			cubeWorldPositions: { buffer: 'cubeWorldPositions', access: 'storage-read-write' },
+			cubeWorldQuaternions: { buffer: 'cubeWorldQuaternions', access: 'storage-read-write' },
+			cubeInvWorldQuaternions: {
+				buffer: 'cubeInvWorldQuaternions',
+				access: 'storage-read-write'
+			}
+		}
 	});
 </script>
 

@@ -121,12 +121,20 @@
 
 	const atmosphereLutPass = new ComputePass({
 		compute: atmosphereLutShader,
-		dispatch: [ATMOSPHERE_LUT_WIDTH / 8, ATMOSPHERE_LUT_HEIGHT / 8]
+		dispatch: [ATMOSPHERE_LUT_WIDTH / 8, ATMOSPHERE_LUT_HEIGHT / 8],
+		resources: {
+			solarAtmosphereLut: { texture: 'solarAtmosphereLut', access: 'storage-write' },
+			lunarAtmosphereLut: { texture: 'lunarAtmosphereLut', access: 'storage-write' },
+			lightingState: { buffer: 'lightingState', access: 'storage-read-write' }
+		}
 	});
 
 	const cloudLutPass = new ComputePass({
 		compute: cloudLutShader,
-		dispatch: [CLOUD_LUT_WIDTH / 8, CLOUD_LUT_HEIGHT / 8]
+		dispatch: [CLOUD_LUT_WIDTH / 8, CLOUD_LUT_HEIGHT / 8],
+		resources: {
+			cloudLut: { texture: 'cloudLut', access: 'storage-write' }
+		}
 	});
 </script>
 

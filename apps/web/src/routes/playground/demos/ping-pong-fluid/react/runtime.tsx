@@ -9,7 +9,7 @@ import { useEffect } from 'react';
 
 export default function Runtime({ simulateFluid }: { simulateFluid: PingPongShaderPass }) {
 	const pointer = usePointer({ requestFrame: 'auto' });
-	const image = useTexture(['/sample-image-17.webp'], {
+	const image = useTexture(['/playground-media/sample-image-17.webp'], {
 		flipY: true,
 		colorSpace: 'srgb'
 	});

@@ -4,7 +4,7 @@ import { resolveUniformLayout } from '../../lib/core/uniforms';
 import type { TextureDefinitionMap } from '../../lib/core/types';
 import { normalizeTextureDefinition } from '../../lib/core/textures';
 import {
-	buildComputeStorageTextureBindings,
+	buildComputeResourceBindings,
 	buildComputeShaderSource
 } from '../../lib/core/compute-shader';
 
@@ -213,34 +213,44 @@ describe('storage textures', () => {
 
 	// ── WGSL generation ───────────────────────────────────────────────────
 
-	describe('buildComputeStorageTextureBindings', () => {
+	describe('buildComputeResourceBindings', () => {
 		it('generates WGSL storage texture bindings', () => {
-			const wgsl = buildComputeStorageTextureBindings(
-				['densityMap'],
-				{ densityMap: { format: 'rgba16float' as GPUTextureFormat } },
-				2
-			);
-			expect(wgsl).toContain('@group(2) @binding(0)');
+			const wgsl = buildComputeResourceBindings([
+				{
+					kind: 'storage-texture',
+					alias: 'densityMap',
+					binding: 0,
+					format: 'rgba16float'
+				}
+			]);
+			expect(wgsl).toContain('@group(1) @binding(0)');
 			expect(wgsl).toContain('var densityMap: texture_storage_2d<rgba16float, write>');
 		});
 
-		it('generates multiple bindings in sorted key order', () => {
-			const wgsl = buildComputeStorageTextureBindings(
-				['texA', 'texB'],
-				{
-					texA: { format: 'rgba8unorm' as GPUTextureFormat },
-					texB: { format: 'r32float' as GPUTextureFormat }
-				},
-				2
-			);
-			expect(wgsl).toContain('@group(2) @binding(0) var texA');
-			expect(wgsl).toContain('@group(2) @binding(1) var texB');
+		it('generates multiple bindings in resolved order', () => {
+			const wgsl = buildComputeResourceBindings([
+				{ kind: 'storage-texture', alias: 'texA', binding: 0, format: 'rgba8unorm' },
+				{ kind: 'storage-texture', alias: 'texB', binding: 1, format: 'r32float' }
+			]);
+			expect(wgsl).toContain('@group(1) @binding(0) var texA');
+			expect(wgsl).toContain('@group(1) @binding(1) var texB');
 			expect(wgsl).toContain('texture_storage_2d<rgba8unorm, write>');
 			expect(wgsl).toContain('texture_storage_2d<r32float, write>');
 		});
 
-		it('returns empty string when no storage texture keys', () => {
-			expect(buildComputeStorageTextureBindings([], {}, 2)).toBe('');
+		it('returns empty string when there are no resources', () => {
+			expect(buildComputeResourceBindings([])).toBe('');
+		});
+
+		it('generates sampled texture and sampler bindings', () => {
+			const wgsl = buildComputeResourceBindings([
+				{ kind: 'sampled-texture', alias: 'inputTex', binding: 0, scalarType: 'f32' },
+				{ kind: 'sampler', alias: 'linearSampler', binding: 1, samplerType: 'filtering' },
+				{ kind: 'sampler', alias: 'depthSampler', binding: 2, samplerType: 'comparison' }
+			]);
+			expect(wgsl).toContain('@group(1) @binding(0) var inputTex: texture_2d<f32>;');
+			expect(wgsl).toContain('@group(1) @binding(1) var linearSampler: sampler;');
+			expect(wgsl).toContain('@group(1) @binding(2) var depthSampler: sampler_comparison;');
 		});
 	});
 
@@ -250,13 +260,17 @@ describe('storage textures', () => {
 				compute:
 					'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 				uniformLayout: resolveUniformLayout({}),
-				storageBufferKeys: [],
-				storageBufferDefinitions: {},
-				storageTextureKeys: ['densityMap'],
-				storageTextureDefinitions: { densityMap: { format: 'rgba16float' as GPUTextureFormat } }
+				resources: [
+					{
+						kind: 'storage-texture',
+						alias: 'densityMap',
+						binding: 0,
+						format: 'rgba16float'
+					}
+				]
 			});
 			expect(source).toContain('texture_storage_2d<rgba16float, write>');
-			expect(source).toContain('@group(2) @binding(0) var densityMap');
+			expect(source).toContain('@group(1) @binding(0) var densityMap');
 		});
 
 		it('generates valid WGSL with both storage buffers and storage textures', () => {
@@ -264,20 +278,30 @@ describe('storage textures', () => {
 				compute:
 					'@compute @workgroup_size(256)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 				uniformLayout: resolveUniformLayout({ uTime: { type: 'f32', value: 0 } }),
-				storageBufferKeys: ['particles'],
-				storageBufferDefinitions: {
-					particles: { type: 'array<f32>', access: 'read-write' }
-				},
-				storageTextureKeys: ['densityMap'],
-				storageTextureDefinitions: { densityMap: { format: 'rgba16float' as GPUTextureFormat } }
+				resources: [
+					{
+						kind: 'storage-buffer',
+						alias: 'particles',
+						binding: 0,
+						access: 'storage-read-write',
+						wgslType: 'array<f32>'
+					},
+					{
+						kind: 'storage-texture',
+						alias: 'densityMap',
+						binding: 1,
+						format: 'rgba16float'
+					}
+				]
 			});
 
 			// group(0) = uniforms
 			expect(source).toContain('@group(0)');
 			// group(1) = storage buffers
 			expect(source).toContain('@group(1) @binding(0) var<storage, read_write> particles');
-			// group(2) = storage textures
-			expect(source).toContain('@group(2) @binding(0) var densityMap');
+			// group(1) = all compute resources in one binding sequence
+			expect(source).toContain('@group(1) @binding(1) var densityMap');
+			expect(source).not.toContain('@group(2)');
 		});
 	});
 
@@ -353,7 +377,7 @@ describe('storage textures', () => {
 			expect(storageTexture!.createView).toHaveBeenCalled();
 		});
 
-		it('uses safe fallback format for storage textures to avoid writeTexture size mismatch', async () => {
+		it('does not allocate a sampled-only fallback for storage textures', async () => {
 			const runtime = createWebGpuRuntime();
 			const textureDefinitions: TextureDefinitionMap = {
 				uDensity: {
@@ -372,28 +396,25 @@ describe('storage textures', () => {
 				})
 			);
 
-			// The fallback texture (1x1) should use rgba8unorm, not rgba16float,
-			// to avoid bytesPerRow mismatch in writeTexture (4 bytes vs 8 bytes).
-			const fallbackTexture = runtime.textures.find(
+			const sampledFallback = runtime.textures.find(
 				(t) =>
 					t.descriptor.size &&
 					typeof t.descriptor.size === 'object' &&
 					'width' in t.descriptor.size &&
-					t.descriptor.size.width === 1 &&
-					t.descriptor.format === 'rgba8unorm'
+					t.descriptor.size.width === 1
 			);
-			expect(fallbackTexture).toBeDefined();
+			expect(sampledFallback).toBeUndefined();
 
-			// Should NOT have a 1x1 rgba16float fallback
-			const badFallback = runtime.textures.find(
+			const storageTexture = runtime.textures.find(
 				(t) =>
 					t.descriptor.size &&
 					typeof t.descriptor.size === 'object' &&
 					'width' in t.descriptor.size &&
-					t.descriptor.size.width === 1 &&
+					t.descriptor.size.width === 64 &&
+					t.descriptor.size.height === 64 &&
 					t.descriptor.format === 'rgba16float'
 			);
-			expect(badFallback).toBeUndefined();
+			expect(storageTexture).toBeDefined();
 		});
 
 		it('fragment bind group references storage texture view, not fallback', async () => {
@@ -522,7 +543,10 @@ describe('storage textures', () => {
 				getCompute: () =>
 					'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  textureStore(uDensity, vec2u(id.x, id.y), vec4f(1.0));\n}',
 				resolveDispatch: () => [8, 8, 1] as [number, number, number],
-				getWorkgroupSize: () => [8, 8, 1] as [number, number, number]
+				getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
+				getResources: () => ({
+					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
+				})
 			};
 
 			const renderer = await createRenderer(
@@ -552,13 +576,14 @@ describe('storage textures', () => {
 			const bindGroupCalls = runtime.device.createBindGroup.mock.calls;
 			expect(bindGroupCalls.length).toBeGreaterThanOrEqual(1);
 
-			// Verify setBindGroup was called with group index 2
+			// Verify the heterogeneous resource group is bound at index 1.
 			const computePassInstance = encoder.beginComputePass.mock.results[0]?.value;
 			expect(computePassInstance).toBeDefined();
 
 			const setBindGroupCalls = computePassInstance.setBindGroup.mock.calls;
-			const group2Call = setBindGroupCalls.find((call: unknown[]) => call[0] === 2);
-			expect(group2Call).toBeDefined();
+			const resourceGroupCall = setBindGroupCalls.find((call: unknown[]) => call[0] === 1);
+			expect(resourceGroupCall).toBeDefined();
+			expect(setBindGroupCalls.some((call: unknown[]) => call[0] === 2)).toBe(false);
 		});
 
 		it('does not bind group 2 when no storage textures are defined', async () => {
@@ -570,7 +595,10 @@ describe('storage textures', () => {
 				getCompute: () =>
 					'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 				resolveDispatch: () => [1, 1, 1] as [number, number, number],
-				getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
+				getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+				getResources: () => ({
+					buf: { buffer: 'buf', access: 'storage-read-write' as const }
+				})
 			};
 
 			const renderer = await createRenderer(
@@ -595,12 +623,11 @@ describe('storage textures', () => {
 			const computePassInstance = encoder.beginComputePass.mock.results[0]?.value;
 
 			const setBindGroupCalls = computePassInstance.setBindGroup.mock.calls;
-			const group2Call = setBindGroupCalls.find((call: unknown[]) => call[0] === 2);
-			// Group 2 should NOT be bound when there are no storage textures
-			expect(group2Call).toBeUndefined();
+			expect(setBindGroupCalls.some((call: unknown[]) => call[0] === 1)).toBe(true);
+			expect(setBindGroupCalls.some((call: unknown[]) => call[0] === 2)).toBe(false);
 		});
 
-		it('binds both storage buffer (group 1) and storage texture (group 2) when both present', async () => {
+		it('binds storage buffers and textures together in group 1', async () => {
 			const runtime = createWebGpuRuntime();
 			const textureDefinitions: TextureDefinitionMap = {
 				uDensity: {
@@ -617,7 +644,11 @@ describe('storage textures', () => {
 				getCompute: () =>
 					'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  let v = particles[0u];\n  textureStore(uDensity, vec2u(0u, 0u), vec4f(v));\n}',
 				resolveDispatch: () => [1, 1, 1] as [number, number, number],
-				getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
+				getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+				getResources: () => ({
+					particles: { buffer: 'particles', access: 'storage-read-write' as const },
+					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
+				})
 			};
 
 			const renderer = await createRenderer(
@@ -647,15 +678,14 @@ describe('storage textures', () => {
 
 			// Group 0 = uniforms
 			expect(calls.some((c: unknown[]) => c[0] === 0)).toBe(true);
-			// Group 1 = storage buffers
+			// Group 1 = the complete heterogeneous resource map
 			expect(calls.some((c: unknown[]) => c[0] === 1)).toBe(true);
-			// Group 2 = storage textures
-			expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(true);
+			expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(false);
 		});
 	});
 
 	describe('renderer: multiple compute passes share storage textures', () => {
-		it('binds same storage texture for multiple compute pass dispatches', async () => {
+		it('rejects multiple compute writers of the same logical storage texture', async () => {
 			const runtime = createWebGpuRuntime();
 			const textureDefinitions: TextureDefinitionMap = {
 				uDensity: {
@@ -672,7 +702,10 @@ describe('storage textures', () => {
 				getCompute: () =>
 					'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  textureStore(uDensity, vec2u(id.x, id.y), vec4f(0.0));\n}',
 				resolveDispatch: () => [8, 8, 1] as [number, number, number],
-				getWorkgroupSize: () => [8, 8, 1] as [number, number, number]
+				getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
+				getResources: () => ({
+					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
+				})
 			};
 
 			const writePass = {
@@ -681,7 +714,10 @@ describe('storage textures', () => {
 				getCompute: () =>
 					'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  textureStore(uDensity, vec2u(id.x, 0u), vec4f(1.0));\n}',
 				resolveDispatch: () => [1, 1, 1] as [number, number, number],
-				getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
+				getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+				getResources: () => ({
+					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
+				})
 			};
 
 			const renderer = await createRenderer(
@@ -693,24 +729,15 @@ describe('storage textures', () => {
 				})
 			);
 
-			renderer.render({
-				time: 0,
-				delta: 0.016,
-				renderMode: 'always',
-				uniforms: {},
-				textures: {}
-			});
-
-			const encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
-			// Both compute passes should be dispatched
-			expect(encoder.beginComputePass).toHaveBeenCalledTimes(2);
-
-			// Both should have group 2 bound
-			for (let i = 0; i < 2; i++) {
-				const cp = encoder.beginComputePass.mock.results[i]?.value;
-				const group2 = cp.setBindGroup.mock.calls.find((c: unknown[]) => c[0] === 2);
-				expect(group2).toBeDefined();
-			}
+			expect(() =>
+				renderer.render({
+					time: 0,
+					delta: 0.016,
+					renderMode: 'always',
+					uniforms: {},
+					textures: {}
+				})
+			).toThrow(/multiple writers.*uDensity/i);
 		});
 	});
 });

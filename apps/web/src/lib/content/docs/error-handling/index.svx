@@ -33,12 +33,39 @@ interface MotionGPUErrorReport {
 | WebGPU setup | `WEBGPU_UNAVAILABLE`, `WEBGPU_ADAPTER_UNAVAILABLE`, `WEBGPU_CONTEXT_UNAVAILABLE` |
 | Shader compilation | `WGSL_COMPILATION_FAILED`, `COMPUTE_COMPILATION_FAILED`, `COMPUTE_CONTRACT_INVALID`, `MATERIAL_PREPROCESS_FAILED` |
 | Device and commands | `WEBGPU_DEVICE_LOST`, `WEBGPU_UNCAPTURED_ERROR`, `BIND_GROUP_MISMATCH` |
-| Runtime resources | `RUNTIME_RESOURCE_MISSING`, `UNIFORM_VALUE_INVALID`, `STORAGE_BUFFER_OUT_OF_BOUNDS`, `STORAGE_BUFFER_READ_FAILED` |
-| Graph and ping-pong | `RENDER_GRAPH_INVALID`, `PINGPONG_CONFIGURATION_INVALID` |
+| Runtime resources | `RUNTIME_RESOURCE_MISSING`, `RESOURCE_REGISTRY_DUPLICATE`, `RESOURCE_REGISTRY_TEXTURE_MISSING`, `RESOURCE_REGISTRY_STORAGE_BUFFER_MISSING`, `UNIFORM_VALUE_INVALID`, `STORAGE_BUFFER_OUT_OF_BOUNDS`, `STORAGE_BUFFER_READ_FAILED` |
+| Compute descriptors | `COMPUTE_RESOURCE_DESCRIPTOR_INVALID`, `COMPUTE_RESOURCE_UNKNOWN`, `COMPUTE_RESOURCE_INCOMPATIBLE`, `COMPUTE_RESOURCE_ALIAS_COLLISION` |
+| Compute hazards and graph | `COMPUTE_RESOURCE_HAZARD`, `COMPUTE_GRAPH_MULTIPLE_WRITERS`, `COMPUTE_GRAPH_CYCLE`, `COMPUTE_RESOURCE_LIMIT_EXCEEDED` |
+| External compute resources | `COMPUTE_EXTERNAL_RESOURCE_INVALID` |
+| Render graph and fragment ping-pong | `RENDER_GRAPH_INVALID`, `PINGPONG_CONFIGURATION_INVALID` |
 | Textures | `TEXTURE_USAGE_INVALID`, `TEXTURE_REQUEST_FAILED`, `TEXTURE_DECODE_UNAVAILABLE`, `TEXTURE_REQUEST_ABORTED` |
 | Fallback | `MOTIONGPU_RUNTIME_ERROR` |
 
 WebGPU, adapter, device-loss, and missing bitmap-decode classifications are fatal and non-recoverable where defined by the normalizer. Other known classifications and the fallback are currently reported as recoverable errors.
+
+## Compute resource diagnostics
+
+| Code | Meaning |
+| --- | --- |
+| `COMPUTE_RESOURCE_DESCRIPTOR_INVALID` | Invalid alias, descriptor shape, access, view range, or ping-pong pair |
+| `COMPUTE_RESOURCE_UNKNOWN` | A material key does not exist |
+| `COMPUTE_RESOURCE_INCOMPATIBLE` | Material access, format, usage, sample class, or sampler type cannot satisfy the descriptor |
+| `COMPUTE_RESOURCE_ALIAS_COLLISION` | An alias conflicts with a reserved generated WGSL name |
+| `COMPUTE_RESOURCE_HAZARD` | One dispatch samples and writes overlapping texture subresources, or binds an overlapping writable resource twice |
+| `COMPUTE_GRAPH_MULTIPLE_WRITERS` | More than one pass writes the same logical resource in one graph segment |
+| `COMPUTE_GRAPH_CYCLE` | Current/initial dependencies form a cycle |
+| `COMPUTE_RESOURCE_LIMIT_EXCEEDED` | The resolved layout exceeds an active device limit |
+| `COMPUTE_EXTERNAL_RESOURCE_INVALID` | A borrowed object, provider result, `resourceId`, device, or declared metadata is invalid |
+
+These reports include the pass index or label, WGSL alias, and material key or external resource identity when available. Treat them as contract failures: fix the descriptor or graph instead of retrying the same frame.
+
+Common resolutions:
+
+- Split sampled input and storage output across two textures, or use ping-pong.
+- Give consecutive processing stages separate output material keys.
+- Use `version: 'initial'` only when the reader must precede the writer and no later access needs the old physical contents.
+- Match filtering samplers with filterable float textures; use non-filtering samplers for integer or unfilterable-float formats.
+- Recreate borrowed resources for the current `GPUDevice` after device recovery while keeping their logical `resourceId` stable.
 
 ## FragCanvas handling
 

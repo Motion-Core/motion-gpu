@@ -1,8 +1,47 @@
 import { describe, expect, it } from 'vitest';
 import { attachShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
-import { toMotionGPUErrorReport } from '../../lib/core/error-report';
+import {
+	attachMotionGPUErrorContext,
+	createMotionGPUError,
+	toMotionGPUErrorReport,
+	type MotionGPUErrorCode
+} from '../../lib/core/error-report';
 
 describe('error report', () => {
+	it('maps every explicit compute-resource diagnostic code and preserves runtime context', () => {
+		const codes: MotionGPUErrorCode[] = [
+			'COMPUTE_RESOURCE_DESCRIPTOR_INVALID',
+			'COMPUTE_RESOURCE_UNKNOWN',
+			'COMPUTE_RESOURCE_INCOMPATIBLE',
+			'COMPUTE_RESOURCE_ALIAS_COLLISION',
+			'COMPUTE_RESOURCE_HAZARD',
+			'COMPUTE_GRAPH_MULTIPLE_WRITERS',
+			'COMPUTE_GRAPH_CYCLE',
+			'COMPUTE_RESOURCE_LIMIT_EXCEEDED',
+			'COMPUTE_EXTERNAL_RESOURCE_INVALID'
+		];
+		for (const code of codes) {
+			const error = attachMotionGPUErrorContext(createMotionGPUError(code, `failure: ${code}`), {
+				materialSignature: 'material-signature',
+				passGraph: { passCount: 2, enabledPassCount: 2, inputs: [], outputs: [] },
+				activeRenderTargets: ['fxMain']
+			});
+			const report = toMotionGPUErrorReport(error, 'render');
+			expect(report.code).toBe(code);
+			expect(report.title).not.toBe('MotionGPU render error');
+			expect(report.hint.length).toBeGreaterThan(20);
+			expect(report.context?.materialSignature).toBe('material-signature');
+		}
+	});
+
+	it('preserves an explicit diagnostic code without a dedicated title mapping', () => {
+		const report = toMotionGPUErrorReport(
+			createMotionGPUError('RENDER_GRAPH_INVALID', 'An opaque failure occurred.'),
+			'render'
+		);
+		expect(report.code).toBe('RENDER_GRAPH_INVALID');
+	});
+
 	it('classifies WebGPU unavailable errors', () => {
 		const report = toMotionGPUErrorReport(
 			new Error('WebGPU is not available in this browser'),

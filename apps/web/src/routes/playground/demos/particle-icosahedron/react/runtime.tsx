@@ -1,14 +1,28 @@
-import { useEffect } from 'react';
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/react';
+import { useEffect, useRef } from 'react';
+import {
+	useFrame,
+	useMotionGPU,
+	usePointer,
+	type ComputePass
+} from '@motion-core/motion-gpu/react';
 
-export default function Runtime() {
+const FRAME_ID_LIMIT = 16_000_000;
+
+interface RuntimeProps {
+	clearDensity: ComputePass;
+	simulate: ComputePass;
+}
+
+export default function Runtime({ clearDensity, simulate }: RuntimeProps) {
 	const context = useMotionGPU();
-
-	let targetRotateY = 0;
-	let targetRotateX = 0;
-	let smoothRotateY = 0;
-	let smoothRotateX = 0;
-	let autoRotateY = 0;
+	const animationRef = useRef({
+		targetRotateY: 0,
+		targetRotateX: 0,
+		smoothRotateY: 0,
+		smoothRotateX: 0,
+		autoRotateY: 0,
+		frameId: 0
+	});
 
 	const pointer = usePointer({
 		onDown: () => {
@@ -37,20 +51,28 @@ export default function Runtime() {
 	}, []);
 
 	useFrame((state) => {
+		const animation = animationRef.current;
+		animation.frameId += 1;
+		const resetDensity = animation.frameId >= FRAME_ID_LIMIT;
+		clearDensity.enabled = resetDensity;
+		simulate.enabled = !resetDensity;
+		if (resetDensity) animation.frameId = 0;
+
 		const pointerState = pointer.state.current;
 		if (pointerState.pressed && pointerState.dragging) {
-			targetRotateY += pointerState.deltaPx[0] * -0.005;
-			targetRotateX += pointerState.deltaPx[1] * -0.005;
-			targetRotateX = Math.max(-1.1, Math.min(1.1, targetRotateX));
+			animation.targetRotateY += pointerState.deltaPx[0] * -0.005;
+			animation.targetRotateX += pointerState.deltaPx[1] * -0.005;
+			animation.targetRotateX = Math.max(-1.1, Math.min(1.1, animation.targetRotateX));
 		}
 
-		autoRotateY += state.delta * 0.24;
+		animation.autoRotateY += state.delta * 0.24;
 
-		smoothRotateY += (targetRotateY - smoothRotateY) * 0.14;
-		smoothRotateX += (targetRotateX - smoothRotateX) * 0.14;
+		animation.smoothRotateY += (animation.targetRotateY - animation.smoothRotateY) * 0.14;
+		animation.smoothRotateX += (animation.targetRotateX - animation.smoothRotateX) * 0.14;
 
-		state.setUniform('uRotateY', autoRotateY + smoothRotateY);
-		state.setUniform('uRotateX', smoothRotateX);
+		state.setUniform('uRotateY', animation.autoRotateY + animation.smoothRotateY);
+		state.setUniform('uRotateX', animation.smoothRotateX);
+		state.setUniform('uFrameId', animation.frameId);
 	});
 
 	return null;

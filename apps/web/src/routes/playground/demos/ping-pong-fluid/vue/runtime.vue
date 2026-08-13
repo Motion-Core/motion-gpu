@@ -11,7 +11,7 @@ import { onUnmounted } from 'vue';
 const props = defineProps<{ simulateFluid: PingPongShaderPass }>();
 
 const pointer = usePointer({ requestFrame: 'auto' });
-const image = useTexture(['/sample-image-17.webp'], {
+const image = useTexture(['/playground-media/sample-image-17.webp'], {
 	flipY: true,
 	colorSpace: 'srgb'
 });

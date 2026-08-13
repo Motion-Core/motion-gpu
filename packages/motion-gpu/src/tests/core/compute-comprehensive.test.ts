@@ -4,8 +4,7 @@ import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
 import {
 	assertComputeContract,
 	buildComputeShaderSource,
-	buildComputeStorageBufferBindings,
-	buildComputeStorageTextureBindings,
+	buildComputeResourceBindings,
 	extractWorkgroupSize
 } from '../../lib/core/compute-shader';
 import {
@@ -18,6 +17,7 @@ import { resolveUniformLayout } from '../../lib/core/uniforms';
 import { planRenderGraph } from '../../lib/core/render-graph';
 import { createRenderer } from '../../lib/core/renderer';
 import type {
+	ComputeResourceMap,
 	TextureDefinitionMap,
 	RenderPass,
 	StorageBufferDefinition
@@ -62,6 +62,17 @@ function makeCtx(
 		time: overrides.time ?? 0,
 		delta: overrides.delta ?? 0.016,
 		workgroupSize: overrides.workgroupSize ?? ([256, 1, 1] as [number, number, number])
+	};
+}
+
+function pingPongResources(
+	texture = 'sim',
+	readAlias = `${texture}A`,
+	writeAlias = `${texture}B`
+): ComputeResourceMap {
+	return {
+		[readAlias]: { texture, access: 'sampled', pingPong: 'read' },
+		[writeAlias]: { texture, access: 'storage-write', pingPong: 'write' }
 	};
 }
 
@@ -246,60 +257,52 @@ fn compute(
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).toContain('motiongpu_unused: vec4f');
 	});
 
-	it('buildComputeShaderSource omits group(1) when no storage buffers, omits group(2) when no storage textures', () => {
+	it('buildComputeShaderSource omits the optional resource group when resources are empty', () => {
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).not.toContain('@group(1)');
 		expect(source).not.toContain('@group(2)');
 	});
 
-	it('buildComputeShaderSource includes group(2) with storage textures but no group(1) bindings', () => {
+	it('buildComputeShaderSource puts a lone storage texture in group 1', () => {
 		const source = buildComputeShaderSource({
 			compute: VALID_1D,
 			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: ['outTex'],
-			storageTextureDefinitions: { outTex: { format: 'rgba8unorm' as GPUTextureFormat } }
+			resources: [
+				{
+					kind: 'storage-texture',
+					alias: 'outTex',
+					binding: 0,
+					format: 'rgba8unorm'
+				}
+			]
 		});
-		expect(source).not.toContain('@group(1)');
 		expect(source).toContain(
-			'@group(2) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>'
+			'@group(1) @binding(0) var outTex: texture_storage_2d<rgba8unorm, write>'
 		);
+		expect(source).not.toContain('@group(2)');
 	});
 
-	it('storage buffer bindings skip undefined definitions gracefully', () => {
-		const bindings = buildComputeStorageBufferBindings(
-			['exists', 'missing'],
-			{ exists: { type: 'array<f32>', access: 'read' } },
-			1
-		);
-		expect(bindings).toContain('exists');
-		expect(bindings).not.toContain('missing');
-	});
-
-	it('storage texture bindings skip undefined definitions gracefully', () => {
-		const bindings = buildComputeStorageTextureBindings(
-			['exists', 'missing'],
-			{ exists: { format: 'rgba8unorm' as GPUTextureFormat } },
-			2
-		);
-		expect(bindings).toContain('exists');
-		expect(bindings).not.toContain('missing');
+	it('resolved bindings never silently skip an entry', () => {
+		expect(() =>
+			buildComputeResourceBindings([
+				{
+					kind: 'storage-buffer',
+					alias: 'exists',
+					binding: 1,
+					access: 'storage-read',
+					wgslType: 'array<f32>'
+				}
+			])
+		).toThrow(/expected binding 0/);
 	});
 
 	it('buildComputeShaderSource with multiple uniforms', () => {
@@ -310,10 +313,7 @@ fn compute(
 				uMouse: [0, 0],
 				uColor: [1, 0, 0, 1]
 			}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
 		expect(source).toContain('uTime: f32');
 		expect(source).toContain('uMouse: vec2f');
@@ -406,7 +406,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {}
 
 describe('PingPongComputePass: edge cases', () => {
 	it('setCompute preserves state on failure', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 'sim' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		const originalCompute = pass.getCompute();
 
 		expect(() => pass.setCompute('fn bad() {}')).toThrow();
@@ -415,7 +415,7 @@ describe('PingPongComputePass: edge cases', () => {
 	});
 
 	it('setCompute updates workgroup size atomically', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 'sim' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		pass.setCompute(VALID_1D);
 		expect(pass.getWorkgroupSize()).toEqual([256, 1, 1]);
 		expect(pass.getCompute()).toBe(VALID_1D);
@@ -423,74 +423,53 @@ describe('PingPongComputePass: edge cases', () => {
 
 	it('resolveDispatch auto mode matches ComputePass behavior', () => {
 		const cp = new ComputePass({ compute: VALID_2D, dispatch: 'auto' });
-		const pp = new PingPongComputePass({ compute: VALID_2D, target: 'sim', dispatch: 'auto' });
+		const pp = new PingPongComputePass({
+			compute: VALID_2D,
+			resources: pingPongResources(),
+			dispatch: 'auto'
+		});
 		const ctx = makeCtx({ width: 800, height: 600 });
 		expect(pp.resolveDispatch(ctx)).toEqual(cp.resolveDispatch(ctx));
 	});
 
 	it('resolveDispatch static mode', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 'sim', dispatch: [5, 10] });
+		const pass = new PingPongComputePass({
+			compute: VALID_2D,
+			resources: pingPongResources(),
+			dispatch: [5, 10]
+		});
 		expect(pass.resolveDispatch(makeCtx())).toEqual([5, 10, 1]);
 	});
 
 	it('resolveDispatch dynamic mode', () => {
 		const fn = vi.fn(() => [3, 4, 5] as [number, number, number]);
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 'sim', dispatch: fn });
+		const pass = new PingPongComputePass({
+			compute: VALID_2D,
+			resources: pingPongResources(),
+			dispatch: fn
+		});
 		expect(pass.resolveDispatch(makeCtx())).toEqual([3, 4, 5]);
 	});
 
-	it('getCurrentOutput with 2 iterations: even total → A', () => {
+	it('iteration changes do not affect resource topology', () => {
 		const pass = new PingPongComputePass({
 			compute: VALID_2D,
-			target: 'field',
+			resources: pingPongResources('field'),
 			iterations: 2
 		});
-		// Frame 0: total=0 → even → A
-		expect(pass.getCurrentOutput()).toBe('fieldA');
-		pass.advanceFrame();
-		// Frame 1: total=2 → even → A
-		expect(pass.getCurrentOutput()).toBe('fieldA');
-		pass.advanceFrame();
-		// Frame 2: total=4 → even → A
-		expect(pass.getCurrentOutput()).toBe('fieldA');
-	});
-
-	it('getCurrentOutput with 4 iterations alternates every frame', () => {
-		const pass = new PingPongComputePass({
-			compute: VALID_2D,
-			target: 'buf',
-			iterations: 4
-		});
-		// Frame 0: 0 → A, Frame 1: 4 → A, Frame 2: 8 → A
-		// Even iterations per frame always produces even total → always A
-		expect(pass.getCurrentOutput()).toBe('bufA');
-		pass.advanceFrame();
-		expect(pass.getCurrentOutput()).toBe('bufA');
-	});
-
-	it('getCurrentOutput with 5 iterations alternates correctly', () => {
-		const pass = new PingPongComputePass({
-			compute: VALID_2D,
-			target: 'x',
-			iterations: 5
-		});
-		// Frame 0: 0 → A
-		expect(pass.getCurrentOutput()).toBe('xA');
-		pass.advanceFrame();
-		// Frame 1: 5 → odd → B
-		expect(pass.getCurrentOutput()).toBe('xB');
-		pass.advanceFrame();
-		// Frame 2: 10 → even → A
-		expect(pass.getCurrentOutput()).toBe('xA');
+		const resources = pass.getResources();
+		pass.setIterations(5);
+		expect(pass.getIterations()).toBe(5);
+		expect(pass.getResources()).toEqual(resources);
 	});
 
 	it('setIterations rejects NaN', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 's' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		expect(() => pass.setIterations(Number.NaN)).toThrow(/positive integer >= 1/);
 	});
 
 	it('setIterations rejects Infinity', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 's' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		expect(() => pass.setIterations(Number.POSITIVE_INFINITY)).toThrow(/positive integer >= 1/);
 	});
 
@@ -499,21 +478,25 @@ describe('PingPongComputePass: edge cases', () => {
 			() =>
 				new PingPongComputePass({
 					compute: VALID_2D,
-					target: 's',
+					resources: pingPongResources(),
 					iterations: 0
 				})
 		).toThrow(/positive integer >= 1/);
 	});
 
 	it('setDispatch(undefined) resets to auto', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 's', dispatch: [42] });
+		const pass = new PingPongComputePass({
+			compute: VALID_2D,
+			resources: pingPongResources(),
+			dispatch: [42]
+		});
 		pass.setDispatch(undefined);
 		const dispatch = pass.resolveDispatch(makeCtx({ width: 160, height: 80 }));
 		expect(dispatch).toEqual([10, 5, 1]);
 	});
 
 	it('getWorkgroupSize returns a copy', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 's' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		const a = pass.getWorkgroupSize();
 		const b = pass.getWorkgroupSize();
 		expect(a).not.toBe(b);
@@ -521,7 +504,7 @@ describe('PingPongComputePass: edge cases', () => {
 	});
 
 	it('dispose is idempotent', () => {
-		const pass = new PingPongComputePass({ compute: VALID_2D, target: 's' });
+		const pass = new PingPongComputePass({ compute: VALID_2D, resources: pingPongResources() });
 		expect(() => {
 			pass.dispose();
 			pass.dispose();
@@ -674,7 +657,10 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			getCompute: () =>
 				'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  textureStore(uOutput, vec2u(id.x, id.y), vec4f(1.0));\n}',
 			resolveDispatch: () => [4, 4, 1] as [number, number, number],
-			getWorkgroupSize: () => [8, 8, 1] as [number, number, number]
+			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
+			getResources: () => ({
+				uOutput: { texture: 'uOutput', access: 'storage-write' as const }
+			})
 		};
 
 		const renderer = await createRenderer(
@@ -703,17 +689,15 @@ describe('renderer: compute pipeline bind group alignment', () => {
 
 		// Group 0 = uniforms (always present)
 		expect(calls.some((c: unknown[]) => c[0] === 0)).toBe(true);
-		// Group 1 = storage buffers — should NOT be bound (no buffers)
-		// But the empty placeholder BGL should exist in the pipeline layout
-		// The renderer should not call setBindGroup(1, ...) when there are no storage buffers
-		// Group 2 = storage textures — MUST be bound
-		expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(true);
+		// Group 1 is the only heterogeneous resource group.
+		expect(calls.some((c: unknown[]) => c[0] === 1)).toBe(true);
+		expect(calls.some((c: unknown[]) => c[0] === 2)).toBe(false);
 
-		// Verify pipeline layout was created with 3 bind group layouts (with empty placeholder at index 1)
+		// No placeholder layouts are inserted.
 		const pipelineLayoutCalls = runtime.device.createPipelineLayout.mock.calls;
 		const computeLayoutCall = pipelineLayoutCalls.find((call: unknown[]) => {
 			const arg = call[0] as { bindGroupLayouts?: unknown[] };
-			return arg.bindGroupLayouts && arg.bindGroupLayouts.length === 3;
+			return arg.bindGroupLayouts && arg.bindGroupLayouts.length === 2;
 		});
 		expect(computeLayoutCall).toBeDefined();
 	});
@@ -758,19 +742,16 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			}
 		};
 
-		const advanceFrame = vi.fn();
 		const pingPongPass = {
 			isCompute: true as const,
 			enabled: true,
 			isPingPong: true as const,
-			getTarget: () => 'sim',
-			getCurrentOutput: () => 'simA',
+			getResources: () => pingPongResources(),
 			getCompute: () =>
 				'@compute @workgroup_size(8, 8)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  let v = textureLoad(simA, vec2u(id.x, id.y), 0);\n  textureStore(simB, vec2u(id.x, id.y), v);\n}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
-			getIterations: () => 3,
-			advanceFrame
+			getIterations: () => 3
 		};
 
 		const renderer = await createRenderer(
@@ -793,11 +774,9 @@ describe('renderer: compute pipeline bind group alignment', () => {
 		const encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
 		// Should dispatch 3 iterations
 		expect(encoder.beginComputePass).toHaveBeenCalledTimes(3);
-		// advanceFrame called once after all iterations
-		expect(advanceFrame).toHaveBeenCalledTimes(1);
 	});
 
-	it('ping-pong compute pipeline injects targetA/targetB bindings', async () => {
+	it('ping-pong compute pipeline injects explicit read/write aliases', async () => {
 		const runtime = createWebGpuRuntime();
 		const textureDefinitions: TextureDefinitionMap = {
 			sim: {
@@ -808,12 +787,12 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			}
 		};
 		const pingPongPass = new PingPongComputePass({
-			target: 'sim',
+			resources: pingPongResources('sim', 'uPrevious', 'uNext'),
 			compute: `
 @compute @workgroup_size(8, 8)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
-	let v = textureLoad(simA, vec2u(id.x, id.y), 0);
-	textureStore(simB, vec2u(id.x, id.y), v);
+	let v = textureLoad(uPrevious, vec2u(id.x, id.y), 0);
+	textureStore(uNext, vec2u(id.x, id.y), v);
 }
 `,
 			dispatch: [1, 1, 1]
@@ -848,10 +827,11 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		}
 		const [shaderModuleInput] = computeShaderCall as unknown[];
 		const shaderInput = shaderModuleInput as { code: string };
-		expect(shaderInput.code).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
 		expect(shaderInput.code).toContain(
-			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
+			'@group(1) @binding(0) var uNext: texture_storage_2d<rgba16float, write>;'
 		);
+		expect(shaderInput.code).toContain('@group(1) @binding(1) var uPrevious: texture_2d<f32>;');
+		expect(shaderInput.code).not.toContain('@group(2)');
 	});
 
 	it('ping-pong compute swaps A/B bindings between iterations and frames', async () => {
@@ -865,7 +845,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			}
 		};
 		const pingPongPass = new PingPongComputePass({
-			target: 'sim',
+			resources: pingPongResources(),
 			compute: `
 @compute @workgroup_size(8, 8)
 fn compute(@builtin(global_invocation_id) id: vec3u) {
@@ -947,25 +927,25 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
 		// Verify frame 2 reuses the same cached objects in the same order via setBindGroup
 		// calls on each frame's compute pass encoder.
-		const getGroup2Bindings = (encoder: {
+		const getGroup1Bindings = (encoder: {
 			beginComputePass: {
 				mock: { results: Array<{ value: { setBindGroup: { mock: { calls: unknown[][] } } } }> };
 			};
 		}): unknown[] =>
 			(encoder.beginComputePass.mock.results[0]?.value.setBindGroup.mock.calls ?? [])
-				.filter((c: unknown[]) => c[0] === 2)
+				.filter((c: unknown[]) => c[0] === 1)
 				.map((c: unknown[]) => c[1]);
 
 		const frame1Encoder = runtime.device.createCommandEncoder.mock.results[0]?.value;
 		const frame2Encoder = runtime.device.createCommandEncoder.mock.results[1]?.value;
-		const frame1Group2 = getGroup2Bindings(frame1Encoder);
-		const frame2Group2 = getGroup2Bindings(frame2Encoder);
+		const frame1Group1 = getGroup1Bindings(frame1Encoder);
+		const frame2Group1 = getGroup1Bindings(frame2Encoder);
 
-		expect(frame1Group2[0]).toBe(readAWriteBBindGroup); // frame 1, iter 0: A→B
-		expect(frame1Group2[1]).toBe(readBWriteABindGroup); // frame 1, iter 1: B→A
+		expect(frame1Group1[0]).toBe(readAWriteBBindGroup); // frame 1, iter 0: A→B
+		expect(frame1Group1[1]).toBe(readBWriteABindGroup); // frame 1, iter 1: B→A
 		// With 2 iterations (even count) frame 2 restarts from the same A→B orientation.
-		expect(frame2Group2[0]).toBe(readAWriteBBindGroup); // frame 2, iter 0: A→B (reused)
-		expect(frame2Group2[1]).toBe(readBWriteABindGroup); // frame 2, iter 1: B→A (reused)
+		expect(frame2Group1[0]).toBe(readAWriteBBindGroup); // frame 2, iter 0: A→B (reused)
+		expect(frame2Group1[1]).toBe(readBWriteABindGroup); // frame 2, iter 1: B→A (reused)
 	});
 
 	it('compute pass caches pipeline by shader source', async () => {
@@ -1018,7 +998,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			getCompute: () =>
 				'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {\n  data[id.x] = 1.0;\n}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
-			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
+			getWorkgroupSize: () => [64, 1, 1] as [number, number, number],
+			getResources: () => ({
+				data: { buffer: 'data', access: 'storage-read-write' as const }
+			})
 		};
 
 		const renderer = await createRenderer(

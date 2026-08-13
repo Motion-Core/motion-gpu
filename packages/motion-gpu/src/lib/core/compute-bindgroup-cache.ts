@@ -1,12 +1,12 @@
-export interface ComputeStorageBindGroupCacheRequest {
+export interface ComputeBindGroupCacheRequest {
 	topologyKey: string;
-	layoutEntries: GPUBindGroupLayoutEntry[];
-	bindGroupEntries: GPUBindGroupEntry[];
+	layout: GPUBindGroupLayout;
+	entries: readonly GPUBindGroupEntry[];
 	resourceRefs: readonly unknown[];
 }
 
-export interface ComputeStorageBindGroupCache {
-	getOrCreate: (request: ComputeStorageBindGroupCacheRequest) => GPUBindGroup | null;
+export interface ComputeBindGroupCache {
+	getOrCreate: (request: ComputeBindGroupCacheRequest) => GPUBindGroup | null;
 	reset: () => void;
 }
 
@@ -15,28 +15,21 @@ function equalResourceRefs(
 	previousCount: number,
 	next: readonly unknown[]
 ): boolean {
-	if (previousCount !== next.length) {
-		return false;
-	}
-
+	if (previousCount !== next.length) return false;
 	for (let index = 0; index < previousCount; index += 1) {
-		if (!Object.is(previous[index], next[index])) {
-			return false;
-		}
+		if (!Object.is(previous[index], next[index])) return false;
 	}
-
 	return true;
 }
 
 function nullBackingSlots(array: unknown[], from: number, to: number): void {
-	for (let index = from; index < to; index += 1) {
-		array[index] = null;
-	}
+	for (let index = from; index < to; index += 1) array[index] = null;
 }
 
-export function createComputeStorageBindGroupCache(
-	device: GPUDevice
-): ComputeStorageBindGroupCache {
+/**
+ * Pass-local cache for a pipeline-owned heterogeneous compute bind group layout.
+ */
+export function createComputeBindGroupCache(device: GPUDevice): ComputeBindGroupCache {
 	let cachedTopologyKey: string | null = null;
 	let cachedLayout: GPUBindGroupLayout | null = null;
 	let cachedBindGroup: GPUBindGroup | null = null;
@@ -51,23 +44,19 @@ export function createComputeStorageBindGroupCache(
 		cachedResourceRefCount = 0;
 	};
 
-	const cache = {
-		getOrCreate(request: ComputeStorageBindGroupCacheRequest): GPUBindGroup | null {
-			if (request.layoutEntries.length === 0) {
+	return {
+		getOrCreate(request): GPUBindGroup | null {
+			if (request.entries.length === 0) {
 				reset();
 				return null;
 			}
 
-			if (cachedTopologyKey !== request.topologyKey) {
+			if (cachedTopologyKey !== request.topologyKey || cachedLayout !== request.layout) {
 				cachedTopologyKey = request.topologyKey;
-				cachedLayout = device.createBindGroupLayout({ entries: request.layoutEntries });
+				cachedLayout = request.layout;
 				cachedBindGroup = null;
 				nullBackingSlots(cachedResourceRefs, 0, cachedResourceRefCount);
 				cachedResourceRefCount = 0;
-			}
-
-			if (!cachedLayout) {
-				throw new Error('Compute storage bind group cache is missing a layout.');
 			}
 
 			if (
@@ -78,10 +67,10 @@ export function createComputeStorageBindGroupCache(
 			}
 
 			cachedBindGroup = device.createBindGroup({
-				layout: cachedLayout,
-				entries: request.bindGroupEntries
+				layout: request.layout,
+				entries: request.entries
 			});
-			const prevCount = cachedResourceRefCount;
+			const previousCount = cachedResourceRefCount;
 			cachedResourceRefCount = request.resourceRefs.length;
 			if (cachedResourceRefs.length < cachedResourceRefCount) {
 				cachedResourceRefs = new Array(cachedResourceRefCount);
@@ -89,14 +78,9 @@ export function createComputeStorageBindGroupCache(
 			for (let index = 0; index < cachedResourceRefCount; index += 1) {
 				cachedResourceRefs[index] = request.resourceRefs[index];
 			}
-			nullBackingSlots(cachedResourceRefs, cachedResourceRefCount, prevCount);
+			nullBackingSlots(cachedResourceRefs, cachedResourceRefCount, previousCount);
 			return cachedBindGroup;
 		},
-		reset,
-		_refAt(index: number): unknown {
-			return cachedResourceRefs[index];
-		}
+		reset
 	};
-
-	return cache;
 }

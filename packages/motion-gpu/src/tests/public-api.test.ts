@@ -4,16 +4,28 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as advanced from '../lib/advanced';
 import * as core from '../lib/core/index';
+import type { ComputeResourceMap as CoreComputeResourceMap } from '../lib/core/index';
 import * as coreAdvanced from '../lib/core/advanced';
 import * as api from '../lib/index';
+import type {
+	ComputeResourceMap as RootComputeResourceMap,
+	PingPongComputePassOptions
+} from '../lib/index';
 import * as react from '../lib/react/index';
 import * as reactAdvanced from '../lib/react/advanced';
+import type { ComputeResourceMap as ReactComputeResourceMap } from '../lib/react/index';
 import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
-import type { TextureOptionsInput as SvelteTextureOptionsInput } from '../lib/svelte/index';
+import type {
+	ComputeResourceMap as SvelteComputeResourceMap,
+	TextureOptionsInput as SvelteTextureOptionsInput
+} from '../lib/svelte/index';
 import * as vue from '../lib/vue/index';
 import * as vueAdvanced from '../lib/vue/advanced';
-import type { TextureOptionsInput as VueTextureOptionsInput } from '../lib/vue/index';
+import type {
+	ComputeResourceMap as VueComputeResourceMap,
+	TextureOptionsInput as VueTextureOptionsInput
+} from '../lib/vue/index';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -22,6 +34,26 @@ function acceptReactiveTextureOptions(
 	vueOptions: VueTextureOptionsInput
 ): [SvelteTextureOptionsInput, VueTextureOptionsInput] {
 	return [svelteOptions, vueOptions];
+}
+
+function acceptComputeResourceMaps(
+	rootResources: RootComputeResourceMap,
+	coreResources: CoreComputeResourceMap,
+	svelteResources: SvelteComputeResourceMap,
+	reactResources: ReactComputeResourceMap,
+	vueResources: VueComputeResourceMap
+): [
+	RootComputeResourceMap,
+	CoreComputeResourceMap,
+	SvelteComputeResourceMap,
+	ReactComputeResourceMap,
+	VueComputeResourceMap
+] {
+	return [rootResources, coreResources, svelteResources, reactResources, vueResources];
+}
+
+function acceptRootComputeResourceMap(resources: RootComputeResourceMap): RootComputeResourceMap {
+	return resources;
 }
 
 function readPackageJson(): {
@@ -43,6 +75,86 @@ function sourceEntryForDistPath(distPath: string): string {
 }
 
 describe('public api contract', () => {
+	it('exports one compute resource descriptor contract from every entrypoint', () => {
+		const resources = {
+			uCamera: { texture: 'camera', access: 'sampled', version: 'current' },
+			uCameraSampler: { sampler: 'camera' },
+			uMotion: { texture: 'motion', access: 'storage-write' },
+			particles: { buffer: 'particles', access: 'storage-read' },
+			forces: { buffer: 'forces', access: 'storage-read-write' }
+		} as const satisfies RootComputeResourceMap;
+
+		expect(
+			acceptComputeResourceMaps(resources, resources, resources, resources, resources)
+		).toEqual([resources, resources, resources, resources, resources]);
+	});
+
+	it('types borrowed WebGPU resources with stable resource identities', () => {
+		const resources = {
+			uExternal: {
+				texture: {
+					externalTexture: () => ({}) as GPUTexture,
+					resourceId: Symbol('external-texture'),
+					format: 'rgba8unorm',
+					usage: 1 as GPUTextureUsageFlags
+				},
+				access: 'sampled'
+			},
+			uExternalSampler: {
+				sampler: {
+					externalSampler: () => ({}) as GPUSampler,
+					resourceId: Symbol('external-sampler'),
+					type: 'filtering'
+				}
+			}
+		} as const satisfies RootComputeResourceMap;
+
+		expect(
+			acceptComputeResourceMaps(resources, resources, resources, resources, resources)
+		).toEqual([resources, resources, resources, resources, resources]);
+	});
+
+	it('rejects incomplete or incompatible compute resource descriptors at compile time', () => {
+		const missingResourceId = {
+			uExternal: {
+				texture: {
+					externalTexture: {} as GPUTexture,
+					format: 'rgba8unorm',
+					usage: 1 as GPUTextureUsageFlags
+				},
+				access: 'sampled'
+			}
+		} as const;
+		const incompatibleAccess = {
+			uCamera: { texture: 'camera', access: 'storage-read' }
+		} as const;
+
+		// @ts-expect-error borrowed resources require a stable resourceId
+		expect(acceptRootComputeResourceMap(missingResourceId)).toBe(missingResourceId);
+		// @ts-expect-error texture descriptors cannot use storage-buffer access
+		expect(acceptRootComputeResourceMap(incompatibleAccess)).toBe(incompatibleAccess);
+	});
+
+	it('accepts resources on compute passes and omits the old ping-pong target contract', () => {
+		const resources = {
+			uPrevious: { texture: 'simulation', access: 'sampled', pingPong: 'read' },
+			uNext: { texture: 'simulation', access: 'storage-write', pingPong: 'write' }
+		} as const satisfies RootComputeResourceMap;
+		const compute =
+			'@compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) {}';
+
+		expect(new api.ComputePass({ compute, resources }).getResources()).toEqual(resources);
+		expect(new api.PingPongComputePass({ compute, resources }).getResources()).toEqual(resources);
+
+		const legacyOptions: PingPongComputePassOptions = {
+			compute,
+			resources,
+			// @ts-expect-error target was removed in favor of explicit resource descriptors
+			target: 'simulation'
+		};
+		expect(Object.keys(legacyOptions)).toContain('target');
+	});
+
 	it('exports reactive adapter texture option input types', () => {
 		expect(acceptReactiveTextureOptions({}, {})).toEqual([{}, {}]);
 		expect(

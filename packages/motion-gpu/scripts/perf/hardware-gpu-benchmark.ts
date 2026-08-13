@@ -284,12 +284,15 @@ function createComputeWorkload(input: {
 	const shaderCode = buildComputeShaderSource({
 		compute: input.compute,
 		uniformLayout,
-		storageBufferKeys: ['data'],
-		storageBufferDefinitions: {
-			data: { type: input.storageType, access: 'read-write' }
-		},
-		storageTextureKeys: [],
-		storageTextureDefinitions: {}
+		resources: [
+			{
+				kind: 'storage-buffer',
+				alias: 'data',
+				binding: 0,
+				access: 'storage-read-write',
+				wgslType: input.storageType
+			}
+		]
 	});
 	return {
 		kind: 'compute',

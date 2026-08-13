@@ -79,9 +79,9 @@ Motion GPU follows a simple three-step flow:
 - Fragment feedback passes:
   - `PingPongShaderPass` — iterative fullscreen fragment simulations with render-texture A/B alternation
 
-- GPU compute passes:
-  - `ComputePass` — single-dispatch GPU compute workloads
-  - `PingPongComputePass` — iterative multi-step simulations with texture A/B alternation
+- GPU compute passes with explicit per-pass resource descriptors:
+  - `ComputePass` — dependency-scheduled, single-dispatch GPU workloads
+  - `PingPongComputePass` — iterative workloads with private texture A/B alternation
 
 - Named render targets for multi-pass pipelines
 - Structured error normalization with built-in overlay UI and custom renderer support
@@ -243,6 +243,9 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   particles[i] = vec4f(sin(t + f32(i)), cos(t + f32(i)), 0.0, 1.0);
 }
 `,
+		resources: {
+			particles: { buffer: 'particles', access: 'storage-read-write' }
+		},
 		dispatch: [16]
 	});
 </script>
@@ -277,6 +280,9 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   particles[i] = vec4f(sin(t + f32(i)), cos(t + f32(i)), 0.0, 1.0);
 }
 `,
+	resources: {
+		particles: { buffer: 'particles', access: 'storage-read-write' }
+	},
 	dispatch: [16]
 });
 
@@ -460,11 +466,13 @@ fn frag(uv: vec2f) -> vec4f
 
 13. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint with a `@builtin(global_invocation_id)` parameter.
 
-14. `PingPongComputePass` `iterations` must be `>= 1`. The `target` must reference a texture declared with `storage: true` and explicit `width`/`height`.
+14. A compute shader receives only the bindings declared in its pass-local `resources` map. Map keys are WGSL aliases; descriptor values point to material keys or borrowed WebGPU resources and declare access.
 
-15. Compute and fragment feedback passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`).
+15. `PingPongComputePass` `iterations` must be `>= 1`. Its required `resources` map must contain one sampled `pingPong: 'read'` descriptor and one storage-write `pingPong: 'write'` descriptor for the same storage texture.
 
-16. Storage buffer `size` must be `> 0` and a multiple of 4. All storage buffers must be declared in `defineMaterial({ storageBuffers })`.
+16. Compute and fragment feedback passes do not participate in render pass slot routing (no `input`/`output`/`needsSwap`). Consecutive compute passes are dependency-scheduled from their resource read/write sets.
+
+17. Storage buffer `size` must be `> 0` and a multiple of 4. Material-owned storage buffers must be declared in `defineMaterial({ storageBuffers })`.
 
 ---
 

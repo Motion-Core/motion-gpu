@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import process from 'node:process';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { chromium, type Page } from '@playwright/test';
-import { createComputeStorageBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache.js';
+import { createComputeBindGroupCache } from '../../src/lib/core/compute-bindgroup-cache.js';
 
 const HARNESS_URL = 'http://127.0.0.1:4175/?scenario=perf';
 const SERVER_URL = 'http://127.0.0.1:4175';
@@ -471,8 +471,8 @@ function sampleComputeStorageBindGroupCreations(frames: number): {
 		}
 	} as GPUDevice;
 
-	const storageBufferCache = createComputeStorageBindGroupCache(device);
-	const storageTextureCache = createComputeStorageBindGroupCache(device);
+	const storageBufferCache = createComputeBindGroupCache(device);
+	const storageTextureCache = createComputeBindGroupCache(device);
 
 	const storageBuffer = {} as GPUBuffer;
 	const storageTextureView = {} as GPUTextureView;
@@ -494,18 +494,20 @@ function sampleComputeStorageBindGroupCreations(frames: number): {
 			}
 		}
 	];
+	const bufferLayout = device.createBindGroupLayout({ entries: bufferLayoutEntries });
+	const textureLayout = device.createBindGroupLayout({ entries: textureLayoutEntries });
 
 	for (let frame = 0; frame < frames; frame += 1) {
 		storageBufferCache.getOrCreate({
 			topologyKey: 'data:read-write',
-			layoutEntries: bufferLayoutEntries,
-			bindGroupEntries: [{ binding: 0, resource: { buffer: storageBuffer } }],
+			layout: bufferLayout,
+			entries: [{ binding: 0, resource: { buffer: storageBuffer } }],
 			resourceRefs: [storageBuffer]
 		});
 		storageTextureCache.getOrCreate({
 			topologyKey: 'computeOutput:rgba8unorm',
-			layoutEntries: textureLayoutEntries,
-			bindGroupEntries: [{ binding: 0, resource: storageTextureView }],
+			layout: textureLayout,
+			entries: [{ binding: 0, resource: storageTextureView }],
 			resourceRefs: [storageTextureView]
 		});
 	}

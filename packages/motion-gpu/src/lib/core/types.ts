@@ -289,6 +289,187 @@ export type StorageBufferDefinitionMap<TKey extends string = string> = Record<
 	StorageBufferDefinition
 >;
 
+// ── Compute resources ──────────────────────────────────────────────────────
+
+/**
+ * Resource version read by a read-only compute binding.
+ *
+ * `current` consumes the output of the resource's writer in the current frame.
+ * `initial` consumes the value imported at the start of the frame.
+ */
+export type ComputeResourceVersion = 'current' | 'initial';
+
+/**
+ * Frame and device state passed to dynamic external-resource providers.
+ */
+export interface ComputeExternalResourceContext {
+	/** GPU device owned by the active renderer. */
+	device: GPUDevice;
+	/** Current render width in physical pixels. */
+	width: number;
+	/** Current render height in physical pixels. */
+	height: number;
+	/** Elapsed frame time in seconds. */
+	time: number;
+	/** Delta from the previous rendered frame in seconds. */
+	delta: number;
+}
+
+/**
+ * Static external resource or a provider resolved once per rendered frame.
+ */
+export type ComputeExternalProvider<T> = T | ((context: ComputeExternalResourceContext) => T);
+
+/**
+ * Supported 2D texture subresource selection for compute bindings.
+ */
+export interface ComputeTextureViewDescriptor {
+	/** First mip level exposed through the binding. Default: `0`. */
+	baseMipLevel?: number;
+	/** Number of exposed mip levels. Sampled bindings default to the remaining range. */
+	mipLevelCount?: number;
+	/** First array layer exposed through the binding. Default: `0`. */
+	baseArrayLayer?: number;
+	/** MotionGPU currently supports exactly one 2D array layer. */
+	arrayLayerCount?: 1;
+}
+
+/**
+ * Borrowed `GPUTexture` reference. MotionGPU never destroys the supplied texture.
+ */
+export interface ComputeExternalTextureReference {
+	/** Static texture or provider returning the texture for the current frame. */
+	externalTexture: ComputeExternalProvider<GPUTexture>;
+	/** Stable logical identity shared by every reference to the same resource. */
+	resourceId: string | symbol;
+	/** Texture format used for WGSL and bind-group-layout resolution. */
+	format: GPUTextureFormat;
+	/** Usage flags declared when the texture was created. */
+	usage: GPUTextureUsageFlags;
+	/** Texture view dimension. Only `2d` is supported by this contract. */
+	viewDimension?: '2d';
+}
+
+/**
+ * Borrowed `GPUTextureView` reference with explicit parent-resource metadata.
+ */
+export interface ComputeExternalTextureViewReference {
+	/** Static view or provider returning the view for the current frame. */
+	externalView: ComputeExternalProvider<GPUTextureView>;
+	/** Stable identity of the parent texture resource. */
+	resourceId: string | symbol;
+	/** Format of the supplied view. */
+	format: GPUTextureFormat;
+	/** Usage flags of the parent texture. */
+	usage: GPUTextureUsageFlags;
+	/** Texture view dimension. */
+	viewDimension: '2d';
+	/** Number of mip levels exposed by the supplied view. */
+	mipLevelCount: number;
+}
+
+/**
+ * Borrowed `GPUBuffer` reference. MotionGPU never destroys the supplied buffer.
+ */
+export interface ComputeExternalBufferReference {
+	/** Static buffer or provider returning the buffer for the current frame. */
+	externalBuffer: ComputeExternalProvider<GPUBuffer>;
+	/** Stable logical identity shared by every reference to the same resource. */
+	resourceId: string | symbol;
+	/** WGSL storage-buffer type used for generated declarations. */
+	wgslType: StorageBufferType;
+	/** Available binding size in bytes. */
+	size: number;
+	/** Usage flags declared when the buffer was created. */
+	usage: GPUBufferUsageFlags;
+}
+
+/**
+ * Borrowed `GPUSampler` reference. MotionGPU never owns the supplied sampler.
+ */
+export interface ComputeExternalSamplerReference {
+	/** Static sampler or provider returning the sampler for the current frame. */
+	externalSampler: ComputeExternalProvider<GPUSampler>;
+	/** Stable identity used by resource and bind-group caches. */
+	resourceId: string | symbol;
+	/** Binding type required by the sampler's descriptor. */
+	type: GPUSamplerBindingType;
+}
+
+/** Material texture key or a borrowed WebGPU texture/view reference. */
+export type ComputeTextureReference =
+	| string
+	| ComputeExternalTextureReference
+	| ComputeExternalTextureViewReference;
+
+/** Material storage-buffer key or a borrowed WebGPU buffer reference. */
+export type ComputeBufferReference = string | ComputeExternalBufferReference;
+
+/** Material texture key or a borrowed WebGPU sampler reference. */
+export type ComputeSamplerReference = string | ComputeExternalSamplerReference;
+
+/**
+ * Read-only sampled texture exposed to one compute pass.
+ */
+export interface ComputeSampledTextureResource {
+	texture: ComputeTextureReference;
+	access: 'sampled';
+	view?: ComputeTextureViewDescriptor;
+	version?: ComputeResourceVersion;
+	pingPong?: 'read';
+}
+
+/**
+ * Write-only storage texture exposed to one compute pass.
+ */
+export interface ComputeStorageTextureResource {
+	texture: ComputeTextureReference;
+	access: 'storage-write';
+	view?: ComputeTextureViewDescriptor;
+	pingPong?: 'write';
+}
+
+/**
+ * Read-only storage buffer exposed to one compute pass.
+ */
+export interface ComputeStorageBufferReadResource {
+	buffer: ComputeBufferReference;
+	access: 'storage-read';
+	version?: ComputeResourceVersion;
+}
+
+/**
+ * Read-write storage buffer exposed to one compute pass.
+ */
+export interface ComputeStorageBufferReadWriteResource {
+	buffer: ComputeBufferReference;
+	access: 'storage-read-write';
+}
+
+/**
+ * Sampler exposed to one compute pass under an explicit WGSL alias.
+ */
+export interface ComputeSamplerResource {
+	sampler: ComputeSamplerReference;
+}
+
+/**
+ * Resource binding supported by compute pass descriptors.
+ */
+export type ComputeResourceDescriptor =
+	| ComputeSampledTextureResource
+	| ComputeStorageTextureResource
+	| ComputeStorageBufferReadResource
+	| ComputeStorageBufferReadWriteResource
+	| ComputeSamplerResource;
+
+/**
+ * Immutable compute resource map keyed by WGSL binding aliases.
+ */
+export type ComputeResourceMap<TAlias extends string = string> = Readonly<
+	Record<TAlias, ComputeResourceDescriptor>
+>;
+
 /**
  * Final output encoding applied before canvas presentation.
  */

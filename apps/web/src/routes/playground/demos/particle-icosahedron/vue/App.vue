@@ -80,23 +80,44 @@ const material = defineMaterial({
 			width: TEX_SIZE,
 			height: TEX_SIZE,
 			filter: 'linear'
+		},
+		densityFrame: {
+			storage: true,
+			format: 'r32float',
+			width: TEX_SIZE,
+			height: TEX_SIZE,
+			filter: 'nearest'
 		}
 	},
 	storageBuffers,
 	uniforms: {
 		uRotateY: 0,
-		uRotateX: 0
+		uRotateX: 0,
+		uFrameId: 0
 	}
 });
 
 const clearDensity = new ComputePass({
 	compute: clearDensityShader,
-	dispatch: [Math.ceil(TEX_SIZE / 16), Math.ceil(TEX_SIZE / 16)]
+	dispatch: [Math.ceil(TEX_SIZE / 16), Math.ceil(TEX_SIZE / 16)],
+	enabled: false,
+	resources: {
+		densityMap: { texture: 'densityMap', access: 'storage-write' },
+		densityFrame: { texture: 'densityFrame', access: 'storage-write' }
+	}
 });
 
 const simulate = new ComputePass({
 	compute: simulateShader,
-	dispatch: [Math.ceil(PARTICLE_COUNT / 256)]
+	dispatch: [Math.ceil(PARTICLE_COUNT / 256)],
+	resources: {
+		densityMap: { texture: 'densityMap', access: 'storage-write' },
+		densityFrame: { texture: 'densityFrame', access: 'storage-write' },
+		particles0: { buffer: 'particles0', access: 'storage-read' },
+		particles1: { buffer: 'particles1', access: 'storage-read' },
+		particles2: { buffer: 'particles2', access: 'storage-read' },
+		particles3: { buffer: 'particles3', access: 'storage-read' }
+	}
 });
 </script>
 
@@ -106,6 +127,6 @@ const simulate = new ComputePass({
 		:passes="[clearDensity, simulate]"
 		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
 	>
-		<Runtime />
+		<Runtime :clear-density="clearDensity" :simulate="simulate" />
 	</FragCanvas>
 </template>

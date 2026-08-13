@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, useMotionGPU, usePointer, type ComputePass } from '@motion-core/motion-gpu/vue';
+
+const props = defineProps<{
+	clearDensity: ComputePass;
+	simulate: ComputePass;
+}>();
+
+const FRAME_ID_LIMIT = 16_000_000;
 
 const context = useMotionGPU();
 
@@ -9,6 +16,7 @@ let targetRotateX = 0;
 let smoothRotateY = 0;
 let smoothRotateX = 0;
 let autoRotateY = 0;
+let frameId = 0;
 
 const pointer = usePointer({
 	onDown: () => {
@@ -39,6 +47,12 @@ onUnmounted(() => {
 });
 
 useFrame((state) => {
+	frameId += 1;
+	const resetDensity = frameId >= FRAME_ID_LIMIT;
+	props.clearDensity.enabled = resetDensity;
+	props.simulate.enabled = !resetDensity;
+	if (resetDensity) frameId = 0;
+
 	const pointerState = pointer.state.current;
 	if (pointerState.pressed && pointerState.dragging) {
 		targetRotateY += pointerState.deltaPx[0] * -0.005;
@@ -53,5 +67,6 @@ useFrame((state) => {
 
 	state.setUniform('uRotateY', autoRotateY + smoothRotateY);
 	state.setUniform('uRotateX', smoothRotateX);
+	state.setUniform('uFrameId', frameId);
 });
 </script>

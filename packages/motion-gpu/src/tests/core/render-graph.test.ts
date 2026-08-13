@@ -1,11 +1,49 @@
 import { describe, expect, it } from 'vitest';
 import { planRenderGraph } from '../../lib/core/render-graph';
-import type { RenderPass } from '../../lib/core/types';
+import type { ResolvedComputePassResources } from '../../lib/core/compute-resources';
+import { toMotionGPUErrorReport } from '../../lib/core/error-report';
+import type { AnyPass, RenderPass } from '../../lib/core/types';
 
 function createPass(input?: Partial<RenderPass>): RenderPass {
 	return {
 		render: () => {},
 		...input
+	};
+}
+
+function computeResources(input: {
+	reads?: Array<{ logicalId: string; version?: 'current' | 'initial'; alias?: string }>;
+	writes?: Array<{ logicalId: string; alias?: string }>;
+}): ResolvedComputePassResources {
+	return {
+		entries: [],
+		reads: (input.reads ?? []).map((read) => ({
+			alias: read.alias ?? `${read.logicalId}In`,
+			resourceKind: 'texture' as const,
+			logicalId: read.logicalId,
+			physicalId: read.logicalId,
+			mode: 'read' as const,
+			version: read.version ?? 'current'
+		})),
+		writes: (input.writes ?? []).map((write) => ({
+			alias: write.alias ?? `${write.logicalId}Out`,
+			resourceKind: 'texture' as const,
+			logicalId: write.logicalId,
+			physicalId: write.logicalId,
+			mode: 'write' as const,
+			version: 'current' as const
+		})),
+		topologyKey: JSON.stringify(input),
+		bindingCount: 0
+	};
+}
+
+function computeGraphOptions(entries: Array<[AnyPass, ResolvedComputePassResources]>) {
+	const resources = new Map(entries);
+	const labels = new Map(entries.map(([pass], index) => [pass, `Compute pass #${index}`]));
+	return {
+		getResolvedResources: (pass: AnyPass) => resources.get(pass),
+		getPassLabel: (pass: AnyPass) => labels.get(pass) ?? 'Compute pass'
 	};
 }
 
@@ -286,6 +324,127 @@ describe('render graph planner', () => {
 		expect(plan.preSceneSteps).toEqual([plan.steps[0], plan.steps[1]]);
 		expect(plan.computeSteps).toEqual([plan.steps[1]]);
 		expect(plan.renderSteps).toEqual([plan.steps[2]]);
+	});
+
+	it('stably topologically sorts current readers after their unique writer', () => {
+		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const independent = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const plan = planRenderGraph(
+			[reader, independent, writer],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[reader, computeResources({ reads: [{ logicalId: 'velocity' }] })],
+				[independent, computeResources({})],
+				[writer, computeResources({ writes: [{ logicalId: 'velocity' }] })]
+			])
+		);
+		expect(plan.computeSteps.map((step) => step.pass)).toEqual([independent, writer, reader]);
+		expect(plan.computeSteps[2]?.resolvedResources?.reads[0]?.logicalId).toBe('velocity');
+	});
+
+	it('orders initial-version reads before the writer', () => {
+		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const initialReader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const plan = planRenderGraph(
+			[writer, initialReader],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[writer, computeResources({ writes: [{ logicalId: 'state' }] })],
+				[initialReader, computeResources({ reads: [{ logicalId: 'state', version: 'initial' }] })]
+			])
+		);
+		expect(plan.computeSteps.map((step) => step.pass)).toEqual([initialReader, writer]);
+	});
+
+	it('rejects multiple writers with pass labels and logical resource identity', () => {
+		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		expect(() =>
+			planRenderGraph(
+				[first, second],
+				[0, 0, 0, 1],
+				undefined,
+				computeGraphOptions([
+					[first, computeResources({ writes: [{ logicalId: 'motion', alias: 'firstOut' }] })],
+					[second, computeResources({ writes: [{ logicalId: 'motion', alias: 'secondOut' }] })]
+				])
+			)
+		).toThrow(/multiple writers.*texture "motion".*Compute pass #0.*Compute pass #1.*secondOut/i);
+		try {
+			planRenderGraph(
+				[first, second],
+				[0, 0, 0, 1],
+				undefined,
+				computeGraphOptions([
+					[first, computeResources({ writes: [{ logicalId: 'motion' }] })],
+					[second, computeResources({ writes: [{ logicalId: 'motion' }] })]
+				])
+			);
+			expect.fail('Expected duplicate compute writers to throw.');
+		} catch (error) {
+			expect(toMotionGPUErrorReport(error, 'render').code).toBe('COMPUTE_GRAPH_MULTIPLE_WRITERS');
+		}
+	});
+
+	it('reports dependency cycles with aliases and the complete resource path', () => {
+		const passA = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const passB = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		expect(() =>
+			planRenderGraph(
+				[passA, passB],
+				[0, 0, 0, 1],
+				undefined,
+				computeGraphOptions([
+					[
+						passA,
+						computeResources({
+							reads: [{ logicalId: 'b', alias: 'bIn' }],
+							writes: [{ logicalId: 'a', alias: 'aOut' }]
+						})
+					],
+					[
+						passB,
+						computeResources({
+							reads: [{ logicalId: 'a', alias: 'aIn' }],
+							writes: [{ logicalId: 'b', alias: 'bOut' }]
+						})
+					]
+				])
+			)
+		).toThrow(/cycle.*Compute pass #0.*Compute pass #1.*texture "b".*bIn.*texture "a".*aIn/i);
+		try {
+			planRenderGraph(
+				[passA, passB],
+				[0, 0, 0, 1],
+				undefined,
+				computeGraphOptions([
+					[passA, computeResources({ reads: [{ logicalId: 'b' }], writes: [{ logicalId: 'a' }] })],
+					[passB, computeResources({ reads: [{ logicalId: 'a' }], writes: [{ logicalId: 'b' }] })]
+				])
+			);
+			expect.fail('Expected a compute dependency cycle to throw.');
+		} catch (error) {
+			expect(toMotionGPUErrorReport(error, 'render').code).toBe('COMPUTE_GRAPH_CYCLE');
+		}
+	});
+
+	it('does not reorder compute nodes across an opaque feedback barrier', () => {
+		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const feedback = { isPingPongShader: true as const, enabled: true } as unknown as AnyPass;
+		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const plan = planRenderGraph(
+			[reader, feedback, writer],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[reader, computeResources({ reads: [{ logicalId: 'state' }] })],
+				[writer, computeResources({ writes: [{ logicalId: 'state' }] })]
+			])
+		);
+		expect(plan.preSceneSteps.map((step) => step.pass)).toEqual([reader, feedback, writer]);
 	});
 
 	it('backward compat: existing render-only plans set kind to render', () => {

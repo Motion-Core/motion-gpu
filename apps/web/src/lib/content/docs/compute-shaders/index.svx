@@ -1,21 +1,72 @@
 ---
 title: Compute shaders
-description: Dispatch GPU compute work before the base fragment render.
+description: Declare compute resources, dispatch work, and compose dependency-scheduled GPU pipelines.
 ---
 
-`ComputePass` runs one dispatch per rendered frame. `PingPongComputePass` repeats a compute shader over renderer-managed A/B storage-texture bindings. Both execute before the base material and do not participate in render-slot routing.
+`ComputePass` runs one dispatch per rendered frame. `PingPongComputePass` runs one or more iterations while the renderer alternates two private texture allocations. Both run before the base material. Every buffer, texture, and sampler used by compute is declared in the pass-local `resources` map.
 
-Use `PingPongShaderPass` instead when a fullscreen simulation only needs to sample the previous color texture and write the next color. Compute is appropriate for storage buffers, storage textures, explicit workgroups, and non-fragment data layouts.
+Use `PingPongShaderPass` when a fullscreen simulation only samples the previous color and writes the next color. Compute is a better fit for storage buffers, storage textures, explicit workgroups, and data layouts that do not map to fragments.
 
-## Contract
+## Shader contract
 
 Compute source must contain:
 
-- `@compute` and numeric `@workgroup_size(...)` dimensions;
-- a function named `compute`;
-- `@builtin(global_invocation_id)` in that function's parameter list.
+- numeric `@workgroup_size(...)` dimensions from 1 through 65535;
+- a function named `compute` with the `@compute` attribute;
+- `@builtin(global_invocation_id)` in that function's parameters.
 
-Workgroup dimensions must be integers from 1 through 65535. The constructor and `setCompute(...)` validate the contract and extract a three-dimensional workgroup size.
+The constructor and `setCompute(...)` validate this contract. Resource topology is fixed by the constructor. `setCompute(...)` may replace the shader, but the replacement must use the same bindings.
+
+## Resource descriptors
+
+Map keys are exact WGSL variable names. A descriptor points to a material resource or a borrowed WebGPU object.
+
+```ts
+new ComputePass({
+	compute,
+	resources: {
+		uCamera: { texture: 'camera', access: 'sampled' },
+		uMotion: { texture: 'motion', access: 'storage-write' },
+		uParticles: { buffer: 'particles', access: 'storage-read-write' },
+		uCameraSampler: { sampler: 'camera' }
+	}
+});
+```
+
+| Descriptor | Generated WGSL | Graph role |
+| --- | --- | --- |
+| `{ texture, access: 'sampled' }` | `texture_2d<T>`, where `T` is `f32`, `u32`, or `i32` | Read |
+| `{ texture, access: 'storage-write' }` | `texture_storage_2d<format, write>` | Write |
+| `{ buffer, access: 'storage-read' }` | `var<storage, read>` | Read |
+| `{ buffer, access: 'storage-read-write' }` | `var<storage, read_write>` | Read and write |
+| `{ sampler }` | `sampler` or `sampler_comparison` | No data edge |
+
+A `ComputePass` without `resources` has only frame and material uniforms. Material textures and storage buffers are never injected automatically. Aliases must be valid WGSL identifiers and cannot use `motiongpuFrame` or `motiongpuUniforms`.
+
+Bindings are sorted by alias. Group 0 contains frame and material uniforms. A non-empty resource map becomes group 1. The same resolved list drives WGSL generation, bind-group layout, resource validation, and dependency scheduling.
+
+### Resource versions
+
+Read-only texture and buffer descriptors accept `version: 'current' | 'initial'`:
+
+- `current` is the default. If the resource has a writer in this frame, the reader runs after it.
+- `initial` reads the value imported at the start of the frame and runs before the writer.
+
+`initial` does not copy the resource. If an algorithm must preserve an old value after overwriting the same allocation, use separate resources or `PingPongComputePass`.
+
+### Texture views and formats
+
+Texture descriptors accept `{ baseMipLevel?, mipLevelCount?, baseArrayLayer?, arrayLayerCount?: 1 }`. Sampled bindings default to the remaining mip range; storage writes expose one mip level. Motion GPU supports 2D color views in compute descriptors and rejects invalid ranges before dispatch.
+
+Sampled declarations follow the actual format class. Float, unsigned-integer, and signed-integer textures generate `texture_2d<f32>`, `texture_2d<u32>`, and `texture_2d<i32>` respectively. Storage declarations keep their exact storage format.
+
+`textureLoad` needs no sampler. Filtering requires a sampler descriptor and an explicit LOD:
+
+```wgsl
+let color = textureSampleLevel(uCamera, uCameraSampler, uv, 0.0);
+```
+
+Filtering samplers are valid only with filterable float textures. Integer and unfilterable-float textures require non-filtering samplers.
 
 ## Dispatch
 
@@ -25,24 +76,58 @@ Workgroup dimensions must be integers from 1 through 65535. The constructor and 
 | `'auto'` | `ceil(canvas dimension / workgroup dimension)` per axis |
 | `(context) => [x, y, z]` | Dynamic counts from width, height, time, delta, and workgroup size |
 
-Dispatch counts are validated against WebGPU limits before command encoding.
+Dispatch counts and resource binding counts are checked against the active WebGPU device limits before commands are encoded.
 
-## Bindings
+## Dependency scheduling
 
-| Group | Generated contents |
-| --- | --- |
-| `0` | Frame uniforms and user uniforms |
-| `1` | Storage buffers, sorted by name |
-| `2` | Storage textures |
+Consecutive compute passes form a dependency graph. Descriptors provide the read and write sets, so declaration order is only a stable tie-break for independent passes.
 
-For a normal `ComputePass`, use declared resource names directly. `PingPongComputePass` generates read/write A/B bindings from its storage-texture `target` and alternates their direction across iterations.
+- A `current` reader runs after the resource's writer.
+- An `initial` reader runs before the writer.
+- One logical resource can have at most one writer in a graph segment.
+- Cycles and overlapping read/write aliases in one dispatch are rejected.
+- A fragment-feedback pass is an opaque barrier; compute work is not moved across it.
 
-`fragmentVisible` changes only fragment-stage sampled bindings. It does not remove the compute storage binding.
+All dispatches are encoded in topological order on one command encoder. No CPU wait or intermediate readback is required.
 
-## Frame integration
+## Interactive examples
 
-All enabled compute and fragment-feedback passes retain their relative declaration order and execute before the scene. All enabled render passes retain their own relative order and execute after the scene. They share one command encoder and queue submission.
+Use the playground to run and edit the complete examples in Svelte, React, or Vue:
 
-Compute pipelines are created lazily and cached. Async compilation failures are normalized as `COMPUTE_COMPILATION_FAILED` with compute-source line mapping and runtime context.
+- [Data Mosh](/playground?demo=data-mosh&framework=svelte) streams real video into GPU motion estimation and temporal feedback passes to produce data moshing without CPU readback.
+- [Liquid Simulation](/playground?demo=liquid-simulation&framework=svelte) samples a filtered propagation medium, iterates a damped wave state through private A/B textures, and publishes it to a downstream caustic renderer.
 
-The [Particle Icosahedron demo](/playground?demo=particle-icosahedron&framework=svelte) shows storage-texture compute; the [Rubik's Cube demo](/playground?demo=rubiks-cube&framework=svelte) combines compute with storage buffers. See [Storage Buffers](/docs/storage-buffers), [Textures](/docs/textures#storage-textures), and [Passes API](/docs/api-passes-reference).
+Each example exposes its application, runtime, and WGSL files in the editor. Switch frameworks from the playground header without changing the resource contract.
+
+## Borrowed WebGPU resources
+
+Advanced integrations may replace a material key with a typed external reference:
+
+```ts
+const externalInput = {
+	externalTexture: ({ device }) => getTextureForDevice(device),
+	resourceId: 'camera-decoder-output',
+	format: 'rgba8unorm',
+	usage: GPUTextureUsage.TEXTURE_BINDING,
+	viewDimension: '2d'
+} satisfies ComputeExternalTextureReference;
+
+const pass = new ComputePass({
+	compute,
+	resources: {
+		uInput: { texture: externalInput, access: 'sampled' }
+	}
+});
+```
+
+External texture, view, buffer, and sampler references are borrowed. Motion GPU never destroys them. Providers run once per pass per rendered frame and receive `{ device, width, height, time, delta }`; the returned object is captured for graph validation and binding. `resourceId` must remain the same for the same logical allocation, including aliases and views. A provider must return a resource created for the current device after device recovery.
+
+Metadata is part of the contract: textures declare format and usage, views add dimension and mip count, buffers add WGSL type and size, and samplers add binding type. Object changes refresh a bind group but do not rebuild a pipeline while topology and metadata remain unchanged.
+
+## Frame integration and caching
+
+Compute and fragment-feedback passes are pre-scene. Render passes remain post-scene. Pipelines are cached by shader and resource topology, not material keys or current GPU object identities. A stable frame creates no pipeline, layout, bind group, or texture view.
+
+Compilation failures use `COMPUTE_COMPILATION_FAILED` with source mapping. Descriptor, graph, and external-resource failures have separate stable codes listed in [Error Handling](/docs/error-handling).
+
+The [Particle Icosahedron demo](/playground?demo=particle-icosahedron&framework=svelte) shows a storage-texture writer; the [Rubik's Cube demo](/playground?demo=rubiks-cube&framework=svelte) uses explicit storage-buffer access; the [TanStack demo](/playground?demo=tanstack&framework=svelte) composes independent compute producers. See [Storage Buffers](/docs/storage-buffers), [Textures](/docs/textures#storage-textures), and [Passes API](/docs/api-passes-reference).

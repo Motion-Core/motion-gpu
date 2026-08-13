@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	assertComputeContract,
+	buildComputeResourceBindings,
 	buildComputeShaderSource,
 	buildComputeShaderSourceWithMap,
-	buildComputeStorageBufferBindings,
-	buildComputeStorageTextureBindings,
-	buildPingPongComputeShaderSource,
-	buildPingPongComputeShaderSourceWithMap,
+	extractWorkgroupSize,
 	storageTextureSampleScalarType,
-	extractWorkgroupSize
+	type ResolvedComputeShaderBinding
 } from '../../lib/core/compute-shader';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
 
@@ -35,270 +33,171 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 `;
 
 describe('compute shader contract', () => {
-	it('accepts valid @compute @workgroup_size(256) fn compute(...)', () => {
+	it('accepts 1D, 2D and 3D workgroup declarations', () => {
 		expect(() => assertComputeContract(validComputeShader)).not.toThrow();
-	});
-
-	it('accepts multi-dim @workgroup_size(16, 16)', () => {
 		expect(() => assertComputeContract(validComputeShader2D)).not.toThrow();
-	});
-
-	it('accepts 3D @workgroup_size(4, 4, 4)', () => {
 		expect(() => assertComputeContract(validComputeShader3D)).not.toThrow();
+		expect(extractWorkgroupSize(validComputeShader)).toEqual([256, 1, 1]);
+		expect(extractWorkgroupSize(validComputeShader2D)).toEqual([16, 16, 1]);
+		expect(extractWorkgroupSize(validComputeShader3D)).toEqual([4, 4, 4]);
 	});
 
-	it('rejects missing @compute annotation', () => {
-		const bad = `
-@workgroup_size(256)
-fn compute(@builtin(global_invocation_id) id: vec3u) {}
-`;
-		expect(() => assertComputeContract(bad)).toThrow(/@compute/);
+	it.each([
+		['@workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) {}', /@compute/],
+		['@compute fn compute(@builtin(global_invocation_id) id: vec3u) {}', /workgroup_size/],
+		['@compute @workgroup_size(1) fn main(@builtin(global_invocation_id) id: vec3u) {}', /compute/],
+		['@compute @workgroup_size(1) fn compute(id: vec3u) {}', /global_invocation_id/]
+	])('rejects an invalid entrypoint contract', (source, message) => {
+		expect(() => assertComputeContract(source)).toThrow(message);
 	});
 
-	it('rejects missing @workgroup_size', () => {
-		const bad = `
-@compute
-fn compute(@builtin(global_invocation_id) id: vec3u) {}
-`;
-		expect(() => assertComputeContract(bad)).toThrow(/@workgroup_size/);
-	});
-
-	it('rejects fn named "main" instead of "compute"', () => {
-		const bad = `
-@compute @workgroup_size(256)
-fn main(@builtin(global_invocation_id) id: vec3u) {}
-`;
-		expect(() => assertComputeContract(bad)).toThrow(/compute/);
-	});
-
-	it('rejects missing @builtin(global_invocation_id) parameter', () => {
-		const bad = `
-@compute @workgroup_size(256)
-fn compute(id: vec3u) {}
-`;
-		expect(() => assertComputeContract(bad)).toThrow(/global_invocation_id/);
-	});
-
-	it('rejects when global_invocation_id is not declared in compute entrypoint params', () => {
-		const bad = `
+	it('checks that global_invocation_id belongs to the compute entrypoint', () => {
+		const source = `
 fn helper(@builtin(global_invocation_id) id: vec3u) {}
 @compute @workgroup_size(8, 8)
 fn compute() {}
 `;
-		expect(() => assertComputeContract(bad)).toThrow(/global_invocation_id/);
-	});
+		expect(() => assertComputeContract(source)).toThrow(/global_invocation_id/);
 
-	it('rejects zero and oversized workgroup_size dimensions', () => {
-		const zero = `
-@compute @workgroup_size(0)
-fn compute(@builtin(global_invocation_id) id: vec3u) {}
+		const prefixedHelper = `
+fn computeHelper(@builtin(global_invocation_id) id: vec3u) {}
+@compute @workgroup_size(8, 8)
+fn compute() {}
 `;
-		const oversized = `
-@compute @workgroup_size(65536, 1, 1)
-fn compute(@builtin(global_invocation_id) id: vec3u) {}
+		expect(() => assertComputeContract(prefixedHelper)).toThrow(/global_invocation_id/);
+	});
+
+	it('accepts a newline between the compute function keyword and name', () => {
+		const source = `
+@compute @workgroup_size(8, 8)
+fn
+compute(@builtin(global_invocation_id) id: vec3u) {}
 `;
-		expect(() => assertComputeContract(zero)).toThrow(/workgroup_size/i);
-		expect(() => assertComputeContract(oversized)).toThrow(/workgroup_size/i);
-		expect(() => extractWorkgroupSize(zero)).toThrow(/workgroup_size/i);
-		expect(() => extractWorkgroupSize(oversized)).toThrow(/workgroup_size/i);
+		expect(() => assertComputeContract(source)).not.toThrow();
 	});
 
-	it('extracts workgroup size [256, 1, 1] from 1D', () => {
-		expect(extractWorkgroupSize(validComputeShader)).toEqual([256, 1, 1]);
-	});
+	it('rejects repeated incomplete entrypoint prefixes in bounded time', () => {
+		const source = '@compute @workgroup_size('.repeat(10_000);
+		expect(() => assertComputeContract(source)).toThrow(/workgroup_size/i);
+	}, 250);
 
-	it('extracts workgroup size [16, 16, 1] from 2D', () => {
-		expect(extractWorkgroupSize(validComputeShader2D)).toEqual([16, 16, 1]);
-	});
-
-	it('extracts workgroup size [4, 4, 4] from 3D', () => {
-		expect(extractWorkgroupSize(validComputeShader3D)).toEqual([4, 4, 4]);
+	it('rejects zero and oversized workgroup dimensions', () => {
+		for (const size of [0, 65_536]) {
+			const source = `@compute @workgroup_size(${size}) fn compute(@builtin(global_invocation_id) id: vec3u) {}`;
+			expect(() => assertComputeContract(source)).toThrow(/workgroup_size/i);
+			expect(() => extractWorkgroupSize(source)).toThrow(/workgroup_size/i);
+		}
 	});
 });
 
-describe('compute shader source generation', () => {
-	it('injects MotionGPUFrame and MotionGPUUniforms structs', () => {
+describe('resolved compute shader source generation', () => {
+	const resources: readonly ResolvedComputeShaderBinding[] = [
+		{
+			kind: 'storage-buffer',
+			alias: 'forces',
+			binding: 0,
+			access: 'storage-read',
+			wgslType: 'array<vec4f>'
+		},
+		{
+			kind: 'sampler',
+			alias: 'linearSampler',
+			binding: 1,
+			samplerType: 'filtering'
+		},
+		{
+			kind: 'storage-buffer',
+			alias: 'particlesOut',
+			binding: 2,
+			access: 'storage-read-write',
+			wgslType: 'array<vec4f>'
+		},
+		{
+			kind: 'sampled-texture',
+			alias: 'velocityIn',
+			binding: 3,
+			scalarType: 'u32'
+		},
+		{
+			kind: 'storage-texture',
+			alias: 'velocityOut',
+			binding: 4,
+			format: 'rgba16float'
+		}
+	];
+
+	it('emits one heterogeneous group 1 in resolver binding order', () => {
+		const bindings = buildComputeResourceBindings(resources);
+		expect(bindings.split('\n')).toEqual([
+			'@group(1) @binding(0) var<storage, read> forces: array<vec4f>;',
+			'@group(1) @binding(1) var linearSampler: sampler;',
+			'@group(1) @binding(2) var<storage, read_write> particlesOut: array<vec4f>;',
+			'@group(1) @binding(3) var velocityIn: texture_2d<u32>;',
+			'@group(1) @binding(4) var velocityOut: texture_storage_2d<rgba16float, write>;'
+		]);
+		expect(bindings).not.toContain('@group(2)');
+	});
+
+	it('uses the same builder for ping-pong aliases and additional resources', () => {
+		const bindings = buildComputeResourceBindings([
+			{ kind: 'sampled-texture', alias: 'previous', binding: 0, scalarType: 'f32' },
+			{ kind: 'sampler', alias: 'nearest', binding: 1, samplerType: 'non-filtering' },
+			{
+				kind: 'storage-texture',
+				alias: 'next',
+				binding: 2,
+				format: 'rgba16float'
+			}
+		]);
+		expect(bindings).toContain('@binding(0) var previous: texture_2d<f32>');
+		expect(bindings).toContain('@binding(1) var nearest: sampler');
+		expect(bindings).toContain('@binding(2) var next: texture_storage_2d<rgba16float, write>');
+	});
+
+	it('emits comparison sampler syntax for a fully resolved binding', () => {
+		expect(
+			buildComputeResourceBindings([
+				{ kind: 'sampler', alias: 'shadowSampler', binding: 0, samplerType: 'comparison' }
+			])
+		).toContain('var shadowSampler: sampler_comparison;');
+	});
+
+	it('rejects non-contiguous resolver binding order instead of silently omitting entries', () => {
+		expect(() =>
+			buildComputeResourceBindings([
+				{ kind: 'sampled-texture', alias: 'input', binding: 1, scalarType: 'f32' }
+			])
+		).toThrow(/expected binding 0/);
+	});
+
+	it('injects uniform structs and omits group 1 for an empty resource list', () => {
 		const source = buildComputeShaderSource({
 			compute: validComputeShader,
 			uniformLayout: resolveUniformLayout({ uTime: 0 }),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
+			resources: []
 		});
-
 		expect(source).toContain('struct MotionGPUFrame');
-		expect(source).toContain('struct MotionGPUUniforms');
 		expect(source).toContain('uTime: f32');
-		expect(source).toContain('@group(0) @binding(0) var<uniform> motiongpuFrame');
 		expect(source).toContain('@group(0) @binding(1) var<uniform> motiongpuUniforms');
-	});
-
-	it('generates storage buffer bindings on group(1)', () => {
-		const bindings = buildComputeStorageBufferBindings(
-			['particles', 'velocities'],
-			{
-				particles: { type: 'array<vec4f>', access: 'read-write' },
-				velocities: { type: 'array<vec4f>', access: 'read' }
-			},
-			1
-		);
-
-		expect(bindings).toContain(
-			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
-		);
-		expect(bindings).toContain(
-			'@group(1) @binding(1) var<storage, read> velocities: array<vec4f>;'
-		);
-	});
-
-	it('generates storage texture bindings on group(2)', () => {
-		const bindings = buildComputeStorageTextureBindings(
-			['outputTex'],
-			{ outputTex: { format: 'rgba8unorm' } },
-			2
-		);
-
-		expect(bindings).toContain(
-			'@group(2) @binding(0) var outputTex: texture_storage_2d<rgba8unorm, write>;'
-		);
-	});
-
-	it('respects access mode (read vs read_write) in var declaration', () => {
-		const bindings = buildComputeStorageBufferBindings(
-			['readBuf', 'rwBuf'],
-			{
-				readBuf: { type: 'array<f32>', access: 'read' },
-				rwBuf: { type: 'array<u32>', access: 'read-write' }
-			},
-			1
-		);
-
-		expect(bindings).toContain('var<storage, read> readBuf');
-		expect(bindings).toContain('var<storage, read_write> rwBuf');
-	});
-
-	it('rejects unsupported storage buffer access mode', () => {
-		expect(() =>
-			buildComputeStorageBufferBindings(
-				['buf'],
-				{
-					buf: { type: 'array<f32>', access: 'write' as 'read' | 'read-write' }
-				},
-				1
-			)
-		).toThrow(/Unsupported storage buffer access mode/);
-	});
-
-	it('uses correct format in texture_storage_2d<format, write>', () => {
-		const bindings = buildComputeStorageTextureBindings(
-			['hdrTex'],
-			{ hdrTex: { format: 'rgba32float' } },
-			2
-		);
-		expect(bindings).toContain('texture_storage_2d<rgba32float, write>');
-	});
-
-	it('handles empty storage buffers/textures', () => {
-		const source = buildComputeShaderSource({
-			compute: validComputeShader,
-			uniformLayout: resolveUniformLayout({}),
-			storageBufferKeys: [],
-			storageBufferDefinitions: {},
-			storageTextureKeys: [],
-			storageTextureDefinitions: {}
-		});
-
-		expect(source).toContain('struct MotionGPUFrame');
-		expect(source).toContain('fn compute(@builtin(global_invocation_id)');
 		expect(source).not.toContain('@group(1)');
-		expect(source).not.toContain('@group(2)');
 	});
 
-	it('snapshot: full compute shader with uniforms + buffers + textures', () => {
-		const source = buildComputeShaderSource({
-			compute: validComputeShader2D,
-			uniformLayout: resolveUniformLayout({ uDt: 0.016, uGravity: [0, -9.8, 0] }),
-			storageBufferKeys: ['particles', 'velocities'],
-			storageBufferDefinitions: {
-				particles: { type: 'array<vec4f>', access: 'read-write' },
-				velocities: { type: 'array<vec4f>', access: 'read' }
-			},
-			storageTextureKeys: ['outputTex'],
-			storageTextureDefinitions: {
-				outputTex: { format: 'rgba8unorm' }
-			}
-		});
-
-		expect(source).toMatchSnapshot();
-	});
-
-	it('buildComputeShaderSourceWithMap maps generated lines back to user compute source', () => {
+	it('builds line mappings after the complete heterogeneous preamble', () => {
 		const built = buildComputeShaderSourceWithMap({
 			compute: validComputeShader2D,
 			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
-			storageBufferKeys: ['particles'],
-			storageBufferDefinitions: {
-				particles: { type: 'array<vec4f>', access: 'read-write' }
-			},
-			storageTextureKeys: ['outputTex'],
-			storageTextureDefinitions: {
-				outputTex: { format: 'rgba8unorm' }
-			}
+			resources
 		});
-
-		const mappedEntries = built.lineMap.filter((entry) => entry?.kind === 'compute');
-		expect(mappedEntries.length).toBe(validComputeShader2D.split('\n').length);
-		expect(mappedEntries[0]).toEqual({ kind: 'compute', line: 1 });
-		expect(mappedEntries[mappedEntries.length - 1]).toEqual({
+		const mapped = built.lineMap.filter((entry) => entry?.kind === 'compute');
+		expect(mapped).toHaveLength(validComputeShader2D.split('\n').length);
+		expect(mapped[0]).toEqual({ kind: 'compute', line: 1 });
+		expect(mapped.at(-1)).toEqual({
 			kind: 'compute',
 			line: validComputeShader2D.split('\n').length
 		});
 	});
 
-	it('builds ping-pong shader bindings for targetA/targetB', () => {
-		const source = buildPingPongComputeShaderSource({
-			compute: validComputeShader2D,
-			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
-			storageBufferKeys: ['particles'],
-			storageBufferDefinitions: {
-				particles: { type: 'array<vec4f>', access: 'read-write' }
-			},
-			target: 'sim',
-			targetFormat: 'rgba16float'
-		});
-
-		expect(source).toContain('@group(2) @binding(0) var simA: texture_2d<f32>;');
-		expect(source).toContain(
-			'@group(2) @binding(1) var simB: texture_storage_2d<rgba16float, write>;'
-		);
-		expect(source).toContain(
-			'@group(1) @binding(0) var<storage, read_write> particles: array<vec4f>;'
-		);
-	});
-
-	it('buildPingPongComputeShaderSourceWithMap maps generated lines back to user compute source', () => {
-		const built = buildPingPongComputeShaderSourceWithMap({
-			compute: validComputeShader3D,
-			uniformLayout: resolveUniformLayout({ uDt: 0.016 }),
-			storageBufferKeys: ['particles'],
-			storageBufferDefinitions: {
-				particles: { type: 'array<vec4f>', access: 'read-write' }
-			},
-			target: 'sim',
-			targetFormat: 'rgba16float'
-		});
-
-		const mappedEntries = built.lineMap.filter((entry) => entry?.kind === 'compute');
-		expect(mappedEntries.length).toBe(validComputeShader3D.split('\n').length);
-		expect(mappedEntries[0]).toEqual({ kind: 'compute', line: 1 });
-		expect(mappedEntries[mappedEntries.length - 1]).toEqual({
-			kind: 'compute',
-			line: validComputeShader3D.split('\n').length
-		});
-	});
-
-	it('maps storage format to sampled scalar type for ping-pong read binding', () => {
+	it('maps storage formats to sampled scalar types', () => {
 		expect(storageTextureSampleScalarType('rgba8unorm')).toBe('f32');
 		expect(storageTextureSampleScalarType('r32uint')).toBe('u32');
 		expect(storageTextureSampleScalarType('rgba16sint')).toBe('i32');

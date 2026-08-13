@@ -11,6 +11,7 @@
 import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/vue';
 import Runtime from './runtime.vue';
 import fragmentShader from './shaders/fragment.wgsl?raw';
+import clearDensityShader from './shaders/compute/clear-density.wgsl?raw';
 import simulateShader from './shaders/compute/simulate.wgsl?raw';
 
 const FACE_COUNT = 20;
@@ -96,6 +97,16 @@ const material = defineMaterial({
 	}
 });
 
+const clearDensity = new ComputePass({
+	compute: clearDensityShader,
+	dispatch: [Math.ceil(TEX_SIZE / 16), Math.ceil(TEX_SIZE / 16)],
+	enabled: false,
+	resources: {
+		densityMap: { texture: 'densityMap', access: 'storage-write' },
+		densityFrame: { texture: 'densityFrame', access: 'storage-write' }
+	}
+});
+
 const simulate = new ComputePass({
 	compute: simulateShader,
 	dispatch: [Math.ceil(PARTICLE_COUNT / 256)],
@@ -113,9 +124,9 @@ const simulate = new ComputePass({
 <template>
 	<FragCanvas
 		:material="material"
-		:passes="[simulate]"
+		:passes="[clearDensity, simulate]"
 		:color="{ outputEncoding: 'linear', dynamicRange: 'auto', canvasColorSpace: 'display-p3' }"
 	>
-		<Runtime />
+		<Runtime :clear-density="clearDensity" :simulate="simulate" />
 	</FragCanvas>
 </template>

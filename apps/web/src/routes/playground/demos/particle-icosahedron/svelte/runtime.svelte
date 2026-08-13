@@ -1,6 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/svelte';
+	import {
+		useFrame,
+		useMotionGPU,
+		usePointer,
+		type ComputePass
+	} from '@motion-core/motion-gpu/svelte';
+
+	interface Props {
+		clearDensity: ComputePass;
+		simulate: ComputePass;
+	}
+
+	let { clearDensity, simulate }: Props = $props();
+
+	const FRAME_ID_LIMIT = 16_000_000;
 
 	const context = useMotionGPU();
 
@@ -38,7 +52,12 @@
 	});
 
 	useFrame((state) => {
-		frameId = (frameId + 1) % 16_000_000;
+		frameId += 1;
+		const resetDensity = frameId >= FRAME_ID_LIMIT;
+		clearDensity.enabled = resetDensity;
+		simulate.enabled = !resetDensity;
+		if (resetDensity) frameId = 0;
+
 		const pointerState = pointer.state.current;
 		if (pointerState.pressed && pointerState.dragging) {
 			targetRotateY += pointerState.deltaPx[0] * -0.005;

@@ -853,7 +853,7 @@ async function runWorkerProcess(args: BenchmarkArgs, processIndex: number): Prom
 				);
 			});
 		});
-		child.once('exit', (code, signal) => {
+		child.once('close', (code, signal) => {
 			if (code !== 0) {
 				settle(() => {
 					rejectWorker(

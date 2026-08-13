@@ -64,7 +64,7 @@ async function commandOutput(command: string, args: string[], cwd: string): Prom
 async function gitIdentity(repositoryRoot: string): Promise<{ commitSha: string; dirty: boolean }> {
 	const [commitSha, status] = await Promise.all([
 		commandOutput('git', ['rev-parse', 'HEAD'], repositoryRoot),
-		commandOutput('git', ['status', '--porcelain', '--untracked-files=no'], repositoryRoot)
+		commandOutput('git', ['status', '--porcelain', '--untracked-files=normal'], repositoryRoot)
 	]);
 	return { commitSha, dirty: status.length > 0 };
 }

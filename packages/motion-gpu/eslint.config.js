@@ -6,9 +6,15 @@ import svelte from 'eslint-plugin-svelte';
 import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 import ts from 'typescript-eslint';
+import vue from 'eslint-plugin-vue';
 import svelteConfig from './svelte.config.js';
 
 const gitignorePath = path.resolve(import.meta.dirname, '../../.gitignore');
+const vueFiles = ['**/*.vue'];
+const vueRecommended = vue.configs['flat/recommended-error'].map((config) => ({
+	...config,
+	files: vueFiles
+}));
 
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
@@ -18,6 +24,7 @@ export default defineConfig(
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,
+	...vueRecommended,
 	prettier,
 	...svelte.configs.prettier,
 	{
@@ -31,6 +38,36 @@ export default defineConfig(
 		languageOptions: { globals: { ...globals.browser, ...globals.node } },
 		rules: {
 			'no-undef': 'off'
+		}
+	},
+	{
+		files: vueFiles,
+		languageOptions: {
+			parserOptions: {
+				tsconfigRootDir: import.meta.dirname,
+				extraFileExtensions: ['.vue'],
+				parser: ts.parser
+			}
+		},
+		rules: {
+			// SFC templates mirror the public JavaScript prop names used by all
+			// framework adapters, including WebGPU descriptor-style camelCase names.
+			'vue/attribute-hyphenation': 'off',
+			// Optionality is expressed by the public TypeScript props contract; omission
+			// intentionally resolves to undefined rather than a framework-owned default.
+			'vue/require-default-prop': 'off',
+			'vue/multi-word-component-names': ['error', { ignores: ['Portal'] }]
+		}
+	},
+	{
+		files: [
+			'e2e/harness-vue/RuntimeProbe.vue',
+			'e2e/harness-vue/scenarios/LifecycleProbe.vue',
+			'e2e/harness-vue/scenarios/UniformProbe.vue'
+		],
+		rules: {
+			// These instrumentation-only probes intentionally render no DOM of their own.
+			'vue/valid-template-root': 'off'
 		}
 	},
 	{

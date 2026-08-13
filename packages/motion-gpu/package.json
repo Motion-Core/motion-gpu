@@ -105,7 +105,8 @@
 		"perf:gpu:check": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --strict",
 		"perf:gpu:baseline": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --update-baseline",
 		"perf:gpu:headed": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --headed",
-		"lint": "prettier --check . && eslint .",
+		"lint": "prettier --check . && eslint . --max-warnings 0 && pnpm run lint:config",
+		"lint:config": "node --test ./scripts/lint/config-coverage.test.mjs && node ./scripts/lint/config-coverage.mjs",
 		"format": "prettier --write ."
 	},
 	"peerDependencies": {
@@ -148,6 +149,7 @@
 		"eslint": "^10.0.2",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.14.0",
+		"eslint-plugin-vue": "^10.10.0",
 		"globals": "^17.3.0",
 		"happy-dom": "^20.0.10",
 		"prettier": "^3.8.1",

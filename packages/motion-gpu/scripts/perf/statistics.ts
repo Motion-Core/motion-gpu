@@ -81,6 +81,49 @@ export function bootstrapMedianConfidenceInterval(
 	};
 }
 
+export function bootstrapMedianRelativeChangeConfidenceInterval(
+	baselineSamples: readonly number[],
+	currentSamples: readonly number[],
+	options: { confidence?: number; iterations?: number; seed?: number } = {}
+): ConfidenceInterval {
+	assertSamples(baselineSamples);
+	assertSamples(currentSamples);
+	const confidence = options.confidence ?? 0.95;
+	const iterations = options.iterations ?? 20_000;
+	if (confidence <= 0 || confidence >= 1) {
+		throw new Error(`Confidence must be within (0, 1), received ${confidence}`);
+	}
+	if (!Number.isInteger(iterations) || iterations < 100) {
+		throw new Error(`Bootstrap iterations must be an integer >= 100, received ${iterations}`);
+	}
+	if (median(baselineSamples) === 0) {
+		throw new Error('Relative change requires a non-zero baseline median');
+	}
+
+	const random = createRandom(options.seed ?? 0x4d475055);
+	const changes = Array.from({ length: iterations }, () => {
+		const baselineResample = Array.from(
+			{ length: baselineSamples.length },
+			() => baselineSamples[Math.floor(random() * baselineSamples.length)] ?? 0
+		);
+		const currentResample = Array.from(
+			{ length: currentSamples.length },
+			() => currentSamples[Math.floor(random() * currentSamples.length)] ?? 0
+		);
+		const baselineMedian = median(baselineResample);
+		if (baselineMedian === 0) {
+			throw new Error('Relative change bootstrap produced a zero baseline median');
+		}
+		return (median(currentResample) / baselineMedian - 1) * 100;
+	}).sort((a, b) => a - b);
+	const tail = (1 - confidence) / 2;
+	return {
+		lower: quantile(changes, tail),
+		upper: quantile(changes, 1 - tail),
+		confidence
+	};
+}
+
 export function computeRobustStats(samples: readonly number[]): RobustStats {
 	assertSamples(samples);
 	const sorted = [...samples].sort((a, b) => a - b);

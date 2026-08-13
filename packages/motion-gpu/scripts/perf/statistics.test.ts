@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	bootstrapMedianConfidenceInterval,
+	bootstrapMedianRelativeChangeConfidenceInterval,
 	computeRobustStats,
 	median,
 	quantile
@@ -33,7 +34,26 @@ test('bootstrap interval is deterministic for a seed', () => {
 	);
 });
 
+test('bootstrap relative change interval compares independent medians', () => {
+	const interval = bootstrapMedianRelativeChangeConfidenceInterval(
+		[100, 101, 102, 103, 104],
+		[90, 91, 92, 93, 94],
+		{ iterations: 1_000, seed: 123 }
+	);
+	assert.ok(interval.lower < -8);
+	assert.ok(interval.upper < 0);
+	assert.deepEqual(
+		interval,
+		bootstrapMedianRelativeChangeConfidenceInterval(
+			[100, 101, 102, 103, 104],
+			[90, 91, 92, 93, 94],
+			{ iterations: 1_000, seed: 123 }
+		)
+	);
+});
+
 test('invalid samples fail explicitly', () => {
 	assert.throws(() => computeRobustStats([]), /at least one finite sample/u);
 	assert.throws(() => median([Number.NaN]), /at least one finite sample/u);
+	assert.throws(() => bootstrapMedianRelativeChangeConfidenceInterval([0], [1]));
 });

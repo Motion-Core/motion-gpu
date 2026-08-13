@@ -9,6 +9,7 @@ let targetRotateX = 0;
 let smoothRotateY = 0;
 let smoothRotateX = 0;
 let autoRotateY = 0;
+let frameId = 0;
 
 const pointer = usePointer({
 	onDown: () => {
@@ -39,6 +40,7 @@ onUnmounted(() => {
 });
 
 useFrame((state) => {
+	frameId = (frameId + 1) % 16_000_000;
 	const pointerState = pointer.state.current;
 	if (pointerState.pressed && pointerState.dragging) {
 		targetRotateY += pointerState.deltaPx[0] * -0.005;
@@ -53,5 +55,6 @@ useFrame((state) => {
 
 	state.setUniform('uRotateY', autoRotateY + smoothRotateY);
 	state.setUniform('uRotateX', smoothRotateX);
+	state.setUniform('uFrameId', frameId);
 });
 </script>

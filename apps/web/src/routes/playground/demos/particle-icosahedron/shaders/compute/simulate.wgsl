@@ -213,5 +213,6 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
         let energy = (0.42 + n * 0.58 + ridge * 4.5) * clamp(perspective, 0.6, 1.7) * facing;
         let color = lit * energy * 0.045;
         textureStore(densityMap, vec2u(u32(tx), u32(ty)), vec4f(color, 1.0));
+        textureStore(densityFrame, vec2u(u32(tx), u32(ty)), vec4f(motiongpuUniforms.uFrameId, 0.0, 0.0, 0.0));
     }
 }

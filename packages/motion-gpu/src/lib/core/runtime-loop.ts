@@ -661,6 +661,7 @@ export function createMotionGPURuntimeLoop(
 				shouldContinueAfterFrame = true;
 			}
 		} finally {
+			pendingStorageWrites.length = 0;
 			registry.endFrame();
 		}
 
@@ -696,6 +697,7 @@ export function createMotionGPURuntimeLoop(
 				frameId = null;
 			}
 			clearRetryTimer();
+			pendingStorageWrites.length = 0;
 			renderer?.destroy();
 			registry.clear();
 		}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { planRenderGraph } from '../../lib/core/render-graph';
-import type { ResolvedComputePassResources } from '../../lib/core/compute-resources';
+import type {
+	ResolvedComputePassResources,
+	ResolvedTextureSubresourceRange
+} from '../../lib/core/compute-resources';
 import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import type { AnyPass, RenderPass } from '../../lib/core/types';
 
@@ -12,8 +15,19 @@ function createPass(input?: Partial<RenderPass>): RenderPass {
 }
 
 function computeResources(input: {
-	reads?: Array<{ logicalId: string; version?: 'current' | 'initial'; alias?: string }>;
-	writes?: Array<{ logicalId: string; alias?: string }>;
+	reads?: Array<{
+		logicalId: string;
+		physicalId?: object | string | symbol;
+		version?: 'current' | 'initial';
+		alias?: string;
+		subresource?: ResolvedTextureSubresourceRange;
+	}>;
+	writes?: Array<{
+		logicalId: string;
+		physicalId?: object | string | symbol;
+		alias?: string;
+		subresource?: ResolvedTextureSubresourceRange;
+	}>;
 }): ResolvedComputePassResources {
 	return {
 		entries: [],
@@ -21,17 +35,19 @@ function computeResources(input: {
 			alias: read.alias ?? `${read.logicalId}In`,
 			resourceKind: 'texture' as const,
 			logicalId: read.logicalId,
-			physicalId: read.logicalId,
+			physicalId: read.physicalId ?? read.logicalId,
 			mode: 'read' as const,
-			version: read.version ?? 'current'
+			version: read.version ?? 'current',
+			...(read.subresource ? { subresource: read.subresource } : {})
 		})),
 		writes: (input.writes ?? []).map((write) => ({
 			alias: write.alias ?? `${write.logicalId}Out`,
 			resourceKind: 'texture' as const,
 			logicalId: write.logicalId,
-			physicalId: write.logicalId,
+			physicalId: write.physicalId ?? write.logicalId,
 			mode: 'write' as const,
-			version: 'current' as const
+			version: 'current' as const,
+			...(write.subresource ? { subresource: write.subresource } : {})
 		})),
 		topologyKey: JSON.stringify(input),
 		bindingCount: 0
@@ -387,6 +403,120 @@ describe('render graph planner', () => {
 		} catch (error) {
 			expect(toMotionGPUErrorReport(error, 'render').code).toBe('COMPUTE_GRAPH_MULTIPLE_WRITERS');
 		}
+	});
+
+	it('keeps material and external resources with the same logical ID independent', () => {
+		const materialWriter = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const externalWriter = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const materialPhysicalId = {};
+
+		const plan = planRenderGraph(
+			[materialWriter, externalWriter],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[
+					materialWriter,
+					computeResources({
+						writes: [{ logicalId: 'shared-name', physicalId: materialPhysicalId }]
+					})
+				],
+				[
+					externalWriter,
+					computeResources({
+						writes: [{ logicalId: 'shared-name', physicalId: 'external-resource-id' }]
+					})
+				]
+			])
+		);
+
+		expect(plan.computeSteps.map((step) => step.pass)).toEqual([materialWriter, externalWriter]);
+	});
+
+	it('detects aliases with different logical IDs that resolve to one physical resource', () => {
+		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const physicalId = {};
+
+		expect(() =>
+			planRenderGraph(
+				[first, second],
+				[0, 0, 0, 1],
+				undefined,
+				computeGraphOptions([
+					[first, computeResources({ writes: [{ logicalId: 'first-alias', physicalId }] })],
+					[second, computeResources({ writes: [{ logicalId: 'second-alias', physicalId }] })]
+				])
+			)
+		).toThrow(/multiple writers/i);
+	});
+
+	it('keeps disjoint mip ranges of one physical texture independent', () => {
+		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const physicalId = {};
+		const mip = (baseMipLevel: number): ResolvedTextureSubresourceRange => ({
+			baseMipLevel,
+			mipLevelCount: 1,
+			baseArrayLayer: 0,
+			arrayLayerCount: 1
+		});
+
+		const plan = planRenderGraph(
+			[first, second],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[
+					first,
+					computeResources({
+						writes: [{ logicalId: 'texture-mip-0', physicalId, subresource: mip(0) }]
+					})
+				],
+				[
+					second,
+					computeResources({
+						writes: [{ logicalId: 'texture-mip-1', physicalId, subresource: mip(1) }]
+					})
+				]
+			])
+		);
+
+		expect(plan.computeSteps.map((step) => step.pass)).toEqual([first, second]);
+	});
+
+	it('does not add dependencies between disjoint read and write mip ranges', () => {
+		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const physicalId = {};
+		const mip = (baseMipLevel: number): ResolvedTextureSubresourceRange => ({
+			baseMipLevel,
+			mipLevelCount: 1,
+			baseArrayLayer: 0,
+			arrayLayerCount: 1
+		});
+
+		const plan = planRenderGraph(
+			[reader, writer],
+			[0, 0, 0, 1],
+			undefined,
+			computeGraphOptions([
+				[
+					reader,
+					computeResources({
+						reads: [{ logicalId: 'texture-mip-0', physicalId, subresource: mip(0) }]
+					})
+				],
+				[
+					writer,
+					computeResources({
+						writes: [{ logicalId: 'texture-mip-1', physicalId, subresource: mip(1) }]
+					})
+				]
+			])
+		);
+
+		expect(plan.computeSteps.map((step) => step.pass)).toEqual([reader, writer]);
 	});
 
 	it('reports dependency cycles with aliases and the complete resource path', () => {

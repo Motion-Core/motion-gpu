@@ -17,6 +17,7 @@ onMounted(() => {
 	video.autoplay = true;
 	video.loop = true;
 	video.preload = 'auto';
+	video.crossOrigin = 'anonymous';
 	video.src = VIDEO_SOURCE;
 	void video.play().catch(() => undefined);
 });

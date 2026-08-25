@@ -17,6 +17,7 @@ export default function Runtime() {
 		video.autoplay = true;
 		video.loop = true;
 		video.preload = 'auto';
+		video.crossOrigin = 'anonymous';
 		video.src = VIDEO_SOURCE;
 		videoRef.current = video;
 		void video.play().catch(() => undefined);

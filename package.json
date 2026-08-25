@@ -3,11 +3,15 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.0.0"
+	},
 	"workspaces": [
 		"apps/*",
 		"packages/*"
 	],
 	"scripts": {
+		"audit:dependencies": "pnpm audit --audit-level high",
 		"docs:changelog": "node ./scripts/generate-changelog-docs.mjs",
 		"docs:changelog:check": "node ./scripts/generate-changelog-docs.mjs --check",
 		"dev": "pnpm run dev:web",
@@ -57,6 +61,9 @@
 		"oxfmt": "catalog:"
 	},
 	"pnpm": {
+		"overrides": {
+			"@sveltejs/kit>cookie": "0.7.2"
+		},
 		"onlyBuiltDependencies": [
 			"esbuild",
 			"sharp",

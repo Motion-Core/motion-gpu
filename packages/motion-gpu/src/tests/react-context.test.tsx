@@ -189,6 +189,71 @@ describe('react adapter runtime hooks', () => {
 		expect(callback).toHaveBeenCalledTimes(2);
 	});
 
+	it.each(['always', 'on-demand', 'manual'] as const)(
+		'orders stable auto-key task references in %s mode across rerenders',
+		async (renderMode) => {
+			const payload = createRuntimeHarness();
+			payload.registry.setRenderMode(renderMode);
+			const execution: string[] = [];
+			const onTasks = vi.fn();
+
+			function Probe() {
+				const first = useFrame(() => execution.push('first'));
+				const second = useFrame(() => execution.push('second'), { after: first.task });
+				onTasks(first.task, second.task);
+				return null;
+			}
+
+			const view = render(withProviders(<Probe />, payload));
+			await waitFor(() =>
+				expect(payload.registry.getSchedule().stages.flatMap((stage) => stage.tasks)).toHaveLength(
+					2
+				)
+			);
+
+			const [firstTask, secondTask] = onTasks.mock.calls[0] as [
+				UseFrameResult['task'],
+				UseFrameResult['task']
+			];
+			expect(firstTask.key).not.toBe(secondTask.key);
+			expect(firstTask.stage).toBe(secondTask.stage);
+
+			view.rerender(withProviders(<Probe />, payload));
+			await waitFor(() => expect(onTasks.mock.calls.length).toBeGreaterThan(1));
+			const [rerenderedFirstTask, rerenderedSecondTask] = onTasks.mock.calls.at(-1) as [
+				UseFrameResult['task'],
+				UseFrameResult['task']
+			];
+			expect(rerenderedFirstTask).toBe(firstTask);
+			expect(rerenderedSecondTask).toBe(secondTask);
+
+			expect(() => payload.registry.run(createState(payload.registry))).not.toThrow();
+			expect(execution).toEqual(['first', 'second']);
+		}
+	);
+
+	it('infers a dependent keyed task stage from a task reference before effects run', async () => {
+		const payload = createRuntimeHarness();
+		const execution: string[] = [];
+
+		function Probe() {
+			const first = useFrame('first', () => execution.push('first'), { stage: 'post' });
+			useFrame('second', () => execution.push('second'), { after: first.task });
+			return null;
+		}
+
+		render(withProviders(<Probe />, payload));
+		await waitFor(() => {
+			expect(payload.registry.getSchedule().stages.find((stage) => stage.key === 'post')).toEqual({
+				key: 'post',
+				tasks: ['first', 'second']
+			});
+		});
+
+		payload.registry.run(createState(payload.registry));
+		expect(execution).toEqual(['first', 'second']);
+	});
+
 	it('throws when useFrame is called outside FrameRegistry provider', () => {
 		function Probe() {
 			useFrame(() => undefined);

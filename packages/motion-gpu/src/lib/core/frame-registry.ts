@@ -214,7 +214,7 @@ interface InternalStage {
 /**
  * Default stage key used when task stage is not explicitly specified.
  */
-const MAIN_STAGE_KEY = Symbol('motiongpu-main-stage');
+export const DEFAULT_FRAME_STAGE_KEY = Symbol('motiongpu-main-stage');
 const RENDER_MODE_INVALIDATION_TOKEN = Symbol('motiongpu-render-mode-change');
 
 /**
@@ -260,6 +260,22 @@ function toStageKey(reference: FrameKey | FrameStage): FrameKey {
 	}
 
 	return reference.key;
+}
+
+/**
+ * Resolves the stage metadata a task will receive during registration.
+ * Adapter hooks use this before lifecycle effects run so task references are stable.
+ */
+export function resolveFrameTaskStage(options?: UseFrameOptions): FrameKey {
+	const before = asArray(options?.before);
+	const after = asArray(options?.after);
+	const inferredStage = [...before, ...after].find(
+		(entry) => typeof entry === 'object' && entry !== null && 'stage' in entry
+	) as FrameTask | undefined;
+
+	return options?.stage !== undefined
+		? toStageKey(options.stage)
+		: (inferredStage?.stage ?? DEFAULT_FRAME_STAGE_KEY);
 }
 
 /**
@@ -923,7 +939,7 @@ export function createFrameRegistry(options?: {
 		return stage;
 	};
 
-	ensureStage(MAIN_STAGE_KEY);
+	ensureStage(DEFAULT_FRAME_STAGE_KEY);
 
 	const resolveEffectiveRunning = (task: InternalTask): boolean => {
 		const running = task.started && (task.running?.() ?? true);
@@ -993,12 +1009,7 @@ export function createFrameRegistry(options?: {
 
 			const before = asArray(taskOptions.before);
 			const after = asArray(taskOptions.after);
-			const inferredStage = [...before, ...after].find(
-				(entry) => typeof entry === 'object' && entry !== null && 'stage' in entry
-			) as FrameTask | undefined;
-			const stageKey = taskOptions.stage
-				? toStageKey(taskOptions.stage)
-				: (inferredStage?.stage ?? MAIN_STAGE_KEY);
+			const stageKey = resolveFrameTaskStage(taskOptions);
 
 			const stage = ensureStage(stageKey);
 			const startedWritable: CurrentWritable<boolean> = createCurrentWritable(

@@ -90,6 +90,177 @@ const DEFAULT_TEXTURE_FILTER: GPUFilterMode = 'linear';
  * Default addressing mode for textures when no explicit value is provided.
  */
 const DEFAULT_TEXTURE_ADDRESS_MODE: GPUAddressMode = 'clamp-to-edge';
+const TEXTURE_COLOR_SPACES = new Set(['srgb', 'linear']);
+const TEXTURE_UPDATE_MODES = new Set(['once', 'onInvalidate', 'perFrame']);
+const TEXTURE_FILTER_MODES = new Set(['nearest', 'linear']);
+const TEXTURE_ADDRESS_MODES = new Set(['clamp-to-edge', 'repeat', 'mirror-repeat']);
+const TEXTURE_FORMATS: ReadonlySet<string> = new Set([
+	'r8unorm',
+	'r8snorm',
+	'r8uint',
+	'r8sint',
+	'r16unorm',
+	'r16snorm',
+	'r16uint',
+	'r16sint',
+	'r16float',
+	'rg8unorm',
+	'rg8snorm',
+	'rg8uint',
+	'rg8sint',
+	'r32uint',
+	'r32sint',
+	'r32float',
+	'rg16unorm',
+	'rg16snorm',
+	'rg16uint',
+	'rg16sint',
+	'rg16float',
+	'rgba8unorm',
+	'rgba8unorm-srgb',
+	'rgba8snorm',
+	'rgba8uint',
+	'rgba8sint',
+	'bgra8unorm',
+	'bgra8unorm-srgb',
+	'rgb9e5ufloat',
+	'rgb10a2uint',
+	'rgb10a2unorm',
+	'rg11b10ufloat',
+	'rg32uint',
+	'rg32sint',
+	'rg32float',
+	'rgba16unorm',
+	'rgba16snorm',
+	'rgba16uint',
+	'rgba16sint',
+	'rgba16float',
+	'rgba32uint',
+	'rgba32sint',
+	'rgba32float',
+	'stencil8',
+	'depth16unorm',
+	'depth24plus',
+	'depth24plus-stencil8',
+	'depth32float',
+	'depth32float-stencil8',
+	'bc1-rgba-unorm',
+	'bc1-rgba-unorm-srgb',
+	'bc2-rgba-unorm',
+	'bc2-rgba-unorm-srgb',
+	'bc3-rgba-unorm',
+	'bc3-rgba-unorm-srgb',
+	'bc4-r-unorm',
+	'bc4-r-snorm',
+	'bc5-rg-unorm',
+	'bc5-rg-snorm',
+	'bc6h-rgb-ufloat',
+	'bc6h-rgb-float',
+	'bc7-rgba-unorm',
+	'bc7-rgba-unorm-srgb',
+	'etc2-rgb8unorm',
+	'etc2-rgb8unorm-srgb',
+	'etc2-rgb8a1unorm',
+	'etc2-rgb8a1unorm-srgb',
+	'etc2-rgba8unorm',
+	'etc2-rgba8unorm-srgb',
+	'eac-r11unorm',
+	'eac-r11snorm',
+	'eac-rg11unorm',
+	'eac-rg11snorm',
+	'astc-4x4-unorm',
+	'astc-4x4-unorm-srgb',
+	'astc-5x4-unorm',
+	'astc-5x4-unorm-srgb',
+	'astc-5x5-unorm',
+	'astc-5x5-unorm-srgb',
+	'astc-6x5-unorm',
+	'astc-6x5-unorm-srgb',
+	'astc-6x6-unorm',
+	'astc-6x6-unorm-srgb',
+	'astc-8x5-unorm',
+	'astc-8x5-unorm-srgb',
+	'astc-8x6-unorm',
+	'astc-8x6-unorm-srgb',
+	'astc-8x8-unorm',
+	'astc-8x8-unorm-srgb',
+	'astc-10x5-unorm',
+	'astc-10x5-unorm-srgb',
+	'astc-10x6-unorm',
+	'astc-10x6-unorm-srgb',
+	'astc-10x8-unorm',
+	'astc-10x8-unorm-srgb',
+	'astc-10x10-unorm',
+	'astc-10x10-unorm-srgb',
+	'astc-12x10-unorm',
+	'astc-12x10-unorm-srgb',
+	'astc-12x12-unorm',
+	'astc-12x12-unorm-srgb'
+]);
+
+function assertOptionalBoolean(name: string, value: unknown): void {
+	if (value !== undefined && typeof value !== 'boolean') {
+		throw new Error(`${name} must be a boolean, got ${String(value)}.`);
+	}
+}
+
+function assertEnumValue(name: string, value: unknown, allowed: ReadonlySet<string>): void {
+	if (typeof value !== 'string' || !allowed.has(value)) {
+		throw new Error(
+			`${name} must be one of ${Array.from(allowed).join(', ')}, got ${String(value)}.`
+		);
+	}
+}
+
+function assertOptionalEnumValue(name: string, value: unknown, allowed: ReadonlySet<string>): void {
+	if (value !== undefined) {
+		assertEnumValue(name, value, allowed);
+	}
+}
+
+function assertTextureDimension(name: string, value: number): void {
+	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
+		throw new Error(`${name} must be a finite positive integer, got ${String(value)}.`);
+	}
+}
+
+/**
+ * Rejects texture format strings outside the WebGPU contract known to this release.
+ */
+export function assertTextureFormat(
+	format: unknown,
+	label = 'Texture'
+): asserts format is GPUTextureFormat {
+	if (typeof format !== 'string' || !TEXTURE_FORMATS.has(format)) {
+		throw new Error(`${label} format "${String(format)}" is not a recognized GPUTextureFormat.`);
+	}
+}
+
+/**
+ * Validates concrete 2D texture dimensions before mip calculation or GPU allocation.
+ */
+export function assertTextureDimensions(width: number, height: number, label = 'Texture'): void {
+	assertTextureDimension(`${label} width`, width);
+	assertTextureDimension(`${label} height`, height);
+}
+
+/**
+ * Validates dimensions against the active device's 2D texture limit.
+ */
+export function assertTextureDimensionsWithinLimit(
+	width: number,
+	height: number,
+	maxTextureDimension2D: number,
+	label = 'Texture'
+): void {
+	assertTextureDimensions(width, height, label);
+	assertTextureDimension('device.limits.maxTextureDimension2D', maxTextureDimension2D);
+	if (width > maxTextureDimension2D || height > maxTextureDimension2D) {
+		throw new Error(
+			`${label} dimensions ${width}x${height} exceed device.limits.maxTextureDimension2D (${maxTextureDimension2D}).`
+		);
+	}
+}
 
 export function isFloat32TextureFormat(format: GPUTextureFormat): boolean {
 	return format === 'r32float' || format === 'rg32float' || format === 'rgba32float';
@@ -162,6 +333,30 @@ export function resolveTextureKeys(textures: TextureDefinitionMap): string[] {
 export function normalizeTextureDefinition(
 	definition: TextureDefinition | undefined
 ): NormalizedTextureDefinition {
+	assertOptionalEnumValue('Texture colorSpace', definition?.colorSpace, TEXTURE_COLOR_SPACES);
+	assertOptionalEnumValue('Texture update', definition?.update, TEXTURE_UPDATE_MODES);
+	if (definition?.format !== undefined) {
+		assertTextureFormat(definition.format);
+	}
+	assertOptionalEnumValue('Texture filter', definition?.filter, TEXTURE_FILTER_MODES);
+	assertOptionalEnumValue('Texture addressModeU', definition?.addressModeU, TEXTURE_ADDRESS_MODES);
+	assertOptionalEnumValue('Texture addressModeV', definition?.addressModeV, TEXTURE_ADDRESS_MODES);
+	assertOptionalBoolean('Texture flipY', definition?.flipY);
+	assertOptionalBoolean('Texture generateMipmaps', definition?.generateMipmaps);
+	assertOptionalBoolean('Texture premultipliedAlpha', definition?.premultipliedAlpha);
+	assertOptionalBoolean('Texture storage', definition?.storage);
+	assertOptionalBoolean('Texture fragmentVisible', definition?.fragmentVisible);
+	if (definition?.width !== undefined) {
+		assertTextureDimension('Texture width', definition.width);
+	}
+	if (definition?.height !== undefined) {
+		assertTextureDimension('Texture height', definition.height);
+	}
+	const anisotropy = definition?.anisotropy ?? 1;
+	if (typeof anisotropy !== 'number' || !Number.isFinite(anisotropy)) {
+		throw new Error(`Texture anisotropy must be a finite number, got ${String(anisotropy)}.`);
+	}
+
 	const isStorage = definition?.storage === true;
 	const defaultFormat = definition?.colorSpace === 'linear' ? 'rgba8unorm' : 'rgba8unorm-srgb';
 	const format = definition?.format ?? defaultFormat;
@@ -184,7 +379,7 @@ export function normalizeTextureDefinition(
 		flipY: definition?.flipY ?? true,
 		generateMipmaps: definition?.generateMipmaps ?? false,
 		premultipliedAlpha: definition?.premultipliedAlpha ?? false,
-		anisotropy: Math.max(1, Math.min(16, Math.floor(definition?.anisotropy ?? 1))),
+		anisotropy: Math.max(1, Math.min(16, Math.floor(anisotropy))),
 		filter: definition?.filter ?? DEFAULT_TEXTURE_FILTER,
 		addressModeU: definition?.addressModeU ?? DEFAULT_TEXTURE_ADDRESS_MODE,
 		addressModeV: definition?.addressModeV ?? DEFAULT_TEXTURE_ADDRESS_MODE,
@@ -257,11 +452,13 @@ export function resolveTextureUpdateMode(input: {
 	override?: TextureUpdateMode;
 	defaultMode?: TextureUpdateMode;
 }): TextureUpdateMode {
-	if (input.override) {
+	if (input.override !== undefined) {
+		assertEnumValue('Texture update override', input.override, TEXTURE_UPDATE_MODES);
 		return input.override;
 	}
 
-	if (input.defaultMode) {
+	if (input.defaultMode !== undefined) {
+		assertEnumValue('Texture default update mode', input.defaultMode, TEXTURE_UPDATE_MODES);
 		return input.defaultMode;
 	}
 
@@ -283,6 +480,12 @@ export function resolveTextureSize(data: TextureData): {
 	width: number;
 	height: number;
 } {
+	assertOptionalEnumValue('Texture colorSpace', data.colorSpace, TEXTURE_COLOR_SPACES);
+	assertOptionalEnumValue('Texture update', data.update, TEXTURE_UPDATE_MODES);
+	assertOptionalBoolean('Texture flipY', data.flipY);
+	assertOptionalBoolean('Texture generateMipmaps', data.generateMipmaps);
+	assertOptionalBoolean('Texture premultipliedAlpha', data.premultipliedAlpha);
+
 	const source = data.source as {
 		width?: number;
 		height?: number;
@@ -295,9 +498,7 @@ export function resolveTextureSize(data: TextureData): {
 	const width = data.width ?? source.naturalWidth ?? source.videoWidth ?? source.width ?? 0;
 	const height = data.height ?? source.naturalHeight ?? source.videoHeight ?? source.height ?? 0;
 
-	if (width <= 0 || height <= 0) {
-		throw new Error('Texture source must have positive width and height');
-	}
+	assertTextureDimensions(width, height, 'Texture source');
 
 	return { width, height };
 }
@@ -310,6 +511,7 @@ export function resolveTextureSize(data: TextureData): {
  * @returns Total mip level count (minimum `1`).
  */
 export function getTextureMipLevelCount(width: number, height: number): number {
+	assertTextureDimensions(width, height);
 	let levels = 1;
 	let currentWidth = Math.max(1, width);
 	let currentHeight = Math.max(1, height);

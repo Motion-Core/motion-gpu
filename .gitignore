@@ -4,3 +4,4 @@ dist/
 .DS_Store
 packages/motion-gpu/benchmarks/results/*.json
 packages/motion-gpu/coverage/
+apps/web/test-results/

@@ -51,8 +51,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Audit high-severity dependencies
+        run: pnpm run audit:dependencies
+
+      - name: Install Chromium for playground isolation tests
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
       - name: Run quality gate
         run: pnpm run ci:quality
+
+      - name: Run playground isolation E2E
+        run: pnpm --dir apps/web run test:e2e
 
       - name: Upload MotionGPU coverage report
         if: ${{ !cancelled() }}

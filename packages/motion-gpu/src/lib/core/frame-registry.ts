@@ -487,6 +487,16 @@ function sortByDependencies<T extends { key: FrameKey; order: number }>(
 		edges.set(item.key, new Set());
 	}
 
+	const addEdge = (from: FrameKey, to: FrameKey): void => {
+		const children = edges.get(from);
+		if (!children || children.has(to)) {
+			return;
+		}
+
+		children.add(to);
+		indegree.set(to, (indegree.get(to) ?? 0) + 1);
+	};
+
 	for (const item of items) {
 		for (const dependencyKey of getAfter(item)) {
 			if (!itemsByKey.has(dependencyKey)) {
@@ -498,8 +508,7 @@ function sortByDependencies<T extends { key: FrameKey; order: number }>(
 				);
 			}
 
-			edges.get(dependencyKey)?.add(item.key);
-			indegree.set(item.key, (indegree.get(item.key) ?? 0) + 1);
+			addEdge(dependencyKey, item.key);
 		}
 
 		for (const dependencyKey of getBefore(item)) {
@@ -512,8 +521,7 @@ function sortByDependencies<T extends { key: FrameKey; order: number }>(
 				);
 			}
 
-			edges.get(item.key)?.add(dependencyKey);
-			indegree.set(dependencyKey, (indegree.get(dependencyKey) ?? 0) + 1);
+			addEdge(item.key, dependencyKey);
 		}
 	}
 

@@ -96,4 +96,90 @@ describe('currentWritable', () => {
 		store.set(NaN);
 		expect(callCount).toBe(0);
 	});
+
+	it('queues reentrant writes without delivering an older value after a newer value', () => {
+		const store = createCurrentWritable(0);
+		const firstValues: number[] = [];
+		const secondValues: number[] = [];
+
+		store.subscribe((value) => {
+			firstValues.push(value);
+			if (value === 1) {
+				store.set(2);
+			}
+		});
+		store.subscribe((value) => secondValues.push(value));
+
+		store.set(1);
+
+		expect(firstValues).toEqual([0, 1, 2]);
+		expect(secondValues).toEqual([0, 1, 2]);
+		expect(store.current).toBe(2);
+	});
+
+	it('does not notify a subscriber twice when it subscribes during an emission', () => {
+		const store = createCurrentWritable(0);
+		const lateValues: number[] = [];
+		let subscribed = false;
+
+		store.subscribe((value) => {
+			if (value === 1 && !subscribed) {
+				subscribed = true;
+				store.subscribe((lateValue) => lateValues.push(lateValue));
+			}
+		});
+
+		store.set(1);
+
+		expect(lateValues).toEqual([1]);
+	});
+
+	it('skips a subscriber that is removed during an emission', () => {
+		const store = createCurrentWritable(0);
+		const removedValues: number[] = [];
+		let removeSubscriber: () => void = () => undefined;
+
+		store.subscribe((value) => {
+			if (value === 1) {
+				removeSubscriber();
+			}
+		});
+		removeSubscriber = store.subscribe((value) => removedValues.push(value));
+
+		store.set(1);
+
+		expect(removedValues).toEqual([0]);
+	});
+
+	it('finishes queued notifications before rethrowing the first callback error', () => {
+		const store = createCurrentWritable(0);
+		const delivered: number[] = [];
+		store.subscribe((value) => {
+			if (value === 1) {
+				store.set(2);
+				throw new Error('subscriber failed');
+			}
+		});
+		store.subscribe((value) => delivered.push(value));
+
+		expect(() => store.set(1)).toThrow('subscriber failed');
+		expect(delivered).toEqual([0, 1, 2]);
+
+		store.set(3);
+		expect(delivered).toEqual([0, 1, 2, 3]);
+	});
+
+	it('recovers after onChange throws', () => {
+		const delivered: number[] = [];
+		const store = createCurrentWritable(0, (value) => {
+			if (value === 1) {
+				throw new Error('onChange failed');
+			}
+		});
+		store.subscribe((value) => delivered.push(value));
+
+		expect(() => store.set(1)).toThrow('onChange failed');
+		expect(() => store.set(2)).not.toThrow();
+		expect(delivered).toEqual([0, 1, 2]);
+	});
 });

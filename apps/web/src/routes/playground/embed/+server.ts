@@ -4,10 +4,16 @@ import type { RequestHandler } from './$types';
 
 export const prerender = false;
 
+const PREVIEW_SESSION_ID = /^[A-Za-z0-9_-]{1,120}$/;
+
 const toSafeOrigin = (value: string | null) => {
 	if (!value) return '';
 	try {
-		return new URL(value).origin;
+		const url = new URL(value);
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+			return '';
+		}
+		return url.origin;
 	} catch {
 		return '';
 	}
@@ -47,11 +53,13 @@ body {
 const buildEmbedHtml = ({
 	sessionId,
 	parentOrigin,
-	initialStyle
+	initialStyle,
+	nonce
 }: {
 	sessionId: string;
 	parentOrigin: string;
 	initialStyle: string;
+	nonce: string;
 }) => `<!doctype html>
 <html lang="en">
 	<head>
@@ -60,7 +68,7 @@ const buildEmbedHtml = ({
 		<style id="injected">${initialStyle}</style>
 	</head>
 	<body>
-		<script>
+		<script nonce="${nonce}">
 			(() => {
 				const CHANNEL = ${JSON.stringify(PLAYGROUND_PREVIEW_CHANNEL)};
 				const SESSION_ID = ${JSON.stringify(sessionId)};
@@ -171,20 +179,61 @@ const buildEmbedHtml = ({
 </html>
 `;
 
+const buildContentSecurityPolicy = (nonce: string, parentOrigin: string) =>
+	[
+		"default-src 'none'",
+		"base-uri 'none'",
+		"object-src 'none'",
+		`script-src 'nonce-${nonce}' 'unsafe-eval'`,
+		"style-src 'unsafe-inline'",
+		'img-src data: blob: https: http:',
+		'media-src data: blob: https: http:',
+		'font-src data: blob: https: http:',
+		'connect-src data: blob: https: http: wss: ws:',
+		'worker-src blob:',
+		'child-src blob:',
+		"form-action 'none'",
+		`frame-ancestors ${parentOrigin}`
+	].join('; ');
+
+const badRequest = (message: string) =>
+	new Response(message, {
+		status: 400,
+		headers: {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Cache-Control': 'no-store',
+			'X-Content-Type-Options': 'nosniff'
+		}
+	});
+
 export const GET: RequestHandler = async ({ url }) => {
-	const sessionId = (url.searchParams.get('session') ?? '').slice(0, 120);
+	const sessionId = url.searchParams.get('session') ?? '';
 	const parentOrigin = toSafeOrigin(url.searchParams.get('parent_origin'));
+	if (!PREVIEW_SESSION_ID.test(sessionId)) {
+		return badRequest('A valid preview session is required.');
+	}
+	if (!parentOrigin) {
+		return badRequest('A valid HTTP(S) parent_origin is required.');
+	}
+
 	const theme = toPreviewTheme(url.searchParams.get('theme'));
+	const nonce = crypto.randomUUID().replaceAll('-', '');
 	const html = buildEmbedHtml({
 		sessionId,
 		parentOrigin,
-		initialStyle: buildInitialStyle(theme)
+		initialStyle: buildInitialStyle(theme),
+		nonce
 	});
 
 	return new Response(html, {
 		headers: {
 			'Content-Type': 'text/html; charset=utf-8',
 			'Cache-Control': 'no-store',
+			'Content-Security-Policy': buildContentSecurityPolicy(nonce, parentOrigin),
+			'Permissions-Policy':
+				'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+			'Referrer-Policy': 'no-referrer',
+			'Cross-Origin-Resource-Policy': 'cross-origin',
 			'X-Content-Type-Options': 'nosniff'
 		}
 	});

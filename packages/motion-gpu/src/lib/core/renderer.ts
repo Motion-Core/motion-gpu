@@ -223,6 +223,9 @@ const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
 const COMPUTE_DISPATCH_AXES = ['x', 'y', 'z'] as const;
 const DEFAULT_MAX_TEXTURE_DIMENSION_2D = 8192;
 
+/**
+ * Formats an invalid compute dispatch value for deterministic diagnostics.
+ */
 function formatComputeDispatchValue(value: unknown): string {
 	if (value === undefined) {
 		return 'undefined';
@@ -241,6 +244,9 @@ function formatComputeDispatchValue(value: unknown): string {
 	}
 }
 
+/**
+ * Reads the compute workgroup limit with a fallback for partial or mocked devices.
+ */
 function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
 	const max = (device.limits as GPUSupportedLimits | undefined)?.maxComputeWorkgroupsPerDimension;
 	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
@@ -274,6 +280,9 @@ function assertTextureAllocationSize(
 	assertTextureDimensionsWithinLimit(width, height, getMaxTextureDimension2D(device), label);
 }
 
+/**
+ * Reads a positive integer device limit or returns the supplied compatibility fallback.
+ */
 function getPositiveDeviceLimit(
 	device: GPUDevice,
 	name: keyof ComputeResourceResolverLimits,
@@ -285,6 +294,9 @@ function getPositiveDeviceLimit(
 		: fallback;
 }
 
+/**
+ * Captures the device limits used while validating compute resource bindings.
+ */
 function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceResolverLimits {
 	return {
 		maxBindingsPerBindGroup: getPositiveDeviceLimit(device, 'maxBindingsPerBindGroup', 1000),
@@ -312,6 +324,9 @@ function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceRes
 	};
 }
 
+/**
+ * Resolves and validates a three-axis dispatch tuple against the active device limit.
+ */
 function validateComputeDispatch(
 	dispatch: unknown,
 	maxWorkgroupsPerDimension: number,
@@ -605,6 +620,9 @@ async function assertComputeCompilationAsync(input: {
 	});
 }
 
+/**
+ * Summarizes enabled pass inputs and outputs for shader compilation diagnostics.
+ */
 function buildPassGraphSnapshot(
 	passes: AnyPass[] | undefined
 ): NonNullable<ShaderCompilationRuntimeContext['passGraph']> {
@@ -644,6 +662,9 @@ function buildPassGraphSnapshot(
 	};
 }
 
+/**
+ * Captures render targets and pass topology at shader compilation time.
+ */
 function buildShaderCompilationRuntimeContext(
 	options: RendererOptions
 ): ShaderCompilationRuntimeContext {

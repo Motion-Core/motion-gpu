@@ -274,6 +274,9 @@ export function assertTextureDimensionsWithinLimit(
 	}
 }
 
+/**
+ * Reports whether a texture format uses 32-bit floating-point channels.
+ */
 export function isFloat32TextureFormat(format: GPUTextureFormat): boolean {
 	return format === 'r32float' || format === 'rg32float' || format === 'rgba32float';
 }
@@ -282,6 +285,9 @@ function hasFloat32FilterableFeature(features: GPUSupportedFeatures | undefined)
 	return features?.has?.('float32-filterable' as GPUFeatureName) === true;
 }
 
+/**
+ * Resolves binding sample types and coerces unsupported filters to nearest sampling.
+ */
 export function resolveTextureSamplingLayout(input: {
 	format: GPUTextureFormat;
 	filter: GPUFilterMode;

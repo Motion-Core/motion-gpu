@@ -238,6 +238,9 @@ function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGrap
 	return ordered;
 }
 
+/**
+ * Reorders only contiguous compute blocks, leaving render-pass boundaries fixed.
+ */
 function planComputeSegments(preSceneSteps: RenderGraphStep[]): RenderGraphStep[] {
 	const ordered: RenderGraphStep[] = [];
 	let segment: RenderGraphStep[] = [];

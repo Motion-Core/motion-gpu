@@ -50,12 +50,18 @@ export interface MotionGPURuntimeLoop {
 	destroy: () => void;
 }
 
+/**
+ * Applies capped exponential backoff between renderer initialization attempts.
+ */
 function getRendererRetryDelayMs(attempt: number): number {
 	return Math.min(8000, 250 * 2 ** Math.max(0, attempt - 1));
 }
 
 const ERROR_CLEAR_GRACE_MS = 750;
 
+/**
+ * Enforces the offset and byte-length requirements of WebGPU queue writes.
+ */
 function assertStorageWriteAlignment(name: string, data: ArrayBufferView, offset: number): void {
 	if (!ArrayBuffer.isView(data)) {
 		throw new Error(`Storage buffer "${name}" write data must be an ArrayBufferView.`);

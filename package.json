@@ -3,11 +3,15 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"engines": {
+		"node": ">=22.0.0"
+	},
 	"workspaces": [
 		"apps/*",
 		"packages/*"
 	],
 	"scripts": {
+		"audit:dependencies": "pnpm audit --audit-level high",
 		"docs:changelog": "node ./scripts/generate-changelog-docs.mjs",
 		"docs:changelog:check": "node ./scripts/generate-changelog-docs.mjs --check",
 		"dev": "pnpm run dev:web",
@@ -49,7 +53,7 @@
 		"format:check": "pnpm run format:check:root && pnpm --dir apps/web run format:check && pnpm --dir packages/motion-gpu run format:check",
 		"precommit": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint",
 		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:motion-gpu:consumers && pnpm run check:motion-gpu:consumers:peers && pnpm run check:web && pnpm run test:motion-gpu:coverage && pnpm run test:motion-gpu:perf-tools && pnpm --dir apps/web test --passWithNoTests",
-		"ci:e2e": "pnpm --dir packages/motion-gpu run test:e2e",
+		"ci:e2e": "pnpm --dir packages/motion-gpu run test:e2e && pnpm --dir apps/web run test:e2e",
 		"ci": "pnpm run ci:quality && pnpm run ci:e2e",
 		"prepare": "node ./scripts/setup-git-hooks.mjs"
 	},
@@ -57,6 +61,9 @@
 		"oxfmt": "catalog:"
 	},
 	"pnpm": {
+		"overrides": {
+			"@sveltejs/kit>cookie": "0.7.2"
+		},
 		"onlyBuiltDependencies": [
 			"esbuild",
 			"sharp",

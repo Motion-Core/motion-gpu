@@ -1232,6 +1232,41 @@ describe('createRenderer', () => {
 		});
 	});
 
+	it('rejects source textures above the device limit before allocating them', async () => {
+		const runtime = createWebGpuRuntime();
+		Reflect.set(runtime.device, 'limits', { maxTextureDimension2D: 16 });
+		const source = document.createElement('canvas');
+		source.width = 17;
+		source.height = 8;
+
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			textureKeys: ['uTex'],
+			textureDefinitions: { uTex: {} }
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: { uTex: source }
+			})
+		).toThrow(/Texture "uTex" dimensions 17x8 exceed device\.limits\.maxTextureDimension2D \(16\)/);
+		expect(
+			runtime.device.createTexture.mock.calls.some(([descriptor]) => {
+				const size = (descriptor as GPUTextureDescriptor).size as {
+					width?: number;
+					height?: number;
+				};
+				return size.width === 17 && size.height === 8;
+			})
+		).toBe(false);
+
+		renderer.destroy();
+	});
+
 	it('destroys runtime textures and restores fallback when texture is cleared', async () => {
 		const runtime = createWebGpuRuntime();
 		const source = document.createElement('canvas');
@@ -1771,6 +1806,40 @@ describe('createRenderer', () => {
 			})
 		);
 		expect(runtime.device.createBindGroup.mock.calls.length).toBe(bindGroupCallsBeforeRender + 1);
+	});
+
+	it('rejects an unknown render-target format before GPU allocation', async () => {
+		const runtime = createWebGpuRuntime();
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			renderTargets: {
+				invalid: {
+					width: 8,
+					height: 8,
+					format: 'rgba999unorm' as unknown as GPUTextureFormat
+				}
+			},
+			passes: [{ needsSwap: false, output: 'invalid', render: vi.fn() }]
+		});
+
+		expect(() =>
+			renderer.render({
+				time: 0,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			})
+		).toThrow(/Render target format "rgba999unorm" is not a recognized GPUTextureFormat/);
+		expect(
+			runtime.device.createTexture.mock.calls.some(
+				([descriptor]) =>
+					(descriptor as GPUTextureDescriptor).format ===
+					('rgba999unorm' as unknown as GPUTextureFormat)
+			)
+		).toBe(false);
+
+		renderer.destroy();
 	});
 
 	it('throws when render graph references unknown runtime target slot', async () => {

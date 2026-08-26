@@ -33,6 +33,10 @@ import {
 	type PlaygroundFile
 } from '$lib/playground-engine';
 import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
+import {
+	PLAYGROUND_PREVIEW_EVENT_ORIGIN,
+	PLAYGROUND_PREVIEW_TARGET_ORIGIN
+} from '$lib/playground-engine/preview/protocol';
 
 type EditorThemeMode = 'light' | 'dark';
 const playgroundFrameworks: PlaygroundFramework[] = ['svelte', 'react', 'vue'];
@@ -233,6 +237,9 @@ const playgroundEditorBaseExtensions: Extension[] = [
 	keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap])
 ];
 
+/**
+ * Creates the reactive editor, bundler, and authenticated preview lifecycle for the playground.
+ */
 export const createPlaygroundController = (
 	initialDemoId?: string | null,
 	initialFramework?: PlaygroundFramework | string | null
@@ -605,8 +612,8 @@ export const createPlaygroundController = (
 				}
 			},
 			{
-				targetOrigin: previewTargetOrigin,
-				expectedOrigin: previewTargetOrigin,
+				targetOrigin: PLAYGROUND_PREVIEW_TARGET_ORIGIN,
+				expectedOrigin: PLAYGROUND_PREVIEW_EVENT_ORIGIN,
 				sessionId: previewSessionId
 			}
 		);

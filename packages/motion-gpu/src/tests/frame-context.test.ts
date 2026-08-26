@@ -144,6 +144,30 @@ describe('frame registry', () => {
 		expect(execution).toEqual(['a', 'b', 'c']);
 	});
 
+	it('deduplicates the same task edge declared through before and after', () => {
+		const registry = createFrameRegistry();
+		const execution: string[] = [];
+
+		registry.register('a', () => execution.push('a'), { before: 'b' });
+		registry.register('b', () => execution.push('b'), { after: 'a' });
+
+		expect(() => registry.run(createState(registry))).not.toThrow();
+		expect(execution).toEqual(['a', 'b']);
+	});
+
+	it('deduplicates symbolic task edges regardless of registration order', () => {
+		const registry = createFrameRegistry();
+		const execution: string[] = [];
+		const first = Symbol('first');
+		const second = Symbol('second');
+
+		registry.register(second, () => execution.push('second'), { after: first });
+		registry.register(first, () => execution.push('first'), { before: second });
+
+		expect(() => registry.run(createState(registry))).not.toThrow();
+		expect(execution).toEqual(['first', 'second']);
+	});
+
 	it('avoids re-sorting the dependency queue for each newly eligible task', () => {
 		const registry = createFrameRegistry();
 
@@ -179,6 +203,29 @@ describe('frame registry', () => {
 
 		registry.run(createState(registry));
 
+		expect(execution).toEqual(['early', 'late']);
+	});
+
+	it('deduplicates the same stage edge declared through before and after', () => {
+		const registry = createFrameRegistry();
+		const execution: string[] = [];
+
+		registry.createStage('early', {
+			before: 'late',
+			callback: (_state, runTasks) => {
+				execution.push('early');
+				runTasks();
+			}
+		});
+		registry.createStage('late', {
+			after: 'early',
+			callback: (_state, runTasks) => {
+				execution.push('late');
+				runTasks();
+			}
+		});
+
+		expect(() => registry.run(createState(registry))).not.toThrow();
 		expect(execution).toEqual(['early', 'late']);
 	});
 

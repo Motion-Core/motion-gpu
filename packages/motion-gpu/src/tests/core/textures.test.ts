@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	assertTextureDimensionsWithinLimit,
 	getTextureMipLevelCount,
 	isVideoTextureSource,
 	normalizeTextureDefinition,
@@ -116,14 +117,38 @@ describe('textures', () => {
 	it('throws on invalid texture dimensions', () => {
 		const canvas = document.createElement('canvas');
 		expect(() => resolveTextureSize({ source: canvas, width: 0, height: 0 })).toThrow(
-			/Texture source must have positive width and height/
+			/Texture source width must be a finite positive integer/
 		);
+		for (const invalid of [
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			Number.NEGATIVE_INFINITY,
+			1.5,
+			-1
+		]) {
+			expect(() => resolveTextureSize({ source: canvas, width: invalid, height: 1 })).toThrow(
+				/finite positive integer/
+			);
+		}
 	});
 
 	it('computes mip level count for texture sizes', () => {
 		expect(getTextureMipLevelCount(1, 1)).toBe(1);
 		expect(getTextureMipLevelCount(16, 16)).toBe(5);
 		expect(getTextureMipLevelCount(1024, 512)).toBe(11);
+		expect(() => getTextureMipLevelCount(Number.POSITIVE_INFINITY, 16)).toThrow(
+			/finite positive integer/
+		);
+		expect(() => getTextureMipLevelCount(16.5, 16)).toThrow(/finite positive integer/);
+	});
+
+	it('rejects texture dimensions above the active device limit', () => {
+		expect(() =>
+			assertTextureDimensionsWithinLimit(8192, 4096, 8192, 'Texture "large"')
+		).not.toThrow();
+		expect(() => assertTextureDimensionsWithinLimit(8193, 4096, 8192, 'Texture "large"')).toThrow(
+			/Texture "large" dimensions 8193x4096 exceed device\.limits\.maxTextureDimension2D \(8192\)/
+		);
 	});
 
 	it('detects video texture sources', () => {
@@ -254,6 +279,29 @@ describe('textures', () => {
 		expect(normalizeTextureDefinition({ anisotropy: 1.1 }).anisotropy).toBe(1);
 	});
 
+	it('rejects non-finite anisotropy and invalid runtime enum values', () => {
+		expect(() => normalizeTextureDefinition({ anisotropy: Number.NaN })).toThrow(
+			/anisotropy must be a finite number/
+		);
+		expect(() =>
+			normalizeTextureDefinition({ filter: 'cubic' as unknown as GPUFilterMode })
+		).toThrow(/Texture filter must be one of nearest, linear/);
+		expect(() =>
+			normalizeTextureDefinition({ format: 'rgba999unorm' as unknown as GPUTextureFormat })
+		).toThrow(/not a recognized GPUTextureFormat/);
+		expect(() =>
+			normalizeTextureDefinition({
+				addressModeU: 'invalid' as unknown as GPUAddressMode
+			})
+		).toThrow(/Texture addressModeU must be one of/);
+		expect(() =>
+			resolveTextureUpdateMode({
+				source: document.createElement('canvas'),
+				override: 'invalid' as never
+			})
+		).toThrow(/Texture update override must be one of/);
+	});
+
 	it('resolves texture size from naturalWidth/naturalHeight (image-like source)', () => {
 		const img = { naturalWidth: 200, naturalHeight: 100 };
 		expect(resolveTextureSize({ source: img as unknown as TextureSource })).toEqual({
@@ -278,7 +326,7 @@ describe('textures', () => {
 
 	it('throws on source with no dimension properties', () => {
 		expect(() => resolveTextureSize({ source: {} as unknown as TextureSource })).toThrow(
-			/positive width and height/
+			/finite positive integer/
 		);
 	});
 });

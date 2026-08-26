@@ -1,17 +1,29 @@
-import { PLAYGROUND_PREVIEW_CHANNEL } from '$lib/playground-engine/preview/protocol';
+import {
+	PLAYGROUND_PREVIEW_CHANNEL,
+	PLAYGROUND_PREVIEW_SANDBOX
+} from '$lib/playground-engine/preview/protocol';
 import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
 import type { RequestHandler } from './$types';
 
 export const prerender = false;
 
-const toSafeOrigin = (value: string | null) => {
+const PREVIEW_SESSION_ID = /^[A-Za-z0-9_-]{1,120}$/;
+
+/**
+ * Parses an HTTP(S) origin and rejects missing values or other URL schemes.
+ */
+function toSafeOrigin(value: string | null): string {
 	if (!value) return '';
 	try {
-		return new URL(value).origin;
+		const url = new URL(value);
+		if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+			return '';
+		}
+		return url.origin;
 	} catch {
 		return '';
 	}
-};
+}
 
 type PreviewTheme = 'light' | 'dark';
 
@@ -44,14 +56,19 @@ body {
 }`;
 };
 
+/**
+ * Builds the isolated preview document with session-bound parent messaging.
+ */
 const buildEmbedHtml = ({
 	sessionId,
 	parentOrigin,
-	initialStyle
+	initialStyle,
+	nonce
 }: {
 	sessionId: string;
 	parentOrigin: string;
 	initialStyle: string;
+	nonce: string;
 }) => `<!doctype html>
 <html lang="en">
 	<head>
@@ -60,8 +77,12 @@ const buildEmbedHtml = ({
 		<style id="injected">${initialStyle}</style>
 	</head>
 	<body>
-		<script>
+		<script nonce="${nonce}">
 			(() => {
+				if (self.origin !== 'null') {
+					throw new Error('Playground preview requires an opaque origin.');
+				}
+
 				const CHANNEL = ${JSON.stringify(PLAYGROUND_PREVIEW_CHANNEL)};
 				const SESSION_ID = ${JSON.stringify(sessionId)};
 				const ALLOWED_PARENT_ORIGIN = ${JSON.stringify(parentOrigin)};
@@ -171,20 +192,76 @@ const buildEmbedHtml = ({
 </html>
 `;
 
+/**
+ * Builds the preview CSP around its per-response script nonce and parent origin.
+ */
+function buildContentSecurityPolicy(nonce: string, parentOrigin: string): string {
+	return [
+		"default-src 'none'",
+		"base-uri 'none'",
+		"object-src 'none'",
+		`sandbox ${PLAYGROUND_PREVIEW_SANDBOX}`,
+		`script-src 'nonce-${nonce}' 'unsafe-eval'`,
+		"style-src 'unsafe-inline'",
+		'img-src data: blob: https: http:',
+		'media-src data: blob: https: http:',
+		'font-src data: blob: https: http:',
+		'connect-src data: blob: https: http: wss: ws:',
+		'worker-src blob:',
+		'child-src blob:',
+		"form-action 'none'",
+		`frame-ancestors ${parentOrigin}`
+	].join('; ');
+}
+
+/**
+ * Creates a non-cacheable plain-text response for invalid preview parameters.
+ */
+function badRequest(message: string): Response {
+	return new Response(message, {
+		status: 400,
+		headers: {
+			'Content-Type': 'text/plain; charset=utf-8',
+			'Cache-Control': 'no-store',
+			'X-Content-Type-Options': 'nosniff'
+		}
+	});
+}
+
+/**
+ * Serves a session-bound sandbox document after validating its parent origin.
+ */
 export const GET: RequestHandler = async ({ url }) => {
-	const sessionId = (url.searchParams.get('session') ?? '').slice(0, 120);
+	const sessionId = url.searchParams.get('session') ?? '';
 	const parentOrigin = toSafeOrigin(url.searchParams.get('parent_origin'));
+	if (!PREVIEW_SESSION_ID.test(sessionId)) {
+		return badRequest('A valid preview session is required.');
+	}
+	if (!parentOrigin) {
+		return badRequest('A valid HTTP(S) parent_origin is required.');
+	}
+	if (parentOrigin !== url.origin) {
+		return badRequest('parent_origin must match the preview endpoint origin.');
+	}
+
 	const theme = toPreviewTheme(url.searchParams.get('theme'));
+	const nonce = crypto.randomUUID().replaceAll('-', '');
 	const html = buildEmbedHtml({
 		sessionId,
 		parentOrigin,
-		initialStyle: buildInitialStyle(theme)
+		initialStyle: buildInitialStyle(theme),
+		nonce
 	});
 
 	return new Response(html, {
 		headers: {
 			'Content-Type': 'text/html; charset=utf-8',
 			'Cache-Control': 'no-store',
+			'Content-Security-Policy': buildContentSecurityPolicy(nonce, parentOrigin),
+			'Permissions-Policy':
+				'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+			'Referrer-Policy': 'no-referrer',
+			'Cross-Origin-Resource-Policy': 'cross-origin',
 			'X-Content-Type-Options': 'nosniff'
 		}
 	});

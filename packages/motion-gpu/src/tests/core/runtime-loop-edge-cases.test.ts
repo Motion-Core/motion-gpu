@@ -290,6 +290,44 @@ describe('runtime-loop edge cases', () => {
 		loop.destroy();
 	});
 
+	it('discards writes queued earlier in a frame when a later task throws', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		let queued = false;
+		let shouldThrow = true;
+		registry.register('queue-write', (state) => {
+			if (!queued) {
+				queued = true;
+				state.writeStorageBuffer('particles', new Uint8Array(4));
+			}
+		});
+		registry.register('throw-after-write', () => {
+			if (shouldThrow) {
+				throw new Error('later task failed');
+			}
+		});
+		const renderer = createRenderer();
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createMotionGPURuntimeLoop(baseOptions(registry, material, { reportError }));
+
+		await flushFrame(16);
+		await flushFrame(32);
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(renderer.flushStorageWrites).not.toHaveBeenCalled();
+
+		shouldThrow = false;
+		loop.invalidate();
+		await flushFrame(48);
+		expect(renderer.flushStorageWrites).not.toHaveBeenCalled();
+
+		loop.destroy();
+	});
+
 	// -------------------------------------------------------------------------
 	// setUniform / setTexture validation
 	// -------------------------------------------------------------------------

@@ -14,6 +14,8 @@ import {
 } from './error-diagnostics.js';
 import { attachMotionGPUErrorContext, createMotionGPUError } from './error-report.js';
 import {
+	assertTextureDimensionsWithinLimit,
+	assertTextureFormat,
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
 	resolveTextureSamplingLayout,
@@ -219,7 +221,11 @@ interface RuntimePingPongShaderPass {
 
 const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
 const COMPUTE_DISPATCH_AXES = ['x', 'y', 'z'] as const;
+const DEFAULT_MAX_TEXTURE_DIMENSION_2D = 8192;
 
+/**
+ * Formats an invalid compute dispatch value for deterministic diagnostics.
+ */
 function formatComputeDispatchValue(value: unknown): string {
 	if (value === undefined) {
 		return 'undefined';
@@ -238,6 +244,9 @@ function formatComputeDispatchValue(value: unknown): string {
 	}
 }
 
+/**
+ * Reads the compute workgroup limit with a fallback for partial or mocked devices.
+ */
 function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
 	const max = (device.limits as GPUSupportedLimits | undefined)?.maxComputeWorkgroupsPerDimension;
 	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
@@ -247,6 +256,33 @@ function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
 	return DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION;
 }
 
+/**
+ * Reads the device 2D texture limit with a fallback for partial or mocked devices.
+ */
+function getMaxTextureDimension2D(device: GPUDevice): number {
+	const max = (device.limits as GPUSupportedLimits | undefined)?.maxTextureDimension2D;
+	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
+		return Math.floor(max);
+	}
+
+	return DEFAULT_MAX_TEXTURE_DIMENSION_2D;
+}
+
+/**
+ * Checks a planned texture size against the active device before GPU allocation.
+ */
+function assertTextureAllocationSize(
+	device: GPUDevice,
+	width: number,
+	height: number,
+	label: string
+): void {
+	assertTextureDimensionsWithinLimit(width, height, getMaxTextureDimension2D(device), label);
+}
+
+/**
+ * Reads a positive integer device limit or returns the supplied compatibility fallback.
+ */
 function getPositiveDeviceLimit(
 	device: GPUDevice,
 	name: keyof ComputeResourceResolverLimits,
@@ -258,6 +294,9 @@ function getPositiveDeviceLimit(
 		: fallback;
 }
 
+/**
+ * Captures the device limits used while validating compute resource bindings.
+ */
 function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceResolverLimits {
 	return {
 		maxBindingsPerBindGroup: getPositiveDeviceLimit(device, 'maxBindingsPerBindGroup', 1000),
@@ -285,6 +324,9 @@ function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceRes
 	};
 }
 
+/**
+ * Resolves and validates a three-axis dispatch tuple against the active device limit.
+ */
 function validateComputeDispatch(
 	dispatch: unknown,
 	maxWorkgroupsPerDimension: number,
@@ -578,6 +620,9 @@ async function assertComputeCompilationAsync(input: {
 	});
 }
 
+/**
+ * Summarizes enabled pass inputs and outputs for shader compilation diagnostics.
+ */
 function buildPassGraphSnapshot(
 	passes: AnyPass[] | undefined
 ): NonNullable<ShaderCompilationRuntimeContext['passGraph']> {
@@ -617,6 +662,9 @@ function buildPassGraphSnapshot(
 	};
 }
 
+/**
+ * Captures render targets and pass topology at shader compilation time.
+ */
 function buildShaderCompilationRuntimeContext(
 	options: RendererOptions
 ): ShaderCompilationRuntimeContext {
@@ -950,6 +998,8 @@ function createRenderTexture(
 	height: number,
 	format: GPUTextureFormat
 ): RuntimeRenderTarget {
+	assertTextureFormat(format, 'Render target');
+	assertTextureAllocationSize(device, width, height, 'Render target');
 	const texture = device.createTexture({
 		size: { width, height, depthOrArrayLayers: 1 },
 		format,
@@ -1259,6 +1309,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				if (!config.width || !config.height) {
 					throw new Error(`Storage texture "${key}" requires explicit positive width and height.`);
 				}
+				assertTextureAllocationSize(device, config.width, config.height, `Texture "${key}"`);
 				const storageUsage =
 					GPUTextureUsage.TEXTURE_BINDING |
 					GPUTextureUsage.STORAGE_BINDING |
@@ -1557,6 +1608,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					`PingPongComputePass resource "${logicalId}" requires explicit texture width and height.`
 				);
 			}
+			assertTextureAllocationSize(
+				device,
+				config.width,
+				config.height,
+				`PingPongComputePass resource "${logicalId}"`
+			);
 
 			const usage =
 				GPUTextureUsage.TEXTURE_BINDING |
@@ -1628,6 +1685,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			if (existing) {
 				destroyPingPongShaderTexturePair(existing);
 			}
+
+			assertTextureAllocationSize(
+				device,
+				options.width,
+				options.height,
+				`PingPongShaderPass target "${options.target}"`
+			);
 
 			const usage =
 				GPUTextureUsage.TEXTURE_BINDING |
@@ -2356,6 +2420,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				...(binding.defaultUpdate !== undefined ? { defaultMode: binding.defaultUpdate } : {})
 			});
 			const { width, height } = resolveTextureSize(nextData);
+			assertTextureAllocationSize(device, width, height, `Texture "${binding.key}"`);
 			const mipLevelCount = generateMipmaps ? getTextureMipLevelCount(width, height) : 1;
 			const sourceChanged = binding.source !== source;
 			const tokenChanged = binding.lastToken !== value;

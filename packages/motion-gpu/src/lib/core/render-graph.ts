@@ -92,10 +92,43 @@ interface ComputeDependencyEdge {
 	access: ResolvedComputeAccess;
 }
 
-function logicalResourceMapKey(access: ResolvedComputeAccess): string | symbol {
-	return access.logicalId;
+/**
+ * Returns the concrete resource identity used to relate logical aliases.
+ */
+function physicalResourceMapKey(access: ResolvedComputeAccess): object | string | symbol {
+	return access.physicalId;
 }
 
+/**
+ * Reports whether two accesses may touch the same texture subresource.
+ * Non-texture and unspecified ranges overlap conservatively.
+ */
+function textureSubresourcesOverlap(
+	left: ResolvedComputeAccess,
+	right: ResolvedComputeAccess
+): boolean {
+	if (left.resourceKind !== 'texture' || right.resourceKind !== 'texture') {
+		return true;
+	}
+	if (!left.subresource || !right.subresource) {
+		return true;
+	}
+
+	const leftMipEnd = left.subresource.baseMipLevel + left.subresource.mipLevelCount;
+	const rightMipEnd = right.subresource.baseMipLevel + right.subresource.mipLevelCount;
+	const leftLayerEnd = left.subresource.baseArrayLayer + left.subresource.arrayLayerCount;
+	const rightLayerEnd = right.subresource.baseArrayLayer + right.subresource.arrayLayerCount;
+	return (
+		left.subresource.baseMipLevel < rightMipEnd &&
+		right.subresource.baseMipLevel < leftMipEnd &&
+		left.subresource.baseArrayLayer < rightLayerEnd &&
+		right.subresource.baseArrayLayer < leftLayerEnd
+	);
+}
+
+/**
+ * Formats a logical compute resource for actionable graph diagnostics.
+ */
 function formatLogicalResource(access: ResolvedComputeAccess): string {
 	const id =
 		typeof access.logicalId === 'symbol'
@@ -104,26 +137,34 @@ function formatLogicalResource(access: ResolvedComputeAccess): string {
 	return `${access.resourceKind} "${id}"`;
 }
 
+/**
+ * Orders a compute segment by physical hazards while preserving stable source order.
+ */
 function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGraphStep[] {
 	if (segment.length < 2) return segment;
-	const textureWriters = new Map<string | symbol, number>();
-	const bufferWriters = new Map<string | symbol, number>();
+	type Writer = { index: number; access: ResolvedComputeAccess };
+	const textureWriters = new Map<object | string | symbol, Writer[]>();
+	const bufferWriters = new Map<object | string | symbol, Writer[]>();
 
 	for (let index = 0; index < segment.length; index += 1) {
 		const step = segment[index];
 		if (!step?.resolvedResources) continue;
 		for (const access of step.resolvedResources.writes) {
 			const writers = access.resourceKind === 'texture' ? textureWriters : bufferWriters;
-			const logicalId = logicalResourceMapKey(access);
-			const previous = writers.get(logicalId);
-			if (previous !== undefined && previous !== index) {
-				const previousStep = segment[previous];
+			const physicalId = physicalResourceMapKey(access);
+			const resourceWriters = writers.get(physicalId) ?? [];
+			const previous = resourceWriters.find(
+				(writer) => writer.index !== index && textureSubresourcesOverlap(writer.access, access)
+			);
+			if (previous) {
+				const previousStep = segment[previous.index];
 				throw createMotionGPUError(
 					'COMPUTE_GRAPH_MULTIPLE_WRITERS',
-					`Compute graph has multiple writers for ${formatLogicalResource(access)}: ${previousStep?.computeLabel ?? `compute pass #${previous}`} and ${step.computeLabel ?? `compute pass #${index}`} (alias "${access.alias}").`
+					`Compute graph has multiple writers for ${formatLogicalResource(access)}: ${previousStep?.computeLabel ?? `compute pass #${previous.index}`} and ${step.computeLabel ?? `compute pass #${index}`} (alias "${access.alias}").`
 				);
 			}
-			writers.set(logicalId, index);
+			resourceWriters.push({ index, access });
+			writers.set(physicalId, resourceWriters);
 		}
 	}
 
@@ -142,12 +183,14 @@ function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGrap
 		if (!resources) continue;
 		for (const access of resources.reads) {
 			const writers = access.resourceKind === 'texture' ? textureWriters : bufferWriters;
-			const writerIndex = writers.get(logicalResourceMapKey(access));
-			if (writerIndex === undefined) continue;
-			if (access.version === 'initial') {
-				addEdge(readerIndex, writerIndex, access);
-			} else {
-				addEdge(writerIndex, readerIndex, access);
+			const resourceWriters = writers.get(physicalResourceMapKey(access)) ?? [];
+			for (const writer of resourceWriters) {
+				if (!textureSubresourcesOverlap(writer.access, access)) continue;
+				if (access.version === 'initial') {
+					addEdge(readerIndex, writer.index, access);
+				} else {
+					addEdge(writer.index, readerIndex, access);
+				}
 			}
 		}
 	}
@@ -195,6 +238,9 @@ function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGrap
 	return ordered;
 }
 
+/**
+ * Reorders only contiguous compute blocks, leaving render-pass boundaries fixed.
+ */
 function planComputeSegments(preSceneSteps: RenderGraphStep[]): RenderGraphStep[] {
 	const ordered: RenderGraphStep[] = [];
 	let segment: RenderGraphStep[] = [];

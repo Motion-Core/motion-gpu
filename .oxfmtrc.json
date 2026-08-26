@@ -20,6 +20,7 @@
 		"**/dist/",
 		"packages/motion-gpu/benchmarks/results/",
 		"packages/motion-gpu/coverage/",
-		"packages/motion-gpu/test-results/"
+		"packages/motion-gpu/test-results/",
+		"apps/web/test-results/"
 	]
 }

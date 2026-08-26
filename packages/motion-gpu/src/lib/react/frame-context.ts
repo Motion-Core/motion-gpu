@@ -1,26 +1,22 @@
 import { createContext, useContext, useEffect, useRef } from 'react';
 import { createCurrentWritable } from '../core/current-value.js';
 import { useMotionGPU } from './motiongpu-context.js';
-import type {
-	FrameCallback,
-	FrameKey,
-	FrameProfilingSnapshot,
-	FrameRegistry,
-	FrameRunTimings,
-	FrameScheduleSnapshot,
-	FrameStage,
-	FrameStageCallback,
-	FrameTask,
-	FrameTaskInvalidation,
-	FrameTaskInvalidationToken,
-	UseFrameOptions,
-	UseFrameResult
+import {
+	resolveFrameTaskStage,
+	type FrameCallback,
+	type FrameKey,
+	type FrameProfilingSnapshot,
+	type FrameRegistry,
+	type FrameRunTimings,
+	type FrameScheduleSnapshot,
+	type FrameStage,
+	type FrameStageCallback,
+	type FrameTask,
+	type FrameTaskInvalidation,
+	type FrameTaskInvalidationToken,
+	type UseFrameOptions,
+	type UseFrameResult
 } from '../core/frame-registry.js';
-
-/**
- * Placeholder stage used before a frame task registration becomes available.
- */
-const PENDING_STAGE_KEY = Symbol('motiongpu-react-pending-stage');
 
 /**
  * React context container for the active frame registry.
@@ -98,13 +94,17 @@ export function useFrame(
 	const callbackRef = useRef(resolved.callback);
 	callbackRef.current = resolved.callback;
 	const registrationConfigRef = useRef<{
-		key: FrameKey | undefined;
+		task: FrameTask;
 		options: UseFrameOptions | undefined;
 	} | null>(null);
 	if (!registrationConfigRef.current) {
+		const options = resolved.options;
 		registrationConfigRef.current = {
-			key: resolved.key,
-			options: resolved.options
+			task: {
+				key: resolved.key ?? Symbol('motiongpu-react-task'),
+				stage: resolveFrameTaskStage(options)
+			},
+			options
 		};
 	}
 	const registrationConfig = registrationConfigRef.current;
@@ -116,13 +116,6 @@ export function useFrame(
 		started: UseFrameResult['started'];
 		unsubscribe: () => void;
 	} | null>(null);
-	const taskRef = useRef<FrameTask>({
-		key:
-			registrationConfig.key !== undefined
-				? registrationConfig.key
-				: Symbol('motiongpu-react-pending-task-key'),
-		stage: PENDING_STAGE_KEY
-	});
 	const startedStoreRef = useRef(createCurrentWritable(false));
 	const startedStore = startedStoreRef.current;
 
@@ -130,12 +123,13 @@ export function useFrame(
 		const wrappedCallback: FrameCallback = (state) => {
 			callbackRef.current(state);
 		};
-		const registration =
-			registrationConfig.key === undefined
-				? registry.register(wrappedCallback, registrationConfig.options)
-				: registry.register(registrationConfig.key, wrappedCallback, registrationConfig.options);
+		const registration = registry.register(
+			registrationConfig.task.key,
+			wrappedCallback,
+			registrationConfig.options
+		);
 		registrationRef.current = registration;
-		taskRef.current = registration.task;
+		registrationConfig.task.stage = registration.task.stage;
 		const unsubscribeStarted = registration.started.subscribe((value) => {
 			startedStore.set(value);
 		});
@@ -155,9 +149,7 @@ export function useFrame(
 	}, [motiongpu, resolved.callback]);
 
 	return {
-		get task() {
-			return taskRef.current;
-		},
+		task: registrationConfig.task,
 		start: () => {
 			registrationRef.current?.start();
 		},

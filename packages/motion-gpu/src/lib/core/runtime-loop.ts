@@ -50,12 +50,18 @@ export interface MotionGPURuntimeLoop {
 	destroy: () => void;
 }
 
+/**
+ * Applies capped exponential backoff between renderer initialization attempts.
+ */
 function getRendererRetryDelayMs(attempt: number): number {
 	return Math.min(8000, 250 * 2 ** Math.max(0, attempt - 1));
 }
 
 const ERROR_CLEAR_GRACE_MS = 750;
 
+/**
+ * Enforces the offset and byte-length requirements of WebGPU queue writes.
+ */
 function assertStorageWriteAlignment(name: string, data: ArrayBufferView, offset: number): void {
 	if (!ArrayBuffer.isView(data)) {
 		throw new Error(`Storage buffer "${name}" write data must be an ArrayBufferView.`);
@@ -77,6 +83,9 @@ function assertStorageWriteAlignment(name: string, data: ArrayBufferView, offset
 	}
 }
 
+/**
+ * Creates the frame loop that coordinates sizing, scheduling, renderer lifecycle, and recovery.
+ */
 export function createMotionGPURuntimeLoop(
 	options: MotionGPURuntimeLoopOptions
 ): MotionGPURuntimeLoop {
@@ -661,6 +670,7 @@ export function createMotionGPURuntimeLoop(
 				shouldContinueAfterFrame = true;
 			}
 		} finally {
+			pendingStorageWrites.length = 0;
 			registry.endFrame();
 		}
 
@@ -696,6 +706,7 @@ export function createMotionGPURuntimeLoop(
 				frameId = null;
 			}
 			clearRetryTimer();
+			pendingStorageWrites.length = 0;
 			renderer?.destroy();
 			registry.clear();
 		}

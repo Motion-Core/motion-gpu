@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { PlaygroundController } from '../playground-controller.svelte';
+	import { PLAYGROUND_PREVIEW_SANDBOX } from '$lib/playground-engine/preview/protocol';
 
 	let {
 		controller,
@@ -30,7 +31,7 @@
 				src={controller.previewUrl}
 				class="h-full w-full overflow-hidden rounded-[calc(var(--radius-base)*2.5)]"
 				loading="eager"
-				sandbox="allow-scripts allow-forms allow-modals allow-popups allow-same-origin"
+				sandbox={PLAYGROUND_PREVIEW_SANDBOX}
 				referrerpolicy="no-referrer"
 			></iframe>
 		{/key}

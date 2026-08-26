@@ -12,7 +12,7 @@ const request = (query: string) =>
 describe('playground preview endpoint', () => {
 	it('returns an isolated preview document with nonce-bound security headers', async () => {
 		const response = await request(
-			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fmotion-gpu.dev&theme=dark'
+			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fpreview.motion-gpu.dev&theme=dark'
 		);
 		const html = await response.text();
 		const nonce = html.match(/<script nonce="([a-f0-9]+)">/)?.[1];
@@ -23,7 +23,7 @@ describe('playground preview endpoint', () => {
 			`script-src 'nonce-${nonce}' 'unsafe-eval'`
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
-			'frame-ancestors https://motion-gpu.dev'
+			'frame-ancestors https://preview.motion-gpu.dev'
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
 			'sandbox allow-scripts allow-popups'
@@ -44,7 +44,8 @@ describe('playground preview endpoint', () => {
 			'session=%3C%2Fscript%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E&parent_origin=https%3A%2F%2Fmotion-gpu.dev'
 		],
 		['missing parent', 'session=valid-session'],
-		['non-HTTP parent', 'session=valid-session&parent_origin=javascript%3Aalert(1)']
+		['non-HTTP parent', 'session=valid-session&parent_origin=javascript%3Aalert(1)'],
+		['cross-origin parent', 'session=valid-session&parent_origin=https%3A%2F%2Fexternal.example']
 	])('rejects %s', async (_label, query) => {
 		const response = await request(query);
 

@@ -240,6 +240,9 @@ export const GET: RequestHandler = async ({ url }) => {
 	if (!parentOrigin) {
 		return badRequest('A valid HTTP(S) parent_origin is required.');
 	}
+	if (parentOrigin !== url.origin) {
+		return badRequest('parent_origin must match the preview endpoint origin.');
+	}
 
 	const theme = toPreviewTheme(url.searchParams.get('theme'));
 	const nonce = crypto.randomUUID().replaceAll('-', '');

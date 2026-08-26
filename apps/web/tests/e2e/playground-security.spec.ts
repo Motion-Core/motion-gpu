@@ -9,7 +9,7 @@ test('isolates preview storage and DOM while keeping the message protocol operat
 }) => {
 	await page.goto('/');
 	await page.evaluate(() => {
-		document.cookie = 'motion_gpu_parent_secret=cookie-value; path=/';
+		document.cookie = 'motion_gpu_parent_secret=cookie-value; path=/; Secure; SameSite=Strict';
 		localStorage.setItem('motion-gpu-parent-secret', 'storage-value');
 	});
 

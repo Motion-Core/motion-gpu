@@ -25,6 +25,9 @@ describe('playground preview endpoint', () => {
 		expect(response.headers.get('content-security-policy')).toContain(
 			'frame-ancestors https://motion-gpu.dev'
 		);
+		expect(response.headers.get('content-security-policy')).toContain(
+			'sandbox allow-scripts allow-popups'
+		);
 		expect(response.headers.get('permissions-policy')).toContain('camera=()');
 		expect(response.headers.get('referrer-policy')).toBe('no-referrer');
 		expect(response.headers.get('cross-origin-resource-policy')).toBe('cross-origin');

@@ -74,6 +74,9 @@ test('isolates preview storage and DOM while keeping the message protocol operat
 	expect(embedResponse.status()).toBe(200);
 	expect(embedResponse.headers()['content-security-policy']).toContain("script-src 'nonce-");
 	expect(embedResponse.headers()['content-security-policy']).toContain(
+		'sandbox allow-scripts allow-popups'
+	);
+	expect(embedResponse.headers()['content-security-policy']).toContain(
 		'frame-ancestors http://127.0.0.1:4178'
 	);
 	expect(embedResponse.headers()['permissions-policy']).toContain('camera=()');

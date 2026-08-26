@@ -193,6 +193,7 @@ function buildContentSecurityPolicy(nonce: string, parentOrigin: string): string
 		"default-src 'none'",
 		"base-uri 'none'",
 		"object-src 'none'",
+		'sandbox allow-scripts allow-popups',
 		`script-src 'nonce-${nonce}' 'unsafe-eval'`,
 		"style-src 'unsafe-inline'",
 		'img-src data: blob: https: http:',

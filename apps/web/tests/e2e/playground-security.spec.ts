@@ -4,6 +4,80 @@ type AccessResult =
 	| { ok: true; value: unknown }
 	| { ok: false; errorName: string; message: string };
 
+test('enforces an opaque origin from response CSP without an iframe sandbox attribute', async ({
+	page
+}) => {
+	await page.goto('/');
+	const previewUrl = new URL('/playground/embed', page.url());
+	previewUrl.searchParams.set('session', 'response-sandbox-probe');
+	previewUrl.searchParams.set('parent_origin', new URL(page.url()).origin);
+
+	const result = await page.evaluate(
+		(src) =>
+			new Promise<{
+				sandboxAttribute: string | null;
+				messageOrigin: string;
+				parentDocument: AccessResult;
+			}>((resolve, reject) => {
+				const probe = document.createElement('iframe');
+				probe.src = src;
+				let timeoutId = 0;
+
+				function cleanup() {
+					window.clearTimeout(timeoutId);
+					window.removeEventListener('message', onMessage);
+					probe.remove();
+				}
+
+				function onMessage(event: MessageEvent) {
+					const data: unknown = event.data;
+					if (
+						event.source !== probe.contentWindow ||
+						typeof data !== 'object' ||
+						data === null ||
+						!('action' in data) ||
+						data.action !== 'ready'
+					) {
+						return;
+					}
+
+					let parentDocument: AccessResult;
+					try {
+						parentDocument = {
+							ok: true,
+							value: Boolean(probe.contentWindow?.document.body)
+						};
+					} catch (error) {
+						parentDocument = {
+							ok: false,
+							errorName: error instanceof Error ? error.name : 'UnknownError',
+							message: error instanceof Error ? error.message : String(error)
+						};
+					}
+
+					const sandboxAttribute = probe.getAttribute('sandbox');
+					cleanup();
+					resolve({ sandboxAttribute, messageOrigin: event.origin, parentDocument });
+				}
+
+				window.addEventListener('message', onMessage);
+				timeoutId = window.setTimeout(() => {
+					cleanup();
+					reject(new Error('Response-sandboxed preview did not become ready.'));
+				}, 10_000);
+				document.body.append(probe);
+			}),
+		previewUrl.toString()
+	);
+
+	expect(result.sandboxAttribute).toBeNull();
+	expect(result.messageOrigin).toBe('null');
+	expect(result.parentDocument.ok).toBe(false);
+	if (!result.parentDocument.ok) {
+		expect(result.parentDocument.errorName).toBe('SecurityError');
+	}
+});
+
 test('isolates preview storage and DOM while keeping the message protocol operational', async ({
 	page
 }) => {

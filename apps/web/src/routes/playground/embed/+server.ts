@@ -1,4 +1,7 @@
-import { PLAYGROUND_PREVIEW_CHANNEL } from '$lib/playground-engine/preview/protocol';
+import {
+	PLAYGROUND_PREVIEW_CHANNEL,
+	PLAYGROUND_PREVIEW_SANDBOX
+} from '$lib/playground-engine/preview/protocol';
 import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
 import type { RequestHandler } from './$types';
 
@@ -193,7 +196,7 @@ function buildContentSecurityPolicy(nonce: string, parentOrigin: string): string
 		"default-src 'none'",
 		"base-uri 'none'",
 		"object-src 'none'",
-		'sandbox allow-scripts allow-popups',
+		`sandbox ${PLAYGROUND_PREVIEW_SANDBOX}`,
 		`script-src 'nonce-${nonce}' 'unsafe-eval'`,
 		"style-src 'unsafe-inline'",
 		'img-src data: blob: https: http:',

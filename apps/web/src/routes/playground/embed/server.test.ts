@@ -33,6 +33,8 @@ describe('playground preview endpoint', () => {
 		expect(response.headers.get('cross-origin-resource-policy')).toBe('cross-origin');
 		expect(response.headers.get('cache-control')).toBe('no-store');
 		expect(html).toContain('color-scheme: dark');
+		expect(html).toContain("if (self.origin !== 'null')");
+		expect(html).toContain('Playground preview requires an opaque origin.');
 	});
 
 	it.each([

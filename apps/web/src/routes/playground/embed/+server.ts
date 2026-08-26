@@ -79,6 +79,10 @@ const buildEmbedHtml = ({
 	<body>
 		<script nonce="${nonce}">
 			(() => {
+				if (self.origin !== 'null') {
+					throw new Error('Playground preview requires an opaque origin.');
+				}
+
 				const CHANNEL = ${JSON.stringify(PLAYGROUND_PREVIEW_CHANNEL)};
 				const SESSION_ID = ${JSON.stringify(sessionId)};
 				const ALLOWED_PARENT_ORIGIN = ${JSON.stringify(parentOrigin)};

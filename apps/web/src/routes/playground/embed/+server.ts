@@ -9,7 +9,7 @@ const PREVIEW_SESSION_ID = /^[A-Za-z0-9_-]{1,120}$/;
 /**
  * Parses an HTTP(S) origin and rejects missing values or other URL schemes.
  */
-const toSafeOrigin = (value: string | null) => {
+function toSafeOrigin(value: string | null): string {
 	if (!value) return '';
 	try {
 		const url = new URL(value);
@@ -20,7 +20,7 @@ const toSafeOrigin = (value: string | null) => {
 	} catch {
 		return '';
 	}
-};
+}
 
 type PreviewTheme = 'light' | 'dark';
 
@@ -188,8 +188,8 @@ const buildEmbedHtml = ({
 /**
  * Builds the preview CSP around its per-response script nonce and parent origin.
  */
-const buildContentSecurityPolicy = (nonce: string, parentOrigin: string) =>
-	[
+function buildContentSecurityPolicy(nonce: string, parentOrigin: string): string {
+	return [
 		"default-src 'none'",
 		"base-uri 'none'",
 		"object-src 'none'",
@@ -204,12 +204,13 @@ const buildContentSecurityPolicy = (nonce: string, parentOrigin: string) =>
 		"form-action 'none'",
 		`frame-ancestors ${parentOrigin}`
 	].join('; ');
+}
 
 /**
  * Creates a non-cacheable plain-text response for invalid preview parameters.
  */
-const badRequest = (message: string) =>
-	new Response(message, {
+function badRequest(message: string): Response {
+	return new Response(message, {
 		status: 400,
 		headers: {
 			'Content-Type': 'text/plain; charset=utf-8',
@@ -217,6 +218,7 @@ const badRequest = (message: string) =>
 			'X-Content-Type-Options': 'nosniff'
 		}
 	});
+}
 
 /**
  * Serves a session-bound sandbox document after validating its parent origin.

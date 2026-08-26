@@ -7,19 +7,13 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ## [Unreleased]
 
-## [0.15.1] - 2026-08-25
-
-### Security
-
-- Isolated playground previews in an opaque-origin iframe sandbox and added nonce-based CSP, strict session and parent-origin validation, and restrictive browser policies to the embed response.
-- Updated the Cloudflare, SvelteKit, and TypeScript ESLint toolchains and pinned SvelteKit's transitive `cookie` dependency to a patched release. The workspace dependency audit now reports no known vulnerabilities.
+## [0.15.1] - 2026-08-26
 
 ### Fixed
 
 - Made current-value notifications deterministic under reentrant writes, subscription changes, and subscriber exceptions without leaving the store in a stuck flush state.
 - Deduplicated frame scheduler dependency edges so equivalent `before` and `after` declarations no longer produce false cycles.
 - Rejected invalid texture dimensions and options before allocation, including non-finite or fractional sizes and dimensions above the device limit.
-- Fixed the Data Mosh playground demo in the opaque preview sandbox by requesting its video asset with CORS in all framework variants.
 - Preserved physical resource identity in compute render graphs when logical aliases collide or share the same underlying GPU resource, while keeping disjoint texture subresources independent.
 - Gave React `useFrame` registrations a stable task identity so dependency refs work before effects run, including registrations without an explicit key.
 - Cleared queued storage-buffer writes after any failed frame so writes cannot leak into a later recovery frame.

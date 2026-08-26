@@ -22,6 +22,11 @@ export interface CurrentWritable<T> extends CurrentReadable<T> {
 
 const NO_PENDING_ERROR = Symbol('motiongpu-current-no-error');
 
+interface PendingValue<T> {
+	value: T;
+	version: number;
+}
+
 /**
  * Creates a writable value with immediate subscription semantics.
  * Accepted writes are delivered FIFO to a subscriber snapshot. `onChange` runs
@@ -32,8 +37,10 @@ export function createCurrentWritable<T>(
 	onChange?: (value: T) => void
 ): CurrentWritable<T> {
 	let current = initialValue;
+	let currentVersion = 0;
 	const subscribers = new Set<(value: T) => void>();
-	const pendingValues: T[] = [];
+	const deliveredVersions = new Map<(value: T) => void, number>();
+	const pendingValues: PendingValue<T>[] = [];
 	let pendingIndex = 0;
 	let isFlushing = false;
 
@@ -46,14 +53,15 @@ export function createCurrentWritable<T>(
 		let firstError: unknown = NO_PENDING_ERROR;
 		try {
 			while (pendingIndex < pendingValues.length) {
-				const value = pendingValues[pendingIndex] as T;
+				const { value, version } = pendingValues[pendingIndex] as PendingValue<T>;
 				pendingIndex += 1;
 
 				const snapshot = Array.from(subscribers);
 				for (const run of snapshot) {
-					if (!subscribers.has(run)) {
+					if (!subscribers.has(run) || (deliveredVersions.get(run) ?? -1) >= version) {
 						continue;
 					}
+					deliveredVersions.set(run, version);
 					try {
 						run(value);
 					} catch (error) {
@@ -87,7 +95,8 @@ export function createCurrentWritable<T>(
 			return;
 		}
 		current = value;
-		pendingValues.push(value);
+		currentVersion += 1;
+		pendingValues.push({ value, version: currentVersion });
 		flush();
 	};
 
@@ -97,14 +106,17 @@ export function createCurrentWritable<T>(
 		},
 		subscribe(run) {
 			subscribers.add(run);
+			deliveredVersions.set(run, currentVersion);
 			try {
 				run(current);
 			} catch (error) {
 				subscribers.delete(run);
+				deliveredVersions.delete(run);
 				throw error;
 			}
 			return () => {
 				subscribers.delete(run);
+				deliveredVersions.delete(run);
 			};
 		},
 		set,

@@ -134,6 +134,28 @@ describe('currentWritable', () => {
 		expect(lateValues).toEqual([1]);
 	});
 
+	it('does not redeliver a queued value received by a late subscriber immediately', () => {
+		const store = createCurrentWritable(0);
+		const lateValues: number[] = [];
+		let subscribed = false;
+
+		store.subscribe((value) => {
+			if (value === 1) {
+				store.set(2);
+			}
+		});
+		store.subscribe((value) => {
+			if (value === 1 && !subscribed) {
+				subscribed = true;
+				store.subscribe((lateValue) => lateValues.push(lateValue));
+			}
+		});
+
+		store.set(1);
+
+		expect(lateValues).toEqual([2]);
+	});
+
 	it('skips a subscriber that is removed during an emission', () => {
 		const store = createCurrentWritable(0);
 		const removedValues: number[] = [];

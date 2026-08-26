@@ -5,6 +5,9 @@ import { useFrame } from '@motion-core/motion-gpu/react';
 // https://mixkit.co/free-stock-video/dancer-under-neon-lights-50431/
 const VIDEO_SOURCE = '/playground-media/data-mosh-neon-dancer.mp4';
 
+/**
+ * Streams decoded video frames into the Data Mosh material with CORS-safe settings.
+ */
 export default function Runtime() {
 	const videoRef = useRef<HTMLVideoElement | null>(null);
 	const lastVideoTime = useRef(0);

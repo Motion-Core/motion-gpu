@@ -250,6 +250,9 @@ function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
 	return DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION;
 }
 
+/**
+ * Reads the device 2D texture limit with a fallback for partial or mocked devices.
+ */
 function getMaxTextureDimension2D(device: GPUDevice): number {
 	const max = (device.limits as GPUSupportedLimits | undefined)?.maxTextureDimension2D;
 	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
@@ -259,6 +262,9 @@ function getMaxTextureDimension2D(device: GPUDevice): number {
 	return DEFAULT_MAX_TEXTURE_DIMENSION_2D;
 }
 
+/**
+ * Checks a planned texture size against the active device before GPU allocation.
+ */
 function assertTextureAllocationSize(
 	device: GPUDevice,
 	width: number,

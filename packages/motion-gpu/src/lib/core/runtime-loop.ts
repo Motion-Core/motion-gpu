@@ -77,6 +77,9 @@ function assertStorageWriteAlignment(name: string, data: ArrayBufferView, offset
 	}
 }
 
+/**
+ * Creates the frame loop that coordinates sizing, scheduling, renderer lifecycle, and recovery.
+ */
 export function createMotionGPURuntimeLoop(
 	options: MotionGPURuntimeLoopOptions
 ): MotionGPURuntimeLoop {

@@ -198,12 +198,18 @@ const TEXTURE_FORMATS: ReadonlySet<string> = new Set([
 	'astc-12x12-unorm-srgb'
 ]);
 
+/**
+ * Validates an optional boolean texture field without applying a default.
+ */
 function assertOptionalBoolean(name: string, value: unknown): void {
 	if (value !== undefined && typeof value !== 'boolean') {
 		throw new Error(`${name} must be a boolean, got ${String(value)}.`);
 	}
 }
 
+/**
+ * Validates a required runtime enum value against its WebGPU allowlist.
+ */
 function assertEnumValue(name: string, value: unknown, allowed: ReadonlySet<string>): void {
 	if (typeof value !== 'string' || !allowed.has(value)) {
 		throw new Error(
@@ -212,12 +218,18 @@ function assertEnumValue(name: string, value: unknown, allowed: ReadonlySet<stri
 	}
 }
 
+/**
+ * Validates an optional runtime enum value when the caller supplied one.
+ */
 function assertOptionalEnumValue(name: string, value: unknown, allowed: ReadonlySet<string>): void {
 	if (value !== undefined) {
 		assertEnumValue(name, value, allowed);
 	}
 }
 
+/**
+ * Validates one concrete texture dimension before size calculations.
+ */
 function assertTextureDimension(name: string, value: number): void {
 	if (!Number.isFinite(value) || !Number.isInteger(value) || value < 1) {
 		throw new Error(`${name} must be a finite positive integer, got ${String(value)}.`);

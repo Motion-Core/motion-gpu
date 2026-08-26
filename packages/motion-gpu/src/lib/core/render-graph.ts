@@ -92,10 +92,17 @@ interface ComputeDependencyEdge {
 	access: ResolvedComputeAccess;
 }
 
+/**
+ * Returns the concrete resource identity used to relate logical aliases.
+ */
 function physicalResourceMapKey(access: ResolvedComputeAccess): object | string | symbol {
 	return access.physicalId;
 }
 
+/**
+ * Reports whether two accesses may touch the same texture subresource.
+ * Non-texture and unspecified ranges overlap conservatively.
+ */
 function textureSubresourcesOverlap(
 	left: ResolvedComputeAccess,
 	right: ResolvedComputeAccess
@@ -119,6 +126,9 @@ function textureSubresourcesOverlap(
 	);
 }
 
+/**
+ * Formats a logical compute resource for actionable graph diagnostics.
+ */
 function formatLogicalResource(access: ResolvedComputeAccess): string {
 	const id =
 		typeof access.logicalId === 'symbol'
@@ -127,6 +137,9 @@ function formatLogicalResource(access: ResolvedComputeAccess): string {
 	return `${access.resourceKind} "${id}"`;
 }
 
+/**
+ * Orders a compute segment by physical hazards while preserving stable source order.
+ */
 function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGraphStep[] {
 	if (segment.length < 2) return segment;
 	type Writer = { index: number; access: ResolvedComputeAccess };

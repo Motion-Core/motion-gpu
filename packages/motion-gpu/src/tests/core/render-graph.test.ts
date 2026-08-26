@@ -14,6 +14,9 @@ function createPass(input?: Partial<RenderPass>): RenderPass {
 	};
 }
 
+/**
+ * Builds resolved compute resources with explicit logical and physical identities.
+ */
 function computeResources(input: {
 	reads?: Array<{
 		logicalId: string;

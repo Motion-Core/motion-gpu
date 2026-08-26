@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { GET } from './+server';
 
+/**
+ * Invokes the preview endpoint with a complete URL for focused handler tests.
+ */
 const request = (query: string) =>
 	GET({
 		url: new URL(`https://preview.motion-gpu.dev/playground/embed?${query}`)

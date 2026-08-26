@@ -237,6 +237,9 @@ const playgroundEditorBaseExtensions: Extension[] = [
 	keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap])
 ];
 
+/**
+ * Creates the reactive editor, bundler, and authenticated preview lifecycle for the playground.
+ */
 export const createPlaygroundController = (
 	initialDemoId?: string | null,
 	initialFramework?: PlaygroundFramework | string | null

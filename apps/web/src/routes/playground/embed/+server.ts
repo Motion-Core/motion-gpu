@@ -6,6 +6,9 @@ export const prerender = false;
 
 const PREVIEW_SESSION_ID = /^[A-Za-z0-9_-]{1,120}$/;
 
+/**
+ * Parses an HTTP(S) origin and rejects missing values or other URL schemes.
+ */
 const toSafeOrigin = (value: string | null) => {
 	if (!value) return '';
 	try {
@@ -50,6 +53,9 @@ body {
 }`;
 };
 
+/**
+ * Builds the isolated preview document with session-bound parent messaging.
+ */
 const buildEmbedHtml = ({
 	sessionId,
 	parentOrigin,
@@ -179,6 +185,9 @@ const buildEmbedHtml = ({
 </html>
 `;
 
+/**
+ * Builds the preview CSP around its per-response script nonce and parent origin.
+ */
 const buildContentSecurityPolicy = (nonce: string, parentOrigin: string) =>
 	[
 		"default-src 'none'",
@@ -196,6 +205,9 @@ const buildContentSecurityPolicy = (nonce: string, parentOrigin: string) =>
 		`frame-ancestors ${parentOrigin}`
 	].join('; ');
 
+/**
+ * Creates a non-cacheable plain-text response for invalid preview parameters.
+ */
 const badRequest = (message: string) =>
 	new Response(message, {
 		status: 400,
@@ -206,6 +218,9 @@ const badRequest = (message: string) =>
 		}
 	});
 
+/**
+ * Serves a session-bound sandbox document after validating its parent origin.
+ */
 export const GET: RequestHandler = async ({ url }) => {
 	const sessionId = url.searchParams.get('session') ?? '';
 	const parentOrigin = toSafeOrigin(url.searchParams.get('parent_origin'));

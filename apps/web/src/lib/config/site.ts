@@ -30,7 +30,7 @@ export const siteConfig = {
 		'motion-gpu'
 	],
 	/** Default social preview image endpoint. */
-	ogImage: '/og-image.jpg',
+	ogImage: '/og',
 	/** Browser chrome colors synchronized with the light and dark inset surfaces. */
 	themeColor: {
 		light: '#f0f0f1',

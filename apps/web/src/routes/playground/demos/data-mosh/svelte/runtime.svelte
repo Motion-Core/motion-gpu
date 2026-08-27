@@ -4,7 +4,10 @@
 
 	// “Dancer under neon lights”, Mixkit Stock Video Free License.
 	// https://mixkit.co/free-stock-video/dancer-under-neon-lights-50431/
-	const VIDEO_SOURCE = '/playground-media/data-mosh-neon-dancer.mp4';
+	const VIDEO_SOURCES = [
+		{ src: '/playground-media/data-mosh-neon-dancer.webm', type: 'video/webm; codecs="vp9"' },
+		{ src: '/playground-media/data-mosh-neon-dancer.mp4', type: 'video/mp4' }
+	] as const;
 
 	let video: HTMLVideoElement | null = null;
 	let lastVideoTime = 0;
@@ -18,12 +21,17 @@
 		video.loop = true;
 		video.preload = 'auto';
 		video.crossOrigin = 'anonymous';
-		video.src = VIDEO_SOURCE;
+		for (const { src, type } of VIDEO_SOURCES) {
+			const source = document.createElement('source');
+			source.src = src;
+			source.type = type;
+			video.append(source);
+		}
 		void video.play().catch(() => undefined);
 
 		return () => {
 			video?.pause();
-			video?.removeAttribute('src');
+			video?.replaceChildren();
 			video?.load();
 			video = null;
 		};

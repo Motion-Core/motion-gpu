@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('streams CORS-enabled video into an opaque playground preview', async ({ page }) => {
 	const mediaResponsePromise = page.waitForResponse((response) =>
-		response.url().endsWith('/playground-media/data-mosh-neon-dancer.mp4')
+		response.url().endsWith('/playground-media/data-mosh-neon-dancer.webm')
 	);
 
 	await page.goto('/playground?demo=data-mosh&framework=svelte');
@@ -10,6 +10,7 @@ test('streams CORS-enabled video into an opaque playground preview', async ({ pa
 
 	const mediaResponse = await mediaResponsePromise;
 	expect(mediaResponse.status()).toBeLessThan(400);
+	expect(await mediaResponse.headerValue('content-type')).toContain('video/webm');
 	expect(await mediaResponse.request().headerValue('origin')).toBe('null');
 	expect(await mediaResponse.headerValue('access-control-allow-origin')).toBe('*');
 	await expect(mediaResponse.finished()).resolves.toBeNull();

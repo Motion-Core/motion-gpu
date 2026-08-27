@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { GET } from './+server';
+
+vi.mock('$env/dynamic/private', () => ({
+	env: {
+		PLAYGROUND_PREVIEW_PARENT_ORIGINS: 'https://motion-gpu.dev,https://www.motion-gpu.dev'
+	}
+}));
 
 /**
  * Invokes the preview endpoint with a complete URL for focused handler tests.
@@ -12,7 +18,7 @@ const request = (query: string) =>
 describe('playground preview endpoint', () => {
 	it('returns an isolated preview document with nonce-bound security headers', async () => {
 		const response = await request(
-			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fpreview.motion-gpu.dev&theme=dark'
+			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fmotion-gpu.dev&theme=dark'
 		);
 		const html = await response.text();
 		const nonce = html.match(/<script nonce="([a-f0-9]+)">/)?.[1];
@@ -23,7 +29,7 @@ describe('playground preview endpoint', () => {
 			`script-src 'nonce-${nonce}' 'unsafe-eval'`
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
-			'frame-ancestors https://preview.motion-gpu.dev'
+			'frame-ancestors https://motion-gpu.dev'
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
 			'sandbox allow-scripts allow-popups'
@@ -37,6 +43,17 @@ describe('playground preview endpoint', () => {
 		expect(html).toContain('Playground preview requires an opaque origin.');
 	});
 
+	it('keeps same-origin preview available without an allowlist entry', async () => {
+		const response = await request(
+			'session=same-origin-preview&parent_origin=https%3A%2F%2Fpreview.motion-gpu.dev'
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-security-policy')).toContain(
+			'frame-ancestors https://preview.motion-gpu.dev'
+		);
+	});
+
 	it.each([
 		['missing session', 'parent_origin=https%3A%2F%2Fmotion-gpu.dev'],
 		[
@@ -45,7 +62,7 @@ describe('playground preview endpoint', () => {
 		],
 		['missing parent', 'session=valid-session'],
 		['non-HTTP parent', 'session=valid-session&parent_origin=javascript%3Aalert(1)'],
-		['cross-origin parent', 'session=valid-session&parent_origin=https%3A%2F%2Fexternal.example']
+		['unlisted parent', 'session=valid-session&parent_origin=https%3A%2F%2Fexternal.example']
 	])('rejects %s', async (_label, query) => {
 		const response = await request(query);
 

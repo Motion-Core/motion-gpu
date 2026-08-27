@@ -3,6 +3,7 @@ import {
 	PLAYGROUND_PREVIEW_SANDBOX
 } from '$lib/playground-engine/preview/protocol';
 import previewDefaultStyles from '$lib/playground-engine/preview/runtime-shell/styles.css?raw';
+import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
 
 export const prerender = false;
@@ -23,6 +24,17 @@ function toSafeOrigin(value: string | null): string {
 	} catch {
 		return '';
 	}
+}
+
+/**
+ * Allows local same-origin previews and explicitly configured cross-origin parents.
+ */
+function isAllowedParentOrigin(parentOrigin: string, endpointOrigin: string): boolean {
+	if (parentOrigin === endpointOrigin) return true;
+
+	return (env.PLAYGROUND_PREVIEW_PARENT_ORIGINS ?? '')
+		.split(',')
+		.some((value) => toSafeOrigin(value.trim()) === parentOrigin);
 }
 
 type PreviewTheme = 'light' | 'dark';
@@ -240,8 +252,8 @@ export const GET: RequestHandler = async ({ url }) => {
 	if (!parentOrigin) {
 		return badRequest('A valid HTTP(S) parent_origin is required.');
 	}
-	if (parentOrigin !== url.origin) {
-		return badRequest('parent_origin must match the preview endpoint origin.');
+	if (!isAllowedParentOrigin(parentOrigin, url.origin)) {
+		return badRequest('parent_origin is not allowed for this preview endpoint.');
 	}
 
 	const theme = toPreviewTheme(url.searchParams.get('theme'));

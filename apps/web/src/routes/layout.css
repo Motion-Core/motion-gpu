@@ -76,6 +76,7 @@ html {
 	--foreground: oklch(0.9674 0.0013 var(--base-hue));
 	--foreground-muted: oklch(0.669 0.0107 var(--base-hue));
 	--warning: oklch(0.708 0.18 19.571);
+	--shadow-highlight-color: oklch(0.85 0.013 var(--base-hue));
 	--guide-ink: oklch(from var(--shadow-highlight-color) l c h / 0.08);
 	--guide-duotone-ink: var(--shadow-color);
 	--guide-duotone-glint: oklch(from var(--shadow-highlight-color) l c h / 0.08);

@@ -188,7 +188,7 @@
 	});
 </script>
 
-<div class="inset-shadow my-6 rounded-lg bg-background-inset p-1.5">
+<div class="card-outer my-6 rounded-lg bg-background-inset p-1.5">
 	<div class="relative w-full rounded-md bg-background card">
 		<div
 			class="relative flex items-center justify-between rounded-t-md after:absolute after:inset-x-0 after:bottom-0 after:h-px after:guide-duotone after:content-['']"

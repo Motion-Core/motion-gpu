@@ -1,48 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { useFrame } from '@motion-core/motion-gpu/react';
-
-// “Dancer under neon lights”, Mixkit Stock Video Free License.
-// https://mixkit.co/free-stock-video/dancer-under-neon-lights-50431/
-const VIDEO_SOURCES = [
-	{ src: '/playground-media/data-mosh-neon-dancer.webm', type: 'video/webm; codecs="vp9"' },
-	{ src: '/playground-media/data-mosh-neon-dancer.mp4', type: 'video/mp4' }
-] as const;
+import { createOriginCleanVideo, type OriginCleanVideo } from './video-source';
 
 /**
  * Streams decoded video frames into the Data Mosh material with CORS-safe settings.
  */
 export default function Runtime() {
-	const videoRef = useRef<HTMLVideoElement | null>(null);
+	const videoHandleRef = useRef<OriginCleanVideo | null>(null);
 	const lastVideoTime = useRef(0);
 	const resetNextFrame = useRef(true);
 
 	useEffect(() => {
-		const video = document.createElement('video');
-		video.muted = true;
-		video.playsInline = true;
-		video.autoplay = true;
-		video.loop = true;
-		video.preload = 'auto';
-		video.crossOrigin = 'anonymous';
-		for (const { src, type } of VIDEO_SOURCES) {
-			const source = document.createElement('source');
-			source.src = src;
-			source.type = type;
-			video.append(source);
-		}
-		videoRef.current = video;
-		void video.play().catch(() => undefined);
+		const handle = createOriginCleanVideo();
+		videoHandleRef.current = handle;
+		void handle.ready.catch((error) => console.error('[Data Mosh] Unable to load video.', error));
 
 		return () => {
-			video.pause();
-			video.replaceChildren();
-			video.load();
-			videoRef.current = null;
+			handle.dispose();
+			if (videoHandleRef.current === handle) videoHandleRef.current = null;
 		};
 	}, []);
 
 	useFrame((frame) => {
-		const video = videoRef.current;
+		const video = videoHandleRef.current?.video;
 		if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
 
 		const looped = video.currentTime + 0.25 < lastVideoTime.current;

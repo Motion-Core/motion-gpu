@@ -1,43 +1,28 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { useFrame } from '@motion-core/motion-gpu/svelte';
+	// @ts-expect-error The playground mounts shared demo files beside the virtual runtime entry.
+	import { createOriginCleanVideo, type OriginCleanVideo } from './video-source';
 
-	// “Dancer under neon lights”, Mixkit Stock Video Free License.
-	// https://mixkit.co/free-stock-video/dancer-under-neon-lights-50431/
-	const VIDEO_SOURCES = [
-		{ src: '/playground-media/data-mosh-neon-dancer.webm', type: 'video/webm; codecs="vp9"' },
-		{ src: '/playground-media/data-mosh-neon-dancer.mp4', type: 'video/mp4' }
-	] as const;
-
-	let video: HTMLVideoElement | null = null;
+	let videoHandle: OriginCleanVideo | null = null;
 	let lastVideoTime = 0;
 	let resetNextFrame = true;
 
 	onMount(() => {
-		video = document.createElement('video');
-		video.muted = true;
-		video.playsInline = true;
-		video.autoplay = true;
-		video.loop = true;
-		video.preload = 'auto';
-		video.crossOrigin = 'anonymous';
-		for (const { src, type } of VIDEO_SOURCES) {
-			const source = document.createElement('source');
-			source.src = src;
-			source.type = type;
-			video.append(source);
-		}
-		void video.play().catch(() => undefined);
+		const handle = createOriginCleanVideo();
+		videoHandle = handle;
+		void handle.ready.catch((error: unknown) =>
+			console.error('[Data Mosh] Unable to load video.', error)
+		);
 
 		return () => {
-			video?.pause();
-			video?.replaceChildren();
-			video?.load();
-			video = null;
+			handle.dispose();
+			if (videoHandle === handle) videoHandle = null;
 		};
 	});
 
 	useFrame((frame) => {
+		const video = videoHandle?.video;
 		if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
 
 		const looped = video.currentTime + 0.25 < lastVideoTime;

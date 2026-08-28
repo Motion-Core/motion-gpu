@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createMotionGPUErrorOverlayModel } from '../core/error-overlay-model';
+	import { registerErrorOverlay } from '../core/error-overlay-stack';
 	import type { MotionGPUErrorReport } from '../core/error-report';
 	import Portal from './Portal.svelte';
 
@@ -64,42 +65,10 @@
 	};
 
 	onMount(() => {
-		const previouslyFocused =
-			document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		const portalRoot = overlayElement?.parentElement;
-		const inertStates: Array<{ element: HTMLElement; wasInert: boolean }> = [];
+		if (!dialogElement || !portalRoot) return;
 
-		for (const child of document.body.children) {
-			if (!(child instanceof HTMLElement) || child === portalRoot) continue;
-			inertStates.push({ element: child, wasInert: child.inert });
-			child.inert = true;
-		}
-
-		const keepFocusInDialog = (event: FocusEvent) => {
-			if (
-				!dialogElement ||
-				!(event.target instanceof Node) ||
-				dialogElement.contains(event.target)
-			) {
-				return;
-			}
-			dialogElement.focus({ preventScroll: true });
-		};
-
-		document.addEventListener('focusin', keepFocusInDialog);
-		queueMicrotask(() => {
-			dialogElement?.focus({ preventScroll: true });
-		});
-
-		return () => {
-			document.removeEventListener('focusin', keepFocusInDialog);
-			for (const { element, wasInert } of inertStates) {
-				if (element.isConnected) element.inert = wasInert;
-			}
-			if (previouslyFocused?.isConnected) {
-				previouslyFocused.focus({ preventScroll: true });
-			}
-		};
+		return registerErrorOverlay({ dialog: dialogElement, portalRoot });
 	});
 </script>
 

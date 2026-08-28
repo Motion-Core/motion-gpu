@@ -6,6 +6,7 @@ import {
 	type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
 import { createMotionGPUErrorOverlayModel } from '../core/error-overlay-model.js';
+import { registerErrorOverlay } from '../core/error-overlay-stack.js';
 import type { MotionGPUErrorReport } from '../core/error-report.js';
 import { Portal } from './Portal.js';
 
@@ -656,36 +657,10 @@ export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
 	useEffect(() => {
 		if (!dialogElement) return;
 
-		const previouslyFocused =
-			document.activeElement instanceof HTMLElement ? document.activeElement : null;
 		const portalRoot = overlayElement.current?.parentElement;
-		const inertStates: Array<{ element: HTMLElement; wasInert: boolean }> = [];
+		if (!portalRoot) return;
 
-		for (const child of document.body.children) {
-			if (!(child instanceof HTMLElement) || child === portalRoot) continue;
-			inertStates.push({ element: child, wasInert: child.inert });
-			child.inert = true;
-		}
-
-		const keepFocusInDialog = (event: FocusEvent) => {
-			if (!(event.target instanceof Node) || dialogElement.contains(event.target)) return;
-			dialogElement.focus({ preventScroll: true });
-		};
-
-		document.addEventListener('focusin', keepFocusInDialog);
-		queueMicrotask(() => {
-			dialogElement.focus({ preventScroll: true });
-		});
-
-		return () => {
-			document.removeEventListener('focusin', keepFocusInDialog);
-			for (const { element, wasInert } of inertStates) {
-				if (element.isConnected) element.inert = wasInert;
-			}
-			if (previouslyFocused?.isConnected) {
-				previouslyFocused.focus({ preventScroll: true });
-			}
-		};
+		return registerErrorOverlay({ dialog: dialogElement, portalRoot });
 	}, [dialogElement]);
 
 	return (

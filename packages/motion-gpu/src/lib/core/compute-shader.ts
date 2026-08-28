@@ -3,8 +3,6 @@ import type { StorageBufferType, UniformLayout } from './types.js';
 /** Bounded locator for the single public compute entrypoint. */
 export const COMPUTE_ENTRY_CONTRACT = /\bfn\s+compute\s*\(/;
 
-const WORKGROUP_SIZE_PATTERN =
-	/@workgroup_size\s*\(\s*(\d+)(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)/;
 const GLOBAL_INVOCATION_ID_PATTERN = /@builtin\s*\(\s*global_invocation_id\s*\)/;
 const WORKGROUP_DIMENSION_MIN = 1;
 const WORKGROUP_DIMENSION_MAX = 65535;
@@ -122,6 +120,10 @@ interface ComputeEntrypoint {
 	openParenIndex: number;
 }
 
+interface WorkgroupSizeAnalysis {
+	literal: [number, number, number] | null;
+}
+
 function findComputeEntrypoint(compute: string): ComputeEntrypoint | null {
 	const entrypoint = COMPUTE_ENTRY_CONTRACT.exec(compute);
 	if (!entrypoint) return null;
@@ -148,6 +150,121 @@ function extractComputeParamList(compute: string, entrypoint: ComputeEntrypoint)
 		}
 	}
 	return null;
+}
+
+function splitWorkgroupSizeArguments(attributeBody: string): string[] {
+	const arguments_: string[] = [];
+	let argumentStart = 0;
+	let nestedParentheses = 0;
+
+	for (let index = 0; index < attributeBody.length; index += 1) {
+		const char = attributeBody[index];
+		if (char === '(') {
+			nestedParentheses += 1;
+		} else if (char === ')') {
+			if (nestedParentheses === 0) {
+				throw new Error('Malformed @workgroup_size attribute: unexpected closing parenthesis.');
+			}
+			nestedParentheses -= 1;
+		} else if (char === ',' && nestedParentheses === 0) {
+			arguments_.push(attributeBody.slice(argumentStart, index).trim());
+			argumentStart = index + 1;
+		}
+	}
+
+	if (nestedParentheses !== 0) {
+		throw new Error('Malformed @workgroup_size attribute: unclosed nested expression.');
+	}
+	arguments_.push(attributeBody.slice(argumentStart).trim());
+
+	if (
+		arguments_.length < 1 ||
+		arguments_.length > 3 ||
+		arguments_.some((argument) => argument.length === 0)
+	) {
+		throw new Error(
+			'Malformed @workgroup_size attribute: expected between one and three non-empty dimensions.'
+		);
+	}
+
+	return arguments_;
+}
+
+function extractWorkgroupSizeArguments(attributes: string): string[] {
+	const markers = [...attributes.matchAll(/@workgroup_size\b/g)];
+	if (markers.length !== 1) {
+		throw new Error(
+			`Malformed @workgroup_size attribute: expected exactly one declaration, found ${markers.length}.`
+		);
+	}
+
+	let openParenIndex = (markers[0]?.index ?? 0) + (markers[0]?.[0].length ?? 0);
+	while (/\s/.test(attributes[openParenIndex] ?? '')) openParenIndex += 1;
+	if (attributes[openParenIndex] !== '(') {
+		throw new Error('Malformed @workgroup_size attribute: expected an opening parenthesis.');
+	}
+
+	let depth = 1;
+	for (let index = openParenIndex + 1; index < attributes.length; index += 1) {
+		const char = attributes[index];
+		if (char === '(') {
+			depth += 1;
+		} else if (char === ')') {
+			depth -= 1;
+			if (depth === 0) {
+				return splitWorkgroupSizeArguments(attributes.slice(openParenIndex + 1, index));
+			}
+		}
+	}
+
+	throw new Error('Malformed @workgroup_size attribute: missing closing parenthesis.');
+}
+
+function unwrapParenthesizedExpression(expression: string): string {
+	let result = expression.trim();
+	while (result.startsWith('(') && result.endsWith(')')) {
+		let depth = 0;
+		let wrapsEntireExpression = true;
+		for (let index = 0; index < result.length; index += 1) {
+			const char = result[index];
+			if (char === '(') depth += 1;
+			if (char === ')') depth -= 1;
+			if (depth === 0 && index < result.length - 1) {
+				wrapsEntireExpression = false;
+				break;
+			}
+		}
+		if (!wrapsEntireExpression) break;
+		result = result.slice(1, -1).trim();
+	}
+	return result;
+}
+
+function parseIntegerLiteral(expression: string): number | null {
+	const unwrapped = unwrapParenthesizedExpression(expression);
+	if (!/^[+-]?(?:\d+|0[xX][\dA-Fa-f]+)[iu]?$/.test(unwrapped)) return null;
+
+	const value = Number(unwrapped.replace(/[iu]$/, ''));
+	assertWorkgroupDimension(value);
+	return value;
+}
+
+function analyzeWorkgroupSize(compute: string): WorkgroupSizeAnalysis {
+	const source = stripWgslComments(compute);
+	const entrypoint = findComputeEntrypoint(source);
+	if (!entrypoint) {
+		throw new Error('Could not locate fn compute(...) while analyzing @workgroup_size.');
+	}
+
+	const arguments_ = extractWorkgroupSizeArguments(entrypoint.attributes);
+	const literalDimensions = arguments_.map(parseIntegerLiteral);
+	if (literalDimensions.some((dimension) => dimension === null)) {
+		return { literal: null };
+	}
+
+	return {
+		literal: [literalDimensions[0]!, literalDimensions[1] ?? 1, literalDimensions[2] ?? 1]
+	};
 }
 
 function assertWorkgroupDimension(value: number): void {
@@ -203,37 +320,31 @@ export function assertComputeContract(
 }
 
 export function extractWorkgroupSize(compute: string): [number, number, number] {
-	const source = stripWgslComments(compute);
-	const entrypoint = findComputeEntrypoint(source);
-	const match = entrypoint?.attributes.match(WORKGROUP_SIZE_PATTERN);
-	if (!match) {
+	const { literal } = analyzeWorkgroupSize(compute);
+	if (!literal) {
 		throw new Error(
 			'Could not extract @workgroup_size as a literal from compute shader source. ' +
 				'Pass an explicit workgroupSize option when the attribute uses an override or constant expression.'
 		);
 	}
-
-	const x = Number.parseInt(match[1] ?? '1', 10);
-	const y = Number.parseInt(match[2] ?? '1', 10);
-	const z = Number.parseInt(match[3] ?? '1', 10);
-	assertWorkgroupDimension(x);
-	assertWorkgroupDimension(y);
-	assertWorkgroupDimension(z);
-	return [x, y, z];
+	return literal;
 }
 
 export function resolveWorkgroupSize(
 	compute: string,
 	explicitWorkgroupSize?: ComputeWorkgroupSize
 ): [number, number, number] {
-	let literal: [number, number, number] | null = null;
-	try {
-		literal = extractWorkgroupSize(compute);
-	} catch (error) {
-		if (!explicitWorkgroupSize) throw error;
-	}
+	const { literal } = analyzeWorkgroupSize(compute);
 
-	if (!explicitWorkgroupSize) return literal!;
+	if (!explicitWorkgroupSize) {
+		if (!literal) {
+			throw new Error(
+				'Could not extract @workgroup_size as a literal from compute shader source. ' +
+					'Pass an explicit workgroupSize option when the attribute uses an override or constant expression.'
+			);
+		}
+		return literal;
+	}
 	const explicit = normalizeExplicitWorkgroupSize(explicitWorkgroupSize);
 	if (literal && literal.some((value, index) => value !== explicit[index])) {
 		throw new Error(

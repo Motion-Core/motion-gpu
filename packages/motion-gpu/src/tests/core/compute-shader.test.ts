@@ -115,6 +115,24 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {}
 		expect(resolveWorkgroupSize(source, [8, 8])).toEqual([8, 8, 1]);
 	});
 
+	it('does not let an explicit size mask an out-of-range literal', () => {
+		const source = `
+@compute @workgroup_size(65536)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(source, [8])).toThrow(/range 1-65535/);
+		expect(() => resolveWorkgroupSize(source, [8])).toThrow(/range 1-65535/);
+	});
+
+	it('does not let an explicit size mask a malformed workgroup attribute', () => {
+		const source = `
+@compute @workgroup_size(8
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(source, [8])).toThrow(/missing closing parenthesis/i);
+		expect(() => resolveWorkgroupSize(source, [8])).toThrow(/missing closing parenthesis/i);
+	});
+
 	it('rejects invalid explicit sizes and mismatches with literal WGSL', () => {
 		const overrideSource = `
 override TILE_SIZE: u32 = 8;

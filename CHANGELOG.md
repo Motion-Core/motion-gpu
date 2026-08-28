@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Breaking
+
+- Compute and fragment-feedback passes are now nominal library-managed contracts. Replace hand-built objects with `isCompute: true` or `isPingPongShader: true` with `ComputePass`, `PingPongComputePass`, or `PingPongShaderPass`. Custom `RenderPass` implementations remain supported.
+
 ### Added
 
 - Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.

@@ -2,6 +2,9 @@
  * Core runtime and API contracts used by MotionGPU's renderer, hooks and scheduler.
  */
 
+import type { MaterialLineMap } from './material-contracts.js';
+import { managedPassBrand } from './pass-brand.js';
+
 /**
  * WGSL-compatible uniform primitive and aggregate types supported by MotionGPU.
  */
@@ -715,6 +718,10 @@ export interface ComputePassContext {
  * Formal render pass contract used by MotionGPU render graph.
  */
 export interface RenderPass extends RenderPassFlags {
+	/** Reserved for renderer-managed compute passes. */
+	readonly isCompute?: never;
+	/** Reserved for renderer-managed feedback passes. */
+	readonly isPingPongShader?: never;
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */
@@ -746,26 +753,56 @@ export interface RenderPass extends RenderPassFlags {
 }
 
 /**
- * Minimal marker interface for renderer-managed pre-scene compute passes.
- * Compute passes do not participate in render-pass slot routing.
+ * Nominal contract implemented only by renderer-managed pre-scene compute passes.
+ * Custom compute passes are not part of the public runtime contract.
  */
 export interface ComputePassLike {
+	readonly [managedPassBrand]: 'compute';
 	readonly isCompute: true;
-	enabled?: boolean;
+	readonly isPingPong?: true;
+	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
-	dispose?: () => void;
+	dispose: () => void;
+	getCompute: () => string;
+	getResources: () => ComputeResourceMap;
+	getWorkgroupSize: () => [number, number, number];
+	resolveDispatch: (context: {
+		width: number;
+		height: number;
+		time: number;
+		delta: number;
+		workgroupSize: [number, number, number];
+	}) => [number, number, number];
+	getIterations?: () => number;
 }
 
 /**
- * Minimal marker interface for renderer-managed pre-scene fragment feedback passes.
+ * Nominal contract for renderer-managed pre-scene fragment feedback passes.
  * These passes render into private ping-pong textures and do not participate in
  * post-scene render-pass slot routing.
  */
 export interface PingPongShaderPassLike {
+	readonly [managedPassBrand]: 'feedback';
 	readonly isPingPongShader: true;
-	enabled?: boolean;
+	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
-	dispose?: () => void;
+	dispose: () => void;
+	getTarget: () => string;
+	getFragment: () => string;
+	getFragmentLineMap: () => MaterialLineMap;
+	resolveSize: (canvasSize: { width: number; height: number }) => {
+		width: number;
+		height: number;
+	};
+	getIterations: () => number;
+	getFormat: () => GPUTextureFormat;
+	getFilter: () => GPUFilterMode;
+	getAddressModeU: () => GPUAddressMode;
+	getAddressModeV: () => GPUAddressMode;
+	getClearColor: () => [number, number, number, number];
+	getCurrentOutput: () => string;
+	advanceFrame: () => void;
+	consumeResetColor: () => [number, number, number, number] | null;
 }
 
 /**

@@ -69,4 +69,9 @@ A custom `RenderPass` implements `render(context)`. The context contains the dev
 
 Use `context.output` or `context.beginRenderPass()` rather than addressing the physical swapchain directly. The logical `canvas` surface may be internal when final color presentation is enabled.
 
+Custom passes are supported only through the `RenderPass` contract. Compute and fragment-feedback
+passes are managed by Motion GPU because the renderer owns their resource and texture lifecycle.
+Objects with only `isCompute: true` or `isPingPongShader: true` are rejected. Use `ComputePass`,
+`PingPongComputePass`, or `PingPongShaderPass` instead.
+
 Explore complete pipelines in the [TanStack playground demo](/playground?demo=tanstack&framework=svelte). See [Render Targets](/docs/render-targets), [Compute Shaders](/docs/compute-shaders), and [Passes API](/docs/api-passes-reference).

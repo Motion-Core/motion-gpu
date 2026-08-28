@@ -5,8 +5,11 @@ import type {
 	StorageBufferDefinitionMap,
 	StorageBufferType,
 	ComputePassContext,
-	TextureDefinition
+	TextureDefinition,
+	AnyPass,
+	RenderPass
 } from '../../lib/core/types';
+import { ComputePass } from '../../lib/passes/ComputePass';
 
 function assertType<T>(value: T): void {
 	void value;
@@ -14,6 +17,20 @@ function assertType<T>(value: T): void {
 }
 
 describe('compute types', () => {
+	it('keeps custom render passes structural and managed compute passes nominal', () => {
+		const custom: RenderPass = { render: () => {} };
+		const managed: AnyPass = new ComputePass({
+			compute:
+				'@compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) { _ = id; }'
+		});
+		// @ts-expect-error A structural marker is not a renderer-managed compute pass.
+		const structural: AnyPass = { isCompute: true, enabled: true };
+
+		expect(typeof custom.render).toBe('function');
+		expect(managed).toBeInstanceOf(ComputePass);
+		expect((structural as unknown as { isCompute: boolean }).isCompute).toBe(true);
+	});
+
 	it('StorageBufferDefinition accepts valid size/type/access combinations', () => {
 		const definition: StorageBufferDefinition = {
 			size: 1024,

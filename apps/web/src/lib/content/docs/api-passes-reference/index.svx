@@ -102,7 +102,8 @@ resolveDispatch(context): [number, number, number]
 dispose(): void
 ```
 
-`isCompute` is the readonly `true` discriminant.
+`isCompute` is a readonly `true` discriminant for inspection. It is not an extension point: custom
+compute objects are rejected by the render graph.
 
 ## `PingPongComputePass`
 
@@ -177,7 +178,9 @@ getClearColor(): RGBA
 dispose(): void
 ```
 
-`isPingPongShader` is the readonly `true` discriminant. `setDimensions`, `setScale`, and `reset` request A/B reinitialization; `consumeResetColor` is renderer-facing and clears that pending request.
+`isPingPongShader` is a readonly `true` discriminant for inspection, not a structural extension
+point. `setDimensions`, `setScale`, and `reset` request A/B reinitialization;
+`consumeResetColor` is renderer-facing and clears that pending request.
 
 `frag` and its helper functions can read the ping-pong target coordinates from `motiongpuFragment.uv`. They use the pass target dimensions and the same public Y-up orientation as the `uv` parameter.
 

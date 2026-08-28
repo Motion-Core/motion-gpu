@@ -6,6 +6,10 @@ import type {
 } from '../../lib/core/compute-resources';
 import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import type { AnyPass, RenderPass } from '../../lib/core/types';
+import { ComputePass } from '../../lib/passes/ComputePass';
+import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
+import { PingPongShaderPass } from '../../lib/passes/PingPongShaderPass';
+import { createManagedComputePass, createManagedFeedbackPass } from '../helpers/managed-pass';
 
 function createPass(input?: Partial<RenderPass>): RenderPass {
 	return {
@@ -218,13 +222,40 @@ describe('render graph planner', () => {
 
 	// --- Compute pass tests ---
 
+	it('rejects structural compute and feedback markers at the JavaScript boundary', () => {
+		expect(() =>
+			planRenderGraph([{ isCompute: true } as unknown as AnyPass], [0, 0, 0, 1])
+		).toThrow(/Use ComputePass or PingPongComputePass/);
+		expect(() =>
+			planRenderGraph([{ isPingPongShader: true } as unknown as AnyPass], [0, 0, 0, 1])
+		).toThrow(/Use PingPongShaderPass/);
+	});
+
+	it('plans every built-in managed pass through the nominal contract', () => {
+		const computeSource = `
+@compute @workgroup_size(1)
+fn compute(@builtin(global_invocation_id) id: vec3u) { _ = id; }
+`;
+		const compute = new ComputePass({ compute: computeSource });
+		const pingPongCompute = new PingPongComputePass({
+			compute: computeSource,
+			resources: {
+				previous: { texture: 'state', access: 'sampled', pingPong: 'read' },
+				next: { texture: 'state', access: 'storage-write', pingPong: 'write' }
+			}
+		});
+		const feedback = new PingPongShaderPass({
+			target: 'state',
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+
+		const plan = planRenderGraph([compute, pingPongCompute, feedback], [0, 0, 0, 1]);
+		expect(plan.preSceneSteps.map((step) => step.kind)).toEqual(['compute', 'compute', 'feedback']);
+	});
+
 	it('plans compute pass as kind="compute" step', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: true,
-			render: () => {}
-		};
-		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		const computePass = createManagedComputePass();
+		const plan = planRenderGraph([computePass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(1);
 		expect(plan.steps[0]?.kind).toBe('compute');
 		expect(plan.preSceneSteps).toEqual([plan.steps[0]]);
@@ -233,30 +264,19 @@ describe('render graph planner', () => {
 	});
 
 	it('compute pass does not affect slot availability', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: true,
-			render: () => {}
-		};
+		const computePass = createManagedComputePass();
 		// After compute pass, 'target' should still not be available
 		expect(() =>
 			planRenderGraph(
-				[
-					computePass as unknown as RenderPass,
-					createPass({ needsSwap: false, input: 'target', output: 'canvas' })
-				],
+				[computePass, createPass({ needsSwap: false, input: 'target', output: 'canvas' })],
 				[0, 0, 0, 1]
 			)
 		).toThrow(/before it is written/);
 	});
 
 	it('compute-only passes keep finalOutput at canvas so the scene can render directly', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: true,
-			render: () => {}
-		};
-		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		const computePass = createManagedComputePass();
+		const plan = planRenderGraph([computePass], [0, 0, 0, 1]);
 		expect(plan.preSceneSteps).toHaveLength(1);
 		expect(plan.computeSteps).toHaveLength(1);
 		expect(plan.renderSteps).toHaveLength(0);
@@ -264,13 +284,9 @@ describe('render graph planner', () => {
 	});
 
 	it('preserves declaration order while splitting pre-scene compute from post-scene render steps', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: true,
-			render: () => {}
-		};
+		const computePass = createManagedComputePass();
 		const renderPass = createPass({ needsSwap: false, output: 'canvas' });
-		const plan = planRenderGraph([computePass as unknown as RenderPass, renderPass], [0, 0, 0, 1]);
+		const plan = planRenderGraph([computePass, renderPass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(2);
 		expect(plan.steps[0]?.kind).toBe('compute');
 		expect(plan.steps[1]?.kind).toBe('render');
@@ -280,12 +296,8 @@ describe('render graph planner', () => {
 	});
 
 	it('skips disabled compute passes', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: false,
-			render: () => {}
-		};
-		const plan = planRenderGraph([computePass as unknown as RenderPass], [0, 0, 0, 1]);
+		const computePass = createManagedComputePass({ enabled: false });
+		const plan = planRenderGraph([computePass], [0, 0, 0, 1]);
 		expect(plan.steps).toHaveLength(0);
 		expect(plan.preSceneSteps).toHaveLength(0);
 		expect(plan.computeSteps).toHaveLength(0);
@@ -293,15 +305,12 @@ describe('render graph planner', () => {
 	});
 
 	it('mixed compute and render passes preserve declaration order and expose execution groups', () => {
-		const compute1 = { isCompute: true as const, enabled: true, render: () => {} };
+		const compute1 = createManagedComputePass();
 		const render1 = createPass({ needsSwap: false, output: 'target' });
-		const compute2 = { isCompute: true as const, enabled: true, render: () => {} };
+		const compute2 = createManagedComputePass();
 		const render2 = createPass({ needsSwap: false, input: 'target', output: 'canvas' });
 
-		const plan = planRenderGraph(
-			[compute1 as unknown as RenderPass, render1, compute2 as unknown as RenderPass, render2],
-			[0, 0, 0, 1]
-		);
+		const plan = planRenderGraph([compute1, render1, compute2, render2], [0, 0, 0, 1]);
 
 		expect(plan.steps.map((s) => s.kind)).toEqual(['compute', 'render', 'compute', 'render']);
 		expect(plan.preSceneSteps).toEqual([plan.steps[0], plan.steps[2]]);
@@ -310,11 +319,8 @@ describe('render graph planner', () => {
 	});
 
 	it('plans ping-pong shader pass as a pre-scene feedback step', () => {
-		const feedbackPass = {
-			isPingPongShader: true as const,
-			enabled: true
-		};
-		const plan = planRenderGraph([feedbackPass as unknown as RenderPass], [0, 0, 0, 1]);
+		const feedbackPass = createManagedFeedbackPass();
+		const plan = planRenderGraph([feedbackPass], [0, 0, 0, 1]);
 
 		expect(plan.steps).toHaveLength(1);
 		expect(plan.steps[0]?.kind).toBe('feedback');
@@ -325,19 +331,10 @@ describe('render graph planner', () => {
 	});
 
 	it('preserves declaration order for compute and ping-pong shader pre-scene passes', () => {
-		const computePass = {
-			isCompute: true as const,
-			enabled: true
-		};
-		const feedbackPass = {
-			isPingPongShader: true as const,
-			enabled: true
-		};
+		const computePass = createManagedComputePass();
+		const feedbackPass = createManagedFeedbackPass();
 		const renderPass = createPass({ needsSwap: false, output: 'canvas' });
-		const plan = planRenderGraph(
-			[feedbackPass as unknown as RenderPass, computePass as unknown as RenderPass, renderPass],
-			[0, 0, 0, 1]
-		);
+		const plan = planRenderGraph([feedbackPass, computePass, renderPass], [0, 0, 0, 1]);
 
 		expect(plan.steps.map((step) => step.kind)).toEqual(['feedback', 'compute', 'render']);
 		expect(plan.preSceneSteps).toEqual([plan.steps[0], plan.steps[1]]);
@@ -346,9 +343,9 @@ describe('render graph planner', () => {
 	});
 
 	it('stably topologically sorts current readers after their unique writer', () => {
-		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const independent = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const reader = createManagedComputePass();
+		const writer = createManagedComputePass();
+		const independent = createManagedComputePass();
 		const plan = planRenderGraph(
 			[reader, independent, writer],
 			[0, 0, 0, 1],
@@ -364,8 +361,8 @@ describe('render graph planner', () => {
 	});
 
 	it('orders initial-version reads before the writer', () => {
-		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const initialReader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const writer = createManagedComputePass();
+		const initialReader = createManagedComputePass();
 		const plan = planRenderGraph(
 			[writer, initialReader],
 			[0, 0, 0, 1],
@@ -379,8 +376,8 @@ describe('render graph planner', () => {
 	});
 
 	it('rejects multiple writers with pass labels and logical resource identity', () => {
-		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const first = createManagedComputePass();
+		const second = createManagedComputePass();
 		expect(() =>
 			planRenderGraph(
 				[first, second],
@@ -409,8 +406,8 @@ describe('render graph planner', () => {
 	});
 
 	it('keeps material and external resources with the same logical ID independent', () => {
-		const materialWriter = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const externalWriter = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const materialWriter = createManagedComputePass();
+		const externalWriter = createManagedComputePass();
 		const materialPhysicalId = {};
 
 		const plan = planRenderGraph(
@@ -437,8 +434,8 @@ describe('render graph planner', () => {
 	});
 
 	it('detects aliases with different logical IDs that resolve to one physical resource', () => {
-		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const first = createManagedComputePass();
+		const second = createManagedComputePass();
 		const physicalId = {};
 
 		expect(() =>
@@ -455,8 +452,8 @@ describe('render graph planner', () => {
 	});
 
 	it('keeps disjoint mip ranges of one physical texture independent', () => {
-		const first = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const second = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const first = createManagedComputePass();
+		const second = createManagedComputePass();
 		const physicalId = {};
 		const mip = (baseMipLevel: number): ResolvedTextureSubresourceRange => ({
 			baseMipLevel,
@@ -489,8 +486,8 @@ describe('render graph planner', () => {
 	});
 
 	it('does not add dependencies between disjoint read and write mip ranges', () => {
-		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const reader = createManagedComputePass();
+		const writer = createManagedComputePass();
 		const physicalId = {};
 		const mip = (baseMipLevel: number): ResolvedTextureSubresourceRange => ({
 			baseMipLevel,
@@ -523,8 +520,8 @@ describe('render graph planner', () => {
 	});
 
 	it('reports dependency cycles with aliases and the complete resource path', () => {
-		const passA = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const passB = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const passA = createManagedComputePass();
+		const passB = createManagedComputePass();
 		expect(() =>
 			planRenderGraph(
 				[passA, passB],
@@ -565,9 +562,9 @@ describe('render graph planner', () => {
 	});
 
 	it('does not reorder compute nodes across an opaque feedback barrier', () => {
-		const reader = { isCompute: true as const, enabled: true } as unknown as AnyPass;
-		const feedback = { isPingPongShader: true as const, enabled: true } as unknown as AnyPass;
-		const writer = { isCompute: true as const, enabled: true } as unknown as AnyPass;
+		const reader = createManagedComputePass();
+		const feedback = createManagedFeedbackPass();
+		const writer = createManagedComputePass();
 		const plan = planRenderGraph(
 			[reader, feedback, writer],
 			[0, 0, 0, 1],

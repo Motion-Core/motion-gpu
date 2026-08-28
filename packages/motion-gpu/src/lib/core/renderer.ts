@@ -6,7 +6,6 @@ import {
 	formatShaderSourceLocation,
 	type ShaderLineMap
 } from './shader.js';
-import type { MaterialLineMap } from './material-preprocess.js';
 import {
 	attachShaderCompilationDiagnostics,
 	type ShaderCompilationDiagnostic,
@@ -42,6 +41,7 @@ import {
 } from './compute-fallback-textures.js';
 import { MaterialResourceRegistry, type RuntimeTextureResource } from './resource-registry.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
+import { isManagedComputePass, isManagedFeedbackPass } from './pass-contract.js';
 import {
 	buildCanvasConfiguration,
 	buildPresentationShader,
@@ -51,7 +51,8 @@ import {
 } from './color-pipeline.js';
 import type {
 	AnyPass,
-	ComputeResourceMap,
+	ComputePassLike,
+	PingPongShaderPassLike,
 	RenderPass,
 	RenderPassInputSlot,
 	RenderPassOutputSlot,
@@ -175,48 +176,6 @@ interface RenderGraphPassSnapshot {
 	clearColor1: number;
 	clearColor2: number;
 	clearColor3: number;
-}
-
-/**
- * Internal shape implemented by renderer-managed compute pass classes.
- */
-interface RuntimeComputePass {
-	isCompute?: boolean;
-	getCompute?: () => string;
-	resolveDispatch?: (ctx: {
-		width: number;
-		height: number;
-		time: number;
-		delta: number;
-		workgroupSize: [number, number, number];
-	}) => [number, number, number];
-	getWorkgroupSize?: () => [number, number, number];
-	getResources?: () => ComputeResourceMap;
-	isPingPong?: boolean;
-	getIterations?: () => number;
-}
-
-/**
- * Internal shape implemented by renderer-managed fragment feedback pass classes.
- */
-interface RuntimePingPongShaderPass {
-	isPingPongShader?: boolean;
-	getTarget?: () => string;
-	getFragment?: () => string;
-	getFragmentLineMap?: () => MaterialLineMap;
-	resolveSize?: (canvasSize: { width: number; height: number }) => {
-		width: number;
-		height: number;
-	};
-	getIterations?: () => number;
-	getFormat?: () => GPUTextureFormat;
-	getFilter?: () => GPUFilterMode;
-	getAddressModeU?: () => GPUAddressMode;
-	getAddressModeV?: () => GPUAddressMode;
-	getClearColor?: () => [number, number, number, number];
-	getCurrentOutput?: () => string;
-	advanceFrame?: () => void;
-	consumeResetColor?: () => [number, number, number, number] | null;
 }
 
 const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
@@ -637,13 +596,10 @@ function buildPassGraphSnapshot(
 		}
 
 		enabledPassCount += 1;
-		if ('isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true) {
+		if (isManagedComputePass(pass)) {
 			continue;
 		}
-		if (
-			'isPingPongShader' in pass &&
-			(pass as { isPingPongShader?: boolean }).isPingPongShader === true
-		) {
+		if (isManagedFeedbackPass(pass)) {
 			continue;
 		}
 		const rp = pass as RenderPass;
@@ -1533,11 +1489,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let presentationBindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
 		// ── Storage buffer allocation ────────────────────────────────────────
-		const pingPongTexturePairs = new Map<RuntimeComputePass, PingPongTexturePair>();
-		const pingPongShaderTexturePairs = new Map<
-			RuntimePingPongShaderPass,
-			PingPongShaderTexturePair
-		>();
+		const pingPongTexturePairs = new Map<ComputePassLike, PingPongTexturePair>();
+		const pingPongShaderTexturePairs = new Map<PingPongShaderPassLike, PingPongShaderTexturePair>();
 
 		for (const key of storageBufferKeys) {
 			const definition = storageBufferDefinitions[key];
@@ -1584,7 +1537,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				: null;
 
 		const ensurePingPongTexturePair = (
-			pass: RuntimeComputePass,
+			pass: ComputePassLike,
 			logicalId: string
 		): PingPongTexturePair => {
 			const existing = pingPongTexturePairs.get(pass);
@@ -1657,7 +1610,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		};
 
 		const ensurePingPongShaderTexturePair = (
-			pass: RuntimePingPongShaderPass,
+			pass: PingPongShaderPassLike,
 			options: {
 				target: string;
 				width: number;
@@ -2020,11 +1973,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			});
 
 		const buildPingPongShaderPipelineEntry = (
-			pass: RuntimePingPongShaderPass,
+			pass: PingPongShaderPassLike,
 			format: GPUTextureFormat,
 			target: string
 		): PingPongShaderPipelineEntry => {
-			const fragment = pass.getFragment?.();
+			const fragment = pass.getFragment();
 			if (!fragment) {
 				throw new Error('PingPongShaderPass must provide a fragment shader.');
 			}
@@ -2032,7 +1985,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const feedbackTextureKeys = fragmentTextureKeys.filter((key) => key !== target);
 			const previousSamplingLayout = resolveTextureSamplingLayout({
 				format,
-				filter: pass.getFilter?.() ?? 'linear',
+				filter: pass.getFilter(),
 				deviceFeatures: device.features
 			});
 			const cacheKey = [
@@ -2050,12 +2003,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				return cached;
 			}
 
-			const fragmentLineMap = pass.getFragmentLineMap?.();
+			const fragmentLineMap = pass.getFragmentLineMap();
 			const builtShader = buildPingPongShaderSourceWithMap(
 				fragment,
 				options.uniformLayout,
 				feedbackTextureKeys,
-				fragmentLineMap ? { fragmentLineMap } : {}
+				{ fragmentLineMap }
 			);
 			const shaderModule = device.createShaderModule({ code: builtShader.code });
 			const feedbackBindGroupLayout = device.createBindGroupLayout({
@@ -2164,7 +2117,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		const getComputeResourceBindGroup = (
 			pipelineEntry: ComputePipelineEntry,
-			pass: RuntimeComputePass,
+			pass: ComputePassLike,
 			resources: ResolvedComputePassResources
 		): GPUBindGroup | null => {
 			if (!pipelineEntry.resourceBindGroupLayout) return null;
@@ -2184,7 +2137,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		const getPingPongResourceBindGroup = (
 			pipelineEntry: ComputePipelineEntry,
-			pass: RuntimeComputePass,
+			pass: ComputePassLike,
 			resources: ResolvedComputePassResources,
 			pair: PingPongTexturePair,
 			readFromA: boolean
@@ -2794,13 +2747,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		};
 
 		const syncPingPongShaderTextureLifecycle = (passes: AnyPass[]): void => {
-			const activeFeedbackPasses = new Set<RuntimePingPongShaderPass>();
+			const activeFeedbackPasses = new Set<PingPongShaderPassLike>();
 			for (const pass of passes) {
-				if (
-					'isPingPongShader' in pass &&
-					(pass as { isPingPongShader?: boolean }).isPingPongShader === true
-				) {
-					activeFeedbackPasses.add(pass as RuntimePingPongShaderPass);
+				if (isManagedFeedbackPass(pass)) {
+					activeFeedbackPasses.add(pass);
 				}
 			}
 
@@ -2814,7 +2764,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		};
 
 		const syncPingPongComputeTextureLifecycle = (passes: AnyPass[]): void => {
-			const activeComputePasses = new Set(passes as RuntimeComputePass[]);
+			const activeComputePasses = new Set(passes.filter(isManagedComputePass));
 			for (const [pass, pair] of pingPongTexturePairs.entries()) {
 				if (activeComputePasses.has(pass)) continue;
 				pair.textureA.destroy();
@@ -3115,11 +3065,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				if (pass.enabled === false) {
 					continue;
 				}
-				if (
-					'isPingPongShader' in pass &&
-					(pass as { isPingPongShader?: boolean }).isPingPongShader === true
-				) {
-					const target = (pass as RuntimePingPongShaderPass).getTarget?.();
+				if (isManagedFeedbackPass(pass)) {
+					const target = pass.getTarget();
 					if (target) {
 						activePingPongShaderTargets.add(target);
 					}
@@ -3161,13 +3108,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			let computeDeclarationIndex = 0;
 			for (const pass of passes) {
 				if (pass.enabled === false) continue;
-				const isCompute =
-					'isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true;
-				if (!isCompute) continue;
-				const runtimePass = pass as RuntimeComputePass;
+				if (!isManagedComputePass(pass)) continue;
 				const passLabel = `Compute pass #${computeDeclarationIndex}`;
 				computeDeclarationIndex += 1;
-				const resources = resolveComputePassResources(runtimePass.getResources?.() ?? {}, {
+				const resources = resolveComputePassResources(pass.getResources(), {
 					passLabel,
 					deviceFeatures: device.features as ReadonlySet<string>,
 					limits: computeResourceLimits,
@@ -3186,7 +3130,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 							: undefined;
 					},
 					createTextureView: createCachedExternalTextureView,
-					pingPong: runtimePass.isPingPong === true,
+					pingPong: pass.isPingPong === true,
 					externalState: computeExternalState,
 					diagnosticContext: runtimeContext
 				});
@@ -3279,111 +3223,104 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					ensureFrameBufferResolution(width, height);
 					const computeStepLabel = step.computeLabel ?? `Compute pass #${computeStepIndex}`;
 					computeStepIndex += 1;
-					const computePass = step.pass as RuntimeComputePass;
-					if (
-						computePass.getCompute &&
-						computePass.resolveDispatch &&
-						computePass.getWorkgroupSize
-					) {
-						const computeSource = computePass.getCompute();
-						const resources = step.resolvedResources;
-						if (!resources) throw new Error(`${computeStepLabel} is missing resolved resources.`);
-						const pingPongRead = resources.entries.find(
-							(entry) => entry.kind === 'sampled-texture' && entry.pingPong === 'read'
-						);
-						const pingPongWrite = resources.entries.find(
-							(entry) => entry.kind === 'storage-texture' && entry.pingPong === 'write'
-						);
-						let pingPongPair: PingPongTexturePair | null = null;
-						if (computePass.isPingPong) {
-							if (
-								!pingPongRead ||
-								!pingPongWrite ||
-								pingPongRead.source !== 'material' ||
-								pingPongWrite.source !== 'material' ||
-								typeof pingPongRead.logicalId !== 'string' ||
-								!Object.is(pingPongRead.logicalId, pingPongWrite.logicalId)
-							) {
-								throw createMotionGPUError(
-									'PINGPONG_CONFIGURATION_INVALID',
-									`${computeStepLabel} ping-pong pair must reference one renderer-managed material texture.`
-								);
-							}
-							pingPongPair = ensurePingPongTexturePair(computePass, pingPongRead.logicalId);
-						}
-						const workgroupSize = computePass.getWorkgroupSize();
-						const pipelineEntry = buildComputePipelineEntry({
-							computeSource,
-							workgroupSize,
-							resources
-						});
-						const resourceBindGroup = pingPongPair
-							? null
-							: getComputeResourceBindGroup(pipelineEntry, computePass, resources);
-						const iterations =
-							computePass.isPingPong && computePass.getIterations ? computePass.getIterations() : 1;
-						if (!Number.isInteger(iterations) || iterations < 1) {
-							throw new Error(
-								`${computeStepLabel} iterations must be a positive integer >= 1, got ${iterations}.`
+					if (!isManagedComputePass(step.pass)) {
+						throw new Error(`${computeStepLabel} has an invalid managed pass contract.`);
+					}
+					const computePass = step.pass;
+					const computeSource = computePass.getCompute();
+					const resources = step.resolvedResources;
+					if (!resources) throw new Error(`${computeStepLabel} is missing resolved resources.`);
+					const pingPongRead = resources.entries.find(
+						(entry) => entry.kind === 'sampled-texture' && entry.pingPong === 'read'
+					);
+					const pingPongWrite = resources.entries.find(
+						(entry) => entry.kind === 'storage-texture' && entry.pingPong === 'write'
+					);
+					let pingPongPair: PingPongTexturePair | null = null;
+					if (computePass.isPingPong) {
+						if (
+							!pingPongRead ||
+							!pingPongWrite ||
+							pingPongRead.source !== 'material' ||
+							pingPongWrite.source !== 'material' ||
+							typeof pingPongRead.logicalId !== 'string' ||
+							!Object.is(pingPongRead.logicalId, pingPongWrite.logicalId)
+						) {
+							throw createMotionGPUError(
+								'PINGPONG_CONFIGURATION_INVALID',
+								`${computeStepLabel} ping-pong pair must reference one renderer-managed material texture.`
 							);
 						}
+						pingPongPair = ensurePingPongTexturePair(computePass, pingPongRead.logicalId);
+					}
+					const workgroupSize = computePass.getWorkgroupSize();
+					const pipelineEntry = buildComputePipelineEntry({
+						computeSource,
+						workgroupSize,
+						resources
+					});
+					const resourceBindGroup = pingPongPair
+						? null
+						: getComputeResourceBindGroup(pipelineEntry, computePass, resources);
+					const iterations = computePass.isPingPong ? (computePass.getIterations?.() ?? 1) : 1;
+					if (!Number.isInteger(iterations) || iterations < 1) {
+						throw new Error(
+							`${computeStepLabel} iterations must be a positive integer >= 1, got ${iterations}.`
+						);
+					}
 
-						for (let iter = 0; iter < iterations; iter += 1) {
-							const dispatchLabel =
-								iterations > 1 ? `${computeStepLabel} iteration ${iter + 1}` : computeStepLabel;
-							const dispatch = validateComputeDispatch(
-								computePass.resolveDispatch({
-									width,
-									height,
-									time,
-									delta,
-									workgroupSize
-								}),
-								maxComputeWorkgroupsPerDimension,
-								dispatchLabel
-							);
-							const cPass = commandEncoder.beginComputePass();
-							cPass.setPipeline(pipelineEntry.pipeline);
-							cPass.setBindGroup(0, pipelineEntry.uniformBindGroup);
-							if (pingPongPair) {
-								cPass.setBindGroup(
-									1,
-									getPingPongResourceBindGroup(
-										pipelineEntry,
-										computePass,
-										resources,
-										pingPongPair,
-										pingPongPair.readFromA
-									)
-								);
-							} else if (resourceBindGroup) {
-								cPass.setBindGroup(1, resourceBindGroup);
-							}
-							cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
-							cPass.end();
-							if (pingPongPair) pingPongPair.readFromA = !pingPongPair.readFromA;
-						}
-
+					for (let iter = 0; iter < iterations; iter += 1) {
+						const dispatchLabel =
+							iterations > 1 ? `${computeStepLabel} iteration ${iter + 1}` : computeStepLabel;
+						const dispatch = validateComputeDispatch(
+							computePass.resolveDispatch({
+								width,
+								height,
+								time,
+								delta,
+								workgroupSize
+							}),
+							maxComputeWorkgroupsPerDimension,
+							dispatchLabel
+						);
+						const cPass = commandEncoder.beginComputePass();
+						cPass.setPipeline(pipelineEntry.pipeline);
+						cPass.setBindGroup(0, pipelineEntry.uniformBindGroup);
 						if (pingPongPair) {
-							const latestView = pingPongPair.readFromA ? pingPongPair.viewA : pingPongPair.viewB;
-							if (resourceRegistry.markTextureWritten(pingPongPair.logicalId, latestView)) {
-								const binding = textureBindingByKey.get(pingPongPair.logicalId);
-								if (binding?.fragmentVisible) bindGroupDirty = true;
-							}
-						} else {
-							const written = new Set<string>();
-							for (const entry of resources.entries) {
-								if (entry.source !== 'material' || written.has(String(entry.logicalId))) continue;
-								if (entry.kind === 'storage-texture') {
-									written.add(String(entry.logicalId));
-									resourceRegistry.markTextureWritten(String(entry.logicalId));
-								} else if (
-									entry.kind === 'storage-buffer' &&
-									entry.access === 'storage-read-write'
-								) {
-									written.add(String(entry.logicalId));
-									resourceRegistry.markStorageBufferWritten(String(entry.logicalId));
-								}
+							cPass.setBindGroup(
+								1,
+								getPingPongResourceBindGroup(
+									pipelineEntry,
+									computePass,
+									resources,
+									pingPongPair,
+									pingPongPair.readFromA
+								)
+							);
+						} else if (resourceBindGroup) {
+							cPass.setBindGroup(1, resourceBindGroup);
+						}
+						cPass.dispatchWorkgroups(dispatch[0], dispatch[1], dispatch[2]);
+						cPass.end();
+						if (pingPongPair) pingPongPair.readFromA = !pingPongPair.readFromA;
+					}
+
+					if (pingPongPair) {
+						const latestView = pingPongPair.readFromA ? pingPongPair.viewA : pingPongPair.viewB;
+						if (resourceRegistry.markTextureWritten(pingPongPair.logicalId, latestView)) {
+							const binding = textureBindingByKey.get(pingPongPair.logicalId);
+							if (binding?.fragmentVisible) bindGroupDirty = true;
+						}
+					} else {
+						const written = new Set<string>();
+						for (const entry of resources.entries) {
+							if (entry.source !== 'material' || written.has(String(entry.logicalId))) continue;
+							if (entry.kind === 'storage-texture') {
+								written.add(String(entry.logicalId));
+								resourceRegistry.markTextureWritten(String(entry.logicalId));
+							} else if (entry.kind === 'storage-buffer' && entry.access === 'storage-read-write') {
+								written.add(String(entry.logicalId));
+								resourceRegistry.markStorageBufferWritten(String(entry.logicalId));
 							}
 						}
 					}
@@ -3396,22 +3333,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 				const feedbackStepLabel = `PingPongShaderPass #${feedbackStepIndex}`;
 				feedbackStepIndex += 1;
-				const feedbackPass = step.pass as RuntimePingPongShaderPass;
-				const target = feedbackPass.getTarget?.();
+				if (!isManagedFeedbackPass(step.pass)) {
+					throw new Error(`${feedbackStepLabel} has an invalid managed pass contract.`);
+				}
+				const feedbackPass = step.pass;
+				const target = feedbackPass.getTarget();
 				if (!target) {
 					throw new Error('PingPongShaderPass must provide a target texture key.');
-				}
-				if (
-					!feedbackPass.resolveSize ||
-					!feedbackPass.getIterations ||
-					!feedbackPass.getFormat ||
-					!feedbackPass.getFilter ||
-					!feedbackPass.getAddressModeU ||
-					!feedbackPass.getAddressModeV ||
-					!feedbackPass.getCurrentOutput ||
-					!feedbackPass.advanceFrame
-				) {
-					throw new Error('PingPongShaderPass is missing required runtime methods.');
 				}
 
 				const targetBinding = textureBindingByKey.get(target);
@@ -3443,9 +3371,9 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				});
 				const pipelineEntry = buildPingPongShaderPipelineEntry(feedbackPass, pair.format, target);
 				const feedbackBindGroup = createPingPongShaderBindGroup(pipelineEntry);
-				const resetColor = feedbackPass.consumeResetColor?.();
+				const resetColor = feedbackPass.consumeResetColor();
 				const initializationColor =
-					resetColor ?? (pair.needsClear ? (feedbackPass.getClearColor?.() ?? [0, 0, 0, 0]) : null);
+					resetColor ?? (pair.needsClear ? feedbackPass.getClearColor() : null);
 				if (initializationColor) {
 					clearFeedbackView(pair.viewA, initializationColor);
 					clearFeedbackView(pair.viewB, initializationColor);

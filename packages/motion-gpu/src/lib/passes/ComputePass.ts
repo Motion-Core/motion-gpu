@@ -4,6 +4,7 @@ import {
 	type ComputeWorkgroupSize
 } from '../core/compute-shader.js';
 import { copyComputeResourceMap, normalizeComputeResourceMap } from '../core/compute-resources.js';
+import { managedPassBrand } from '../core/pass-brand.js';
 import type { ComputeResourceMap } from '../core/types.js';
 
 /**
@@ -60,6 +61,9 @@ export interface ComputePassOptions {
  * (that responsibility belongs to the renderer).
  */
 export class ComputePass {
+	/** Internal nominal marker for renderer-managed compute passes. */
+	readonly [managedPassBrand] = 'compute' as const;
+
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */

@@ -9,6 +9,7 @@ import {
 	resolveComputePingPongResourcePair
 } from '../core/compute-resources.js';
 import { createMotionGPUError } from '../core/error-report.js';
+import { managedPassBrand } from '../core/pass-brand.js';
 import type { ComputeResourceMap } from '../core/types.js';
 import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.js';
 
@@ -50,6 +51,9 @@ export interface PingPongComputePassOptions {
  * reaction-diffusion, and particle systems.
  */
 export class PingPongComputePass {
+	/** Internal nominal marker for renderer-managed compute passes. */
+	readonly [managedPassBrand] = 'compute' as const;
+
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */

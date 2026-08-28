@@ -7,6 +7,10 @@ description: All notable changes to Motion GPU will be documented in this file. 
 
 ## [Unreleased]
 
+### Breaking
+
+- Compute and fragment-feedback passes are now nominal library-managed contracts. Replace hand-built objects with `isCompute: true` or `isPingPongShader: true` with `ComputePass`, `PingPongComputePass`, or `PingPongShaderPass`. Custom `RenderPass` implementations remain supported.
+
 ### Added
 
 - Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.

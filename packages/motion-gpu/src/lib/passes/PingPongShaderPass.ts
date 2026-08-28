@@ -1,6 +1,7 @@
 import { storageTextureSampleScalarType } from '../core/compute-shader.js';
 import { preprocessMaterialFragment, type MaterialLineMap } from '../core/material-preprocess.js';
 import type { MaterialDefines, MaterialIncludes } from '../core/material.js';
+import { managedPassBrand } from '../core/pass-brand.js';
 import { assertUniformName } from '../core/uniforms.js';
 
 const FRAGMENT_FUNCTION_SIGNATURE_PATTERN =
@@ -169,6 +170,9 @@ function resolveDimension(
  * texture slot.
  */
 export class PingPongShaderPass {
+	/** Internal nominal marker for renderer-managed feedback passes. */
+	readonly [managedPassBrand] = 'feedback' as const;
+
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */

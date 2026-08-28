@@ -4,7 +4,8 @@
 	"type": "module",
 	"scripts": {
 		"build": "vite build",
-		"check": "tsc --noEmit"
+		"check": "tsc --noEmit",
+		"test:custom-pass": "node src/custom-render-pass.ts"
 	},
 	"dependencies": {
 		"@motion-core/motion-gpu": "file:__MOTION_GPU_TARBALL__"

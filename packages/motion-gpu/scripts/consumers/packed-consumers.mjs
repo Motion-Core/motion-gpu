@@ -30,6 +30,12 @@ const entryAliases = {
 	'./vue': 'Vue',
 	'./vue/advanced': 'VueAdvanced'
 };
+export const nodeSsrEntrypoints = Object.freeze([
+	'@motion-core/motion-gpu',
+	'@motion-core/motion-gpu/advanced',
+	'@motion-core/motion-gpu/core',
+	'@motion-core/motion-gpu/core/advanced'
+]);
 const currentVersions = {
 	core: { typescript: '5.9.3', vite: '8.2.1' },
 	react: {
@@ -218,6 +224,16 @@ export function createPublicApiCompileContract(fixtureName) {
 
 	lines.push(`void [${runtimeAliases.join(', ')}];`, '');
 	return lines.join('\n');
+}
+
+/** Generates the direct Node import contract used against the installed package. */
+export function createNodeSsrImportContract() {
+	return [
+		"if (!Reflect.deleteProperty(globalThis, 'navigator')) throw new Error('Could not remove navigator for the SSR import contract.');",
+		"if ('navigator' in globalThis) throw new Error('SSR import contract must run without navigator.gpu.');",
+		`const entrypoints = ${JSON.stringify(nodeSsrEntrypoints)};`,
+		'for (const entrypoint of entrypoints) await import(entrypoint);'
+	].join(' ');
 }
 
 export function applyExactVersions(manifest, versions) {
@@ -461,6 +477,12 @@ async function assertInternalImportsAreBlocked(coreConsumerDirectory) {
 	}
 }
 
+async function assertNodeSsrImports(coreConsumerDirectory) {
+	await runCommand('node', ['--input-type=module', '--eval', createNodeSsrImportContract()], {
+		cwd: coreConsumerDirectory
+	});
+}
+
 async function findFilesWithExtension(directory, extension) {
 	const matches = [];
 	for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -478,6 +500,9 @@ async function checkAndBuildFixtures(consumerRoot) {
 	for (const fixtureName of fixtureNames) {
 		const fixtureDirectory = path.join(consumerRoot, fixtureName);
 		await runCommand('pnpm', ['run', 'check'], { cwd: fixtureDirectory });
+		if (fixtureName === 'core') {
+			await runCommand('pnpm', ['run', 'test:custom-pass'], { cwd: fixtureDirectory });
+		}
 		await runCommand('pnpm', ['run', 'build'], { cwd: fixtureDirectory });
 		await access(path.join(fixtureDirectory, 'dist/index.html'));
 	}
@@ -509,6 +534,7 @@ async function checkProfile(temporaryRoot, packageSpec, profile) {
 	await assertMotionGpuVersion(consumerRoot, packageSpec.expectedVersion);
 	const coreConsumerDirectory = path.join(consumerRoot, 'core');
 	await assertPackedArtifacts(coreConsumerDirectory);
+	await assertNodeSsrImports(coreConsumerDirectory);
 	await assertInternalImportsAreBlocked(coreConsumerDirectory);
 	await checkAndBuildFixtures(consumerRoot);
 }

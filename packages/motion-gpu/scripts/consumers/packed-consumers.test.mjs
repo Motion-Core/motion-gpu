@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import {
 	applyExactVersions,
 	assertPublicApiSymbols,
 	assertPublicExportMap,
+	createNodeSsrImportContract,
 	createPublicApiCompileContract,
 	injectPackageSpec,
 	injectTarballPath,
+	nodeSsrEntrypoints,
 	parsePackageSpec,
 	parsePackedConsumerArguments
 } from './packed-consumers.mjs';
@@ -138,6 +141,38 @@ test('generates peer-specific compile contracts from the same manifest', () => {
 	assert.match(svelteContract, /TextureOptionsInput as Svelte_TextureOptionsInput/);
 	assert.match(svelteContract, /@motion-core\/motion-gpu\/svelte\/advanced/);
 	assert.throws(() => createPublicApiCompileContract('unknown'), /Unknown public API fixture/);
+});
+
+test('generates direct SSR imports for every framework-neutral entrypoint without navigator', () => {
+	assert.ok(Object.isFrozen(nodeSsrEntrypoints));
+	assert.deepEqual(nodeSsrEntrypoints, [
+		'@motion-core/motion-gpu',
+		'@motion-core/motion-gpu/advanced',
+		'@motion-core/motion-gpu/core',
+		'@motion-core/motion-gpu/core/advanced'
+	]);
+	const contract = createNodeSsrImportContract();
+	assert.match(contract, /Reflect\.deleteProperty\(globalThis, 'navigator'\)/);
+	assert.match(contract, /'navigator' in globalThis/);
+	assert.match(contract, /await import\(entrypoint\)/);
+	for (const entrypoint of nodeSsrEntrypoints) {
+		assert.match(contract, new RegExp(JSON.stringify(entrypoint).replaceAll('/', '\\/')));
+	}
+});
+
+test('core fixture compiles and runs a structural custom RenderPass contract', async () => {
+	const fixtureSource = await readFile(
+		new URL('./fixtures/core/src/custom-render-pass.ts', import.meta.url),
+		'utf8'
+	);
+	const fixtureManifest = JSON.parse(
+		await readFile(new URL('./fixtures/core/package.json', import.meta.url), 'utf8')
+	);
+	assert.match(fixtureSource, /import type \{ AnyPass, RenderPass \}/);
+	assert.match(fixtureSource, /satisfies RenderPass/);
+	assert.match(fixtureSource, /const acceptedPasses: AnyPass\[\] = \[structuralCustomRenderPass\]/);
+	assert.match(fixtureSource, /structuralCustomRenderPass\.render\(\)/);
+	assert.equal(fixtureManifest.scripts['test:custom-pass'], 'node src/custom-render-pass.ts');
 });
 
 test('pins only declared fixture dependencies without mutating the template', () => {

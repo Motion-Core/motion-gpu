@@ -127,11 +127,12 @@ describe('runtime-loop', () => {
 		await flushFrame(16);
 		await flushFrame(32);
 
-		expect(readPromise).not.toBeNull();
-		if (!readPromise) {
+		const pendingRead = readPromise as Promise<ArrayBuffer> | null;
+		expect(pendingRead).not.toBeNull();
+		if (!pendingRead) {
 			throw new Error('Missing read promise');
 		}
-		const result = await readPromise;
+		const result = await pendingRead;
 		expect(result).toBeInstanceOf(ArrayBuffer);
 		expect(Array.from(new Uint8Array(result))).toEqual([1, 2, 3, 4]);
 		expect(commandEncoder.copyBufferToBuffer).toHaveBeenCalledWith(
@@ -144,6 +145,98 @@ describe('runtime-loop', () => {
 		expect(stagingBuffer.mapAsync).toHaveBeenCalledWith(0x1);
 		expect(stagingBuffer.unmap).toHaveBeenCalledTimes(1);
 		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);
+		loop.destroy();
+	});
+
+	it('copies queued bytes and flushes same-buffer writes in order before readback', async () => {
+		const registry = createFrameRegistry();
+		let readPromise: Promise<ArrayBuffer> | null = null;
+		const firstWrite = new Uint32Array([10]);
+		registry.register('writer-reader', (state) => {
+			if (readPromise) {
+				return;
+			}
+
+			state.writeStorageBuffer('particles', firstWrite, { offset: 4 });
+			firstWrite[0] = 99;
+			state.writeStorageBuffer('particles', new Uint32Array([20]), { offset: 8 });
+			readPromise = state.readStorageBuffer('particles');
+		});
+
+		const gpuData = new Uint32Array([1, 2, 3, 4]);
+		const stagingBuffer = {
+			mapAsync: vi.fn(async () => undefined),
+			getMappedRange: vi.fn(() => gpuData.buffer),
+			unmap: vi.fn(),
+			destroy: vi.fn()
+		};
+		const commandEncoder = {
+			copyBufferToBuffer: vi.fn(),
+			finish: vi.fn(() => ({}))
+		};
+		const events: string[] = [];
+		const device = {
+			createBuffer: vi.fn(() => stagingBuffer),
+			createCommandEncoder: vi.fn(() => commandEncoder),
+			queue: {
+				submit: vi.fn(() => {
+					events.push('submit');
+				})
+			}
+		};
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => ({}) as GPUBuffer),
+			getDevice: vi.fn(() => device),
+			flushStorageWrites: vi.fn((writes: Array<{ data: ArrayBufferView; offset: number }>) => {
+				const gpuBytes = new Uint8Array(gpuData.buffer);
+				for (const write of writes) {
+					events.push(`flush:${write.offset}`);
+					gpuBytes.set(
+						new Uint8Array(write.data.buffer, write.data.byteOffset, write.data.byteLength),
+						write.offset
+					);
+				}
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 16, type: 'array<u32>' }
+			}
+		});
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const pendingRead = readPromise as Promise<ArrayBuffer> | null;
+		expect(pendingRead).not.toBeNull();
+		if (!pendingRead) {
+			throw new Error('Missing read promise');
+		}
+		const result = await pendingRead;
+		expect(Array.from(new Uint32Array(result))).toEqual([1, 10, 20, 4]);
+		expect(events).toEqual(['flush:4', 'flush:8', 'submit']);
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+
 		loop.destroy();
 	});
 
@@ -246,6 +339,7 @@ describe('runtime-loop', () => {
 		let readPromise: Promise<ArrayBuffer> | null = null;
 		registry.register('reader', (state) => {
 			if (!readPromise) {
+				state.writeStorageBuffer('particles', new Uint32Array([7]));
 				readPromise = state.readStorageBuffer('particles');
 			}
 		});
@@ -269,7 +363,8 @@ describe('runtime-loop', () => {
 			render: vi.fn(),
 			destroy: vi.fn(),
 			getStorageBuffer: vi.fn(() => ({}) as unknown as GPUBuffer),
-			getDevice: vi.fn(() => device)
+			getDevice: vi.fn(() => device),
+			flushStorageWrites: vi.fn()
 		};
 		createRendererMock.mockResolvedValue(renderer);
 
@@ -303,6 +398,9 @@ describe('runtime-loop', () => {
 			throw new Error('Missing read promise');
 		}
 		await expect(readPromise).rejects.toThrow(/device lost/);
+		loop.invalidate();
+		await flushFrame(48);
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
 		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);
 		expect(stagingBuffer.unmap).not.toHaveBeenCalled();
 		loop.destroy();

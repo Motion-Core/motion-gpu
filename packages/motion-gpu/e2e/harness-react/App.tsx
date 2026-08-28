@@ -7,6 +7,7 @@ import { TextureScenario } from './scenarios/TextureScenario';
 import { UniformsScenario } from './scenarios/UniformsScenario';
 import { LifecycleScenario } from './scenarios/LifecycleScenario';
 import { MixedPassesScenario } from './scenarios/MixedPassesScenario';
+import { StorageWriteReadScenario } from './scenarios/StorageWriteReadScenario';
 
 type Scenario =
 	| 'runtime'
@@ -17,7 +18,8 @@ type Scenario =
 	| 'compute'
 	| 'uniforms'
 	| 'lifecycle'
-	| 'mixed-passes';
+	| 'mixed-passes'
+	| 'storage-proof';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
@@ -30,7 +32,8 @@ function resolveScenario(): Scenario {
 		queryScenario === 'compute' ||
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
-		queryScenario === 'mixed-passes'
+		queryScenario === 'mixed-passes' ||
+		queryScenario === 'storage-proof'
 	) {
 		return queryScenario;
 	}
@@ -53,6 +56,7 @@ export function App() {
 			{scenario === 'uniforms' ? <UniformsScenario /> : null}
 			{scenario === 'lifecycle' ? <LifecycleScenario /> : null}
 			{scenario === 'mixed-passes' ? <MixedPassesScenario /> : null}
+			{scenario === 'storage-proof' ? <StorageWriteReadScenario /> : null}
 		</>
 	);
 }

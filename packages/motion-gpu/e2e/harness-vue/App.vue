@@ -2,6 +2,7 @@
 import ComputeScenario from './scenarios/ComputeScenario.vue';
 import LifecycleScenario from './scenarios/LifecycleScenario.vue';
 import MixedPassesScenario from './scenarios/MixedPassesScenario.vue';
+import StorageWriteReadScenario from './scenarios/StorageWriteReadScenario.vue';
 import PassesScenario from './scenarios/PassesScenario.vue';
 import PerfScenario from './scenarios/PerfScenario.vue';
 import RuntimeScenario from './scenarios/RuntimeScenario.vue';
@@ -18,7 +19,8 @@ type Scenario =
 	| 'compute'
 	| 'uniforms'
 	| 'lifecycle'
-	| 'mixed-passes';
+	| 'mixed-passes'
+	| 'storage-proof';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
@@ -30,7 +32,8 @@ function resolveScenario(): Scenario {
 		queryScenario === 'compute' ||
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
-		queryScenario === 'mixed-passes'
+		queryScenario === 'mixed-passes' ||
+		queryScenario === 'storage-proof'
 	) {
 		return queryScenario;
 	}
@@ -52,4 +55,5 @@ const scenario = resolveScenario();
 	<UniformsScenario v-if="scenario === 'uniforms'" />
 	<LifecycleScenario v-if="scenario === 'lifecycle'" />
 	<MixedPassesScenario v-if="scenario === 'mixed-passes'" />
+	<StorageWriteReadScenario v-if="scenario === 'storage-proof'" />
 </template>

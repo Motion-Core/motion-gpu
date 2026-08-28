@@ -397,6 +397,23 @@ export function createMotionGPURuntimeLoop(
 		runtimeTextures[name] = value;
 	};
 
+	const takePendingStorageWrites = (name: string): PendingStorageWrite[] => {
+		const selected: PendingStorageWrite[] = [];
+		let retainedCount = 0;
+
+		for (const write of pendingStorageWrites) {
+			if (write.name === name) {
+				selected.push(write);
+			} else {
+				pendingStorageWrites[retainedCount] = write;
+				retainedCount += 1;
+			}
+		}
+
+		pendingStorageWrites.length = retainedCount;
+		return selected;
+	};
+
 	const writeStorageBuffer = (
 		name: string,
 		data: ArrayBufferView,
@@ -418,7 +435,9 @@ export function createMotionGPURuntimeLoop(
 				`Storage buffer "${name}" write out of bounds: offset=${offset}, dataSize=${data.byteLength}, bufferSize=${definition.size}.`
 			);
 		}
-		pendingStorageWrites.push({ name, data, offset });
+		const ownedData = new Uint8Array(data.byteLength);
+		ownedData.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+		pendingStorageWrites.push({ name, data: ownedData, offset });
 	};
 
 	const readStorageBuffer = (name: string): Promise<ArrayBuffer> => {
@@ -427,6 +446,7 @@ export function createMotionGPURuntimeLoop(
 				`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`
 			);
 		}
+		const writes = takePendingStorageWrites(name);
 		if (!renderer) {
 			return Promise.reject(
 				new Error(`Cannot read storage buffer "${name}": renderer not initialized.`)
@@ -443,6 +463,13 @@ export function createMotionGPURuntimeLoop(
 		const definition = storageBufferDefinitions[name];
 		if (!definition) {
 			return Promise.reject(new Error(`Missing definition for storage buffer "${name}".`));
+		}
+		try {
+			if (writes.length > 0) {
+				renderer.flushStorageWrites(writes);
+			}
+		} catch (error) {
+			return Promise.reject(error);
 		}
 		const stagingBuffer = device.createBuffer({
 			size: definition.size,

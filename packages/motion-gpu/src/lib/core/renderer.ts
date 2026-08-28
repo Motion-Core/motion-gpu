@@ -43,6 +43,20 @@ import { MaterialResourceRegistry, type RuntimeTextureResource } from './resourc
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
 import { isManagedComputePass, isManagedFeedbackPass } from './pass-contract.js';
 import {
+	validateBuiltInRenderPassFormats,
+	validatePresentationSourceFormat,
+	validateRenderTargetFormats,
+	validateWorkingFormat,
+	resolvePresentationSourceSlot,
+	type RenderTargetFormatMap
+} from './render-format-validation.js';
+import {
+	assertFloatRenderableFormat,
+	assertFloatSampledFormat,
+	assertStorageTextureAccess,
+	assertTextureFormatSupported
+} from './format-capabilities.js';
+import {
 	buildCanvasConfiguration,
 	buildPresentationShader,
 	resolveColorPipeline,
@@ -1168,6 +1182,36 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 	device.addEventListener('uncapturederror', handleUncapturedError);
 	try {
+		validateWorkingFormat(workingFormat, device.features);
+		const presentationSamplingLayout = resolveTextureSamplingLayout({
+			format: workingFormat,
+			filter: 'linear',
+			deviceFeatures: device.features
+		});
+		const initialRenderTargetFormats = validateRenderTargetFormats(
+			options.getRenderTargets ? undefined : options.renderTargets,
+			workingFormat,
+			device.features
+		);
+		if (!options.getPasses && !options.getRenderTargets) {
+			const initialPasses = options.passes ?? [];
+			validateBuiltInRenderPassFormats({
+				passes: initialPasses,
+				workingFormat,
+				namedFormats: initialRenderTargetFormats,
+				deviceFeatures: device.features
+			});
+			const presentationSourceSlot = resolvePresentationSourceSlot(initialPasses);
+			if (presentationSourceSlot !== null) {
+				validatePresentationSourceFormat({
+					slot: presentationSourceSlot,
+					workingFormat,
+					namedFormats: initialRenderTargetFormats,
+					deviceFeatures: device.features,
+					requiresFilterableInput: presentationSamplingLayout.samplerType === 'filtering'
+				});
+			}
+		}
 		const runtimeContext = buildShaderCompilationRuntimeContext(options);
 		const convertLinearToSrgb =
 			!colorPipeline.requiresPresentationPass &&
@@ -1218,6 +1262,33 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			options.textureDefinitions,
 			options.textureKeys
 		);
+		for (const key of options.textureKeys) {
+			const definition = normalizedTextureDefinitions[key];
+			if (!definition) continue;
+			assertTextureFormatSupported({
+				format: definition.format,
+				target: key,
+				pass: 'Material texture allocation',
+				deviceFeatures: device.features
+			});
+			if (definition.fragmentVisible) {
+				assertFloatSampledFormat({
+					format: definition.format,
+					target: key,
+					pass: 'Material fragment texture',
+					deviceFeatures: device.features
+				});
+			}
+			if (definition.storage) {
+				assertStorageTextureAccess({
+					format: definition.format,
+					target: key,
+					pass: 'Material storage texture allocation',
+					access: 'write-only',
+					deviceFeatures: device.features
+				});
+			}
+		}
 		const storageBufferKeys = options.storageBufferKeys ?? [];
 		const storageBufferDefinitions = options.storageBufferDefinitions ?? {};
 		const storageTextureKeys = options.storageTextureKeys ?? [];
@@ -1394,13 +1465,13 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				{
 					binding: 0,
 					visibility: GPUShaderStage.FRAGMENT,
-					sampler: { type: 'filtering' }
+					sampler: { type: presentationSamplingLayout.samplerType }
 				},
 				{
 					binding: 1,
 					visibility: GPUShaderStage.FRAGMENT,
 					texture: {
-						sampleType: 'float',
+						sampleType: presentationSamplingLayout.sampleType,
 						viewDimension: '2d',
 						multisampled: false
 					}
@@ -1481,8 +1552,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			);
 		}
 		const presentationSampler = device.createSampler({
-			magFilter: 'linear',
-			minFilter: 'linear',
+			magFilter: presentationSamplingLayout.effectiveFilter,
+			minFilter: presentationSamplingLayout.effectiveFilter,
 			addressModeU: 'clamp-to-edge',
 			addressModeV: 'clamp-to-edge'
 		});
@@ -1977,6 +2048,18 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			format: GPUTextureFormat,
 			target: string
 		): PingPongShaderPipelineEntry => {
+			assertFloatSampledFormat({
+				format,
+				target,
+				pass: 'PingPongShaderPass',
+				deviceFeatures: device.features
+			});
+			assertFloatRenderableFormat({
+				format,
+				target,
+				pass: 'PingPongShaderPass',
+				deviceFeatures: device.features
+			});
 			const fragment = pass.getFragment();
 			if (!fragment) {
 				throw new Error('PingPongShaderPass must provide a fragment shader.');
@@ -2506,6 +2589,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let presentationSlotTarget: RuntimeRenderTarget | null = null;
 		let renderTargetSignature = '';
 		let renderTargetSnapshot: Readonly<Record<string, RenderTarget>> = {};
+		let renderTargetFormatSnapshot: RenderTargetFormatMap = {};
 		let renderTargetKeys: string[] = [];
 		let cachedGraphPlan: RenderGraphPlan | null = null;
 		let cachedGraphRenderTargetSignature = '';
@@ -2824,8 +2908,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			canvasWidth: number,
 			canvasHeight: number
 		): Readonly<Record<string, RenderTarget>> => {
+			const definitions = resolveRenderTargets();
+			const validatedFormats = validateRenderTargetFormats(
+				definitions,
+				workingFormat,
+				device.features
+			);
 			const resolvedDefinitions = resolveRenderTargetDefinitions(
-				resolveRenderTargets(),
+				definitions,
 				canvasWidth,
 				canvasHeight,
 				workingFormat
@@ -2883,6 +2973,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 
 				renderTargetSnapshot = nextSnapshot;
+				renderTargetFormatSnapshot = validatedFormats;
 				renderTargetKeys = nextKeys;
 			}
 
@@ -3162,6 +3253,21 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 						updateGraphPlanCache(passes, clearColor, nextPlan);
 						return nextPlan;
 					})();
+			validateBuiltInRenderPassFormats({
+				passes,
+				workingFormat,
+				namedFormats: renderTargetFormatSnapshot,
+				deviceFeatures: device.features
+			});
+			if (graphPlan.renderSteps.length > 0) {
+				validatePresentationSourceFormat({
+					slot: graphPlan.finalOutput,
+					workingFormat,
+					namedFormats: renderTargetFormatSnapshot,
+					deviceFeatures: device.features,
+					requiresFilterableInput: presentationSamplingLayout.samplerType === 'filtering'
+				});
+			}
 			const canvasTexture = context.getCurrentTexture();
 			// Mutate the pre-allocated surface object rather than allocating a new one.
 			canvasSurface.texture = canvasTexture;

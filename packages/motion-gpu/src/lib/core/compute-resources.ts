@@ -18,7 +18,10 @@ import {
 	type MotionGPUErrorContext
 } from './error-report.js';
 import type { RuntimeStorageBufferResource, RuntimeTextureResource } from './resource-registry.js';
-import { STORAGE_TEXTURE_FORMATS } from './storage-buffers.js';
+import {
+	resolveTextureFormatCapabilities,
+	textureSampleScalarType
+} from './format-capabilities.js';
 
 const RESERVED_COMPUTE_RESOURCE_ALIASES = new Set(['motiongpuFrame', 'motiongpuUniforms']);
 
@@ -821,23 +824,20 @@ export function resolveComputeTextureFormat(
 	format: GPUTextureFormat,
 	deviceFeatures: ReadonlySet<string>
 ): ResolvedComputeTextureFormat {
-	const normalized = String(format).toLowerCase();
-	if (normalized.includes('depth') || normalized.includes('stencil')) {
+	const capabilities = resolveTextureFormatCapabilities(format, deviceFeatures);
+	const scalarType = textureSampleScalarType(format);
+	if (scalarType === 'depth' || format === 'stencil8') {
 		throw new Error(`Texture format "${format}" is not a supported 2D color format.`);
 	}
-	if (normalized.endsWith('uint')) {
-		return { scalarType: 'u32', sampleType: 'uint' };
+	if (!capabilities.supported) {
+		throw new Error(
+			`Texture format "${format}" requires device feature "${capabilities.requiredFeatures.format}".`
+		);
 	}
-	if (normalized.endsWith('sint')) {
-		return { scalarType: 'i32', sampleType: 'sint' };
-	}
-	if (
-		(normalized === 'r32float' || normalized === 'rg32float' || normalized === 'rgba32float') &&
-		!deviceFeatures.has('float32-filterable')
-	) {
-		return { scalarType: 'f32', sampleType: 'unfilterable-float' };
-	}
-	return { scalarType: 'f32', sampleType: 'float' };
+	return {
+		scalarType: scalarType as 'f32' | 'u32' | 'i32',
+		sampleType: capabilities.sampleType!
+	};
 }
 
 function resolveTextureRange(
@@ -1447,11 +1447,20 @@ export function resolveComputePassResources(
 				continue;
 			}
 
-			if (!STORAGE_TEXTURE_FORMATS.has(resolved.reference.format)) {
+			const storageCapabilities = resolveTextureFormatCapabilities(
+				resolved.reference.format,
+				context.deviceFeatures
+			);
+			if (!storageCapabilities.storageAccess.includes('write-only')) {
+				const requiredFeature =
+					storageCapabilities.requiredFeatures.format ??
+					storageCapabilities.requiredFeatures.storageAccess?.['write-only'];
 				throw resourceError(
 					context,
 					alias,
-					`uses format "${resolved.reference.format}" which is not storage-write compatible.`
+					requiredFeature
+						? `uses format "${resolved.reference.format}" which requires device feature "${requiredFeature}" for storage-write access.`
+						: `uses format "${resolved.reference.format}" which is not storage-write compatible.`
 				);
 			}
 			const entry = freezeResolvedEntry<ResolvedStorageTextureResource>({

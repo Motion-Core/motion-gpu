@@ -578,10 +578,8 @@ describe('storage buffer validation: edge cases', () => {
 		expect(() => assertStorageTextureFormat('t', 'bgra8unorm')).not.toThrow();
 	});
 
-	it('assertStorageTextureFormat rejects rgb10a2unorm', () => {
-		expect(() => assertStorageTextureFormat('t', 'rgb10a2unorm' as GPUTextureFormat)).toThrow(
-			/storage-compatible format/
-		);
+	it('assertStorageTextureFormat accepts tier1 storage formats before device resolution', () => {
+		expect(() => assertStorageTextureFormat('t', 'rgb10a2unorm' as GPUTextureFormat)).not.toThrow();
 	});
 });
 

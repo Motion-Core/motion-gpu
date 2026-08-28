@@ -6,6 +6,14 @@ import type {
 	RenderPassOutputSlot
 } from '../core/types.js';
 import { BlitPass } from './BlitPass.js';
+import {
+	assertFloatRenderableFormat,
+	assertFloatSampledFormat
+} from '../core/format-capabilities.js';
+import {
+	builtInRenderPassBrand,
+	type BuiltInRenderPassFormatContract
+} from '../core/pass-brand.js';
 
 export interface CopyPassOptions extends RenderPassFlags {
 	enabled?: boolean;
@@ -19,6 +27,11 @@ export interface CopyPassOptions extends RenderPassFlags {
  * Texture copy pass with fullscreen-blit fallback.
  */
 export class CopyPass implements RenderPass {
+	readonly [builtInRenderPassBrand]: BuiltInRenderPassFormatContract = Object.freeze({
+		passName: 'CopyPass',
+		input: 'float-sampled',
+		output: 'float-renderable'
+	});
 	enabled: boolean;
 	needsSwap: boolean;
 	input: RenderPassInputSlot;
@@ -50,6 +63,18 @@ export class CopyPass implements RenderPass {
 	}
 
 	render(context: RenderPassContext): void {
+		assertFloatSampledFormat({
+			format: context.input.format,
+			target: String(this.input),
+			pass: 'CopyPass',
+			deviceFeatures: context.device.features
+		});
+		assertFloatRenderableFormat({
+			format: context.output.format,
+			target: String(this.output),
+			pass: 'CopyPass',
+			deviceFeatures: context.device.features
+		});
 		const source = context.input;
 		const target = context.output;
 		const canDirectCopy =

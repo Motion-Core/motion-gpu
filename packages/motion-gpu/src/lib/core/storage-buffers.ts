@@ -1,4 +1,5 @@
 import { assertUniformName } from './uniforms.js';
+import { isStorageTextureFormat, TEXTURE_FORMATS } from './format-capabilities.js';
 import type {
 	StorageBufferDefinition,
 	StorageBufferDefinitionMap,
@@ -22,25 +23,9 @@ const VALID_STORAGE_BUFFER_TYPES: ReadonlySet<string> = new Set<StorageBufferTyp
 /**
  * Storage-compatible texture formats for `texture_storage_2d`.
  */
-export const STORAGE_TEXTURE_FORMATS: ReadonlySet<GPUTextureFormat> = new Set([
-	'r32float',
-	'r32sint',
-	'r32uint',
-	'rg32float',
-	'rg32sint',
-	'rg32uint',
-	'rgba8unorm',
-	'rgba8snorm',
-	'rgba8uint',
-	'rgba8sint',
-	'rgba16float',
-	'rgba16uint',
-	'rgba16sint',
-	'rgba32float',
-	'rgba32uint',
-	'rgba32sint',
-	'bgra8unorm'
-] as GPUTextureFormat[]);
+export const STORAGE_TEXTURE_FORMATS: ReadonlySet<GPUTextureFormat> = new Set(
+	Array.from(TEXTURE_FORMATS, (format) => format as GPUTextureFormat).filter(isStorageTextureFormat)
+);
 
 /**
  * Validates a single storage buffer definition.

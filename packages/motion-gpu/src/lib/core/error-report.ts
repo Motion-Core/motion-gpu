@@ -31,6 +31,7 @@ export type MotionGPUErrorCode =
 	| 'RENDER_GRAPH_INVALID'
 	| 'PINGPONG_CONFIGURATION_INVALID'
 	| 'TEXTURE_USAGE_INVALID'
+	| 'FORMAT_CAPABILITY_MISSING'
 	| 'TEXTURE_REQUEST_FAILED'
 	| 'TEXTURE_DECODE_UNAVAILABLE'
 	| 'TEXTURE_REQUEST_ABORTED'
@@ -227,6 +228,12 @@ function classifyErrorCode(
 				...common,
 				title: 'External compute resource is stale or incompatible',
 				hint: 'Return a live resource from the current device and keep resourceId, format, usage and size metadata accurate.'
+			};
+		case 'FORMAT_CAPABILITY_MISSING':
+			return {
+				...common,
+				title: 'Texture format capability is missing',
+				hint: 'Use a compatible format, select a custom typed pass, or enable the required GPU device feature.'
 			};
 		case 'RESOURCE_REGISTRY_DUPLICATE':
 			return {

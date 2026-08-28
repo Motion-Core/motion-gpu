@@ -1,4 +1,5 @@
 import type { StorageBufferType, UniformLayout } from './types.js';
+import { textureSampleScalarType } from './format-capabilities.js';
 
 /** Bounded locator for the single public compute entrypoint. */
 export const COMPUTE_ENTRY_CONTRACT = /\bfn\s+compute\s*\(/;
@@ -402,10 +403,8 @@ export function buildComputeResourceBindings(
 
 /** Maps storage texture format to sampled `texture_2d<T>` scalar type. */
 export function storageTextureSampleScalarType(format: GPUTextureFormat): 'f32' | 'u32' | 'i32' {
-	const normalized = String(format).toLowerCase();
-	if (normalized.endsWith('uint')) return 'u32';
-	if (normalized.endsWith('sint')) return 'i32';
-	return 'f32';
+	const scalarType = textureSampleScalarType(format);
+	return scalarType === 'u32' || scalarType === 'i32' ? scalarType : 'f32';
 }
 
 export function buildComputeShaderSource(options: BuildComputeShaderSourceOptions): string {

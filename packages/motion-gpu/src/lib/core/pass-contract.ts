@@ -1,5 +1,9 @@
 import { createMotionGPUError } from './error-report.js';
-import { managedPassBrand } from './pass-brand.js';
+import {
+	builtInRenderPassBrand,
+	managedPassBrand,
+	type BuiltInRenderPassFormatContract
+} from './pass-brand.js';
 import type { AnyPass, ComputePassLike, PingPongShaderPassLike, RenderPass } from './types.js';
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
@@ -15,6 +19,20 @@ export function isManagedComputePass(value: unknown): value is ComputePassLike {
 export function isManagedFeedbackPass(value: unknown): value is PingPongShaderPassLike {
 	return (
 		isRecord(value) && value[managedPassBrand] === 'feedback' && value.isPingPongShader === true
+	);
+}
+
+/** Reports whether a render pass is a MotionGPU built-in with a known format contract. */
+export function isBuiltInRenderPass(
+	value: unknown
+): value is RenderPass & { readonly [builtInRenderPassBrand]: BuiltInRenderPassFormatContract } {
+	if (!isRecord(value)) return false;
+	const contract = value[builtInRenderPassBrand];
+	return (
+		isRecord(contract) &&
+		typeof contract.passName === 'string' &&
+		contract.input === 'float-sampled' &&
+		contract.output === 'float-renderable'
 	);
 }
 

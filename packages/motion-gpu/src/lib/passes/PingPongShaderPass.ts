@@ -1,4 +1,4 @@
-import { storageTextureSampleScalarType } from '../core/compute-shader.js';
+import { resolveTextureFormatCapabilities } from '../core/format-capabilities.js';
 import { preprocessMaterialFragment, type MaterialLineMap } from '../core/material-preprocess.js';
 import type { MaterialDefines, MaterialIncludes } from '../core/material.js';
 import { managedPassBrand } from '../core/pass-brand.js';
@@ -137,7 +137,8 @@ function assertIterations(count: number): number {
 }
 
 function assertFloatSampledFormat(format: GPUTextureFormat): GPUTextureFormat {
-	if (storageTextureSampleScalarType(format) !== 'f32') {
+	const sampleType = resolveTextureFormatCapabilities(format).sampleType;
+	if (sampleType !== 'float' && sampleType !== 'unfilterable-float') {
 		throw new Error(
 			`PingPongShaderPass format "${format}" must be float-sampled so fragment shaders can read the previous state.`
 		);

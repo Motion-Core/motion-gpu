@@ -5,6 +5,7 @@ import {
 	buildComputeShaderSource,
 	buildComputeShaderSourceWithMap,
 	extractWorkgroupSize,
+	resolveWorkgroupSize,
 	storageTextureSampleScalarType,
 	type ResolvedComputeShaderBinding
 } from '../../lib/core/compute-shader';
@@ -74,6 +75,56 @@ fn
 compute(@builtin(global_invocation_id) id: vec3u) {}
 `;
 		expect(() => assertComputeContract(source)).not.toThrow();
+	});
+
+	it('accepts valid compute attributes in either WGSL order', () => {
+		const source = `
+@workgroup_size(8, 4) @compute
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(source)).not.toThrow();
+		expect(extractWorkgroupSize(source)).toEqual([8, 4, 1]);
+	});
+
+	it('ignores line, block, and nested block comments during contract analysis', () => {
+		for (const source of [
+			'// @compute @workgroup_size(8) fn compute(@builtin(global_invocation_id) id: vec3u) {}',
+			'/* @compute @workgroup_size(8) fn compute(@builtin(global_invocation_id) id: vec3u) {} */',
+			'/* outer /* @compute @workgroup_size(8) fn compute(@builtin(global_invocation_id) id: vec3u) {} */ outer */'
+		]) {
+			expect(() => assertComputeContract(source)).toThrow(/Compute shader must declare/);
+		}
+
+		const validAfterComment = `
+/* @compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) fake: vec3u) {} */
+@compute @workgroup_size(16)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(validAfterComment)).not.toThrow();
+		expect(extractWorkgroupSize(validAfterComment)).toEqual([16, 1, 1]);
+	});
+
+	it('requires an explicit size for override or non-literal workgroup expressions', () => {
+		const source = `
+override TILE_SIZE: u32 = 8;
+@compute @workgroup_size(TILE_SIZE, TILE_SIZE)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		expect(() => assertComputeContract(source)).toThrow(/explicit workgroupSize/i);
+		expect(() => assertComputeContract(source, [8, 8])).not.toThrow();
+		expect(resolveWorkgroupSize(source, [8, 8])).toEqual([8, 8, 1]);
+	});
+
+	it('rejects invalid explicit sizes and mismatches with literal WGSL', () => {
+		const overrideSource = `
+override TILE_SIZE: u32 = 8;
+@compute @workgroup_size(TILE_SIZE)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		for (const size of [[0], [1.5], [65_536], []] as unknown as Array<[number]>) {
+			expect(() => assertComputeContract(overrideSource, size)).toThrow(/workgroup/i);
+		}
+		expect(() => assertComputeContract(validComputeShader, [128])).toThrow(/does not match/i);
 	});
 
 	it('rejects repeated incomplete entrypoint prefixes in bounded time', () => {

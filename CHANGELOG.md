@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.
+
 ## [0.15.1] - 2026-08-26
 
 ### Fixed

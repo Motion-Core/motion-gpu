@@ -52,13 +52,14 @@ Both expose `setSize`, `render`, and `dispose` through the render-pass lifecycle
 ```ts
 new ComputePass({
 	compute: string,
+	workgroupSize?: [number, number?, number?],
 	resources?: ComputeResourceMap,
 	dispatch?: tuple | 'auto' | (context) => [number, number, number],
 	enabled?: boolean
 })
 ```
 
-The source requires `@compute`, numeric `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature.
+The source requires `@compute`, `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature. Literal dimensions are inferred. Set `workgroupSize` when WGSL uses an override or non-literal constant expression; it must match literal WGSL when both are present.
 
 `resources` is keyed by WGSL alias. An omitted map is equivalent to `{}`; no material storage resource is injected implicitly.
 
@@ -92,7 +93,7 @@ type ComputeResourceDescriptor =
 Texture views support `baseMipLevel`, `mipLevelCount`, `baseArrayLayer`, and `arrayLayerCount: 1`. String references are material keys. External references are borrowed typed objects with a stable `resourceId`; see [Compute Shaders](/docs/compute-shaders#borrowed-webgpu-resources) for their metadata and ownership contract.
 
 ```ts
-setCompute(source): void
+setCompute(source, { workgroupSize? }): void
 setDispatch(dispatch): void
 getCompute(): string
 getResources(): ComputeResourceMap
@@ -122,9 +123,11 @@ new PingPongComputePass({
 
 The renderer keeps A/B names and parity private. It publishes the latest result under the logical material key after the iteration batch.
 
+`workgroupSize` has the same override/non-literal behavior as `ComputePass`.
+
 ```ts
 setIterations(count): void
-setCompute(source): void
+setCompute(source, { workgroupSize? }): void
 setDispatch(dispatch): void
 getIterations(): number
 getCompute(): string

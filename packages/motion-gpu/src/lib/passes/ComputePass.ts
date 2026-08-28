@@ -1,4 +1,8 @@
-import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
+import {
+	assertComputeContract,
+	resolveWorkgroupSize,
+	type ComputeWorkgroupSize
+} from '../core/compute-shader.js';
 import { copyComputeResourceMap, normalizeComputeResourceMap } from '../core/compute-resources.js';
 import type { ComputeResourceMap } from '../core/types.js';
 
@@ -22,6 +26,11 @@ export interface ComputePassOptions {
 	 * Must declare `@compute @workgroup_size(...) fn compute(@builtin(global_invocation_id) ...)`.
 	 */
 	compute: string;
+	/**
+	 * Explicit workgroup size used for auto-dispatch when WGSL declares an
+	 * override or another non-literal constant expression.
+	 */
+	workgroupSize?: ComputeWorkgroupSize;
 	/**
 	 * Pass-local resources keyed by their WGSL binding aliases.
 	 * The topology is captured when the pass is constructed.
@@ -67,8 +76,8 @@ export class ComputePass {
 	private dispatch: ComputePassOptions['dispatch'];
 
 	constructor(options: ComputePassOptions) {
-		assertComputeContract(options.compute);
-		const workgroupSize = extractWorkgroupSize(options.compute);
+		assertComputeContract(options.compute, options.workgroupSize);
+		const workgroupSize = resolveWorkgroupSize(options.compute, options.workgroupSize);
 		this.compute = options.compute;
 		this.resources = normalizeComputeResourceMap(options.resources);
 		this.workgroupSize = workgroupSize;
@@ -82,9 +91,9 @@ export class ComputePass {
 	 * @param compute - New compute shader WGSL source.
 	 * @throws {Error} When shader does not match the compute contract.
 	 */
-	setCompute(compute: string): void {
-		assertComputeContract(compute);
-		const workgroupSize = extractWorkgroupSize(compute);
+	setCompute(compute: string, options?: { workgroupSize?: ComputeWorkgroupSize }): void {
+		assertComputeContract(compute, options?.workgroupSize);
+		const workgroupSize = resolveWorkgroupSize(compute, options?.workgroupSize);
 		this.compute = compute;
 		this.workgroupSize = workgroupSize;
 	}

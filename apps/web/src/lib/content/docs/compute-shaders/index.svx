@@ -11,11 +11,25 @@ Use `PingPongShaderPass` when a fullscreen simulation only samples the previous 
 
 Compute source must contain:
 
-- numeric `@workgroup_size(...)` dimensions from 1 through 65535;
+- `@workgroup_size(...)` dimensions from 1 through 65535;
 - a function named `compute` with the `@compute` attribute;
 - `@builtin(global_invocation_id)` in that function's parameters.
 
-The constructor and `setCompute(...)` validate this contract. Resource topology is fixed by the constructor. `setCompute(...)` may replace the shader, but the replacement must use the same bindings.
+Literal workgroup dimensions are inferred automatically. When the attribute uses an override or another constant expression, pass the resolved dimensions through `workgroupSize` so Motion GPU can calculate auto-dispatch before WebGPU compiles the source:
+
+```ts
+new ComputePass({
+	compute: `
+override TILE_SIZE: u32 = 8;
+@workgroup_size(TILE_SIZE, TILE_SIZE) @compute
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`,
+	workgroupSize: [8, 8],
+	dispatch: 'auto'
+});
+```
+
+The constructor and `setCompute(source, { workgroupSize? })` validate this contract. Comments are ignored during preflight, and `@compute` / `@workgroup_size` may use either WGSL-valid order. Resource topology is fixed by the constructor. `setCompute(...)` may replace the shader, but the replacement must use the same bindings.
 
 ## Resource descriptors
 

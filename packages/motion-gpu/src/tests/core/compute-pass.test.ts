@@ -193,6 +193,25 @@ describe('ComputePass', () => {
 		expect(pass2D.getWorkgroupSize()).toEqual([16, 16, 1]);
 	});
 
+	it('uses an explicit workgroup size for WGSL overrides', () => {
+		const compute = `
+override TILE_SIZE: u32 = 8;
+@workgroup_size(TILE_SIZE, TILE_SIZE) @compute
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		const pass = new ComputePass({ compute, workgroupSize: [8, 8] });
+		expect(pass.getWorkgroupSize()).toEqual([8, 8, 1]);
+		expect(
+			pass.resolveDispatch({
+				width: 65,
+				height: 33,
+				time: 0,
+				delta: 0.016,
+				workgroupSize: pass.getWorkgroupSize()
+			})
+		).toEqual([9, 5, 1]);
+	});
+
 	it('defaults to enabled: true', () => {
 		const pass = new ComputePass({ compute: validCompute });
 		expect(pass.enabled).toBe(true);
@@ -272,6 +291,20 @@ describe('ComputePass', () => {
 		expect(() => pass.setCompute('fn bad() {}')).toThrow(/@compute/);
 		// Ensure original state is preserved
 		expect(pass.getCompute()).toBe(validCompute);
+	});
+
+	it('setCompute accepts an explicit size and updates atomically', () => {
+		const pass = new ComputePass({ compute: validCompute });
+		const overrideSource = `
+override SIZE: u32 = 4;
+@compute @workgroup_size(SIZE)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		pass.setCompute(overrideSource, { workgroupSize: [4] });
+		expect(pass.getCompute()).toBe(overrideSource);
+		expect(pass.getWorkgroupSize()).toEqual([4, 1, 1]);
+		expect(() => pass.setCompute(overrideSource)).toThrow(/explicit workgroupSize/i);
+		expect(pass.getWorkgroupSize()).toEqual([4, 1, 1]);
 	});
 
 	it('setDispatch updates dispatch strategy', () => {

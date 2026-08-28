@@ -1,13 +1,7 @@
 import type { StorageBufferType, UniformLayout } from './types.js';
 
-/**
- * Regex contract for the single public compute entrypoint.
- *
- * Keep the workgroup-size grammar aligned with `extractWorkgroupSize` so a
- * malformed attribute cannot make the expression scan across later attributes.
- */
-export const COMPUTE_ENTRY_CONTRACT =
-	/@compute\s+@workgroup_size\s*\(\s*\d+(?:\s*,\s*\d+){0,2}\s*\)\s*fn\s+compute\s*\(/;
+/** Bounded locator for the single public compute entrypoint. */
+export const COMPUTE_ENTRY_CONTRACT = /\bfn\s+compute\s*\(/;
 
 const WORKGROUP_SIZE_PATTERN =
 	/@workgroup_size\s*\(\s*(\d+)(?:\s*,\s*(\d+))?(?:\s*,\s*(\d+))?\s*\)/;
@@ -15,6 +9,8 @@ const GLOBAL_INVOCATION_ID_PATTERN = /@builtin\s*\(\s*global_invocation_id\s*\)/
 const WORKGROUP_DIMENSION_MIN = 1;
 const WORKGROUP_DIMENSION_MAX = 65535;
 const DEFAULT_UNIFORM_FIELD = 'motiongpu_unused: vec4f,';
+
+export type ComputeWorkgroupSize = readonly [number, number?, number?];
 
 export type ResolvedComputeShaderBinding =
 	| Readonly<{
@@ -62,10 +58,84 @@ export interface BuildComputeShaderSourceOptions {
 	resources: readonly ResolvedComputeShaderBinding[];
 }
 
-function extractComputeParamList(compute: string): string | null {
+function stripWgslComments(source: string): string {
+	let result = '';
+	let index = 0;
+	let blockDepth = 0;
+	let lineComment = false;
+
+	while (index < source.length) {
+		const current = source[index] ?? '';
+		const next = source[index + 1] ?? '';
+
+		if (lineComment) {
+			if (current === '\n') {
+				lineComment = false;
+				result += '\n';
+			} else {
+				result += ' ';
+			}
+			index += 1;
+			continue;
+		}
+
+		if (blockDepth > 0) {
+			if (current === '/' && next === '*') {
+				blockDepth += 1;
+				result += '  ';
+				index += 2;
+				continue;
+			}
+			if (current === '*' && next === '/') {
+				blockDepth -= 1;
+				result += '  ';
+				index += 2;
+				continue;
+			}
+			result += current === '\n' ? '\n' : ' ';
+			index += 1;
+			continue;
+		}
+
+		if (current === '/' && next === '/') {
+			lineComment = true;
+			result += '  ';
+			index += 2;
+			continue;
+		}
+		if (current === '/' && next === '*') {
+			blockDepth = 1;
+			result += '  ';
+			index += 2;
+			continue;
+		}
+
+		result += current;
+		index += 1;
+	}
+
+	return result;
+}
+
+interface ComputeEntrypoint {
+	attributes: string;
+	openParenIndex: number;
+}
+
+function findComputeEntrypoint(compute: string): ComputeEntrypoint | null {
 	const entrypoint = COMPUTE_ENTRY_CONTRACT.exec(compute);
 	if (!entrypoint) return null;
 	const openParenIndex = entrypoint.index + entrypoint[0].length - 1;
+	const prefix = compute.slice(0, entrypoint.index);
+	const boundary = Math.max(prefix.lastIndexOf('}'), prefix.lastIndexOf(';'));
+	return {
+		attributes: prefix.slice(boundary + 1),
+		openParenIndex
+	};
+}
+
+function extractComputeParamList(compute: string, entrypoint: ComputeEntrypoint): string | null {
+	const { openParenIndex } = entrypoint;
 
 	let depth = 0;
 	for (let index = openParenIndex; index < compute.length; index += 1) {
@@ -93,24 +163,55 @@ function assertWorkgroupDimension(value: number): void {
 	}
 }
 
-export function assertComputeContract(compute: string): void {
-	if (!COMPUTE_ENTRY_CONTRACT.test(compute)) {
+function normalizeExplicitWorkgroupSize(
+	workgroupSize: ComputeWorkgroupSize
+): [number, number, number] {
+	if (workgroupSize.length < 1 || workgroupSize.length > 3) {
+		throw new Error('workgroupSize must contain between one and three dimensions.');
+	}
+	const resolved: [number, number, number] = [
+		workgroupSize[0],
+		workgroupSize[1] ?? 1,
+		workgroupSize[2] ?? 1
+	];
+	for (const value of resolved) assertWorkgroupDimension(value);
+	return resolved;
+}
+
+export function assertComputeContract(
+	compute: string,
+	explicitWorkgroupSize?: ComputeWorkgroupSize
+): void {
+	const source = stripWgslComments(compute);
+	const entrypoint = findComputeEntrypoint(source);
+	if (
+		!entrypoint ||
+		!/@compute\b/.test(entrypoint.attributes) ||
+		!/@workgroup_size\s*\(/.test(entrypoint.attributes)
+	) {
 		throw new Error(
-			'Compute shader must declare `@compute @workgroup_size(...) fn compute(...)`. ' +
-				'Ensure the function is named `compute` and includes @compute and @workgroup_size annotations.'
+			'Compute shader must declare `@compute` and `@workgroup_size(...)` on `fn compute(...)`. ' +
+				'Attribute order may vary, but the function must be named `compute`.'
 		);
 	}
 
-	const params = extractComputeParamList(compute);
+	const params = extractComputeParamList(source, entrypoint);
 	if (!params || !GLOBAL_INVOCATION_ID_PATTERN.test(params)) {
 		throw new Error('Compute shader must include a `@builtin(global_invocation_id)` parameter.');
 	}
-	extractWorkgroupSize(compute);
+	resolveWorkgroupSize(source, explicitWorkgroupSize);
 }
 
 export function extractWorkgroupSize(compute: string): [number, number, number] {
-	const match = compute.match(WORKGROUP_SIZE_PATTERN);
-	if (!match) throw new Error('Could not extract @workgroup_size from compute shader source.');
+	const source = stripWgslComments(compute);
+	const entrypoint = findComputeEntrypoint(source);
+	const match = entrypoint?.attributes.match(WORKGROUP_SIZE_PATTERN);
+	if (!match) {
+		throw new Error(
+			'Could not extract @workgroup_size as a literal from compute shader source. ' +
+				'Pass an explicit workgroupSize option when the attribute uses an override or constant expression.'
+		);
+	}
 
 	const x = Number.parseInt(match[1] ?? '1', 10);
 	const y = Number.parseInt(match[2] ?? '1', 10);
@@ -119,6 +220,27 @@ export function extractWorkgroupSize(compute: string): [number, number, number] 
 	assertWorkgroupDimension(y);
 	assertWorkgroupDimension(z);
 	return [x, y, z];
+}
+
+export function resolveWorkgroupSize(
+	compute: string,
+	explicitWorkgroupSize?: ComputeWorkgroupSize
+): [number, number, number] {
+	let literal: [number, number, number] | null = null;
+	try {
+		literal = extractWorkgroupSize(compute);
+	} catch (error) {
+		if (!explicitWorkgroupSize) throw error;
+	}
+
+	if (!explicitWorkgroupSize) return literal!;
+	const explicit = normalizeExplicitWorkgroupSize(explicitWorkgroupSize);
+	if (literal && literal.some((value, index) => value !== explicit[index])) {
+		throw new Error(
+			`Explicit workgroupSize ${explicit.join('x')} does not match literal @workgroup_size ${literal.join('x')}.`
+		);
+	}
+	return literal ?? explicit;
 }
 
 function buildUniformStructForCompute(layout: UniformLayout): string {

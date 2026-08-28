@@ -24,7 +24,7 @@ import {
 	toTextureData
 } from './textures.js';
 import { packUniformsIntoFast } from './uniforms.js';
-import { buildComputeShaderSourceWithMap, extractWorkgroupSize } from './compute-shader.js';
+import { buildComputeShaderSourceWithMap } from './compute-shader.js';
 import {
 	createComputeBindGroupCache,
 	type ComputeBindGroupCache
@@ -1822,6 +1822,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			cacheKey: string,
 			buildOptions: {
 				computeSource: string;
+				workgroupSize: [number, number, number];
 				resources: ResolvedComputePassResources;
 			}
 		): ComputePipelineCacheState => {
@@ -1836,7 +1837,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			const moduleLabel = `${labelBase}:module`;
 			const pipelineLabel = `${labelBase}:pipeline`;
 
-			const workgroupSize = extractWorkgroupSize(buildOptions.computeSource);
+			const workgroupSize = [...buildOptions.workgroupSize] as [number, number, number];
 
 			// group(0) is fixed uniforms; optional group(1) is the resolved heterogeneous topology.
 			const computeUniformBGL = device.createBindGroupLayout({
@@ -1972,9 +1973,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 		const buildComputePipelineEntry = (buildOptions: {
 			computeSource: string;
+			workgroupSize: [number, number, number];
 			resources: ResolvedComputePassResources;
 		}): ComputePipelineEntry => {
-			const cacheKey = `compute:${computeUniformTopologyKey}:${buildOptions.resources.topologyKey}:${computeDeviceCapabilityKey}:${buildOptions.computeSource}`;
+			const cacheKey = `compute:${computeUniformTopologyKey}:${buildOptions.resources.topologyKey}:${computeDeviceCapabilityKey}:${buildOptions.workgroupSize.join(',')}:${buildOptions.computeSource}`;
 			const cached = computePipelineCache.get(cacheKey);
 			if (cached) {
 				touchComputePipelineCacheState(cacheKey, cached);
@@ -3309,11 +3311,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 							}
 							pingPongPair = ensurePingPongTexturePair(computePass, pingPongRead.logicalId);
 						}
+						const workgroupSize = computePass.getWorkgroupSize();
 						const pipelineEntry = buildComputePipelineEntry({
 							computeSource,
+							workgroupSize,
 							resources
 						});
-						const workgroupSize = computePass.getWorkgroupSize();
 						const resourceBindGroup = pingPongPair
 							? null
 							: getComputeResourceBindGroup(pipelineEntry, computePass, resources);

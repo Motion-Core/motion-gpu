@@ -395,6 +395,14 @@ describe('frame registry', () => {
 		expect(timings?.total).toBeGreaterThanOrEqual(0);
 		expect(timings?.stages.early?.duration).toBeGreaterThanOrEqual(0);
 		expect(timings?.stages.early?.tasks['early-task']).toBeGreaterThanOrEqual(0);
+		expect(Object.isFrozen(schedule)).toBe(true);
+		expect(Object.isFrozen(schedule.stages)).toBe(true);
+		expect(Object.isFrozen(schedule.stages[0])).toBe(true);
+		expect(Object.isFrozen(schedule.stages[0]?.tasks)).toBe(true);
+		expect(Object.isFrozen(timings)).toBe(true);
+		expect(Object.isFrozen(timings?.stages)).toBe(true);
+		expect(Object.isFrozen(timings?.stages.early)).toBe(true);
+		expect(Object.isFrozen(timings?.stages.early?.tasks)).toBe(true);
 
 		registry.setDiagnosticsEnabled(false);
 		expect(registry.getDiagnosticsEnabled()).toBe(false);
@@ -424,6 +432,13 @@ describe('frame registry', () => {
 
 		expect(profileStage.timings.count).toBe(2);
 		expect(profileStage.tasks['profile-task']?.count).toBe(2);
+		expect(Object.isFrozen(snapshot)).toBe(true);
+		expect(Object.isFrozen(snapshot?.total)).toBe(true);
+		expect(Object.isFrozen(snapshot?.stages)).toBe(true);
+		expect(Object.isFrozen(profileStage)).toBe(true);
+		expect(Object.isFrozen(profileStage.timings)).toBe(true);
+		expect(Object.isFrozen(profileStage.tasks)).toBe(true);
+		expect(Object.isFrozen(profileStage.tasks['profile-task'])).toBe(true);
 
 		registry.run(createState(registry));
 		snapshot = registry.getProfilingSnapshot();
@@ -465,7 +480,28 @@ describe('frame registry', () => {
 
 	it('validates initial scheduler options', () => {
 		expect(() => createFrameRegistry({ maxDelta: 0 })).toThrow(/maxDelta must be/);
-		expect(() => createFrameRegistry({ profilingWindow: 0 })).toThrow(/profilingWindow must be/);
+		for (const profilingWindow of [
+			0,
+			1.5,
+			Number.NaN,
+			Number.POSITIVE_INFINITY,
+			Number.MAX_SAFE_INTEGER + 1,
+			10_001
+		]) {
+			expect(() => createFrameRegistry({ profilingWindow })).toThrow(
+				/profilingWindow must be a safe integer between 1 and 10000/
+			);
+		}
+
+		const registry = createFrameRegistry();
+		const maximumWindowRegistry = createFrameRegistry({ profilingWindow: 10_000 });
+		expect(maximumWindowRegistry.getProfilingWindow()).toBe(10_000);
+		expect(() => registry.setProfilingWindow(2.5)).toThrow(
+			/profilingWindow must be a safe integer between 1 and 10000/
+		);
+		expect(() => registry.setProfilingWindow(10_001)).toThrow(
+			/profilingWindow must be a safe integer between 1 and 10000/
+		);
 	});
 
 	// #16: frameState pre-allocation
@@ -529,22 +565,54 @@ describe('frame registry', () => {
 		expect(callCount).toBe(2);
 	});
 
-	// #9: keyString pre-computation
-	it('profiling keys are stable strings even for Symbol-keyed tasks', () => {
+	// #9: diagnostics key pre-computation
+	it('profiling keys keep distinct identities for symbols that share a label', () => {
 		const registry = createFrameRegistry({
 			profilingEnabled: true,
 			profilingWindow: 4
 		});
-		const sym = Symbol('my-task');
-		registry.register(sym, () => undefined);
+		registry.register(Symbol('x'), () => undefined);
+		registry.register(Symbol('x'), () => undefined);
+		registry.register('Symbol(x)', () => undefined);
+		registry.register('__proto__', () => undefined);
 
 		registry.run(createState(registry));
 		registry.run(createState(registry));
 
 		const snapshot = registry.getProfilingSnapshot();
 		const stageKeys = Object.values(snapshot?.stages ?? {}).flatMap((s) => Object.keys(s.tasks));
-		// The symbol key must appear as its string representation.
-		expect(stageKeys.some((k) => k.includes('my-task'))).toBe(true);
+		expect(stageKeys).toHaveLength(4);
+		expect(new Set(stageKeys)).toHaveLength(4);
+		expect(stageKeys).toContain('Symbol(x)');
+		expect(stageKeys).toContain('__proto__');
+		expect(stageKeys.filter((key) => key.startsWith('Symbol(x) [task:'))).toHaveLength(2);
+		expect(Object.hasOwn(Object.values(snapshot?.stages ?? {})[0]?.tasks ?? {}, '__proto__')).toBe(
+			true
+		);
+	});
+
+	it('does not let attempted snapshot mutations affect later reads', () => {
+		const registry = createFrameRegistry({ profilingEnabled: true });
+		registry.createStage('immutable-stage');
+		registry.register('immutable-task', () => undefined, { stage: 'immutable-stage' });
+		registry.run(createState(registry));
+
+		const schedule = registry.getSchedule();
+		const timings = registry.getLastRunTimings();
+		const profiling = registry.getProfilingSnapshot();
+		const scheduleStage = schedule.stages.find((stage) => stage.key === 'immutable-stage');
+
+		expect(Reflect.set(scheduleStage ?? {}, 'key', 'corrupted')).toBe(false);
+		expect(Reflect.set(timings?.stages['immutable-stage'] ?? {}, 'duration', -1)).toBe(false);
+		expect(Reflect.deleteProperty(profiling?.stages ?? {}, 'immutable-stage')).toBe(false);
+
+		expect(
+			registry.getSchedule().stages.find((stage) => stage.key === 'immutable-stage')?.key
+		).toBe('immutable-stage');
+		expect(
+			registry.getLastRunTimings()?.stages['immutable-stage']?.duration
+		).toBeGreaterThanOrEqual(0);
+		expect(registry.getProfilingSnapshot()?.stages['immutable-stage']).toBeDefined();
 	});
 
 	it('profilingHistory ring buffer: frameCount stays pinned at window and survives window resize', () => {

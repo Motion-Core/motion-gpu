@@ -102,6 +102,9 @@ defineSlots<{
 
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasEl');
 const errorReport = shallowRef<MotionGPUErrorReport | null>(null);
+const dismissErrorOverlay = (): void => {
+	errorReport.value = null;
+};
 const getCanvas = (): HTMLCanvasElement | undefined => canvasRef.value ?? undefined;
 
 defineExpose({
@@ -271,7 +274,7 @@ onBeforeUnmount(() => {
 		<canvas v-bind="canvasAttrs" ref="canvasEl" :style="resolvedCanvasStyle"></canvas>
 		<template v-if="showErrorOverlay && errorReport">
 			<slot name="errorRenderer" :report="errorReport">
-				<MotionGPUErrorOverlay :report="errorReport" />
+				<MotionGPUErrorOverlay :report="errorReport" :onDismiss="dismissErrorOverlay" />
 			</slot>
 		</template>
 		<slot />

@@ -77,6 +77,9 @@
 	}: Props = $props();
 
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
+	const dismissErrorOverlay = (): void => {
+		errorReport = null;
+	};
 
 	let forwardedCanvasProps = $derived.by(() => {
 		void blockedHeight;
@@ -222,7 +225,7 @@
 		{#if errorRenderer}
 			{@render errorRenderer(errorReport)}
 		{:else}
-			<MotionGPUErrorOverlay report={errorReport} />
+			<MotionGPUErrorOverlay report={errorReport} onDismiss={dismissErrorOverlay} />
 		{/if}
 	{/if}
 	{@render children?.()}

@@ -7,6 +7,7 @@ import Portal from './Portal.vue';
 
 interface Props {
 	report: MotionGPUErrorReport;
+	onDismiss: () => void;
 }
 
 const props = defineProps<Props>();
@@ -92,7 +93,11 @@ onMounted(() => {
 	const portalRoot = overlayElement.value?.parentElement;
 	if (!dialogElement.value || !portalRoot) return;
 
-	unregisterOverlay = registerErrorOverlay({ dialog: dialogElement.value, portalRoot });
+	unregisterOverlay = registerErrorOverlay({
+		dialog: dialogElement.value,
+		portalRoot,
+		onDismiss: props.onDismiss
+	});
 });
 
 onUnmounted(() => {

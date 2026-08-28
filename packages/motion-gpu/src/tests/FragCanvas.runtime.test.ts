@@ -603,6 +603,10 @@ describe('FragCanvas runtime', () => {
 		).find((section) => section.querySelector('summary')?.textContent?.includes('Runtime context'));
 		expect(runtimeContextDetails).toBeTruthy();
 		expect(runtimeContextDetails?.hasAttribute('open')).toBe(false);
+		document.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		);
+		await waitFor(() => expect(screen.queryByTestId('motiongpu-error')).toBeNull());
 	});
 
 	it('renders include diagnostics location in overlay source header', async () => {

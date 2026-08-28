@@ -19,8 +19,8 @@ function createOverlay(name: string): OverlayElements {
 	return { dialog, portalRoot };
 }
 
-function register(elements: OverlayElements): () => void {
-	const unregister = registerErrorOverlay(elements);
+function register(elements: OverlayElements, onDismiss: () => void = () => undefined): () => void {
+	const unregister = registerErrorOverlay({ ...elements, onDismiss });
 	activeRegistrations.push(unregister);
 	return unregister;
 }
@@ -157,5 +157,33 @@ describe('error overlay stack', () => {
 
 		expect(appRoot.inert).toBe(false);
 		expect(document.activeElement).toBe(trigger);
+	});
+
+	it('dispatches Escape only to the top owner', () => {
+		const first = createOverlay('first');
+		const dismissFirst = vi.fn();
+		register(first, dismissFirst);
+		const second = createOverlay('second');
+		const dismissSecond = vi.fn();
+		const unregisterSecond = register(second, dismissSecond);
+		const firstEscape = new KeyboardEvent('keydown', {
+			key: 'Escape',
+			bubbles: true,
+			cancelable: true
+		});
+
+		document.dispatchEvent(firstEscape);
+
+		expect(firstEscape.defaultPrevented).toBe(true);
+		expect(dismissSecond).toHaveBeenCalledTimes(1);
+		expect(dismissFirst).not.toHaveBeenCalled();
+
+		unregisterSecond();
+		document.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		);
+
+		expect(dismissSecond).toHaveBeenCalledTimes(1);
+		expect(dismissFirst).toHaveBeenCalledTimes(1);
 	});
 });

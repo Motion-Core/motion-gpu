@@ -7,9 +7,10 @@
 
 	interface Props {
 		report: MotionGPUErrorReport;
+		onDismiss: () => void;
 	}
 
-	let { report }: Props = $props();
+	let { report, onDismiss }: Props = $props();
 	const model = $derived(createMotionGPUErrorOverlayModel(report));
 
 	const componentId = $props.id();
@@ -68,7 +69,7 @@
 		const portalRoot = overlayElement?.parentElement;
 		if (!dialogElement || !portalRoot) return;
 
-		return registerErrorOverlay({ dialog: dialogElement, portalRoot });
+		return registerErrorOverlay({ dialog: dialogElement, portalRoot, onDismiss });
 	});
 </script>
 

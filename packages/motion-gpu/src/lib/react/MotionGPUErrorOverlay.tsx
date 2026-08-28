@@ -12,6 +12,7 @@ import { Portal } from './Portal.js';
 
 interface MotionGPUErrorOverlayProps {
 	report: MotionGPUErrorReport;
+	onDismiss: () => void;
 }
 
 const FOCUSABLE_SELECTOR =
@@ -602,7 +603,7 @@ const MOTIONGPU_ERROR_OVERLAY_STYLES = `
 	}
 `;
 
-export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
+export function MotionGPUErrorOverlay({ report, onDismiss }: MotionGPUErrorOverlayProps) {
 	const model = createMotionGPUErrorOverlayModel(report);
 	const detailsSummary = report.source ? 'Additional diagnostics' : 'Technical details';
 	const componentId = useId();
@@ -660,8 +661,8 @@ export function MotionGPUErrorOverlay({ report }: MotionGPUErrorOverlayProps) {
 		const portalRoot = overlayElement.current?.parentElement;
 		if (!portalRoot) return;
 
-		return registerErrorOverlay({ dialog: dialogElement, portalRoot });
-	}, [dialogElement]);
+		return registerErrorOverlay({ dialog: dialogElement, portalRoot, onDismiss });
+	}, [dialogElement, onDismiss]);
 
 	return (
 		<Portal>

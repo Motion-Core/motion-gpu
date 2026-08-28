@@ -249,6 +249,9 @@ export function FragCanvas({
 	};
 
 	const [errorReport, setErrorReport] = useState<MotionGPUErrorReport | null>(null);
+	const dismissErrorOverlay = useCallback((): void => {
+		setErrorReport(null);
+	}, []);
 
 	useEffect(() => {
 		runtime.renderModeState.set(renderMode);
@@ -368,7 +371,7 @@ export function FragCanvas({
 						errorRenderer ? (
 							errorRenderer(errorReport)
 						) : (
-							<MotionGPUErrorOverlay report={errorReport} />
+							<MotionGPUErrorOverlay report={errorReport} onDismiss={dismissErrorOverlay} />
 						)
 					) : null}
 					{children}

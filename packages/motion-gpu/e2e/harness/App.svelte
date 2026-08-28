@@ -9,6 +9,7 @@
 	import LifecycleScenario from './scenarios/LifecycleScenario.svelte';
 	import MixedPassesScenario from './scenarios/MixedPassesScenario.svelte';
 	import StorageWriteReadScenario from './scenarios/StorageWriteReadScenario.svelte';
+	import ErrorOverlayStackScenario from './scenarios/ErrorOverlayStackScenario.svelte';
 
 	type Scenario =
 		| 'runtime'
@@ -20,7 +21,8 @@
 		| 'uniforms'
 		| 'lifecycle'
 		| 'mixed-passes'
-		| 'storage-proof';
+		| 'storage-proof'
+		| 'error-overlay-stack';
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
 	const scenario: Scenario =
 		queryScenario === 'shader-recovery' ||
@@ -31,7 +33,8 @@
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
 		queryScenario === 'mixed-passes' ||
-		queryScenario === 'storage-proof'
+		queryScenario === 'storage-proof' ||
+		queryScenario === 'error-overlay-stack'
 			? queryScenario
 			: 'runtime';
 </script>
@@ -56,6 +59,8 @@
 	<MixedPassesScenario />
 {:else if scenario === 'storage-proof'}
 	<StorageWriteReadScenario />
+{:else if scenario === 'error-overlay-stack'}
+	<ErrorOverlayStackScenario />
 {:else}
 	<PassesScenario />
 {/if}

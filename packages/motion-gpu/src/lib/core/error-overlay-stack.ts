@@ -1,6 +1,8 @@
 interface ErrorOverlayEntry {
 	dialog: HTMLElement;
 	portalRoot: HTMLElement;
+	onDismiss: () => void;
+	dismissRequested: boolean;
 }
 
 interface ErrorOverlayStack {
@@ -9,12 +11,14 @@ interface ErrorOverlayStack {
 	backgroundElements: Map<HTMLElement, boolean>;
 	baselineFocus: HTMLElement | null;
 	focusInListener: (event: FocusEvent) => void;
+	keydownListener: (event: KeyboardEvent) => void;
 	observer: MutationObserver | null;
 }
 
 export interface ErrorOverlayRegistration {
 	dialog: HTMLElement;
 	portalRoot: HTMLElement;
+	onDismiss: () => void;
 }
 
 const stacks = new WeakMap<Document, ErrorOverlayStack>();
@@ -93,6 +97,7 @@ function createStack(document: Document): ErrorOverlayStack {
 		backgroundElements: new Map(),
 		baselineFocus: getActiveHTMLElement(document),
 		focusInListener: () => undefined,
+		keydownListener: () => undefined,
 		observer: null
 	};
 
@@ -103,8 +108,24 @@ function createStack(document: Document): ErrorOverlayStack {
 
 		focusTopEntry(stack);
 	};
+	stack.keydownListener = (event: KeyboardEvent) => {
+		if (event.key !== 'Escape' || event.defaultPrevented) return;
+
+		const topEntry = getTopEntry(stack);
+		if (!topEntry || topEntry.dismissRequested) return;
+
+		event.preventDefault();
+		topEntry.dismissRequested = true;
+		try {
+			topEntry.onDismiss();
+		} catch (error) {
+			topEntry.dismissRequested = false;
+			throw error;
+		}
+	};
 
 	document.addEventListener('focusin', stack.focusInListener);
+	document.addEventListener('keydown', stack.keydownListener);
 	const MutationObserverConstructor = document.defaultView?.MutationObserver;
 	if (MutationObserverConstructor) {
 		stack.observer = new MutationObserverConstructor(() => {
@@ -119,6 +140,7 @@ function createStack(document: Document): ErrorOverlayStack {
 
 function destroyStack(stack: ErrorOverlayStack): void {
 	stack.document.removeEventListener('focusin', stack.focusInListener);
+	stack.document.removeEventListener('keydown', stack.keydownListener);
 	stack.observer?.disconnect();
 
 	for (const element of Array.from(stack.backgroundElements.keys())) {
@@ -132,10 +154,14 @@ function destroyStack(stack: ErrorOverlayStack): void {
 	}
 }
 
-export function registerErrorOverlay({ dialog, portalRoot }: ErrorOverlayRegistration): () => void {
+export function registerErrorOverlay({
+	dialog,
+	portalRoot,
+	onDismiss
+}: ErrorOverlayRegistration): () => void {
 	const document = dialog.ownerDocument;
 	const stack = stacks.get(document) ?? createStack(document);
-	const entry: ErrorOverlayEntry = { dialog, portalRoot };
+	const entry: ErrorOverlayEntry = { dialog, portalRoot, onDismiss, dismissRequested: false };
 	stack.entries.push(entry);
 
 	const activeBodyChild = getBodyChildContaining(document, portalRoot);

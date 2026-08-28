@@ -548,6 +548,38 @@ function buildInitialDataSignature(data: StorageBufferDefinition['initialData'])
 	return `${data.constructor.name}:${data.byteLength}:${hashArrayBufferViewBytes(data)}`;
 }
 
+type StorageBufferInitialData = NonNullable<StorageBufferDefinition['initialData']>;
+
+function cloneStorageBufferInitialData(data: StorageBufferInitialData): StorageBufferInitialData {
+	return data.slice() as StorageBufferInitialData;
+}
+
+/**
+ * Creates an immutable storage-buffer descriptor without publishing its canonical bytes.
+ *
+ * Typed arrays cannot be frozen. The enumerable getter therefore returns a defensive copy
+ * for every public read while retaining the canonical clone in this closure.
+ */
+function cloneStorageBufferDefinition(
+	definition: StorageBufferDefinition
+): StorageBufferDefinition {
+	const cloned: StorageBufferDefinition = {
+		size: definition.size,
+		type: definition.type,
+		...(definition.access !== undefined ? { access: definition.access } : {})
+	};
+
+	if (definition.initialData !== undefined) {
+		const canonicalInitialData = cloneStorageBufferInitialData(definition.initialData);
+		Object.defineProperty(cloned, 'initialData', {
+			enumerable: true,
+			get: () => cloneStorageBufferInitialData(canonicalInitialData)
+		});
+	}
+
+	return Object.freeze(cloned);
+}
+
 function assertStorageTextureDimension(
 	name: string,
 	field: 'width' | 'height',
@@ -654,16 +686,7 @@ export function defineMaterial<
 	const storageBuffers = Object.freeze(
 		Object.fromEntries(
 			Object.entries(rawStorageBuffers).map(([name, definition]) => {
-				const def = definition as StorageBufferDefinition;
-				const cloned: StorageBufferDefinition = {
-					size: def.size,
-					type: def.type,
-					...(def.access !== undefined ? { access: def.access } : {}),
-					...(def.initialData !== undefined
-						? { initialData: def.initialData.slice() as typeof def.initialData }
-						: {})
-				};
-				return [name, Object.freeze(cloned)];
+				return [name, cloneStorageBufferDefinition(definition as StorageBufferDefinition)];
 			})
 		)
 	) as Readonly<StorageBufferDefinitionMap<TStorageBufferKey>>;

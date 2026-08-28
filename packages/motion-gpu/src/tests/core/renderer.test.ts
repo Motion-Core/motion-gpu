@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
 import { toMotionGPUErrorReport } from '../../lib/core/error-report';
+import { defineMaterial } from '../../lib/core/material';
 import { createRenderer } from '../../lib/core/renderer';
 import { BlitPass } from '../../lib/passes';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
@@ -2151,12 +2152,21 @@ describe('createRenderer', () => {
 	it('uploads initialData to storage buffer on creation', async () => {
 		const runtime = createWebGpuRuntime();
 		const initialData = new Float32Array([1, 2, 3, 4]);
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				data: { size: 16, type: 'array<f32>', initialData }
+			}
+		});
+
+		initialData[0] = 100;
+		const exposedSnapshot = material.storageBuffers.data?.initialData as Float32Array;
+		exposedSnapshot.set([200, 300, 400, 500]);
+
 		const renderer = await createRenderer({
 			...baseOptions(runtime),
 			storageBufferKeys: ['data'],
-			storageBufferDefinitions: {
-				data: { size: 16, type: 'array<f32>', initialData }
-			}
+			storageBufferDefinitions: material.storageBuffers
 		});
 
 		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
@@ -2165,6 +2175,12 @@ describe('createRenderer', () => {
 			(call) => call[0] === (storageBuffer as unknown as GPUBuffer)
 		);
 		expect(storageWriteCall).toBeDefined();
+		const uploaded = new Float32Array(
+			storageWriteCall?.[2] as ArrayBuffer,
+			storageWriteCall?.[3] as number,
+			(storageWriteCall?.[4] as number) / Float32Array.BYTES_PER_ELEMENT
+		);
+		expect(Array.from(uploaded)).toEqual([1, 2, 3, 4]);
 
 		renderer.destroy();
 	});

@@ -19,16 +19,16 @@ export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
 /**
  * Accepted matrix value formats for `mat4x4f` uniforms.
  */
-export type UniformMat4Value = readonly number[] | Float32Array;
+export type UniformMat4Value = readonly number[] | Readonly<Float32Array>;
 
 /**
  * Runtime value shape by WGSL uniform type tag.
  */
 export interface UniformValueByType {
 	f32: number;
-	vec2f: [number, number];
-	vec3f: [number, number, number];
-	vec4f: [number, number, number, number];
+	vec2f: readonly [number, number];
+	vec3f: readonly [number, number, number];
+	vec4f: readonly [number, number, number, number];
 	mat4x4f: UniformMat4Value;
 }
 
@@ -39,11 +39,11 @@ export interface TypedUniform<
 	/**
 	 * WGSL type tag.
 	 */
-	type: TType;
+	readonly type: TType;
 	/**
 	 * Runtime value matching {@link type}.
 	 */
-	value: TValue;
+	readonly value: TValue;
 }
 
 /**
@@ -51,9 +51,9 @@ export interface TypedUniform<
  */
 export type UniformValue =
 	| number
-	| [number, number]
-	| [number, number, number]
-	| [number, number, number, number]
+	| readonly [number, number]
+	| readonly [number, number, number]
+	| readonly [number, number, number, number]
 	| TypedUniform<'f32'>
 	| TypedUniform<'vec2f'>
 	| TypedUniform<'vec3f'>
@@ -117,35 +117,35 @@ export interface TextureData {
 	/**
 	 * GPU-uploadable image source.
 	 */
-	source: TextureSource;
+	readonly source: TextureSource;
 	/**
 	 * Optional explicit width override.
 	 */
-	width?: number;
+	readonly width?: number;
 	/**
 	 * Optional explicit height override.
 	 */
-	height?: number;
+	readonly height?: number;
 	/**
 	 * Optional runtime color space override.
 	 */
-	colorSpace?: 'srgb' | 'linear';
+	readonly colorSpace?: 'srgb' | 'linear';
 	/**
 	 * Optional runtime flip-y override.
 	 */
-	flipY?: boolean;
+	readonly flipY?: boolean;
 	/**
 	 * Optional runtime premultiplied-alpha override.
 	 */
-	premultipliedAlpha?: boolean;
+	readonly premultipliedAlpha?: boolean;
 	/**
 	 * Optional runtime mipmap generation override.
 	 */
-	generateMipmaps?: boolean;
+	readonly generateMipmaps?: boolean;
 	/**
 	 * Runtime update strategy override.
 	 */
-	update?: TextureUpdateMode;
+	readonly update?: TextureUpdateMode;
 }
 
 /**
@@ -168,59 +168,59 @@ export interface TextureDefinition {
 	 * Unsupported when `storage` is true; storage textures are allocated from
 	 * explicit dimensions and updated by compute passes.
 	 */
-	source?: TextureValue;
+	readonly source?: TextureValue;
 	/**
 	 * Source color space used for format/decode decisions.
 	 */
-	colorSpace?: 'srgb' | 'linear';
+	readonly colorSpace?: 'srgb' | 'linear';
 	/**
 	 * Vertical flip during upload.
 	 */
-	flipY?: boolean;
+	readonly flipY?: boolean;
 	/**
 	 * Enables mipmap generation.
 	 */
-	generateMipmaps?: boolean;
+	readonly generateMipmaps?: boolean;
 	/**
 	 * Enables premultiplied-alpha upload mode.
 	 */
-	premultipliedAlpha?: boolean;
+	readonly premultipliedAlpha?: boolean;
 	/**
 	 * Dynamic source update strategy.
 	 */
-	update?: TextureUpdateMode;
+	readonly update?: TextureUpdateMode;
 	/**
 	 * Sampler anisotropy level (clamped internally).
 	 */
-	anisotropy?: number;
+	readonly anisotropy?: number;
 	/**
 	 * Min/mag filter mode.
 	 */
-	filter?: GPUFilterMode;
+	readonly filter?: GPUFilterMode;
 	/**
 	 * U axis address mode.
 	 */
-	addressModeU?: GPUAddressMode;
+	readonly addressModeU?: GPUAddressMode;
 	/**
 	 * V axis address mode.
 	 */
-	addressModeV?: GPUAddressMode;
+	readonly addressModeV?: GPUAddressMode;
 	/**
 	 * When true, this texture is also writable by compute passes.
 	 */
-	storage?: boolean;
+	readonly storage?: boolean;
 	/**
 	 * Required when storage is true. Must be a storage-compatible format.
 	 */
-	format?: GPUTextureFormat;
+	readonly format?: GPUTextureFormat;
 	/**
 	 * Explicit texture width. Required when `storage` is true.
 	 */
-	width?: number;
+	readonly width?: number;
 	/**
 	 * Explicit texture height. Required when `storage` is true.
 	 */
-	height?: number;
+	readonly height?: number;
 	/**
 	 * When true, texture is visible (sampled) in fragment shader.
 	 *
@@ -229,7 +229,7 @@ export interface TextureDefinition {
 	 * fail WebGPU validation against integer sample types). Setting this to
 	 * `true` for an integer storage format throws at material resolution.
 	 */
-	fragmentVisible?: boolean;
+	readonly fragmentVisible?: boolean;
 }
 
 /**
@@ -269,19 +269,19 @@ export interface StorageBufferDefinition {
 	/**
 	 * Buffer size in bytes. Must be > 0 and multiple of 4.
 	 */
-	size: number;
+	readonly size: number;
 	/**
 	 * WGSL type annotation for codegen.
 	 */
-	type: StorageBufferType;
+	readonly type: StorageBufferType;
 	/**
 	 * Access mode in compute shader. Default: 'read-write'.
 	 */
-	access?: StorageBufferAccess;
+	readonly access?: StorageBufferAccess;
 	/**
 	 * Initial data uploaded on creation.
 	 */
-	initialData?: Float32Array | Uint32Array | Int32Array;
+	readonly initialData?: Readonly<Float32Array> | Readonly<Uint32Array> | Readonly<Int32Array>;
 }
 
 /**

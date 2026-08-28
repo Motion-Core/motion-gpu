@@ -5,6 +5,7 @@ import type {
 	StorageBufferDefinitionMap,
 	StorageBufferType,
 	ComputePassContext,
+	TextureData,
 	TextureDefinition,
 	AnyPass,
 	RenderPass
@@ -65,6 +66,42 @@ describe('compute types', () => {
 		};
 		expect(u32Def.initialData).toBeInstanceOf(Uint32Array);
 		expect(i32Def.initialData).toBeInstanceOf(Int32Array);
+	});
+
+	it('keeps material resource descriptors readonly while accepting mutable inputs', () => {
+		const canvas = document.createElement('canvas');
+		const mutableInitialData = new Float32Array([1, 2, 3, 4]);
+		const textureData: TextureData = { source: canvas, width: 16 };
+		const textureDefinition: TextureDefinition = {
+			source: textureData,
+			filter: 'linear'
+		};
+		const storageDefinition: StorageBufferDefinition = {
+			size: 16,
+			type: 'array<f32>',
+			initialData: mutableInitialData
+		};
+
+		const assertReadonlyDescriptors = (): void => {
+			// @ts-expect-error texture payload fields are immutable
+			textureData.width = 32;
+			// @ts-expect-error texture definition fields are immutable
+			textureDefinition.filter = 'nearest';
+			// @ts-expect-error storage descriptor fields are immutable
+			storageDefinition.size = 32;
+			// @ts-expect-error storage initialData references are immutable
+			storageDefinition.initialData = new Float32Array(4);
+			if (storageDefinition.initialData) {
+				// @ts-expect-error storage initialData elements are immutable through the public contract
+				storageDefinition.initialData[0] = 9;
+			}
+		};
+		void assertReadonlyDescriptors;
+
+		canvas.width = 32;
+		expect(textureData.source.width).toBe(32);
+		expect(textureDefinition.filter).toBe('linear');
+		expect(storageDefinition.initialData).toBe(mutableInitialData);
 	});
 
 	it('StorageBufferType covers all expected WGSL array types', () => {

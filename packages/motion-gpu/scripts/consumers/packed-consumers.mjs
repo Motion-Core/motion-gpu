@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access, cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+	access,
+	cp,
+	mkdtemp,
+	mkdir,
+	readdir,
+	readFile,
+	rm,
+	stat,
+	writeFile
+} from 'node:fs/promises';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -30,12 +41,21 @@ const entryAliases = {
 	'./vue': 'Vue',
 	'./vue/advanced': 'VueAdvanced'
 };
-export const nodeSsrEntrypoints = Object.freeze([
-	'@motion-core/motion-gpu',
-	'@motion-core/motion-gpu/advanced',
-	'@motion-core/motion-gpu/core',
-	'@motion-core/motion-gpu/core/advanced'
-]);
+export const nodeSsrEntrypointsByFixture = Object.freeze({
+	core: Object.freeze([
+		'@motion-core/motion-gpu',
+		'@motion-core/motion-gpu/advanced',
+		'@motion-core/motion-gpu/core',
+		'@motion-core/motion-gpu/core/advanced'
+	]),
+	react: Object.freeze(['@motion-core/motion-gpu/react', '@motion-core/motion-gpu/react/advanced']),
+	svelte: Object.freeze([
+		'@motion-core/motion-gpu/svelte',
+		'@motion-core/motion-gpu/svelte/advanced'
+	]),
+	vue: Object.freeze(['@motion-core/motion-gpu/vue', '@motion-core/motion-gpu/vue/advanced'])
+});
+export const nodeSsrEntrypoints = Object.freeze(Object.values(nodeSsrEntrypointsByFixture).flat());
 const currentVersions = {
 	core: { typescript: '5.9.3', vite: '8.2.1' },
 	react: {
@@ -227,13 +247,37 @@ export function createPublicApiCompileContract(fixtureName) {
 }
 
 /** Generates the direct Node import contract used against the installed package. */
-export function createNodeSsrImportContract() {
+export function createNodeSsrImportContract(entrypoints = nodeSsrEntrypoints) {
 	return [
-		"if (!Reflect.deleteProperty(globalThis, 'navigator')) throw new Error('Could not remove navigator for the SSR import contract.');",
-		"if ('navigator' in globalThis) throw new Error('SSR import contract must run without navigator.gpu.');",
-		`const entrypoints = ${JSON.stringify(nodeSsrEntrypoints)};`,
+		"const browserGlobals = ['navigator', 'document', 'window'];",
+		'for (const globalName of browserGlobals) { if (!Reflect.deleteProperty(globalThis, globalName)) throw new Error(`Could not remove ${globalName} for the SSR import contract.`); if (globalName in globalThis) throw new Error(`SSR import contract must run without ${globalName}.`); }',
+		`const entrypoints = ${JSON.stringify(entrypoints)};`,
 		'for (const entrypoint of entrypoints) await import(entrypoint);'
 	].join(' ');
+}
+
+/**
+ * Node loader for framework package assets reached by direct SSR imports.
+ * Svelte components are compiled with the consumer's installed compiler; CSS is inert in Node.
+ */
+export function createNodeSsrLoader() {
+	return [
+		"import { readFile } from 'node:fs/promises';",
+		"import path from 'node:path';",
+		"import { fileURLToPath } from 'node:url';",
+		'export async function resolve(specifier, context, nextResolve) {',
+		'try { return await nextResolve(specifier, context); } catch (error) {',
+		"if (error?.code === 'ERR_MODULE_NOT_FOUND' && specifier.startsWith('.') && path.extname(specifier) === '') return nextResolve(`${specifier}.js`, context);",
+		'throw error;',
+		'}',
+		'}',
+		'export async function load(url, context, nextLoad) {',
+		"if (url.endsWith('.css')) return { format: 'module', shortCircuit: true, source: 'export default undefined;' };",
+		"if (url.endsWith('.svelte')) { const { compile } = await import('svelte/compiler'); const source = await readFile(new URL(url), 'utf8'); const compiled = compile(source, { filename: fileURLToPath(url), generate: 'server', dev: false }); return { format: 'module', shortCircuit: true, source: compiled.js.code }; }",
+		'return nextLoad(url, context);',
+		'}',
+		''
+	].join('\n');
 }
 
 export function applyExactVersions(manifest, versions) {
@@ -306,6 +350,7 @@ async function installFixtures(temporaryRoot, dependencySpec, profile) {
 			path.join(fixtureDirectory, 'src/public-api-contract.ts'),
 			createPublicApiCompileContract(fixtureName)
 		);
+		await writeFile(path.join(fixtureDirectory, 'ssr-loader.mjs'), createNodeSsrLoader());
 	}
 
 	const repositoryManifest = JSON.parse(
@@ -477,10 +522,21 @@ async function assertInternalImportsAreBlocked(coreConsumerDirectory) {
 	}
 }
 
-async function assertNodeSsrImports(coreConsumerDirectory) {
-	await runCommand('node', ['--input-type=module', '--eval', createNodeSsrImportContract()], {
-		cwd: coreConsumerDirectory
-	});
+async function assertNodeSsrImports(consumerRoot) {
+	for (const [fixtureName, entrypoints] of Object.entries(nodeSsrEntrypointsByFixture)) {
+		await runCommand(
+			'node',
+			[
+				'--no-warnings=ExperimentalWarning',
+				'--experimental-loader',
+				'./ssr-loader.mjs',
+				'--input-type=module',
+				'--eval',
+				createNodeSsrImportContract(entrypoints)
+			],
+			{ cwd: path.join(consumerRoot, fixtureName) }
+		);
+	}
 }
 
 async function findFilesWithExtension(directory, extension) {
@@ -516,6 +572,92 @@ async function checkAndBuildFixtures(consumerRoot) {
 	}
 }
 
+const packedFixtureMimeTypes = {
+	'.css': 'text/css; charset=utf-8',
+	'.html': 'text/html; charset=utf-8',
+	'.js': 'text/javascript; charset=utf-8',
+	'.json': 'application/json; charset=utf-8',
+	'.map': 'application/json; charset=utf-8',
+	'.svg': 'image/svg+xml'
+};
+
+async function startPackedFixtureServer(directory) {
+	const root = path.resolve(directory);
+	const server = createServer(async (request, response) => {
+		try {
+			const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+			let file = path.resolve(root, `.${pathname}`);
+			if (file !== root && !file.startsWith(`${root}${path.sep}`)) {
+				response.writeHead(403).end('Forbidden');
+				return;
+			}
+			if ((await stat(file)).isDirectory()) file = path.join(file, 'index.html');
+			const body = await readFile(file);
+			response.writeHead(200, {
+				'content-type': packedFixtureMimeTypes[path.extname(file)] ?? 'application/octet-stream'
+			});
+			response.end(body);
+		} catch {
+			response.writeHead(404).end('Not found');
+		}
+	});
+	await new Promise((resolve, reject) => {
+		server.once('error', reject);
+		server.listen(0, '127.0.0.1', resolve);
+	});
+	const address = server.address();
+	assert.ok(address && typeof address === 'object', 'Packed fixture server has no TCP address.');
+	return {
+		close: () =>
+			new Promise((resolve, reject) =>
+				server.close((error) => (error ? reject(error) : resolve()))
+			),
+		url: `http://127.0.0.1:${address.port}`
+	};
+}
+
+async function assertPackedCustomRenderPassRuntime(consumerRoot) {
+	const server = await startPackedFixtureServer(path.join(consumerRoot, 'svelte', 'dist'));
+	const diagnostics = [];
+	let browser;
+	try {
+		const { chromium } = await import('@playwright/test');
+		browser = await chromium.launch({
+			headless: true,
+			args: [
+				'--enable-unsafe-webgpu',
+				'--use-angle=swiftshader',
+				'--enable-features=Vulkan',
+				'--disable-vulkan-surface'
+			]
+		});
+		const page = await browser.newPage();
+		page.on('console', (message) =>
+			diagnostics.push(`console.${message.type()}: ${message.text()}`)
+		);
+		page.on('pageerror', (error) => diagnostics.push(`pageerror: ${error.message}`));
+		await page.goto(server.url, { waitUntil: 'networkidle' });
+		await page.waitForFunction(
+			() => document.documentElement.dataset.packedCustomRenderPass === 'executed',
+			undefined,
+			{ timeout: 20_000 }
+		);
+		assert.equal(
+			await page.locator('html').getAttribute('data-packed-custom-render-pass'),
+			'executed',
+			'Packed structural custom RenderPass was not executed by FragCanvas.'
+		);
+	} catch (error) {
+		if (diagnostics.length > 0) {
+			error.message += `\nPacked browser diagnostics:\n${diagnostics.join('\n')}`;
+		}
+		throw error;
+	} finally {
+		await browser?.close();
+		await server.close();
+	}
+}
+
 async function prepareTarball(temporaryRoot) {
 	const artifactDirectory = path.join(temporaryRoot, 'artifacts');
 	await mkdir(artifactDirectory, { recursive: true });
@@ -534,9 +676,10 @@ async function checkProfile(temporaryRoot, packageSpec, profile) {
 	await assertMotionGpuVersion(consumerRoot, packageSpec.expectedVersion);
 	const coreConsumerDirectory = path.join(consumerRoot, 'core');
 	await assertPackedArtifacts(coreConsumerDirectory);
-	await assertNodeSsrImports(coreConsumerDirectory);
+	await assertNodeSsrImports(consumerRoot);
 	await assertInternalImportsAreBlocked(coreConsumerDirectory);
 	await checkAndBuildFixtures(consumerRoot);
+	await assertPackedCustomRenderPassRuntime(consumerRoot);
 }
 
 export async function runPackedConsumerChecks({ includeMinimumPeers = false, packageSpec } = {}) {

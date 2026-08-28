@@ -6,10 +6,12 @@ import {
 	assertPublicApiSymbols,
 	assertPublicExportMap,
 	createNodeSsrImportContract,
+	createNodeSsrLoader,
 	createPublicApiCompileContract,
 	injectPackageSpec,
 	injectTarballPath,
 	nodeSsrEntrypoints,
+	nodeSsrEntrypointsByFixture,
 	parsePackageSpec,
 	parsePackedConsumerArguments
 } from './packed-consumers.mjs';
@@ -143,21 +145,35 @@ test('generates peer-specific compile contracts from the same manifest', () => {
 	assert.throws(() => createPublicApiCompileContract('unknown'), /Unknown public API fixture/);
 });
 
-test('generates direct SSR imports for every framework-neutral entrypoint without navigator', () => {
+test('generates direct SSR imports for all public entrypoints without browser globals', () => {
 	assert.ok(Object.isFrozen(nodeSsrEntrypoints));
 	assert.deepEqual(nodeSsrEntrypoints, [
 		'@motion-core/motion-gpu',
 		'@motion-core/motion-gpu/advanced',
 		'@motion-core/motion-gpu/core',
-		'@motion-core/motion-gpu/core/advanced'
+		'@motion-core/motion-gpu/core/advanced',
+		'@motion-core/motion-gpu/react',
+		'@motion-core/motion-gpu/react/advanced',
+		'@motion-core/motion-gpu/svelte',
+		'@motion-core/motion-gpu/svelte/advanced',
+		'@motion-core/motion-gpu/vue',
+		'@motion-core/motion-gpu/vue/advanced'
 	]);
+	assert.deepEqual(Object.keys(nodeSsrEntrypointsByFixture), ['core', 'react', 'svelte', 'vue']);
 	const contract = createNodeSsrImportContract();
-	assert.match(contract, /Reflect\.deleteProperty\(globalThis, 'navigator'\)/);
-	assert.match(contract, /'navigator' in globalThis/);
+	for (const globalName of ['navigator', 'document', 'window']) {
+		assert.match(contract, new RegExp(`['"]${globalName}['"]`));
+	}
 	assert.match(contract, /await import\(entrypoint\)/);
 	for (const entrypoint of nodeSsrEntrypoints) {
 		assert.match(contract, new RegExp(JSON.stringify(entrypoint).replaceAll('/', '\\/')));
 	}
+	const loader = createNodeSsrLoader();
+	assert.match(loader, /svelte\/compiler/);
+	assert.match(loader, /generate: 'server'/);
+	assert.match(loader, /ERR_MODULE_NOT_FOUND/);
+	assert.match(loader, /`\$\{specifier\}\.js`/);
+	assert.match(loader, /url\.endsWith\('\.css'\)/);
 });
 
 test('core fixture compiles and runs a structural custom RenderPass contract', async () => {
@@ -173,6 +189,35 @@ test('core fixture compiles and runs a structural custom RenderPass contract', a
 	assert.match(fixtureSource, /const acceptedPasses: AnyPass\[\] = \[structuralCustomRenderPass\]/);
 	assert.match(fixtureSource, /structuralCustomRenderPass\.render\(\)/);
 	assert.equal(fixtureManifest.scripts['test:custom-pass'], 'node src/custom-render-pass.ts');
+});
+
+test('core fixture proves readonly contracts while accepting mutable inputs', async () => {
+	const fixtureSource = await readFile(
+		new URL('./fixtures/core/src/readonly-contract.ts', import.meta.url),
+		'utf8'
+	);
+	for (const contract of [
+		'TypedUniform',
+		"TypedUniform<'vec2f'>['value']",
+		'TextureData',
+		'TextureDefinition',
+		'StorageBufferDefinition'
+	]) {
+		assert.match(fixtureSource, new RegExp(contract.replaceAll('[', '\\[').replaceAll(']', '\\]')));
+	}
+	assert.match(fixtureSource, /mutableTypedUniformInput satisfies TypedUniform/);
+	assert.match(fixtureSource, /mutableInitialData/);
+	assert.equal(fixtureSource.match(/@ts-expect-error/g)?.length, 8);
+});
+
+test('Svelte fixture passes a structural custom RenderPass through FragCanvas', async () => {
+	const fixtureSource = await readFile(
+		new URL('./fixtures/svelte/src/App.svelte', import.meta.url),
+		'utf8'
+	);
+	assert.match(fixtureSource, /satisfies RenderPass/);
+	assert.match(fixtureSource, /dataset\.packedCustomRenderPass = 'executed'/);
+	assert.match(fixtureSource, /<FragCanvas \{material\} \{passes\} \/>/);
 });
 
 test('pins only declared fixture dependencies without mutating the template', () => {

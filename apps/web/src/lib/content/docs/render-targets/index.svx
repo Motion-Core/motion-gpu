@@ -37,6 +37,8 @@ If only one explicit dimension is supplied, the other still follows the canvas a
 
 In the standard SDR path, the default target format follows the preferred canvas format. HDR, tone-mapped, or explicitly configured working pipelines can use `rgba16float`. A target-level `format` always wins.
 
+Motion GPU validates the working format and named targets against the active device before allocation or pipeline creation. Built-in passes require float-sampled inputs and float-renderable outputs because their shaders use `texture_2d<f32>` and `vec4f`. Integer and depth targets remain available to a custom `RenderPass` with a matching typed pipeline, but routing one through a built-in pass produces an early Motion GPU diagnostic. Float32 working formats use non-filtering sampling and nearest presentation unless the device exposes `float32-filterable`.
+
 The renderer compares resolved targets by `key:format:widthxheight`. It allocates new targets, reallocates changed targets, destroys removed targets, and preserves textures whose signature remains stable.
 
 Custom render passes receive the resolved map as `context.targets`. Built-in passes access named targets through normal slot routing.

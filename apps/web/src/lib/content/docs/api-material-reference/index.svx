@@ -20,7 +20,9 @@ interface FragMaterialInput {
 }
 ```
 
-Returns an immutable `FragMaterial` whose six fields are always present; omitted maps resolve to frozen empty objects. The function validates the material fragment entrypoint, named identifiers, uniform values, defines, includes, storage buffers, and storage textures.
+Returns an immutable `FragMaterial` whose six fields are always present; omitted maps resolve to frozen empty objects. Nested uniform, texture, include, define, and storage-buffer descriptors are isolated from their inputs. Storage-buffer `initialData` reads return defensive typed-array copies, while caller-owned DOM and WebGPU objects remain unfrozen. The function validates the material fragment entrypoint, named identifiers, uniform values, defines, includes, storage buffers, and storage textures.
+
+To change a declaration, call `defineMaterial(...)` with a new value and pass the replacement to `FragCanvas`. Do not mutate a returned material or one of its nested descriptors.
 
 `fragment` must contain `fn frag(uv: vec2f) -> vec4f` in the main source. Material and pass colors use straight alpha until final canvas presentation.
 
@@ -39,6 +41,6 @@ Returns cached renderer input for a validated material:
 
 Use this low-level function for adapters, validation, or tooling. Applications normally pass the `FragMaterial` directly to `FragCanvas`.
 
-The returned cache entry is deeply frozen: line-map entries, uniform layout entries and lookup tables, source metadata, and key lists cannot be mutated. Repeated calls for the same material return the same protected snapshot.
+The returned cache entry is deeply frozen: line-map entries, uniform layout entries and lookup tables, source metadata, and key lists cannot be mutated. Repeated calls for the same material return the same protected snapshot. Copy an array before making local tooling edits.
 
 See [Defining Materials](/docs/defining-materials) for the declaration/runtime boundary.

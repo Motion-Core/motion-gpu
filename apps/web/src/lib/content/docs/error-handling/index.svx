@@ -85,6 +85,8 @@ History limits are floored; non-finite and non-positive values disable history. 
 
 The default overlay shows classification metadata, hints, technical details, source snippets, and runtime context when available. Adapter portals keep it outside canvas drawing while preserving the canvas subtree context.
 
+When several canvases fail at once, their default overlays share one document-level stack. Only the top overlay owns focus and responds to `Escape`. Closing it focuses the previous overlay; closing the final overlay restores the original focus target and the page's prior `inert` state.
+
 ## Shader diagnostics
 
 Compilation diagnostics retain both generated-line positions and original source locations:

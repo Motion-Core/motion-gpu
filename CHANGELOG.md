@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Breaking
 
 - Compute and fragment-feedback passes are now nominal library-managed contracts. Replace hand-built objects with `isCompute: true` or `isPingPongShader: true` with `ComputePass`, `PingPongComputePass`, or `PingPongShaderPass`. Custom `RenderPass` implementations remain supported.
+- Material resource descriptors, uniform tuples, error reports and history, and public context and scheduler snapshots are now readonly in both types and runtime behavior. Create a new value instead of mutating a returned snapshot: call `defineMaterial(...)` again for material changes, and copy an array with `[...value]` before making local edits.
 
 ### Added
 
@@ -17,12 +18,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - User-context namespace maps are frozen, null-prototype snapshots. Merge mode now merges only plain records and safely treats `toString`, `constructor`, `__proto__`, and symbols as ordinary namespaces.
-- Resolved material snapshots, line maps, uniform layouts, source metadata, and key lists are deeply readonly and frozen. Runtime synchronization reads each material declaration once per cycle.
+- Material declarations and resolved data now isolate every nested input, including storage-buffer initial bytes, without freezing caller-owned DOM or WebGPU objects. Runtime synchronization reads each material declaration once per cycle.
 - Scheduler diagnostics now keep colliding symbol labels distinct, expose deeply frozen snapshots, and accept profiling windows only as safe integers from 1 through 10,000 frames.
 
 ### Fixed
 
-- Error history is now normalized, trimmed, and published only by the runtime, preventing duplicate history callbacks when the limit changes in Svelte, React, or Vue.
+- Error history is now normalized, trimmed, and published only by the runtime as a deeply frozen snapshot, preventing duplicate callbacks or consumer mutation from changing later history in Svelte, React, or Vue.
+- Multiple default error overlays now share one document-level owner stack. Only the top overlay traps focus or handles `Escape`; closing it transfers ownership to the previous overlay, and closing the last one restores focus and background state.
+- Texture and render-target formats are validated against the active device before allocation or pipeline creation. Built-in passes reject incompatible integer and depth slots with a Motion GPU diagnostic, while float32 sampling falls back to nearest filtering when `float32-filterable` is unavailable.
+- An explicit `workgroupSize` no longer hides an out-of-range literal or malformed `@workgroup_size` attribute; explicit dimensions override only valid non-literal WGSL expressions.
 - Pointer hooks now apply `enabled` and outside-tracking changes without remounting, keep the first pointer active until release, and release capture during disable or unmount consistently across Svelte, React, and Vue.
 - Storage-buffer writes now copy their source bytes immediately. Reading a buffer flushes its queued writes in order first, so write-then-read observes the new data without replaying failed operations in a later frame.
 - Texture loading now honors both cancellation signals, shares only bodyless `GET`/`HEAD` requests, isolates mutation requests, and clears controller loading state when lazy URL or options providers throw.

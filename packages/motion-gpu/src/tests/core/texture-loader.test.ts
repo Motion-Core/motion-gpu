@@ -92,6 +92,50 @@ describe('texture-loader', () => {
 		expect(createImageBitmap).toHaveBeenCalledTimes(3);
 	});
 
+	it.each(['POST', 'PUT', 'PATCH'])('does not share concurrent %s requests', async (method) => {
+		await Promise.all([
+			loadTextureFromUrl('/assets/unsafe.png', {
+				requestInit: { method, body: new Uint8Array([1, 2, 3]) }
+			}),
+			loadTextureFromUrl('/assets/unsafe.png', {
+				requestInit: { method, body: new Uint8Array([9, 8, 7]) }
+			})
+		]);
+
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not share non-GET/HEAD requests without a body', async () => {
+		await Promise.all([
+			loadTextureFromUrl('/assets/post-no-body.png', { requestInit: { method: 'POST' } }),
+			loadTextureFromUrl('/assets/post-no-body.png', { requestInit: { method: 'POST' } })
+		]);
+
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it('does not share GET requests when a body is present', async () => {
+		await Promise.all([
+			loadTextureFromUrl('/assets/get-with-body.png', {
+				requestInit: { method: 'GET', body: new Uint8Array([1, 2]) }
+			}),
+			loadTextureFromUrl('/assets/get-with-body.png', {
+				requestInit: { method: 'GET', body: new Uint8Array([9, 8]) }
+			})
+		]);
+
+		expect(fetch).toHaveBeenCalledTimes(2);
+	});
+
+	it('shares concurrent HEAD requests without a body', async () => {
+		await Promise.all([
+			loadTextureFromUrl('/assets/head.png', { requestInit: { method: 'HEAD' } }),
+			loadTextureFromUrl('/assets/head.png', { requestInit: { method: 'head' } })
+		]);
+
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
 	it('evicts settled blob cache entries once all consumers release them', async () => {
 		await loadTextureFromUrl('/assets/evict.png');
 		await loadTextureFromUrl('/assets/evict.png');
@@ -208,6 +252,57 @@ describe('texture-loader', () => {
 		expect(createImageBitmap).toHaveBeenCalledTimes(1);
 	});
 
+	it('honors requestInit.signal without aborting a fetch retained by another consumer', async () => {
+		const fetchControl: {
+			resolve?: (response: { ok: boolean; status: number; blob: () => Promise<Blob> }) => void;
+		} = {};
+		const fetchAbort = vi.fn();
+		const fetchMock = vi.fn((_: string, requestInit?: RequestInit) => {
+			const signal = requestInit?.signal as AbortSignal | undefined;
+			signal?.addEventListener('abort', fetchAbort, { once: true });
+			return new Promise((resolve) => {
+				fetchControl.resolve = resolve;
+			});
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const firstController = new AbortController();
+		const first = loadTextureFromUrl('/assets/shared-request-init-abort.png', {
+			requestInit: { signal: firstController.signal }
+		});
+		const second = loadTextureFromUrl('/assets/shared-request-init-abort.png');
+
+		firstController.abort();
+		await expect(first).rejects.toSatisfy((error: unknown) => isAbortError(error));
+		expect(fetchAbort).not.toHaveBeenCalled();
+
+		if (!fetchControl.resolve) {
+			throw new Error('Fetch promise was not captured');
+		}
+		fetchControl.resolve({
+			ok: true,
+			status: 200,
+			blob: async () => createMockBlob()
+		});
+
+		await expect(second).resolves.toMatchObject({
+			url: '/assets/shared-request-init-abort.png'
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not start fetch for an already-aborted requestInit.signal', async () => {
+		const controller = new AbortController();
+		controller.abort();
+
+		await expect(
+			loadTextureFromUrl('/assets/already-aborted.png', {
+				requestInit: { signal: controller.signal }
+			})
+		).rejects.toSatisfy((error: unknown) => isAbortError(error));
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('throws when createImageBitmap is unavailable in runtime', async () => {
 		vi.unstubAllGlobals();
 		Reflect.deleteProperty(globalThis, 'createImageBitmap');
@@ -299,6 +394,28 @@ describe('texture-loader', () => {
 		}
 	});
 
+	it('merged abort signal fallback listens to every supplied signal', () => {
+		const abortSignalRef = AbortSignal as unknown as {
+			any: ((signals: AbortSignal[]) => AbortSignal) | undefined;
+		};
+		const originalAny = abortSignalRef.any;
+		abortSignalRef.any = undefined;
+
+		try {
+			const primary = new AbortController();
+			const secondary = new AbortController();
+			const tertiary = new AbortController();
+			const merged = mergeAbortSignals(primary.signal, secondary.signal, tertiary.signal);
+
+			tertiary.abort();
+
+			expect(merged.signal.aborted).toBe(true);
+			expect(() => merged.dispose()).not.toThrow();
+		} finally {
+			abortSignalRef.any = originalAny;
+		}
+	});
+
 	it('closes decoded bitmap when signal aborts before result is returned', async () => {
 		const close = vi.fn();
 		const controller = new AbortController();
@@ -358,77 +475,6 @@ describe('texture-loader', () => {
 		expect(a).not.toBe(c);
 	});
 
-	it('fingerprints request body variants in cache key generation', () => {
-		const url = '/assets/body.png';
-		const formData = new FormData();
-		formData.set('name', 'motion');
-		const blob = new Blob(['hello'], { type: 'text/plain' });
-		const arrayBuffer = new Uint8Array([1, 2, 3]).buffer;
-		const view = new Uint8Array([4, 5, 6]);
-		const opaqueBody = { raw: true } as unknown as BodyInit;
-
-		const cases = [
-			{
-				label: 'string',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: 'abc' }
-				}),
-				expectedBody: 'string:abc'
-			},
-			{
-				label: 'urlsearchparams',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: new URLSearchParams('a=1&b=2') }
-				}),
-				expectedBody: 'urlsearchparams:a=1&b=2'
-			},
-			{
-				label: 'formdata',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: formData }
-				}),
-				expectedBody: 'formdata:name:motion'
-			},
-			{
-				label: 'blob',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: blob }
-				}),
-				expectedBody: 'blob:text/plain:5'
-			},
-			{
-				label: 'arraybuffer',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: arrayBuffer }
-				}),
-				expectedBody: 'arraybuffer:3'
-			},
-			{
-				label: 'view',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: view }
-				}),
-				expectedBody: 'view:3'
-			},
-			{
-				label: 'opaque',
-				key: buildTextureResourceCacheKey(url, {
-					requestInit: { method: 'POST', body: opaqueBody }
-				}),
-				expectedBody: 'opaque:[object Object]'
-			}
-		];
-
-		for (const entry of cases) {
-			const parsed = JSON.parse(entry.key) as {
-				requestInit: {
-					body: string;
-				};
-			};
-			expect(parsed.requestInit.body, entry.label).toBe(entry.expectedBody);
-		}
-	});
-
 	it('aborts pending shared fetch requests when texture blob cache is cleared', async () => {
 		let abortCount = 0;
 		const fetchMock = vi.fn((_: string, requestInit?: RequestInit) => {
@@ -454,5 +500,40 @@ describe('texture-loader', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(abortCount).toBe(1);
 		expect(createImageBitmap).not.toHaveBeenCalled();
+	});
+
+	it('does not let a cleared cache entry delete its replacement', async () => {
+		type FetchResponse = { ok: boolean; status: number; blob: () => Promise<Blob> };
+		const controls: Array<{
+			resolve: (response: FetchResponse) => void;
+			reject: (error: unknown) => void;
+		}> = [];
+		const fetchMock = vi.fn((_: string, requestInit?: RequestInit) => {
+			const signal = requestInit?.signal as AbortSignal | undefined;
+			return new Promise<FetchResponse>((resolve, reject) => {
+				controls.push({ resolve, reject });
+				signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), {
+					once: true
+				});
+			});
+		});
+		vi.stubGlobal('fetch', fetchMock);
+
+		const first = loadTextureFromUrl('/assets/cache-generation.png');
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		clearTextureBlobCache();
+		const second = loadTextureFromUrl('/assets/cache-generation.png');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		await expect(first).rejects.toSatisfy((error: unknown) => isAbortError(error));
+		const third = loadTextureFromUrl('/assets/cache-generation.png');
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+
+		controls[1]?.resolve({
+			ok: true,
+			status: 200,
+			blob: async () => createMockBlob()
+		});
+		await expect(Promise.all([second, third])).resolves.toHaveLength(2);
 	});
 });

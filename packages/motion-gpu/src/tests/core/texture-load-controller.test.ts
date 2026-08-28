@@ -67,6 +67,37 @@ describe('createTextureLoadController', () => {
 		expect(controller.errorReport.current?.rawMessage).toBe('Unknown texture loading error');
 	});
 
+	it.each([
+		[
+			'URL',
+			() => {
+				throw new Error('URL getter failed');
+			},
+			() => ({})
+		],
+		[
+			'options',
+			() => ['/assets/getter.png'],
+			() => {
+				throw new Error('Options getter failed');
+			}
+		]
+	])(
+		'normalizes synchronous %s getter failures and clears loading state',
+		async (_, getUrls, getOptions) => {
+			vi.stubGlobal('fetch', vi.fn());
+			const controller = createTextureLoadController({ getUrls, getOptions });
+
+			await expect(controller.reload()).resolves.toBeUndefined();
+
+			expect(controller.loading.current).toBe(false);
+			expect(controller.textures.current).toBeNull();
+			expect(controller.error.current?.message).toMatch(/getter failed/);
+			expect(controller.errorReport.current?.rawMessage).toMatch(/getter failed/);
+			expect(fetch).not.toHaveBeenCalled();
+		}
+	);
+
 	it('disposes a result that resolves after the controller is disposed', async () => {
 		let resolveBitmap!: (bitmap: { width: number; height: number; close: () => void }) => void;
 		vi.stubGlobal(

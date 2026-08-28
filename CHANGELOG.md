@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - User-context namespace maps are frozen, null-prototype snapshots. Merge mode now merges only plain records and safely treats `toString`, `constructor`, `__proto__`, and symbols as ordinary namespaces.
 
+### Fixed
+
+- Texture loading now honors both cancellation signals, shares only bodyless `GET`/`HEAD` requests, isolates mutation requests, and clears controller loading state when lazy URL or options providers throw.
+
 ## [0.15.1] - 2026-08-26
 
 ### Fixed

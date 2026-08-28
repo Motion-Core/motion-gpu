@@ -224,7 +224,7 @@ const FragCanvasFrameMutationHarness = defineComponent({
 			required: false
 		},
 		onErrorHistory: {
-			type: Function as PropType<(history: MotionGPUErrorReport[]) => void>,
+			type: Function as PropType<(history: readonly MotionGPUErrorReport[]) => void>,
 			required: false
 		},
 		errorHistoryLimit: {

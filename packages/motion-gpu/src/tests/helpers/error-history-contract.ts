@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MotionGPUErrorReport } from '../../lib/core/error-report.js';
 
 export type ErrorHistoryMutationMode = 'invalid-texture' | 'invalid-uniform';
+type ErrorHistory = readonly MotionGPUErrorReport[];
 
 export interface ErrorHistoryContractHarness {
 	emitError: (mode: ErrorHistoryMutationMode) => Promise<void>;
@@ -11,12 +12,12 @@ export interface ErrorHistoryContractHarness {
 
 export type MountErrorHistoryContract = (input: {
 	historyLimit: number;
-	onErrorHistory: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory: (history: ErrorHistory) => void;
 }) => Promise<ErrorHistoryContractHarness>;
 
 function getLatestHistory(
-	callback: ReturnType<typeof vi.fn<(history: MotionGPUErrorReport[]) => void>>
-): MotionGPUErrorReport[] {
+	callback: ReturnType<typeof vi.fn<(history: ErrorHistory) => void>>
+): ErrorHistory {
 	const history = callback.mock.calls[callback.mock.calls.length - 1]?.[0];
 	if (!history) {
 		throw new Error('Expected an error history callback payload');
@@ -25,13 +26,33 @@ function getLatestHistory(
 	return history;
 }
 
+function expectFrozenReport(report: MotionGPUErrorReport): void {
+	expect(Object.isFrozen(report)).toBe(true);
+	expect(Object.isFrozen(report.details)).toBe(true);
+	expect(Object.isFrozen(report.stack)).toBe(true);
+	if (report.source) {
+		expect(Object.isFrozen(report.source)).toBe(true);
+		expect(Object.isFrozen(report.source.snippet)).toBe(true);
+		expect(report.source.snippet.every((line) => Object.isFrozen(line))).toBe(true);
+	}
+	if (report.context) {
+		expect(Object.isFrozen(report.context)).toBe(true);
+		expect(Object.isFrozen(report.context.activeRenderTargets)).toBe(true);
+		if (report.context.passGraph) {
+			expect(Object.isFrozen(report.context.passGraph)).toBe(true);
+			expect(Object.isFrozen(report.context.passGraph.inputs)).toBe(true);
+			expect(Object.isFrozen(report.context.passGraph.outputs)).toBe(true);
+		}
+	}
+}
+
 /**
  * Registers the error-history ownership contract shared by all framework adapters.
  */
 export function runErrorHistoryContract(framework: string, mount: MountErrorHistoryContract): void {
 	describe(`${framework} error history contract`, () => {
 		it('publishes exactly once for additions, shrink and zero transitions', async () => {
-			const onErrorHistory = vi.fn<(history: MotionGPUErrorReport[]) => void>();
+			const onErrorHistory = vi.fn<(history: ErrorHistory) => void>();
 			const harness = await mount({ historyLimit: 3, onErrorHistory });
 
 			await harness.emitError('invalid-uniform');
@@ -62,13 +83,23 @@ export function runErrorHistoryContract(framework: string, mount: MountErrorHist
 			expect(onErrorHistory).toHaveBeenCalledTimes(4);
 		});
 
-		it('isolates callback snapshots from the runtime-owned history', async () => {
+		it('publishes immutable snapshots without contaminating the next callback', async () => {
 			const observedLengths: number[] = [];
-			const snapshots: MotionGPUErrorReport[][] = [];
-			const onErrorHistory = vi.fn((history: MotionGPUErrorReport[]) => {
+			const snapshots: ErrorHistory[] = [];
+			const onErrorHistory = vi.fn((history: ErrorHistory) => {
 				observedLengths.push(history.length);
 				snapshots.push(history);
-				history.length = 0;
+				expect(Object.isFrozen(history)).toBe(true);
+				for (const report of history) {
+					expectFrozenReport(report);
+				}
+				if (snapshots.length === 1) {
+					const firstReport = history[0];
+					expect(firstReport).toBeDefined();
+					expect(Reflect.set(history, 0, null)).toBe(false);
+					expect(Reflect.set(firstReport ?? {}, 'message', 'contaminated')).toBe(false);
+					expect(Reflect.set(firstReport?.details ?? [], 0, 'contaminated')).toBe(false);
+				}
 			});
 			const harness = await mount({ historyLimit: 3, onErrorHistory });
 
@@ -77,13 +108,15 @@ export function runErrorHistoryContract(framework: string, mount: MountErrorHist
 
 			expect(observedLengths).toEqual([1, 2]);
 			expect(snapshots[0]).not.toBe(snapshots[1]);
-			expect(snapshots).toEqual([[], []]);
+			expect(snapshots[0]).toHaveLength(1);
+			expect(snapshots[1]).toHaveLength(2);
+			expect(snapshots[1]?.[0]?.message).not.toBe('contaminated');
 			await harness.unmount();
 			expect(onErrorHistory).toHaveBeenCalledTimes(2);
 		});
 
 		it('keeps history disabled at zero and does not restore missed errors', async () => {
-			const onErrorHistory = vi.fn<(history: MotionGPUErrorReport[]) => void>();
+			const onErrorHistory = vi.fn<(history: ErrorHistory) => void>();
 			const harness = await mount({ historyLimit: 0, onErrorHistory });
 
 			await harness.emitError('invalid-uniform');

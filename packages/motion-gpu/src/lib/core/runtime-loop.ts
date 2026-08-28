@@ -39,8 +39,8 @@ export interface MotionGPURuntimeLoopOptions {
 	getOnError: () => ((report: MotionGPUErrorReport) => void) | undefined;
 	reportError: (report: MotionGPUErrorReport | null) => void;
 	getErrorHistoryLimit?: () => number | undefined;
-	getOnErrorHistory?: () => ((history: MotionGPUErrorReport[]) => void) | undefined;
-	reportErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	getOnErrorHistory?: () => ((history: readonly MotionGPUErrorReport[]) => void) | undefined;
+	reportErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 }
 
 export interface MotionGPURuntimeLoop {
@@ -182,14 +182,15 @@ export function createMotionGPURuntimeLoop(
 	};
 
 	const publishErrorHistory = (): void => {
-		options.reportErrorHistory?.(errorHistory.slice());
+		const historySnapshot = Object.freeze(errorHistory.slice());
+		options.reportErrorHistory?.(historySnapshot);
 		const onErrorHistory = options.getOnErrorHistory?.();
 		if (!onErrorHistory) {
 			return;
 		}
 
 		try {
-			onErrorHistory(errorHistory.slice());
+			onErrorHistory(historySnapshot);
 		} catch {
 			// User-provided error history handlers must not break runtime error recovery.
 		}

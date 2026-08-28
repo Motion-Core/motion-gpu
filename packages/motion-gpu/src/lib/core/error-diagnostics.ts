@@ -2,8 +2,8 @@ import type { MaterialSourceLocation, MaterialSourceMetadata } from './material-
 export type { MaterialSourceMetadata } from './material-contracts.js';
 
 export interface ComputeSourceLocation {
-	kind: 'compute';
-	line: number;
+	readonly kind: 'compute';
+	readonly line: number;
 }
 
 export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocation;
@@ -12,40 +12,40 @@ export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocatio
  * One WGSL compiler diagnostic enriched with source-location metadata.
  */
 export interface ShaderCompilationDiagnostic {
-	generatedLine: number;
-	message: string;
-	linePos?: number;
-	lineLength?: number;
-	sourceLocation: ShaderSourceLocation | null;
+	readonly generatedLine: number;
+	readonly message: string;
+	readonly linePos?: number;
+	readonly lineLength?: number;
+	readonly sourceLocation: ShaderSourceLocation | null;
 }
 
 /**
  * Runtime context snapshot captured for shader compilation diagnostics.
  */
 export interface ShaderCompilationRuntimeContext {
-	materialSignature?: string;
-	passGraph?: {
-		passCount: number;
-		enabledPassCount: number;
-		inputs: string[];
-		outputs: string[];
+	readonly materialSignature?: string;
+	readonly passGraph?: {
+		readonly passCount: number;
+		readonly enabledPassCount: number;
+		readonly inputs: readonly string[];
+		readonly outputs: readonly string[];
 	};
-	activeRenderTargets: string[];
+	readonly activeRenderTargets: readonly string[];
 }
 
 /**
  * Structured payload attached to WGSL compilation errors.
  */
 export interface ShaderCompilationDiagnosticsPayload {
-	kind: 'shader-compilation';
-	shaderStage?: 'fragment' | 'compute';
-	diagnostics: ShaderCompilationDiagnostic[];
-	fragmentSource: string;
-	computeSource?: string;
-	includeSources: Record<string, string>;
-	defineBlockSource?: string;
-	materialSource: MaterialSourceMetadata | null;
-	runtimeContext?: ShaderCompilationRuntimeContext;
+	readonly kind: 'shader-compilation';
+	readonly shaderStage?: 'fragment' | 'compute';
+	readonly diagnostics: readonly ShaderCompilationDiagnostic[];
+	readonly fragmentSource: string;
+	readonly computeSource?: string;
+	readonly includeSources: Readonly<Record<string, string>>;
+	readonly defineBlockSource?: string;
+	readonly materialSource: MaterialSourceMetadata | null;
+	readonly runtimeContext?: ShaderCompilationRuntimeContext;
 }
 
 type MotionGPUErrorWithDiagnostics = Error & {
@@ -120,7 +120,7 @@ function isShaderCompilationDiagnostic(value: unknown): value is ShaderCompilati
 	return true;
 }
 
-function isStringArray(value: unknown): value is string[] {
+function isStringArray(value: unknown): value is readonly string[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
@@ -234,12 +234,12 @@ export function getShaderCompilationDiagnostics(
 		...(record.shaderStage !== undefined
 			? { shaderStage: record.shaderStage as 'fragment' | 'compute' }
 			: {}),
-		diagnostics: record.diagnostics as ShaderCompilationDiagnostic[],
+		diagnostics: record.diagnostics as readonly ShaderCompilationDiagnostic[],
 		fragmentSource: record.fragmentSource,
 		...(record.computeSource !== undefined
 			? { computeSource: record.computeSource as string }
 			: {}),
-		includeSources: includeSources as Record<string, string>,
+		includeSources: includeSources as Readonly<Record<string, string>>,
 		...(record.defineBlockSource !== undefined
 			? { defineBlockSource: record.defineBlockSource as string }
 			: {}),

@@ -629,13 +629,14 @@ describe('runtime-loop edge cases', () => {
 		loop.destroy();
 	});
 
-	it('passes snapshots to onErrorHistory so user mutation cannot corrupt internal history', async () => {
+	it('passes frozen snapshots to onErrorHistory', async () => {
 		const registry = createFrameRegistry();
 		const reportError = vi.fn();
 		const observedLengths: number[] = [];
-		const onErrorHistory = vi.fn((history: unknown[]) => {
+		const onErrorHistory = vi.fn((history: readonly unknown[]) => {
 			observedLengths.push(history.length);
-			history.length = 0;
+			expect(Object.isFrozen(history)).toBe(true);
+			expect(Reflect.set(history, 0, null)).toBe(false);
 		});
 		let errorIndex = 0;
 		registry.register('mutable-history-errors', (state) => {
@@ -669,7 +670,7 @@ describe('runtime-loop edge cases', () => {
 		registry.register('history-reference-errors', (state) => {
 			state.writeStorageBuffer(`historyRef${errorIndex++}`, new Uint8Array(4));
 		});
-		const reportErrorHistory = vi.fn((history: unknown[]) => {
+		const reportErrorHistory = vi.fn((history: readonly unknown[]) => {
 			historyRefs.push(history);
 		});
 		createRendererMock.mockResolvedValue(createRenderer());

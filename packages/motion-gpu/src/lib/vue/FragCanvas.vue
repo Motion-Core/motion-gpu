@@ -23,7 +23,7 @@ export interface FragCanvasProps {
 	showErrorOverlay?: boolean;
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 }
 
 const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio ?? 1);

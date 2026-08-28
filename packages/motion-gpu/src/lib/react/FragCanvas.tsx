@@ -40,7 +40,7 @@ interface FragCanvasOwnProps {
 	errorRenderer?: (report: MotionGPUErrorReport) => ReactNode;
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 	children?: ReactNode;
 	ref?: Ref<HTMLCanvasElement>;
 }
@@ -67,7 +67,7 @@ interface RuntimePropsSnapshot {
 	deviceDescriptor: GPUDeviceDescriptor | undefined;
 	onError: ((report: MotionGPUErrorReport) => void) | undefined;
 	errorHistoryLimit: number;
-	onErrorHistory: ((history: MotionGPUErrorReport[]) => void) | undefined;
+	onErrorHistory: ((history: readonly MotionGPUErrorReport[]) => void) | undefined;
 }
 
 interface FragCanvasRuntimeState {

@@ -34,7 +34,7 @@
 		errorRenderer?: Snippet<[MotionGPUErrorReport]>;
 		onError?: (report: MotionGPUErrorReport) => void;
 		errorHistoryLimit?: number;
-		onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+		onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 		canvas?: HTMLCanvasElement | undefined;
 		children?: Snippet;
 	}

@@ -185,7 +185,7 @@ function FragCanvasFrameMutationHarness({
 	material: FragMaterial;
 	mode?: FrameMutationMode;
 	onError?: (report: MotionGPUErrorReport) => void;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 	errorHistoryLimit?: number;
 	showErrorOverlay?: boolean;
 }) {

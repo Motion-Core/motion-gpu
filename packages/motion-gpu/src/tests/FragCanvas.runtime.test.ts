@@ -6,6 +6,10 @@ import { defineMaterial } from '../lib/core/material';
 import type { MotionGPUContext } from '../lib/svelte/motiongpu-context';
 import FragCanvasFrameMutationHarness from './fixtures/FragCanvasFrameMutationHarness.svelte';
 import MotionGPUWithControlProbe from './fixtures/MotionGPUWithControlProbe.svelte';
+import {
+	runErrorHistoryContract,
+	type ErrorHistoryMutationMode
+} from './helpers/error-history-contract.js';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -1075,5 +1079,45 @@ describe('FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalled();
 		});
+	});
+
+	runErrorHistoryContract('Svelte', async ({ historyLimit: initialLimit, onErrorHistory }) => {
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+		let historyLimit = initialLimit;
+		let mode: ErrorHistoryMutationMode | 'none' = 'none';
+		let timestamp = 16;
+		const getProps = () => ({
+			material: runtimeBindingsMaterial,
+			mode,
+			onErrorHistory,
+			errorHistoryLimit: historyLimit,
+			showErrorOverlay: false
+		});
+		const view = render(FragCanvasFrameMutationHarness, { props: getProps() });
+
+		await flushFrame(timestamp);
+		timestamp += 16;
+		await flushFrame(timestamp);
+		timestamp += 16;
+
+		return {
+			emitError: async (nextMode) => {
+				mode = nextMode;
+				await view.rerender(getProps());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			updateLimit: async (nextLimit) => {
+				historyLimit = nextLimit;
+				await view.rerender(getProps());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			unmount: () => view.unmount()
+		};
 	});
 });

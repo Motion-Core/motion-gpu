@@ -77,19 +77,11 @@
 	}: Props = $props();
 
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
-	let errorHistory = $state<MotionGPUErrorReport[]>([]);
 
 	let forwardedCanvasProps = $derived.by(() => {
 		void blockedHeight;
 		void blockedWidth;
 		return canvasProps;
-	});
-
-	let normalizedErrorHistoryLimit = $derived.by(() => {
-		if (!Number.isFinite(errorHistoryLimit) || errorHistoryLimit <= 0) {
-			return 0;
-		}
-		return Math.floor(errorHistoryLimit);
 	});
 
 	const bindCanvas = (node: HTMLCanvasElement) => {
@@ -177,30 +169,11 @@
 			clearColor,
 			color,
 			deviceDescriptor,
+			errorHistoryLimit,
 			material,
 			passes,
 			renderTargets
 		]);
-	});
-
-	$effect(() => {
-		const limit = normalizedErrorHistoryLimit;
-		if (limit <= 0) {
-			if (errorHistory.length === 0) {
-				return;
-			}
-			errorHistory = [];
-			onErrorHistory?.([]);
-			return;
-		}
-
-		if (errorHistory.length <= limit) {
-			return;
-		}
-
-		const trimmed = errorHistory.slice(errorHistory.length - limit);
-		errorHistory = trimmed;
-		onErrorHistory?.(trimmed);
 	});
 
 	onMount(() => {
@@ -210,12 +183,6 @@
 				'initialization'
 			);
 			errorReport = report;
-			const historyLimit = normalizedErrorHistoryLimit;
-			if (historyLimit > 0) {
-				const nextHistory = [report].slice(-historyLimit);
-				errorHistory = nextHistory;
-				onErrorHistory?.(nextHistory);
-			}
 			onError?.(report);
 			return () => registry.clear();
 		}
@@ -236,9 +203,6 @@
 			getOnError: () => onError,
 			getErrorHistoryLimit: () => errorHistoryLimit,
 			getOnErrorHistory: () => onErrorHistory,
-			reportErrorHistory: (history) => {
-				errorHistory = history;
-			},
 			reportError: (report) => {
 				errorReport = report;
 			}

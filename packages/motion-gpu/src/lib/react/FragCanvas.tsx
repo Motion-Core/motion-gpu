@@ -169,14 +169,6 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 	};
 }
 
-function getNormalizedErrorHistoryLimit(value: number): number {
-	if (!Number.isFinite(value) || value <= 0) {
-		return 0;
-	}
-
-	return Math.floor(value);
-}
-
 function setExternalRef<T>(ref: Ref<T> | undefined, value: T | null): (() => void) | undefined {
 	if (!ref) {
 		return undefined;
@@ -257,7 +249,6 @@ export function FragCanvas({
 	};
 
 	const [errorReport, setErrorReport] = useState<MotionGPUErrorReport | null>(null);
-	const [errorHistory, setErrorHistory] = useState<MotionGPUErrorReport[]>([]);
 
 	useEffect(() => {
 		runtime.renderModeState.set(renderMode);
@@ -276,26 +267,6 @@ export function FragCanvas({
 	}, [dpr, runtime]);
 
 	useEffect(() => {
-		const limit = getNormalizedErrorHistoryLimit(errorHistoryLimit);
-		if (limit <= 0) {
-			if (errorHistory.length === 0) {
-				return;
-			}
-			setErrorHistory([]);
-			onErrorHistory?.([]);
-			return;
-		}
-
-		if (errorHistory.length <= limit) {
-			return;
-		}
-
-		const trimmed = errorHistory.slice(errorHistory.length - limit);
-		setErrorHistory(trimmed);
-		onErrorHistory?.(trimmed);
-	}, [errorHistory, errorHistoryLimit, onErrorHistory]);
-
-	useEffect(() => {
 		const canvas = runtime.canvasRef.current;
 		if (!canvas) {
 			const report = toMotionGPUErrorReport(
@@ -303,14 +274,6 @@ export function FragCanvas({
 				'initialization'
 			);
 			setErrorReport(report);
-			const historyLimit = getNormalizedErrorHistoryLimit(
-				runtimePropsRef.current.errorHistoryLimit
-			);
-			if (historyLimit > 0) {
-				const nextHistory = [report].slice(-historyLimit);
-				setErrorHistory(nextHistory);
-				runtimePropsRef.current.onErrorHistory?.(nextHistory);
-			}
 			runtimePropsRef.current.onError?.(report);
 			return () => {
 				runtime.registry.clear();
@@ -333,9 +296,6 @@ export function FragCanvas({
 			getOnError: () => runtimePropsRef.current.onError,
 			getErrorHistoryLimit: () => runtimePropsRef.current.errorHistoryLimit,
 			getOnErrorHistory: () => runtimePropsRef.current.onErrorHistory,
-			reportErrorHistory: (history) => {
-				setErrorHistory(history);
-			},
 			reportError: (report) => {
 				setErrorReport(report);
 			}
@@ -355,6 +315,7 @@ export function FragCanvas({
 		clearColor,
 		color,
 		deviceDescriptor,
+		errorHistoryLimit,
 		material,
 		passes,
 		renderTargets,

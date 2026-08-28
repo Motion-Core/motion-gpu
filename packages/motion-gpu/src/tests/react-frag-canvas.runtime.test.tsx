@@ -9,6 +9,10 @@ import { FragCanvas } from '../lib/react/FragCanvas.js';
 import type { MotionGPUContext } from '../lib/react/motiongpu-context.js';
 import { useMotionGPU } from '../lib/react/motiongpu-context.js';
 import { useFrame } from '../lib/react/frame-context.js';
+import {
+	runErrorHistoryContract,
+	type ErrorHistoryMutationMode
+} from './helpers/error-history-contract.js';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -1127,5 +1131,44 @@ describe('React FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalled();
 		});
+	});
+
+	runErrorHistoryContract('React', async ({ historyLimit: initialLimit, onErrorHistory }) => {
+		const renderer: MockRenderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+		let historyLimit = initialLimit;
+		let mode: ErrorHistoryMutationMode | 'none' = 'none';
+		let timestamp = 16;
+		const renderHarness = () => (
+			<FragCanvasFrameMutationHarness
+				material={runtimeBindingsMaterial}
+				mode={mode}
+				onErrorHistory={onErrorHistory}
+				errorHistoryLimit={historyLimit}
+				showErrorOverlay={false}
+			/>
+		);
+		const view = render(renderHarness());
+
+		await flushFrame(timestamp);
+		timestamp += 16;
+		await flushFrame(timestamp);
+		timestamp += 16;
+
+		return {
+			emitError: async (nextMode) => {
+				mode = nextMode;
+				view.rerender(renderHarness());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			updateLimit: async (nextLimit) => {
+				historyLimit = nextLimit;
+				view.rerender(renderHarness());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			unmount: () => view.unmount()
+		};
 	});
 });

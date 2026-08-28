@@ -102,7 +102,6 @@ defineSlots<{
 
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasEl');
 const errorReport = shallowRef<MotionGPUErrorReport | null>(null);
-const errorHistory = shallowRef<MotionGPUErrorReport[]>([]);
 const getCanvas = (): HTMLCanvasElement | undefined => canvasRef.value ?? undefined;
 
 defineExpose({
@@ -173,17 +172,6 @@ provideMotionGPUContext({
 	}
 });
 
-/**
- * Normalizes the user-supplied error history limit to a non-negative integer.
- */
-function getNormalizedErrorHistoryLimit(value: number): number {
-	if (!Number.isFinite(value) || value <= 0) {
-		return 0;
-	}
-
-	return Math.floor(value);
-}
-
 watch(
 	() => props.renderMode,
 	(value) => {
@@ -218,6 +206,7 @@ watch(
 		() => props.clearColor,
 		() => props.color,
 		() => props.deviceDescriptor,
+		() => props.errorHistoryLimit,
 		() => props.material,
 		() => props.passes,
 		() => props.renderTargets
@@ -226,26 +215,6 @@ watch(
 		requestFrame();
 	}
 );
-
-watch([() => errorHistory.value, () => props.errorHistoryLimit], ([history, rawLimit]) => {
-	const limit = getNormalizedErrorHistoryLimit(rawLimit);
-	if (limit <= 0) {
-		if (history.length === 0) {
-			return;
-		}
-		errorHistory.value = [];
-		props.onErrorHistory?.([]);
-		return;
-	}
-
-	if (history.length <= limit) {
-		return;
-	}
-
-	const trimmed = history.slice(history.length - limit);
-	errorHistory.value = trimmed;
-	props.onErrorHistory?.(trimmed);
-});
 
 onMounted(() => {
 	renderModeState.set(props.renderMode);
@@ -261,12 +230,6 @@ onMounted(() => {
 			'initialization'
 		);
 		errorReport.value = report;
-		const historyLimit = getNormalizedErrorHistoryLimit(props.errorHistoryLimit);
-		if (historyLimit > 0) {
-			const nextHistory = [report].slice(-historyLimit);
-			errorHistory.value = nextHistory;
-			props.onErrorHistory?.(nextHistory);
-		}
 		props.onError?.(report);
 		return;
 	}
@@ -287,9 +250,6 @@ onMounted(() => {
 		getOnError: () => props.onError,
 		getErrorHistoryLimit: () => props.errorHistoryLimit,
 		getOnErrorHistory: () => props.onErrorHistory,
-		reportErrorHistory: (history) => {
-			errorHistory.value = history;
-		},
 		reportError: (report) => {
 			errorReport.value = report;
 		}

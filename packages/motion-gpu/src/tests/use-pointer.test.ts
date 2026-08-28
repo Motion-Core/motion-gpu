@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { UsePointerOptions, UsePointerResult } from '../lib/svelte/use-pointer.js';
 import PointerOutside from './fixtures/PointerOutside.svelte';
 import PointerProviderProbe from './fixtures/PointerProviderProbe.svelte';
+import { runPointerHookContract } from './helpers/pointer-hook-contract.js';
 
 interface PointerProbePayload {
 	pointer: UsePointerResult;
@@ -365,4 +366,33 @@ describe('usePointer (svelte)', () => {
 		expect(invalidateSpy).toHaveBeenCalledTimes(1);
 		expect(advanceSpy).toHaveBeenCalledTimes(1);
 	});
+});
+
+runPointerHookContract('Svelte', async (options) => {
+	const onProbe = vi.fn();
+	const canvas = document.createElement('canvas');
+	canvas.getBoundingClientRect = () =>
+		({
+			left: 0,
+			top: 0,
+			width: 100,
+			height: 100
+		}) as DOMRect;
+	const view = render(PointerProviderProbe, {
+		props: { canvas, onProbe, pointerOptions: options }
+	});
+
+	await waitFor(() => {
+		expect(onProbe).toHaveBeenCalledTimes(1);
+	});
+	const payload = getProbePayload(onProbe);
+
+	return {
+		canvas,
+		pointer: payload.pointer,
+		updateOptions: async (nextOptions) => {
+			await view.rerender({ canvas, onProbe, pointerOptions: nextOptions });
+		},
+		unmount: () => view.unmount()
+	};
 });

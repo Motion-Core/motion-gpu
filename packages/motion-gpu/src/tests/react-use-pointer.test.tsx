@@ -10,6 +10,7 @@ import {
 	type UsePointerOptions,
 	type UsePointerResult
 } from '../lib/react/use-pointer.js';
+import { runPointerHookContract } from './helpers/pointer-hook-contract.js';
 
 interface PointerProbePayload {
 	pointer: UsePointerResult;
@@ -455,4 +456,37 @@ describe('react usePointer', () => {
 		expect(invalidateSpy).toHaveBeenCalledTimes(1);
 		expect(advanceSpy).toHaveBeenCalledTimes(1);
 	});
+});
+
+runPointerHookContract('React', async (options) => {
+	const onProbe = vi.fn();
+	const canvas = document.createElement('canvas');
+	canvas.getBoundingClientRect = () =>
+		({
+			left: 0,
+			top: 0,
+			width: 100,
+			height: 100
+		}) as DOMRect;
+	const payload = createRuntimeHarness({ canvas });
+	const renderProbe = (nextOptions: UsePointerOptions): ReactElement =>
+		withProvider(<PointerProbe onProbe={onProbe} options={nextOptions} />, payload);
+	const view = render(renderProbe(options));
+
+	await waitFor(() => {
+		expect(onProbe).toHaveBeenCalledTimes(1);
+	});
+	const probe = onProbe.mock.calls[0]?.[0] as PointerProbePayload | undefined;
+	if (!probe) {
+		throw new Error('Expected pointer probe payload');
+	}
+
+	return {
+		canvas,
+		pointer: probe.pointer,
+		updateOptions: (nextOptions) => {
+			view.rerender(renderProbe(nextOptions));
+		},
+		unmount: () => view.unmount()
+	};
 });

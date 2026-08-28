@@ -41,6 +41,8 @@ Use `.subscribe(...)` when UI state must react to changes. Avoid creating a subs
 
 `requestFrame: 'auto'` chooses invalidation or manual advance from the active render mode. Use `'invalidate'`, `'advance'`, or `'none'` to override it.
 
+Pointer ownership is single-active: a second `pointerdown` is ignored until the first pointer ends. Disabling the hook or unmounting its component releases pointer capture and resets the active state. Svelte and Vue callers can pass an options getter to update listeners reactively.
+
 ## Rendering controls
 
 - `gpu.renderMode.set(...)` switches between `always`, `on-demand`, and `manual`.

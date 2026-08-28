@@ -81,7 +81,7 @@ Common resolutions:
 | `errorHistoryLimit` | `0` | Enables bounded history when positive |
 | `onErrorHistory` | — | Receives fresh history snapshots |
 
-History limits are floored; non-finite and non-positive values disable history. Consecutive reports with the same phase, title, message, and raw message are deduplicated. Reducing the limit trims existing history. Consumer mutation cannot change the internal snapshot.
+History limits are floored; non-finite and non-positive values disable history. Consecutive reports with the same phase, title, message, and raw message are deduplicated. Reducing the limit trims existing history. Consumer mutation cannot change the internal snapshot. The runtime owns this sequence and calls `onErrorHistory` once for each actual history change.
 
 The default overlay shows classification metadata, hints, technical details, source snippets, and runtime context when available. Adapter portals keep it outside canvas drawing while preserving the canvas subtree context.
 

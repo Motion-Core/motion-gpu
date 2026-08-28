@@ -27,7 +27,7 @@ applySchedulerPreset(
 | `balanced` | On | 120 |
 | `debug` | On | 240 |
 
-Overrides may set `diagnosticsEnabled`, `profilingEnabled`, and a positive finite `profilingWindow`, which is floored. Diagnostics and profiling currently share state, so both boolean overrides must match.
+Overrides may set `diagnosticsEnabled`, `profilingEnabled`, and `profilingWindow`. The window must be a safe integer from 1 through 10,000. Diagnostics and profiling currently share state, so both boolean overrides must match.
 
 `captureSchedulerDebugSnapshot(scheduler)` returns enable flags, window, resolved schedule, last-run timings, and rolling profiling snapshot.
 

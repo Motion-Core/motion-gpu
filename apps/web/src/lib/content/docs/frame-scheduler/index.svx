@@ -22,8 +22,8 @@ An explicit string or symbol key makes ordering and diagnostic output stable. Re
 | `canvas` | Active canvas element |
 | `renderMode`, `autoRender` | Current render-gate state |
 | `setUniform`, `setTexture` | Set runtime resource overrides |
-| `writeStorageBuffer` | Queue an aligned CPU-to-GPU write |
-| `readStorageBuffer` | Read a declared buffer asynchronously |
+| `writeStorageBuffer` | Queue an owned copy of an aligned CPU-to-GPU write |
+| `readStorageBuffer` | Flush that buffer's queued writes, then read it asynchronously |
 | `invalidate`, `advance` | Request on-demand or manual rendering |
 
 ## Options

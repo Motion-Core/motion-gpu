@@ -38,7 +38,7 @@ useFrame(key, callback, options?): UseFrameResult
 | `invalidate` | `(token?) => void` |
 | `advance` | `() => void` |
 
-Storage writes require a four-byte-aligned offset and byte length and must fit in the declared buffer.
+Storage writes require a four-byte-aligned offset and byte length and must fit in the declared buffer. The runtime copies the bytes immediately. Reading a buffer flushes its queued writes in call order before readback.
 
 ## `useMotionGPU`
 
@@ -74,6 +74,8 @@ The scheduler exposes `createStage`, `getStage`, schedule inspection, diagnostic
 `requestFrame` accepts `'auto'`, `'invalidate'`, `'advance'`, or `'none'`. Auto resolves to advance in manual mode, invalidate in on-demand mode, and none in always mode.
 
 The result contains `state: CurrentReadable<PointerState>`, `lastClick: CurrentReadable<PointerClick | null>`, and `resetClick()`. State includes `px`, `uv`, `ndc`, inside/pressed/dragging state, pointer identity and buttons, down position, deltas, and velocities.
+
+React applies a new options object on each render. In Svelte and Vue, pass `() => options` when `enabled`, outside tracking, callbacks, or other settings can change; the hook updates listeners without remounting.
 
 ## `useTexture(urlInput, options?)`
 

@@ -39,4 +39,6 @@ Returns cached renderer input for a validated material:
 
 Use this low-level function for adapters, validation, or tooling. Applications normally pass the `FragMaterial` directly to `FragCanvas`.
 
+The returned cache entry is deeply frozen: line-map entries, uniform layout entries and lookup tables, source metadata, and key lists cannot be mutated. Repeated calls for the same material return the same protected snapshot.
+
 See [Defining Materials](/docs/defining-materials) for the declaration/runtime boundary.

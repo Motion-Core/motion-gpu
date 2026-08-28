@@ -94,6 +94,8 @@ describe('compute types', () => {
 			if (storageDefinition.initialData) {
 				// @ts-expect-error storage initialData elements are immutable through the public contract
 				storageDefinition.initialData[0] = 9;
+				// @ts-expect-error storage initialData typed-array mutators are hidden
+				storageDefinition.initialData.set([9], 0);
 			}
 		};
 		void assertReadonlyDescriptors;

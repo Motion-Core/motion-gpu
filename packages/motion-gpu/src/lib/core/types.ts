@@ -10,6 +10,20 @@ import { managedPassBrand } from './pass-brand.js';
  */
 export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
 
+type NumericTypedArray = Float32Array | Uint32Array | Int32Array;
+type TypedArrayMutator = 'copyWithin' | 'fill' | 'reverse' | 'set' | 'sort';
+
+/**
+ * Read-only structural view accepted from a mutable typed array without exposing its mutators.
+ * `subarray` is narrowed as well because it aliases the same backing storage.
+ */
+type ReadonlyTypedArrayView<T extends NumericTypedArray> = Omit<
+	Readonly<T>,
+	TypedArrayMutator | 'subarray'
+> & {
+	readonly subarray: (begin?: number, end?: number) => ReadonlyTypedArrayView<T>;
+};
+
 /**
  * Explicitly typed uniform declaration.
  *
@@ -19,7 +33,13 @@ export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
 /**
  * Accepted matrix value formats for `mat4x4f` uniforms.
  */
-export type UniformMat4Value = readonly number[] | Readonly<Float32Array>;
+export type UniformMat4Value = readonly number[] | ReadonlyTypedArrayView<Float32Array>;
+
+type ReadonlyUniformValue<TValue> = TValue extends NumericTypedArray
+	? ReadonlyTypedArrayView<TValue>
+	: TValue extends readonly number[]
+		? Readonly<TValue>
+		: TValue;
 
 /**
  * Runtime value shape by WGSL uniform type tag.
@@ -43,7 +63,7 @@ export interface TypedUniform<
 	/**
 	 * Runtime value matching {@link type}.
 	 */
-	readonly value: TValue;
+	readonly value: ReadonlyUniformValue<TValue>;
 }
 
 /**
@@ -281,7 +301,10 @@ export interface StorageBufferDefinition {
 	/**
 	 * Initial data uploaded on creation.
 	 */
-	readonly initialData?: Readonly<Float32Array> | Readonly<Uint32Array> | Readonly<Int32Array>;
+	readonly initialData?:
+		| ReadonlyTypedArrayView<Float32Array>
+		| ReadonlyTypedArrayView<Uint32Array>
+		| ReadonlyTypedArrayView<Int32Array>;
 }
 
 /**

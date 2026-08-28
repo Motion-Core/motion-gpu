@@ -154,8 +154,28 @@ describe('uniform helpers', () => {
 		const assertReadonlyMatrix = (value: TypedUniform<'mat4x4f'>): void => {
 			// @ts-expect-error matrix elements are immutable through the public contract
 			value.value[0] = 3;
+			// @ts-expect-error matrix typed-array mutators are hidden by the public contract
+			value.value.set([3], 0);
 		};
 		void assertReadonlyMatrix;
+
+		const explicitMutableTuple: TypedUniform<'vec2f', [number, number]> = {
+			type: 'vec2f',
+			value: mutableTuple
+		};
+		const explicitMutableMatrix: TypedUniform<'mat4x4f', Float32Array> = {
+			type: 'mat4x4f',
+			value: new Float32Array(16)
+		};
+		const assertExplicitGenericIsReadonly = (): void => {
+			// @ts-expect-error an explicit mutable tuple generic is normalized to readonly
+			explicitMutableTuple.value[0] = 3;
+			// @ts-expect-error an explicit mutable typed-array generic has readonly elements
+			explicitMutableMatrix.value[0] = 3;
+			// @ts-expect-error an explicit mutable typed-array generic does not expose mutators
+			explicitMutableMatrix.value.set([3], 0);
+		};
+		void assertExplicitGenericIsReadonly;
 	});
 
 	it('rejects vec4f with wrong-length tuple', () => {

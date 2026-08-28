@@ -737,7 +737,8 @@ fn colorize(uv: vec2f) -> vec4f {
 			(storedDefinition as { size: number }).size = 64;
 		}).toThrow();
 		expect(() => {
-			(storedDefinition as { initialData?: Float32Array }).initialData = new Float32Array([9]);
+			(storedDefinition as unknown as { initialData?: Float32Array }).initialData =
+				new Float32Array([9]);
 		}).toThrow();
 		expect(storedDefinition?.size).toBe(16);
 		expect(Array.from(storedDefinition?.initialData ?? [])).toEqual([1, 2, 3, 4]);

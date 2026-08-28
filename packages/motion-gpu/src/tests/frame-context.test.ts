@@ -591,6 +591,37 @@ describe('frame registry', () => {
 		);
 	});
 
+	it('keeps a string key distinct from the preferred diagnostics key of a symbol', () => {
+		const registry = createFrameRegistry({
+			profilingEnabled: true,
+			profilingWindow: 2
+		});
+		const stringKey = 'Symbol(x) [task:1]';
+		registry.register(Symbol('x'), () => undefined);
+		registry.register(stringKey, () => undefined);
+
+		registry.run(createState(registry));
+		registry.run(createState(registry));
+
+		const timings = registry.getLastRunTimings();
+		const timingTaskKeys = Object.values(timings?.stages ?? {}).flatMap((stage) =>
+			Object.keys(stage.tasks)
+		);
+		const profiling = registry.getProfilingSnapshot();
+		const profilingTasks = Object.values(profiling?.stages ?? {}).flatMap((stage) =>
+			Object.entries(stage.tasks)
+		);
+
+		expect(timingTaskKeys).toHaveLength(2);
+		expect(new Set(timingTaskKeys).size).toBe(2);
+		expect(timingTaskKeys).toContain(stringKey);
+		expect(timingTaskKeys.some((key) => key.startsWith(`${stringKey} [collision:`))).toBe(true);
+		expect(profilingTasks).toHaveLength(2);
+		expect(new Set(profilingTasks.map(([key]) => key)).size).toBe(2);
+		expect(profilingTasks.map(([key]) => key)).toEqual(expect.arrayContaining(timingTaskKeys));
+		expect(profilingTasks.every(([, stats]) => stats.count === 2)).toBe(true);
+	});
+
 	it('does not let attempted snapshot mutations affect later reads', () => {
 		const registry = createFrameRegistry({ profilingEnabled: true });
 		registry.createStage('immutable-stage');

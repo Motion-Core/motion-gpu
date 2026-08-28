@@ -178,6 +178,11 @@ interface RegisteredFrameTask extends UseFrameResult {
 	unsubscribe: () => void;
 }
 
+interface DiagnosticEntry {
+	diagnosticId: number;
+	diagnosticKey: string;
+}
+
 /**
  * Internal mutable task descriptor used by scheduler runtime.
  */
@@ -256,7 +261,7 @@ function frameKeyToString(key: FrameKey): string {
 }
 
 /**
- * Creates a serializable diagnostics key without conflating symbols that share a label.
+ * Creates the preferred serializable diagnostics key for a frame key.
  */
 function createDiagnosticKey(key: FrameKey, kind: 'stage' | 'task', id: number): string {
 	if (typeof key === 'string') {
@@ -264,6 +269,43 @@ function createDiagnosticKey(key: FrameKey, kind: 'stage' | 'task', id: number):
 	}
 
 	return `${frameKeyToString(key)} [${kind}:${id}]`;
+}
+
+/**
+ * Assigns a unique diagnostics key while keeping plain string keys unchanged.
+ */
+function assignDiagnosticKey<T extends DiagnosticEntry>(
+	entry: T,
+	entries: Iterable<T>,
+	kind: 'stage' | 'task',
+	getKey: (entry: T) => FrameKey
+): void {
+	const key = getKey(entry);
+	if (typeof key === 'string') {
+		entry.diagnosticKey = key;
+		for (const other of entries) {
+			if (typeof getKey(other) === 'symbol' && other.diagnosticKey === key) {
+				assignDiagnosticKey(other, entries, kind, getKey);
+			}
+		}
+		return;
+	}
+
+	const usedKeys = new Set<string>();
+	for (const other of entries) {
+		if (other !== entry) {
+			usedKeys.add(other.diagnosticKey);
+		}
+	}
+
+	const preferredKey = createDiagnosticKey(key, kind, entry.diagnosticId);
+	let diagnosticKey = preferredKey;
+	let collisionIndex = 0;
+	while (usedKeys.has(diagnosticKey)) {
+		collisionIndex += 1;
+		diagnosticKey = `${preferredKey} [collision:${collisionIndex}]`;
+	}
+	entry.diagnosticKey = diagnosticKey;
 }
 
 /**
@@ -979,6 +1021,7 @@ export function createFrameRegistry(options?: {
 			tasks: new Map()
 		};
 		stages.set(stageKey, stage);
+		assignDiagnosticKey(stage, stages.values(), 'stage', (entry) => entry.key);
 		markScheduleDirty();
 		return stage;
 	};
@@ -1082,6 +1125,7 @@ export function createFrameRegistry(options?: {
 			}
 
 			stage.tasks.set(key, internalTask);
+			assignDiagnosticKey(internalTask, stage.tasks.values(), 'task', (entry) => entry.task.key);
 			markScheduleDirty();
 			internalTask.startedStoreSet(resolveEffectiveRunning(internalTask));
 

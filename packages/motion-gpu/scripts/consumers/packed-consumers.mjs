@@ -4,23 +4,32 @@ import { access, cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'no
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
+import { publicApiManifest } from './public-api-manifest.mjs';
 
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const repositoryRoot = path.resolve(packageRoot, '../..');
 const fixtureRoot = fileURLToPath(new URL('./fixtures', import.meta.url));
 const fixtureNames = ['core', 'react', 'svelte', 'vue'];
-const expectedPublicEntries = [
-	'.',
-	'./advanced',
-	'./core',
-	'./core/advanced',
-	'./react',
-	'./react/advanced',
-	'./svelte',
-	'./svelte/advanced',
-	'./vue',
-	'./vue/advanced'
-];
+const expectedPublicEntries = Object.keys(publicApiManifest);
+const fixturePublicEntries = {
+	core: ['.', './advanced', './core', './core/advanced'],
+	react: ['./react', './react/advanced'],
+	svelte: ['./svelte', './svelte/advanced'],
+	vue: ['./vue', './vue/advanced']
+};
+const entryAliases = {
+	'.': 'Root',
+	'./advanced': 'RootAdvanced',
+	'./core': 'Core',
+	'./core/advanced': 'CoreAdvanced',
+	'./react': 'React',
+	'./react/advanced': 'ReactAdvanced',
+	'./svelte': 'Svelte',
+	'./svelte/advanced': 'SvelteAdvanced',
+	'./vue': 'Vue',
+	'./vue/advanced': 'VueAdvanced'
+};
 const currentVersions = {
 	core: { typescript: '5.9.3', vite: '8.2.1' },
 	react: {
@@ -85,6 +94,70 @@ export function assertPublicExportMap(exportsMap) {
 		[...expectedPublicEntries].sort(),
 		'Packed manifest public entrypoints changed.'
 	);
+}
+
+/**
+ * Verifies the exact runtime/type-only symbol surface collected from package declarations.
+ */
+export function assertPublicApiSymbols(actual) {
+	assert.deepEqual(
+		Object.keys(actual).sort(),
+		Object.keys(publicApiManifest).sort(),
+		'Collected public API entrypoints changed.'
+	);
+
+	for (const [entryName, expected] of Object.entries(publicApiManifest)) {
+		const actualEntry = actual[entryName];
+		assert.ok(actualEntry, `Missing collected API entry ${entryName}.`);
+		assert.deepEqual(
+			actualEntry.runtime,
+			expected.runtime,
+			`${entryName} runtime exports changed.`
+		);
+		assert.deepEqual(
+			actualEntry.typeOnly,
+			expected.typeOnly,
+			`${entryName} type-only exports changed.`
+		);
+	}
+}
+
+/**
+ * Generates a compile-only source file importing every declared public symbol for a fixture.
+ */
+export function createPublicApiCompileContract(fixtureName) {
+	const entries = fixturePublicEntries[fixtureName];
+	if (!entries) {
+		throw new Error(`Unknown public API fixture: ${fixtureName}`);
+	}
+
+	const lines = [
+		'// Generated from scripts/consumers/public-api-manifest.mjs.',
+		'// Every import is intentional: missing symbols must fail consumer compilation.',
+		''
+	];
+	const runtimeAliases = [];
+
+	for (const entryName of entries) {
+		const expected = publicApiManifest[entryName];
+		const aliasPrefix = entryAliases[entryName];
+		const specifier =
+			entryName === '.'
+				? '@motion-core/motion-gpu'
+				: `@motion-core/motion-gpu/${entryName.slice(2)}`;
+		const runtimeImports = expected.runtime.map(
+			(symbol) => `${symbol} as ${aliasPrefix}_${symbol}`
+		);
+		const typeImports = expected.typeOnly.map((symbol) => `${symbol} as ${aliasPrefix}_${symbol}`);
+
+		lines.push(`import { ${runtimeImports.join(', ')} } from ${JSON.stringify(specifier)};`);
+		lines.push(`import type { ${typeImports.join(', ')} } from ${JSON.stringify(specifier)};`);
+		lines.push('');
+		runtimeAliases.push(...expected.runtime.map((symbol) => `${aliasPrefix}_${symbol}`));
+	}
+
+	lines.push(`void [${runtimeAliases.join(', ')}];`, '');
+	return lines.join('\n');
 }
 
 export function applyExactVersions(manifest, versions) {
@@ -153,6 +226,10 @@ async function installFixtures(temporaryRoot, tarballPath, profile) {
 		const source = injectTarballPath(await readFile(manifestPath, 'utf8'), tarballPath);
 		const manifest = applyExactVersions(JSON.parse(source), profile.versions[fixtureName]);
 		await writeFile(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
+		await writeFile(
+			path.join(fixtureDirectory, 'src/public-api-contract.ts'),
+			createPublicApiCompileContract(fixtureName)
+		);
 	}
 
 	const repositoryManifest = JSON.parse(
@@ -215,6 +292,7 @@ async function assertPackedArtifacts(coreConsumerDirectory) {
 	const installedPackage = path.join(coreConsumerDirectory, 'node_modules/@motion-core/motion-gpu');
 	const manifest = JSON.parse(await readFile(path.join(installedPackage, 'package.json'), 'utf8'));
 	assertPublicExportMap(manifest.exports);
+	assertPublicApiSymbols(collectDeclarationPublicApi(installedPackage, manifest.exports));
 
 	for (const entry of Object.values(manifest.exports)) {
 		assert.ok(entry && typeof entry === 'object', 'Every public export must be conditional.');
@@ -230,6 +308,62 @@ async function assertPackedArtifacts(coreConsumerDirectory) {
 	assert.match(svelteEntry, /["']\.\/FragCanvas\.svelte["']/);
 	const vueEntry = await readFile(path.join(installedPackage, 'dist/vue/index.js'), 'utf8');
 	assert.match(vueEntry, /["']\.\.\/motion-gpu\.css["']/);
+}
+
+function collectDeclarationPublicApi(installedPackage, exportsMap) {
+	const entryFiles = Object.fromEntries(
+		Object.entries(exportsMap).map(([entryName, exportConfig]) => {
+			assert.equal(
+				typeof exportConfig.types,
+				'string',
+				`${entryName} must define a declaration target.`
+			);
+			return [entryName, path.resolve(installedPackage, exportConfig.types)];
+		})
+	);
+	const program = ts.createProgram(Object.values(entryFiles), {
+		module: ts.ModuleKind.ESNext,
+		moduleResolution: ts.ModuleResolutionKind.Bundler,
+		skipLibCheck: true,
+		target: ts.ScriptTarget.ES2022
+	});
+	const checker = program.getTypeChecker();
+	const actual = {};
+
+	for (const [entryName, entryFile] of Object.entries(entryFiles)) {
+		const sourceFile = program.getSourceFile(entryFile);
+		assert.ok(sourceFile, `TypeScript did not load ${entryName} declarations at ${entryFile}.`);
+		const moduleSymbol = checker.getSymbolAtLocation(sourceFile);
+		assert.ok(moduleSymbol, `TypeScript did not resolve the ${entryName} module symbol.`);
+		const runtime = [];
+		const typeOnly = [];
+
+		for (const exportedSymbol of checker.getExportsOfModule(moduleSymbol)) {
+			let targetSymbol = exportedSymbol;
+			if (exportedSymbol.flags & ts.SymbolFlags.Alias) {
+				targetSymbol = checker.getAliasedSymbol(exportedSymbol);
+			}
+
+			const isRuntime = Boolean(targetSymbol.flags & ts.SymbolFlags.Value);
+			const isType = Boolean(targetSymbol.flags & ts.SymbolFlags.Type);
+			assert.ok(
+				isRuntime || isType,
+				`${entryName} export ${exportedSymbol.name} has no public value or type identity.`
+			);
+			if (isRuntime) {
+				runtime.push(exportedSymbol.name);
+			} else {
+				typeOnly.push(exportedSymbol.name);
+			}
+		}
+
+		actual[entryName] = {
+			runtime: runtime.sort(),
+			typeOnly: typeOnly.sort()
+		};
+	}
+
+	return actual;
 }
 
 async function assertInternalImportsAreBlocked(coreConsumerDirectory) {

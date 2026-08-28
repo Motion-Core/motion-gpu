@@ -26,6 +26,7 @@ import type {
 	ComputeResourceMap as VueComputeResourceMap,
 	TextureOptionsInput as VueTextureOptionsInput
 } from '../lib/vue/index';
+import { publicApiManifest } from '../../scripts/consumers/public-api-manifest.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -62,6 +63,13 @@ function readPackageJson(): {
 	return JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8')) as {
 		exports: Record<string, { types: string; default: string; svelte?: string }>;
 	};
+}
+
+function expectRuntimeExports(
+	entrypoint: keyof typeof publicApiManifest,
+	moduleExports: Record<string, unknown>
+): void {
+	expect(Object.keys(moduleExports).sort()).toEqual(publicApiManifest[entrypoint].runtime);
 }
 
 function sourceEntryForDistPath(distPath: string): string {
@@ -166,166 +174,34 @@ describe('public api contract', () => {
 	});
 
 	it('exports framework-agnostic runtime symbols from root and /core entrypoints', () => {
-		expect(Object.keys(api).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'createCurrentWritable',
-			'createFrameRegistry',
-			'createMotionGPURuntimeLoop',
-			'defineMaterial',
-			'loadTexturesFromUrls',
-			'resolveMaterial',
-			'toMotionGPUErrorReport'
-		]);
-		expect(Object.keys(core).sort()).toEqual(Object.keys(api).sort());
+		expectRuntimeExports('.', api);
+		expectRuntimeExports('./core', core);
 	});
 
 	it('exposes framework-agnostic advanced symbols from root /advanced and /core/advanced', () => {
-		expect(Object.keys(advanced).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'applySchedulerPreset',
-			'captureSchedulerDebugSnapshot',
-			'createCurrentWritable',
-			'createFrameRegistry',
-			'createMotionGPURuntimeLoop',
-			'defineMaterial',
-			'loadTexturesFromUrls',
-			'resolveMaterial',
-			'toMotionGPUErrorReport'
-		]);
-		expect(Object.keys(coreAdvanced).sort()).toEqual(Object.keys(advanced).sort());
+		expectRuntimeExports('./advanced', advanced);
+		expectRuntimeExports('./core/advanced', coreAdvanced);
 	});
 
 	it('exposes Svelte runtime symbols only from adapter entrypoints', () => {
-		expect(Object.keys(svelte).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'defineMaterial',
-			'useFrame',
-			'useMotionGPU',
-			'usePointer',
-			'useTexture'
-		]);
-		expect(Object.keys(svelteAdvanced).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'applySchedulerPreset',
-			'captureSchedulerDebugSnapshot',
-			'defineMaterial',
-			'setMotionGPUUserContext',
-			'useFrame',
-			'useMotionGPU',
-			'useMotionGPUUserContext',
-			'usePointer',
-			'useTexture'
-		]);
+		expectRuntimeExports('./svelte', svelte);
+		expectRuntimeExports('./svelte/advanced', svelteAdvanced);
 	});
 
 	it('exposes React runtime symbols only from adapter entrypoints', () => {
-		expect(Object.keys(react).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'defineMaterial',
-			'useFrame',
-			'useMotionGPU',
-			'usePointer',
-			'useTexture'
-		]);
-		expect(Object.keys(reactAdvanced).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'applySchedulerPreset',
-			'captureSchedulerDebugSnapshot',
-			'defineMaterial',
-			'setMotionGPUUserContext',
-			'useFrame',
-			'useMotionGPU',
-			'useMotionGPUUserContext',
-			'usePointer',
-			'useSetMotionGPUUserContext',
-			'useTexture'
-		]);
+		expectRuntimeExports('./react', react);
+		expectRuntimeExports('./react/advanced', reactAdvanced);
 	});
 
 	it('exposes Vue runtime symbols only from adapter entrypoints', () => {
-		expect(Object.keys(vue).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'defineMaterial',
-			'useFrame',
-			'useMotionGPU',
-			'usePointer',
-			'useTexture'
-		]);
-		expect(Object.keys(vueAdvanced).sort()).toEqual([
-			'BlitPass',
-			'ComputePass',
-			'CopyPass',
-			'FragCanvas',
-			'PingPongComputePass',
-			'PingPongShaderPass',
-			'ShaderPass',
-			'applySchedulerPreset',
-			'captureSchedulerDebugSnapshot',
-			'defineMaterial',
-			'setMotionGPUUserContext',
-			'useFrame',
-			'useMotionGPU',
-			'useMotionGPUUserContext',
-			'usePointer',
-			'useTexture'
-		]);
+		expectRuntimeExports('./vue', vue);
+		expectRuntimeExports('./vue/advanced', vueAdvanced);
 	});
 
 	it('keeps package export declarations aligned with source entrypoints', () => {
 		const packageJson = readPackageJson();
 		const exportEntries = Object.entries(packageJson.exports);
-		expect(exportEntries.map(([key]) => key).sort()).toEqual([
-			'.',
-			'./advanced',
-			'./core',
-			'./core/advanced',
-			'./react',
-			'./react/advanced',
-			'./svelte',
-			'./svelte/advanced',
-			'./vue',
-			'./vue/advanced'
-		]);
+		expect(exportEntries.map(([key]) => key).sort()).toEqual(Object.keys(publicApiManifest).sort());
 
 		for (const [exportName, exportConfig] of exportEntries) {
 			expect(exportConfig.types, exportName).toMatch(/^\.\/dist\/.+\.d\.ts$/);

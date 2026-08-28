@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.
+- Svelte, React, and Vue entrypoints now export the color-pipeline and `MotionGPUError*` type families. Packed-consumer checks enforce the exact runtime and type-only surface of all ten entrypoints.
 
 ### Changed
 

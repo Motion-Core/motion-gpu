@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
 	applyExactVersions,
+	assertPublicApiSymbols,
 	assertPublicExportMap,
+	createPublicApiCompileContract,
 	injectTarballPath
 } from './packed-consumers.mjs';
+import { publicApiManifest } from './public-api-manifest.mjs';
 
 const publicEntries = Object.fromEntries(
 	[
@@ -49,6 +52,34 @@ test('accepts only the complete public entrypoint contract', () => {
 		() => assertPublicExportMap({ ...publicEntries, './src': publicEntries['.'] }),
 		/Packed manifest public entrypoints changed/
 	);
+});
+
+test('accepts only the exact runtime and type-only public symbol manifest', () => {
+	const exact = structuredClone(publicApiManifest);
+	assert.doesNotThrow(() => assertPublicApiSymbols(exact));
+
+	const missingType = structuredClone(publicApiManifest);
+	missingType['./react'].typeOnly = missingType['./react'].typeOnly.filter(
+		(symbol) => symbol !== 'MotionGPUErrorReport'
+	);
+	assert.throws(() => assertPublicApiSymbols(missingType), /\.\/react type-only exports changed/);
+
+	const accidentalRuntime = structuredClone(publicApiManifest);
+	accidentalRuntime['./vue'].runtime.push('InternalPortal');
+	accidentalRuntime['./vue'].runtime.sort();
+	assert.throws(() => assertPublicApiSymbols(accidentalRuntime), /\.\/vue runtime exports changed/);
+});
+
+test('generates peer-specific compile contracts from the same manifest', () => {
+	const reactContract = createPublicApiCompileContract('react');
+	assert.match(reactContract, /MotionGPUErrorReport as React_MotionGPUErrorReport/);
+	assert.match(reactContract, /ColorPipelineOptions as React_ColorPipelineOptions/);
+	assert.doesNotMatch(reactContract, /TextureOptionsInput/);
+
+	const svelteContract = createPublicApiCompileContract('svelte');
+	assert.match(svelteContract, /TextureOptionsInput as Svelte_TextureOptionsInput/);
+	assert.match(svelteContract, /@motion-core\/motion-gpu\/svelte\/advanced/);
+	assert.throws(() => createPublicApiCompileContract('unknown'), /Unknown public API fixture/);
 });
 
 test('pins only declared fixture dependencies without mutating the template', () => {

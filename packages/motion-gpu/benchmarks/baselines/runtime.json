@@ -1,17 +1,48 @@
 {
-	"schemaVersion": 2,
-	"updatedAt": "2026-08-12T20:16:42.084Z",
-	"metrics": {
-		"startup_first_frame_ms": 392.020625,
-		"always_scheduler_hz": 119.96401079711839,
-		"always_render_hz": 119.96401079711839,
-		"on_demand_idle_scheduler_hz": 0,
-		"on_demand_idle_render_hz": 0,
-		"manual_idle_scheduler_hz": 0,
-		"manual_idle_render_hz": 0,
-		"manual_advance_scheduler_hz": 58.072877723117564,
-		"manual_advance_render_hz": 58.072877723117564,
-		"manual_advance_latency_p95_ms": 8.599999964237213,
-		"compute_storage_bindgroup_creations_per_1000_frames": 4
-	}
+  "schemaVersion": 3,
+  "updatedAt": "2026-08-28T23:42:24.167Z",
+  "environment": {
+    "commitSha": "9c673758686911a5619dd7e42624093ef3fd9e0d",
+    "dirty": false,
+    "node": "v22.21.1",
+    "v8": "12.4.254.21-node.33",
+    "pnpm": "10.24.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "osRelease": "25.5.0",
+    "cpu": "Apple M4 Pro",
+    "powerMode": "ac-high-power",
+    "browser": {
+      "channel": "playwright-chromium",
+      "version": "151.0.7922.34",
+      "engine": "Chromium"
+    },
+    "adapter": {
+      "vendor": "google",
+      "architecture": "swiftshader",
+      "device": "",
+      "description": "",
+      "backend": "",
+      "type": "",
+      "driver": "",
+      "isFallbackAdapter": true
+    },
+    "suiteHash": "2b4c3e2ca7cac3dfafb06619ed827970ab1cead51b2fc84f978d79e5f5821518"
+  },
+  "config": {
+    "serverMode": "production-build-preview",
+    "startupContextSamples": 10,
+    "modeSampleMs": 4000,
+    "idleSettleMs": 700,
+    "manualAdvanceDurationMs": 4000,
+    "manualAdvanceIntervalMs": 16,
+    "manualAdvanceLatencySamples": 40,
+    "computeStorageSampleFrames": 1000
+  },
+  "metrics": {
+    "startup_cold_first_frame_median_ms": 53.52533299999993,
+    "startup_warm_first_frame_median_ms": 69.87977049999995,
+    "manual_advance_latency_p95_ms": 10.299999952316284,
+    "compute_storage_bindgroup_creations_per_1000_frames": 4
+  }
 }

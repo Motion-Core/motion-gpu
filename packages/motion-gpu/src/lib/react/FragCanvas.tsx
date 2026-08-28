@@ -1,6 +1,7 @@
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report.js';
 import type { FragMaterial } from '../core/material.js';
+import { createMotionGPUUserContextStore } from '../core/motiongpu-context.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import type {
@@ -122,7 +123,7 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		registry.setAutoRender(value);
 		requestFrame();
 	});
-	const userState = currentWritable<Record<string | symbol, unknown>>({});
+	const userState = createMotionGPUUserContextStore();
 
 	const context: MotionGPUContext = {
 		get canvas() {

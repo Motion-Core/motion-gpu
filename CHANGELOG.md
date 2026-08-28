@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.
 
+### Changed
+
+- User-context namespace maps are frozen, null-prototype snapshots. Merge mode now merges only plain records and safely treats `toString`, `constructor`, `__proto__`, and symbols as ordinary namespaces.
+
 ## [0.15.1] - 2026-08-26
 
 ### Fixed

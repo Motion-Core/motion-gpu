@@ -43,6 +43,7 @@ import {
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport } from '../core/error-report.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
+import { createMotionGPUUserContextStore } from '../core/motiongpu-context.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import { provideFrameRegistry } from './frame-context.js';
 import { provideMotionGPUContext } from './motiongpu-context.js';
@@ -142,7 +143,7 @@ const autoRenderState = currentWritable<boolean>(true, (value) => {
 	registry.setAutoRender(value);
 	requestFrame();
 });
-const userState = currentWritable<Record<string | symbol, unknown>>({});
+const userState = createMotionGPUUserContextStore();
 
 provideMotionGPUContext({
 	get canvas() {

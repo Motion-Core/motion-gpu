@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CurrentReadable } from '../../lib/core/current-value.js';
 import { createCurrentWritable } from '../../lib/core/current-value.js';
 import { createFrameRegistry } from '../../lib/core/frame-registry.js';
-import type {
-	MotionGPUContext,
-	MotionGPUUserNamespace,
-	SetMotionGPUUserContextOptions
+import {
+	createMotionGPUUserContextStore,
+	type MotionGPUContext,
+	type MotionGPUUserNamespace,
+	type SetMotionGPUUserContextOptions
 } from '../../lib/core/motiongpu-context.js';
 
 type UserContextStore = Record<MotionGPUUserNamespace, unknown>;
@@ -16,6 +17,22 @@ export interface UserContextSetter {
 		value: UCT | (() => UCT),
 		options?: SetMotionGPUUserContextOptions
 	): UCT | undefined;
+}
+
+export interface UserContextSafetyResult {
+	toStringValue: unknown;
+	constructorValue: unknown;
+	protoValue: unknown;
+	hasSpecialNamespaces: boolean;
+	symbolValues: unknown[];
+	dateMerge: unknown;
+	classMerge: unknown;
+	nonPlainNextPreserved: boolean;
+	nullPrototypeMerge: unknown;
+	allSnapshotsFrozen: boolean;
+	allSnapshotsHaveNullPrototype: boolean;
+	mutationThrew: boolean;
+	mutationLeaked: boolean;
 }
 
 export interface UserContextSemanticsResult {
@@ -34,6 +51,7 @@ export interface UserContextSemanticsResult {
 		afterReplaced: UserContextStore;
 		afterSkippedAfterReplace: UserContextStore;
 	};
+	safety: UserContextSafetyResult;
 }
 
 export interface UserContextSubscriptionResult {
@@ -80,7 +98,7 @@ export function createUserContextRuntimeHarness(): { context: MotionGPUContext }
 			maxDelta: createCurrentWritable(0.1),
 			renderMode: createCurrentWritable<'always' | 'manual' | 'on-demand'>('always'),
 			autoRender: createCurrentWritable(true),
-			user: createCurrentWritable<UserContextStore>({}),
+			user: createMotionGPUUserContextStore(),
 			invalidate: registry.invalidate,
 			advance: registry.advance,
 			scheduler: {
@@ -119,6 +137,7 @@ export function runUserContextSemantics(
 	const afterReplaced = allStore.current;
 	const skippedAfterReplace = setUserContext('plugin', () => ({ mode: 'unchanged' }));
 	const afterSkippedAfterReplace = allStore.current;
+	const safety = runUserContextSafety(allStore, setUserContext);
 
 	return {
 		initial: initial as Record<string, unknown>,
@@ -135,7 +154,79 @@ export function runUserContextSemantics(
 			afterMerged,
 			afterReplaced,
 			afterSkippedAfterReplace
-		}
+		},
+		safety
+	};
+}
+
+function runUserContextSafety(
+	allStore: CurrentReadable<UserContextStore>,
+	setUserContext: UserContextSetter
+): UserContextSafetyResult {
+	const snapshots: UserContextStore[] = [];
+	const unsubscribe = allStore.subscribe((snapshot) => snapshots.push(snapshot));
+
+	const toStringValue = setUserContext('toString', 'own-to-string');
+	const constructorValue = setUserContext('constructor', 'own-constructor');
+	const protoValue = setUserContext('__proto__', 'own-proto');
+	const firstSymbol = Symbol('shared');
+	const secondSymbol = Symbol('shared');
+	setUserContext(firstSymbol, 'first-symbol');
+	setUserContext(secondSymbol, 'second-symbol');
+
+	const dateValue = Object.assign(new Date(0), { leaked: true });
+	setUserContext('date-value', dateValue, { existing: 'replace' });
+	const dateMerge = setUserContext('date-value', { replaced: true }, { existing: 'merge' });
+	class ClassValue {
+		legacy = true;
+	}
+	setUserContext('class-value', new ClassValue(), { existing: 'replace' });
+	const classMerge = setUserContext('class-value', { replaced: true }, { existing: 'merge' });
+
+	setUserContext('plain-value', { initial: true }, { existing: 'replace' });
+	const nonPlainNext = Object.assign(new Date(1), { replacement: true });
+	const nonPlainNextResult = setUserContext('plain-value', nonPlainNext, { existing: 'merge' });
+
+	const nullPrototypeValue = Object.assign(Object.create(null) as Record<string, unknown>, {
+		initial: true
+	});
+	setUserContext('null-prototype-value', nullPrototypeValue, { existing: 'replace' });
+	const nullPrototypeMerge = setUserContext(
+		'null-prototype-value',
+		{ merged: true },
+		{ existing: 'merge' }
+	);
+
+	const callbackSnapshot = snapshots.at(-1) as UserContextStore;
+	let mutationThrew = false;
+	try {
+		(callbackSnapshot as Record<MotionGPUUserNamespace, unknown>).corruption = true;
+	} catch {
+		mutationThrew = true;
+	}
+	const mutationLeaked = Object.hasOwn(allStore.current, 'corruption');
+	unsubscribe();
+
+	return {
+		toStringValue,
+		constructorValue,
+		protoValue,
+		hasSpecialNamespaces:
+			Object.hasOwn(allStore.current, 'toString') &&
+			Object.hasOwn(allStore.current, 'constructor') &&
+			Object.hasOwn(allStore.current, '__proto__'),
+		symbolValues: [allStore.current[firstSymbol], allStore.current[secondSymbol]],
+		dateMerge,
+		classMerge,
+		nonPlainNextPreserved:
+			nonPlainNextResult === nonPlainNext && allStore.current['plain-value'] === nonPlainNext,
+		nullPrototypeMerge,
+		allSnapshotsFrozen: snapshots.every(Object.isFrozen),
+		allSnapshotsHaveNullPrototype: snapshots.every(
+			(snapshot) => Object.getPrototypeOf(snapshot) === null
+		),
+		mutationThrew,
+		mutationLeaked
 	};
 }
 
@@ -229,6 +320,25 @@ export function defineUserContextContract(driver: UserContextContractDriver): vo
 			expect(result.contextRefs.afterMerged).not.toBe(result.contextRefs.afterSkipped);
 			expect(result.contextRefs.afterReplaced).not.toBe(result.contextRefs.afterMerged);
 			expect(result.contextRefs.afterSkippedAfterReplace).toBe(result.contextRefs.afterReplaced);
+		});
+
+		it('isolates special and symbol namespaces in readonly null-prototype snapshots', async () => {
+			const { safety } = await driver.runSemantics();
+			expect(safety).toEqual({
+				toStringValue: 'own-to-string',
+				constructorValue: 'own-constructor',
+				protoValue: 'own-proto',
+				hasSpecialNamespaces: true,
+				symbolValues: ['first-symbol', 'second-symbol'],
+				dateMerge: { replaced: true },
+				classMerge: { replaced: true },
+				nonPlainNextPreserved: true,
+				nullPrototypeMerge: { initial: true, merged: true },
+				allSnapshotsFrozen: true,
+				allSnapshotsHaveNullPrototype: true,
+				mutationThrew: true,
+				mutationLeaked: false
+			});
 		});
 
 		it('emits updates via all-store and scoped-store subscriptions and stops after unsubscribe', async () => {

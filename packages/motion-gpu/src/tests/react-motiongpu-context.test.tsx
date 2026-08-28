@@ -115,8 +115,17 @@ describe('react useMotionGPU', () => {
 		expect(context.maxDelta.current).toBe(0.05);
 
 		expect(context.user.current).toEqual({});
-		context.user.set({ plugin: { enabled: true } });
+		expect(Object.getPrototypeOf(context.user.current)).toBeNull();
+		expect(Object.isFrozen(context.user.current)).toBe(true);
+		const userInput = { plugin: { enabled: true } };
+		context.user.set(userInput);
 		expect(context.user.current).toEqual({ plugin: { enabled: true } });
+		expect(context.user.current).not.toBe(userInput);
+		expect(Object.getPrototypeOf(context.user.current)).toBeNull();
+		expect(Object.isFrozen(context.user.current)).toBe(true);
+		expect(() => {
+			(context.user.current as Record<string, unknown>).corruption = true;
+		}).toThrow();
 
 		const createdStage = context.scheduler.createStage('post');
 		expect(createdStage.key).toBe('post');

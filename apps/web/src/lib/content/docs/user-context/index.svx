@@ -39,9 +39,15 @@ The setter returns the effective value stored under the namespace.
 | --- | --- |
 | `'skip'` | Keep an existing value; do not evaluate a factory |
 | `'replace'` | Store the new value |
-| `'merge'` | Shallow-merge two non-array objects; otherwise replace |
+| `'merge'` | Shallow-merge two plain records; otherwise replace |
 
 The default is `'skip'`.
+
+The complete namespace map is published as a frozen snapshot with no object prototype. This keeps
+names such as `toString`, `constructor`, and `__proto__` independent from JavaScript prototype
+properties. Treat snapshots as read-only and write through `setMotionGPUUserContext(...)` or the
+`user` store. Merge mode accepts only records whose prototype is `Object.prototype` or `null`;
+arrays, dates, functions, and class instances are replaced instead of merged.
 
 Functions are treated as factories by default. Set `functionValue: 'value'` to store the function itself instead of calling it:
 

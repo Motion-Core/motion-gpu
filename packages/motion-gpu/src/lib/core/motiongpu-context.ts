@@ -1,4 +1,8 @@
-import type { CurrentReadable, CurrentWritable } from './current-value.js';
+import {
+	createCurrentWritable,
+	type CurrentReadable,
+	type CurrentWritable
+} from './current-value.js';
 import type {
 	FrameProfilingSnapshot,
 	FrameRunTimings,
@@ -15,10 +19,12 @@ export type { FrameProfilingSnapshot, FrameRunTimings, FrameScheduleSnapshot };
  */
 export type MotionGPUUserNamespace = string | symbol;
 
+type UserContextStore = Readonly<Record<MotionGPUUserNamespace, unknown>>;
+
 /**
  * Shared user context store exposed by `FragCanvas`.
  */
-export type MotionGPUUserContext = CurrentWritable<Record<MotionGPUUserNamespace, unknown>>;
+export type MotionGPUUserContext = CurrentWritable<UserContextStore>;
 
 /**
  * Public `FragCanvas` runtime context available to framework adapters.
@@ -89,8 +95,43 @@ export interface SetMotionGPUUserContextOptions {
 	functionValue?: 'factory' | 'value';
 }
 
-type UserContextStore = Record<MotionGPUUserNamespace, unknown>;
-type UserContextEntry = Record<string, unknown>;
+type UserContextEntry = Record<string | symbol, unknown>;
+
+function createUserContextSnapshot(source?: UserContextStore): UserContextStore {
+	const snapshot = Object.create(null) as Record<MotionGPUUserNamespace, unknown>;
+	if (source) {
+		Object.assign(snapshot, source);
+	}
+
+	return Object.freeze(snapshot);
+}
+
+/**
+ * Creates a user-context store that publishes frozen, null-prototype namespace snapshots.
+ */
+export function createMotionGPUUserContextStore(): MotionGPUUserContext {
+	const store = createCurrentWritable<UserContextStore>(createUserContextSnapshot());
+
+	return {
+		get current() {
+			return store.current;
+		},
+		subscribe: store.subscribe,
+		set(value) {
+			if (Object.is(value, store.current)) {
+				return;
+			}
+			store.set(createUserContextSnapshot(value));
+		},
+		update(updater) {
+			const value = updater(store.current);
+			if (Object.is(value, store.current)) {
+				return;
+			}
+			store.set(createUserContextSnapshot(value));
+		}
+	};
+}
 
 /**
  * Creates a read-only view of either the full user store or one namespace.
@@ -130,8 +171,13 @@ export function createMotionGPUUserContextReadable<
 	};
 }
 
-function isObjectEntry(value: unknown): value is UserContextEntry {
-	return typeof value === 'object' && value !== null && !Array.isArray(value);
+function isPlainRecord(value: unknown): value is UserContextEntry {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+
+	const prototype = Object.getPrototypeOf(value) as object | null;
+	return prototype === Object.prototype || prototype === null;
 }
 
 /**
@@ -148,7 +194,7 @@ export function setMotionGPUUserContextValue<UCT = unknown>(
 	let resolvedValue: UCT | undefined;
 
 	userStore.update((context) => {
-		const hasExisting = namespace in context;
+		const hasExisting = Object.hasOwn(context, namespace);
 		if (hasExisting && mode === 'skip') {
 			resolvedValue = context[namespace] as UCT | undefined;
 			return context;
@@ -160,7 +206,7 @@ export function setMotionGPUUserContextValue<UCT = unknown>(
 				: (value as UCT);
 		if (hasExisting && mode === 'merge') {
 			const currentValue = context[namespace];
-			if (isObjectEntry(currentValue) && isObjectEntry(nextValue)) {
+			if (isPlainRecord(currentValue) && isPlainRecord(nextValue)) {
 				resolvedValue = { ...currentValue, ...nextValue } as UCT;
 				return { ...context, [namespace]: resolvedValue };
 			}

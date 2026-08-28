@@ -5,6 +5,7 @@
 	import type { FragMaterial } from '../core/material';
 	import { createCurrentWritable as currentWritable } from '../core/current-value';
 	import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report';
+	import { createMotionGPUUserContextStore } from '../core/motiongpu-context';
 	import MotionGPUErrorOverlay from './MotionGPUErrorOverlay.svelte';
 	import { createMotionGPURuntimeLoop } from '../core/runtime-loop';
 	import type {
@@ -132,7 +133,7 @@
 		registry.setAutoRender(value);
 		requestFrame();
 	});
-	const userState = currentWritable<Record<string | symbol, unknown>>({});
+	const userState = createMotionGPUUserContextStore();
 
 	provideMotionGPUContext({
 		get canvas() {

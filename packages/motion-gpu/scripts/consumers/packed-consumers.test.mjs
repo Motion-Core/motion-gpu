@@ -5,7 +5,10 @@ import {
 	assertPublicApiSymbols,
 	assertPublicExportMap,
 	createPublicApiCompileContract,
-	injectTarballPath
+	injectPackageSpec,
+	injectTarballPath,
+	parsePackageSpec,
+	parsePackedConsumerArguments
 } from './packed-consumers.mjs';
 import { publicApiManifest } from './public-api-manifest.mjs';
 
@@ -38,6 +41,61 @@ test('injects exactly one normalized packed artifact path', () => {
 			),
 		/found 2/
 	);
+});
+
+test('accepts only absolute tarballs or exact stable package versions', () => {
+	assert.deepEqual(parsePackageSpec('/tmp/motion-gpu.tgz'), {
+		dependencySpec: 'file:/tmp/motion-gpu.tgz',
+		expectedVersion: undefined,
+		type: 'tarball'
+	});
+	assert.deepEqual(parsePackageSpec('0.16.0'), {
+		dependencySpec: '0.16.0',
+		expectedVersion: '0.16.0',
+		type: 'version'
+	});
+	for (const invalid of [
+		'./motion-gpu.tgz',
+		'^0.16.0',
+		'0.16.0-rc.1',
+		'latest',
+		'https://registry.npmjs.org/package.tgz'
+	]) {
+		assert.throws(
+			() => parsePackageSpec(invalid),
+			/absolute \.tgz path or an exact stable version/
+		);
+	}
+});
+
+test('injects a package spec without retaining the fixture file prefix', () => {
+	const template = '{"package":"file:__MOTION_GPU_TARBALL__"}';
+	assert.equal(
+		injectPackageSpec(template, 'file:/tmp/package.tgz'),
+		'{"package":"file:/tmp/package.tgz"}'
+	);
+	assert.equal(injectPackageSpec(template, '0.16.0'), '{"package":"0.16.0"}');
+	assert.throws(() => injectPackageSpec('{}', '0.16.0'), /found 0/);
+});
+
+test('parses package spec and peer matrix CLI options without ambiguity', () => {
+	assert.deepEqual(
+		parsePackedConsumerArguments(['--peer-matrix', '--package-spec', '/tmp/motion-gpu.tgz']),
+		{
+			includeMinimumPeers: true,
+			packageSpec: '/tmp/motion-gpu.tgz'
+		}
+	);
+	assert.deepEqual(parsePackedConsumerArguments([]), {
+		includeMinimumPeers: false,
+		packageSpec: undefined
+	});
+	assert.throws(() => parsePackedConsumerArguments(['--package-spec']), /requires a value/);
+	assert.throws(
+		() => parsePackedConsumerArguments(['--package-spec', '--peer-matrix']),
+		/requires a value/
+	);
+	assert.throws(() => parsePackedConsumerArguments(['--unknown']), /Unknown/);
 });
 
 test('accepts only the complete public entrypoint contract', () => {

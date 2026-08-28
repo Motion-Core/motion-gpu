@@ -87,6 +87,66 @@ export function injectTarballPath(manifestSource, tarballPath) {
 	return manifestSource.replace(placeholder, normalizePath(tarballPath));
 }
 
+export function parsePackageSpec(packageSpec) {
+	if (/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(packageSpec)) {
+		return { dependencySpec: packageSpec, expectedVersion: packageSpec, type: 'version' };
+	}
+
+	if (path.isAbsolute(packageSpec) && packageSpec.endsWith('.tgz')) {
+		return {
+			dependencySpec: `file:${normalizePath(packageSpec)}`,
+			expectedVersion: undefined,
+			type: 'tarball'
+		};
+	}
+
+	throw new Error(
+		`Package spec must be an absolute .tgz path or an exact stable version; received ${JSON.stringify(packageSpec)}.`
+	);
+}
+
+export function injectPackageSpec(manifestSource, dependencySpec) {
+	const placeholder = 'file:__MOTION_GPU_TARBALL__';
+	const occurrences = manifestSource.split(placeholder).length - 1;
+	if (occurrences !== 1) {
+		throw new Error(`Expected exactly one ${placeholder} placeholder; found ${occurrences}.`);
+	}
+
+	return manifestSource.replace(placeholder, dependencySpec);
+}
+
+export function parsePackedConsumerArguments(arguments_) {
+	let includeMinimumPeers = false;
+	let packageSpec;
+
+	for (let index = 0; index < arguments_.length; index += 1) {
+		const argument = arguments_[index];
+		if (argument === '--peer-matrix') {
+			if (includeMinimumPeers) {
+				throw new Error('Packed consumer option --peer-matrix may only be provided once.');
+			}
+			includeMinimumPeers = true;
+			continue;
+		}
+
+		if (argument === '--package-spec') {
+			if (packageSpec !== undefined) {
+				throw new Error('Packed consumer option --package-spec may only be provided once.');
+			}
+			packageSpec = arguments_[index + 1];
+			if (!packageSpec || packageSpec.startsWith('--')) {
+				throw new Error('Packed consumer option --package-spec requires a value.');
+			}
+			index += 1;
+			continue;
+		}
+
+		throw new Error(`Unknown packed consumer option: ${argument}`);
+	}
+
+	return { includeMinimumPeers, packageSpec };
+}
+
 export function assertPublicExportMap(exportsMap) {
 	assert.ok(exportsMap && typeof exportsMap === 'object', 'Packed manifest must define exports.');
 	assert.deepEqual(
@@ -215,7 +275,7 @@ async function findPackedTarball(directory) {
 	return path.join(directory, tarballs[0]);
 }
 
-async function installFixtures(temporaryRoot, tarballPath, profile) {
+async function installFixtures(temporaryRoot, dependencySpec, profile) {
 	const consumerRoot = path.join(temporaryRoot, 'consumers');
 	await mkdir(consumerRoot, { recursive: true });
 
@@ -223,7 +283,7 @@ async function installFixtures(temporaryRoot, tarballPath, profile) {
 		const fixtureDirectory = path.join(consumerRoot, fixtureName);
 		await cp(path.join(fixtureRoot, fixtureName), fixtureDirectory, { recursive: true });
 		const manifestPath = path.join(fixtureDirectory, 'package.json');
-		const source = injectTarballPath(await readFile(manifestPath, 'utf8'), tarballPath);
+		const source = injectPackageSpec(await readFile(manifestPath, 'utf8'), dependencySpec);
 		const manifest = applyExactVersions(JSON.parse(source), profile.versions[fixtureName]);
 		await writeFile(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 		await writeFile(
@@ -285,6 +345,22 @@ async function assertExactVersions(consumerRoot, profile) {
 				`${profile.name} ${fixtureName} resolved ${dependency}@${installedVersion}; expected ${expectedVersion}.`
 			);
 		}
+	}
+}
+
+async function assertMotionGpuVersion(consumerRoot, expectedVersion) {
+	if (expectedVersion === undefined) return;
+
+	for (const fixtureName of fixtureNames) {
+		const installedVersion = await readInstalledVersion(
+			path.join(consumerRoot, fixtureName),
+			'@motion-core/motion-gpu'
+		);
+		assert.equal(
+			installedVersion,
+			expectedVersion,
+			`${fixtureName} resolved @motion-core/motion-gpu@${installedVersion}; expected ${expectedVersion}.`
+		);
 	}
 }
 
@@ -424,29 +500,38 @@ async function prepareTarball(temporaryRoot) {
 	return findPackedTarball(artifactDirectory);
 }
 
-async function checkProfile(temporaryRoot, tarballPath, profile) {
+async function checkProfile(temporaryRoot, packageSpec, profile) {
 	const profileRoot = path.join(temporaryRoot, profile.name);
 	await mkdir(profileRoot, { recursive: true });
 	console.log(`[packed-consumers] checking ${profile.name} dependency profile`);
-	const consumerRoot = await installFixtures(profileRoot, tarballPath, profile);
+	const consumerRoot = await installFixtures(profileRoot, packageSpec.dependencySpec, profile);
 	await assertExactVersions(consumerRoot, profile);
+	await assertMotionGpuVersion(consumerRoot, packageSpec.expectedVersion);
 	const coreConsumerDirectory = path.join(consumerRoot, 'core');
 	await assertPackedArtifacts(coreConsumerDirectory);
 	await assertInternalImportsAreBlocked(coreConsumerDirectory);
 	await checkAndBuildFixtures(consumerRoot);
 }
 
-export async function runPackedConsumerChecks({ includeMinimumPeers = false } = {}) {
+export async function runPackedConsumerChecks({ includeMinimumPeers = false, packageSpec } = {}) {
 	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'motion-gpu-packed-consumers-'));
 
 	try {
-		const tarballPath = await prepareTarball(temporaryRoot);
+		let resolvedPackageSpec;
+		if (packageSpec === undefined) {
+			resolvedPackageSpec = parsePackageSpec(await prepareTarball(temporaryRoot));
+		} else {
+			resolvedPackageSpec = parsePackageSpec(packageSpec);
+			if (resolvedPackageSpec.type === 'tarball') {
+				await access(packageSpec);
+			}
+		}
 		const profiles = [{ name: 'current', versions: currentVersions }];
 		if (includeMinimumPeers) {
 			profiles.push({ name: 'minimum', versions: minimumVersions });
 		}
 		for (const profile of profiles) {
-			await checkProfile(temporaryRoot, tarballPath, profile);
+			await checkProfile(temporaryRoot, resolvedPackageSpec, profile);
 		}
 		console.log(
 			`Packed consumer checks passed for all 10 entrypoints (${profiles.map(({ name }) => name).join(' + ')} profiles).`
@@ -461,11 +546,5 @@ export async function runPackedConsumerChecks({ includeMinimumPeers = false } = 
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-	const arguments_ = new Set(process.argv.slice(2));
-	for (const argument of arguments_) {
-		if (argument !== '--peer-matrix') {
-			throw new Error(`Unknown packed consumer option: ${argument}`);
-		}
-	}
-	await runPackedConsumerChecks({ includeMinimumPeers: arguments_.has('--peer-matrix') });
+	await runPackedConsumerChecks(parsePackedConsumerArguments(process.argv.slice(2)));
 }

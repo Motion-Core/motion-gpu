@@ -224,6 +224,94 @@ describe('material', () => {
 		expect(resolved.signature).toContain('"uniforms":["a:f32","b:f32"]');
 	});
 
+	it('publishes an immutable resolved snapshot without exposing mutable cache state', () => {
+		const canvas = document.createElement('canvas');
+		const material = withMockedStack(
+			['Error', '    at createMaterial (/app/Scene.svelte:12:4)'].join('\n'),
+			() =>
+				defineMaterial({
+					fragment: '#include <tone>\nfn frag(uv: vec2f) -> vec4f { return tone(uv) * GAIN; }',
+					uniforms: { uMix: [0.25, 0.75] },
+					textures: {
+						uMain: { source: { source: canvas, width: 16, height: 8 } },
+						uStorage: {
+							storage: true,
+							format: 'rgba8unorm',
+							width: 8,
+							height: 8
+						}
+					},
+					defines: { GAIN: 1 },
+					includes: {
+						tone: 'fn tone(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+					},
+					storageBuffers: {
+						particles: { size: 16, type: 'array<f32>' }
+					}
+				})
+		);
+		const resolved = resolveMaterial(material);
+		const mappedLine = resolved.fragmentLineMap.find((entry) => entry !== null);
+		const textureSource = resolved.textures.uMain?.source as { width?: number };
+
+		expect(mappedLine).not.toBeNull();
+		expect(resolved.source).not.toBeNull();
+		expect(
+			[
+				resolved,
+				resolved.fragmentLineMap,
+				mappedLine,
+				resolved.uniforms,
+				resolved.textures,
+				resolved.textures.uMain,
+				textureSource,
+				resolved.uniformLayout,
+				resolved.uniformLayout.entries,
+				resolved.uniformLayout.entries[0],
+				resolved.uniformLayout.byName,
+				resolved.textureKeys,
+				resolved.includeSources,
+				resolved.source,
+				resolved.storageBufferKeys,
+				resolved.storageTextureKeys
+			].every((value) => Object.isFrozen(value))
+		).toBe(true);
+
+		expect(() => {
+			(resolved as { signature: string }).signature = 'corrupted';
+		}).toThrow();
+		expect(() => {
+			(resolved.fragmentLineMap as Array<unknown>)[1] = null;
+		}).toThrow();
+		expect(() => {
+			(mappedLine as { line: number }).line = 999;
+		}).toThrow();
+		expect(() => {
+			(resolved.uniformLayout.entries as Array<unknown>).push({});
+		}).toThrow();
+		expect(() => {
+			(resolved.uniformLayout.byName as Record<string, unknown>).corrupted = {};
+		}).toThrow();
+		expect(() => {
+			(resolved.textureKeys as string[]).push('corrupted');
+		}).toThrow();
+		expect(() => {
+			textureSource.width = 1;
+		}).toThrow();
+		expect(() => {
+			(resolved.source as { line: number }).line = 999;
+		}).toThrow();
+
+		const cached = resolveMaterial(material);
+		expect(cached).toBe(resolved);
+		expect(cached.signature).not.toBe('corrupted');
+		expect(cached.textureKeys).toEqual(['uMain', 'uStorage']);
+		expect(cached.storageBufferKeys).toEqual(['particles']);
+		expect(cached.storageTextureKeys).toEqual(['uStorage']);
+		expect(cached.uniformLayout.byName.uMix?.offset).toBe(0);
+		expect((cached.textures.uMain?.source as { width?: number }).width).toBe(16);
+	});
+
 	it('changes signature when defines change', () => {
 		const baseFragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
 		const a = resolveMaterial(

@@ -181,12 +181,12 @@ export function resolveUniformLayout(uniforms: UniformMap): UniformLayout {
 		const { alignment, size } = getTypeLayout(type);
 		offset = roundUp(offset, alignment);
 
-		const entry: UniformLayoutEntry = {
+		const entry: UniformLayoutEntry = Object.freeze({
 			name,
 			type,
 			offset,
 			size
-		};
+		});
 
 		entries.push(entry);
 		byName[name] = entry;
@@ -194,7 +194,11 @@ export function resolveUniformLayout(uniforms: UniformMap): UniformLayout {
 	}
 
 	const byteLength = Math.max(16, roundUp(offset, 16));
-	return { entries, byName, byteLength };
+	return Object.freeze({
+		entries: Object.freeze(entries),
+		byName: Object.freeze(byName),
+		byteLength
+	});
 }
 
 /**

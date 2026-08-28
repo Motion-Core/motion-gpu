@@ -141,12 +141,12 @@ export function createMotionGPURuntimeLoop(
 
 	const runtimeUniforms: Record<string, UniformValue> = {};
 	const runtimeTextures: TextureMap = {};
-	let activeUniforms: Record<string, UniformValue> = {};
-	let activeTextures: Record<string, { source?: TextureValue }> = {};
+	let activeUniforms: Readonly<Record<string, UniformValue>> = {};
+	let activeTextures: Readonly<Record<string, { source?: TextureValue }>> = {};
 	let uniformKeys: string[] = [];
 	let uniformKeySet = new Set<string>();
 	let uniformTypes = new Map<string, UniformType>();
-	let textureKeys: string[] = [];
+	let textureKeys: readonly string[] = [];
 	let textureKeySet = new Set<string>();
 	let activeMaterialSignature = '';
 	let currentCssWidth = -1;
@@ -154,9 +154,9 @@ export function createMotionGPURuntimeLoop(
 	const renderUniforms: Record<string, UniformValue> = {};
 	const renderTextures: TextureMap = {};
 	const canvasSize = { width: 0, height: 0 };
-	let storageBufferKeys: string[] = [];
+	let storageBufferKeys: readonly string[] = [];
 	let storageBufferKeySet = new Set<string>();
-	let storageBufferDefinitions: StorageBufferDefinitionMap = {};
+	let storageBufferDefinitions: Readonly<StorageBufferDefinitionMap> = {};
 	const pendingStorageWrites: PendingStorageWrite[] = [];
 	let shouldContinueAfterFrame = false;
 	let activeErrorKey: string | null = null;
@@ -339,7 +339,10 @@ export function createMotionGPURuntimeLoop(
 		}
 	};
 
-	const syncMaterialRuntimeState = (materialState: ResolvedMaterial): void => {
+	const syncMaterialRuntimeState = (
+		materialState: ResolvedMaterial,
+		materialStorageBuffers: Readonly<StorageBufferDefinitionMap>
+	): void => {
 		const signatureChanged = activeMaterialSignature !== materialState.signature;
 		const defaultsChanged =
 			activeUniforms !== materialState.uniforms || activeTextures !== materialState.textures;
@@ -369,15 +372,10 @@ export function createMotionGPURuntimeLoop(
 		textureKeySet = new Set(textureKeys);
 		storageBufferKeys = materialState.storageBufferKeys;
 		storageBufferKeySet = new Set(storageBufferKeys);
-		storageBufferDefinitions = (options.getMaterial().storageBuffers ??
-			{}) as StorageBufferDefinitionMap;
+		storageBufferDefinitions = materialStorageBuffers;
 		resetRuntimeMaps();
 		resetRenderPayloadMaps();
 		activeMaterialSignature = materialState.signature;
-	};
-
-	const resolveActiveMaterial = (): ResolvedMaterial => {
-		return resolveMaterial(options.getMaterial());
 	};
 
 	const setUniform = (name: string, value: UniformValue): void => {
@@ -478,8 +476,10 @@ export function createMotionGPURuntimeLoop(
 		syncErrorHistory();
 
 		let materialState: ResolvedMaterial;
+		let materialDeclaration: FragMaterial;
 		try {
-			materialState = resolveActiveMaterial();
+			materialDeclaration = options.getMaterial();
+			materialState = resolveMaterial(materialDeclaration);
 			materialResolveAttempts = 0;
 		} catch (error) {
 			materialResolveAttempts += 1;
@@ -499,7 +499,7 @@ export function createMotionGPURuntimeLoop(
 			...(adapterOptions !== undefined ? { adapterOptions } : {}),
 			...(deviceDescriptor !== undefined ? { deviceDescriptor } : {})
 		});
-		syncMaterialRuntimeState(materialState);
+		syncMaterialRuntimeState(materialState, materialDeclaration.storageBuffers);
 
 		if (failedRendererSignature && failedRendererSignature !== rendererSignature) {
 			failedRendererSignature = null;
@@ -521,18 +521,18 @@ export function createMotionGPURuntimeLoop(
 						const nextRenderer = await createRenderer({
 							canvas: canvasElement,
 							fragmentWgsl: materialState.fragmentWgsl,
-							fragmentLineMap: materialState.fragmentLineMap,
+							fragmentLineMap: [...materialState.fragmentLineMap],
 							fragmentSource: materialState.fragmentSource,
 							includeSources: materialState.includeSources,
 							defineBlockSource: materialState.defineBlockSource,
 							materialSource: materialState.source,
 							materialSignature: materialState.signature,
 							uniformLayout: materialState.uniformLayout,
-							textureKeys: materialState.textureKeys,
+							textureKeys: [...materialState.textureKeys],
 							textureDefinitions: materialState.textures,
-							storageBufferKeys: materialState.storageBufferKeys,
+							storageBufferKeys: [...materialState.storageBufferKeys],
 							storageBufferDefinitions,
-							storageTextureKeys: materialState.storageTextureKeys,
+							storageTextureKeys: [...materialState.storageTextureKeys],
 							getRenderTargets: options.getRenderTargets,
 							getPasses: options.getPasses,
 							...(color !== undefined ? { color } : {}),
@@ -681,9 +681,10 @@ export function createMotionGPURuntimeLoop(
 
 	void (async () => {
 		try {
-			const initialMaterial = resolveActiveMaterial();
+			const materialDeclaration = options.getMaterial();
+			const initialMaterial = resolveMaterial(materialDeclaration);
 			materialResolveAttempts = 0;
-			syncMaterialRuntimeState(initialMaterial);
+			syncMaterialRuntimeState(initialMaterial, materialDeclaration.storageBuffers);
 			activeRendererSignature = '';
 			scheduleFrame();
 		} catch (error) {

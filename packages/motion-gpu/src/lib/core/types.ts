@@ -72,19 +72,19 @@ export interface UniformLayoutEntry {
 	/**
 	 * Uniform field name.
 	 */
-	name: string;
+	readonly name: string;
 	/**
 	 * WGSL field type.
 	 */
-	type: UniformType;
+	readonly type: UniformType;
 	/**
 	 * Byte offset within packed uniform buffer.
 	 */
-	offset: number;
+	readonly offset: number;
 	/**
 	 * Field byte size without trailing alignment padding.
 	 */
-	size: number;
+	readonly size: number;
 }
 
 /**
@@ -94,15 +94,15 @@ export interface UniformLayout {
 	/**
 	 * Layout entries sorted by uniform name.
 	 */
-	entries: UniformLayoutEntry[];
+	readonly entries: readonly UniformLayoutEntry[];
 	/**
 	 * Fast lookup table by uniform name.
 	 */
-	byName: Record<string, UniformLayoutEntry>;
+	readonly byName: Readonly<Record<string, UniformLayoutEntry>>;
 	/**
 	 * Final uniform buffer size in bytes.
 	 */
-	byteLength: number;
+	readonly byteLength: number;
 }
 
 /**
@@ -841,11 +841,11 @@ export interface FrameState {
 	 */
 	setTexture: (name: string, value: TextureValue) => void;
 	/**
-	 * Writes data to a named storage buffer.
+	 * Queues an owned byte copy for a named storage buffer.
 	 */
 	writeStorageBuffer: (name: string, data: ArrayBufferView, options?: { offset?: number }) => void;
 	/**
-	 * Async readback of storage buffer data.
+	 * Flushes queued writes for the named buffer, then reads its data back asynchronously.
 	 */
 	readStorageBuffer: (name: string) => Promise<ArrayBuffer>;
 	/**
@@ -879,7 +879,7 @@ export interface FrameState {
 export interface PendingStorageWrite {
 	/** Storage buffer name. */
 	name: string;
-	/** Data to write. */
+	/** Owned byte copy to write. */
 	data: ArrayBufferView;
 	/** Byte offset into the storage buffer. */
 	offset: number;
@@ -897,12 +897,7 @@ export interface RendererOptions {
 	/**
 	 * 1-based source map for preprocessed fragment lines.
 	 */
-	fragmentLineMap: Array<{
-		kind: 'fragment' | 'include' | 'define';
-		line: number;
-		include?: string;
-		define?: string;
-	} | null>;
+	fragmentLineMap: MaterialLineMap;
 	/**
 	 * Original material fragment source before preprocessing.
 	 */
@@ -910,7 +905,7 @@ export interface RendererOptions {
 	/**
 	 * Include sources used while preprocessing material fragment.
 	 */
-	includeSources: Record<string, string>;
+	includeSources: Readonly<Record<string, string>>;
 	/**
 	 * Deterministic define block source used for diagnostics mapping.
 	 */
@@ -936,23 +931,23 @@ export interface RendererOptions {
 	/**
 	 * Sorted texture keys.
 	 */
-	textureKeys: string[];
+	textureKeys: readonly string[];
 	/**
 	 * Texture definitions by key.
 	 */
-	textureDefinitions: TextureDefinitionMap;
+	textureDefinitions: Readonly<TextureDefinitionMap>;
 	/**
 	 * Sorted storage buffer keys.
 	 */
-	storageBufferKeys?: string[];
+	storageBufferKeys?: readonly string[];
 	/**
 	 * Storage buffer definitions by key.
 	 */
-	storageBufferDefinitions?: Record<string, import('./types.js').StorageBufferDefinition>;
+	storageBufferDefinitions?: Readonly<Record<string, StorageBufferDefinition>>;
 	/**
 	 * Sorted storage texture keys (textures with storage:true).
 	 */
-	storageTextureKeys?: string[];
+	storageTextureKeys?: readonly string[];
 	/**
 	 * Static render target definitions.
 	 */

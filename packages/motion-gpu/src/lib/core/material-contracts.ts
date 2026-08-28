@@ -2,11 +2,11 @@
  * Source metadata for a material declaration callsite.
  */
 export interface MaterialSourceMetadata {
-	component?: string;
-	file?: string;
-	line?: number;
-	column?: number;
-	functionName?: string;
+	readonly component?: string;
+	readonly file?: string;
+	readonly line?: number;
+	readonly column?: number;
+	readonly functionName?: string;
 }
 
 /**
@@ -88,25 +88,25 @@ export interface MaterialSourceLocation {
 	/**
 	 * Origin category for this generated line.
 	 */
-	kind: 'fragment' | 'include' | 'define';
+	readonly kind: 'fragment' | 'include' | 'define';
 	/**
 	 * 1-based line in the origin source.
 	 */
-	line: number;
+	readonly line: number;
 	/**
 	 * Include chunk identifier when `kind === "include"`.
 	 */
-	include?: string;
+	readonly include?: string;
 	/**
 	 * Define identifier when `kind === "define"`.
 	 */
-	define?: string;
+	readonly define?: string;
 }
 
 /**
  * 1-based line map from generated fragment WGSL to user source locations.
  */
-export type MaterialLineMap = Array<MaterialSourceLocation | null>;
+export type MaterialLineMap = ReadonlyArray<MaterialSourceLocation | null>;
 
 /**
  * Preprocess output used by material resolution and diagnostics mapping.
@@ -115,13 +115,13 @@ export interface PreprocessedMaterialFragment {
 	/**
 	 * Final fragment source after defines/include expansion.
 	 */
-	fragment: string;
+	readonly fragment: string;
 	/**
 	 * 1-based generated-line source map.
 	 */
-	lineMap: MaterialLineMap;
+	readonly lineMap: MaterialLineMap;
 	/**
 	 * Deterministic WGSL define block used to build the final fragment source.
 	 */
-	defineBlockSource: string;
+	readonly defineBlockSource: string;
 }

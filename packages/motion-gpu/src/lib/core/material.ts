@@ -124,55 +124,55 @@ export interface ResolvedMaterial<
 	/**
 	 * Final fragment WGSL after define injection.
 	 */
-	fragmentWgsl: string;
+	readonly fragmentWgsl: string;
 	/**
 	 * 1-based map from generated fragment lines to user source lines.
 	 */
-	fragmentLineMap: MaterialLineMap;
+	readonly fragmentLineMap: MaterialLineMap;
 	/**
 	 * Cloned uniforms.
 	 */
-	uniforms: UniformMap<TUniformKey>;
+	readonly uniforms: Readonly<UniformMap<TUniformKey>>;
 	/**
 	 * Cloned texture definitions.
 	 */
-	textures: TextureDefinitionMap<TTextureKey>;
+	readonly textures: Readonly<TextureDefinitionMap<TTextureKey>>;
 	/**
 	 * Resolved packed uniform layout.
 	 */
-	uniformLayout: ReturnType<typeof resolveUniformLayout>;
+	readonly uniformLayout: ReturnType<typeof resolveUniformLayout>;
 	/**
 	 * Sorted texture keys.
 	 */
-	textureKeys: TTextureKey[];
+	readonly textureKeys: readonly TTextureKey[];
 	/**
 	 * Deterministic JSON signature for cache invalidation.
 	 */
-	signature: string;
+	readonly signature: string;
 	/**
 	 * Original user fragment source before preprocessing.
 	 */
-	fragmentSource: string;
+	readonly fragmentSource: string;
 	/**
 	 * Normalized include sources map.
 	 */
-	includeSources: MaterialIncludes<TIncludeKey>;
+	readonly includeSources: Readonly<MaterialIncludes<TIncludeKey>>;
 	/**
 	 * Deterministic define block source used for diagnostics mapping.
 	 */
-	defineBlockSource: string;
+	readonly defineBlockSource: string;
 	/**
 	 * Source metadata used for diagnostics.
 	 */
-	source: Readonly<MaterialSourceMetadata> | null;
+	readonly source: Readonly<MaterialSourceMetadata> | null;
 	/**
 	 * Sorted storage buffer keys. Empty array when no storage buffers declared.
 	 */
-	storageBufferKeys: TStorageBufferKey[];
+	readonly storageBufferKeys: readonly TStorageBufferKey[];
 	/**
 	 * Sorted storage texture keys (textures with storage: true).
 	 */
-	storageTextureKeys: TTextureKey[];
+	readonly storageTextureKeys: readonly TTextureKey[];
 }
 
 /**
@@ -372,7 +372,7 @@ function cloneTextureValue(value: TextureValue | undefined): TextureValue {
 
 	if (typeof value === 'object' && 'source' in value) {
 		const data = value as TextureData;
-		return {
+		return Object.freeze({
 			source: data.source,
 			...(data.width !== undefined ? { width: data.width } : {}),
 			...(data.height !== undefined ? { height: data.height } : {}),
@@ -383,7 +383,7 @@ function cloneTextureValue(value: TextureValue | undefined): TextureValue {
 				: {}),
 			...(data.generateMipmaps !== undefined ? { generateMipmaps: data.generateMipmaps } : {}),
 			...(data.update !== undefined ? { update: data.update } : {})
-		};
+		});
 	}
 
 	return value;
@@ -502,8 +502,8 @@ function resolveIncludes<TIncludeKey extends string>(
  * @returns Compact signature entries describing effective texture config per key.
  */
 function buildTextureConfigSignature<TTextureKey extends string>(
-	textures: TextureDefinitionMap<TTextureKey>,
-	textureKeys: TTextureKey[]
+	textures: Readonly<TextureDefinitionMap<TTextureKey>>,
+	textureKeys: readonly TTextureKey[]
 ): Record<TTextureKey, string> {
 	const signature = {} as Record<TTextureKey, string>;
 
@@ -726,7 +726,7 @@ export function resolveMaterial<
 	const uniforms = material.uniforms as UniformMap<TUniformKey>;
 	const textures = material.textures as TextureDefinitionMap<TTextureKey>;
 	const uniformLayout = resolveUniformLayout(uniforms);
-	const textureKeys = Object.keys(textures).sort() as TTextureKey[];
+	const textureKeys = Object.freeze(Object.keys(textures).sort() as TTextureKey[]);
 	const preprocessed =
 		preprocessedFragmentCache.get(material) ??
 		preprocessMaterialFragment({
@@ -737,11 +737,11 @@ export function resolveMaterial<
 	const fragmentWgsl = preprocessed.fragment;
 	const textureConfig = buildTextureConfigSignature(textures, textureKeys);
 
-	const storageBufferKeys = Object.keys(
-		material.storageBuffers ?? {}
-	).sort() as TStorageBufferKey[];
-	const storageTextureKeys = textureKeys.filter(
-		(key) => (textures[key] as TextureDefinition)?.storage === true
+	const storageBufferKeys = Object.freeze(
+		Object.keys(material.storageBuffers ?? {}).sort() as TStorageBufferKey[]
+	);
+	const storageTextureKeys = Object.freeze(
+		textureKeys.filter((key) => (textures[key] as TextureDefinition)?.storage === true)
 	);
 
 	const signature = JSON.stringify({
@@ -756,21 +756,22 @@ export function resolveMaterial<
 		storageTextureKeys
 	});
 
-	const resolved: ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> = {
-		fragmentWgsl,
-		fragmentLineMap: preprocessed.lineMap,
-		uniforms,
-		textures,
-		uniformLayout,
-		textureKeys,
-		signature,
-		fragmentSource: material.fragment,
-		includeSources: material.includes as MaterialIncludes<TIncludeKey>,
-		defineBlockSource: preprocessed.defineBlockSource,
-		source: materialSourceMetadataCache.get(material) ?? null,
-		storageBufferKeys,
-		storageTextureKeys
-	};
+	const resolved: ResolvedMaterial<TUniformKey, TTextureKey, TIncludeKey, TStorageBufferKey> =
+		Object.freeze({
+			fragmentWgsl,
+			fragmentLineMap: preprocessed.lineMap,
+			uniforms,
+			textures,
+			uniformLayout,
+			textureKeys,
+			signature,
+			fragmentSource: material.fragment,
+			includeSources: material.includes as MaterialIncludes<TIncludeKey>,
+			defineBlockSource: preprocessed.defineBlockSource,
+			source: materialSourceMetadataCache.get(material) ?? null,
+			storageBufferKeys,
+			storageTextureKeys
+		});
 
 	resolvedMaterialCache.set(material, resolved);
 	return resolved;

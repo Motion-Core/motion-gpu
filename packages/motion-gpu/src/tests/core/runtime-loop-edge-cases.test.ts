@@ -857,6 +857,7 @@ describe('runtime-loop edge cases', () => {
 		});
 
 		let currentMaterial: FragMaterial = materialA;
+		const getMaterial = vi.fn(() => currentMaterial);
 
 		// Track what uniforms the renderer received per frame.
 		const renderedUniformSnapshots: string[][] = [];
@@ -868,10 +869,11 @@ describe('runtime-loop edge cases', () => {
 
 		const loop = createMotionGPURuntimeLoop(
 			baseOptions(registry, materialA, {
-				getMaterial: () => currentMaterial,
+				getMaterial,
 				reportError
 			})
 		);
+		expect(getMaterial).toHaveBeenCalledTimes(1);
 
 		// Frame 1: renderer initialises with materialA.
 		await flushFrame(16);
@@ -885,6 +887,7 @@ describe('runtime-loop edge cases', () => {
 		await flushFrame(48);
 		// Frame 4: first render with materialB — "speed" must be absent, "brightness" present.
 		await flushFrame(64);
+		expect(getMaterial).toHaveBeenCalledTimes(5);
 
 		// Renderer rebuilt → two separate createRenderer calls.
 		expect(createRendererMock).toHaveBeenCalledTimes(2);

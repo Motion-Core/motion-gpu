@@ -80,6 +80,9 @@ describe('material preprocess', () => {
 		const includeLines = preprocessed.lineMap.filter((entry) => entry?.kind === 'include');
 		expect(includeLines.some((entry) => entry?.include === 'entry')).toBe(true);
 		expect(includeLines.some((entry) => entry?.include === 'tone')).toBe(true);
+		expect(Object.isFrozen(preprocessed)).toBe(true);
+		expect(Object.isFrozen(preprocessed.lineMap)).toBe(true);
+		expect(includeLines.every((entry) => Object.isFrozen(entry))).toBe(true);
 	});
 
 	it('sorts define block deterministically in preprocessed source', () => {

@@ -427,8 +427,8 @@ export function normalizeTextureDefinition(
  * @returns Normalized map keyed by `textureKeys`.
  */
 export function normalizeTextureDefinitions(
-	textures: TextureDefinitionMap,
-	textureKeys: string[]
+	textures: Readonly<TextureDefinitionMap>,
+	textureKeys: readonly string[]
 ): Record<string, NormalizedTextureDefinition> {
 	const out: Record<string, NormalizedTextureDefinition> = {};
 	for (const key of textureKeys) {

@@ -38,14 +38,25 @@ for (let attempt = 1; attempt <= 30; attempt += 1) {
 			);
 		}
 
-		assertRegistryPublication({
+		const versionDocument = await versionResponse.json();
+		const attestationUrl = assertRegistryPublication({
 			expectedIntegrity,
 			tags: await tagsResponse.json(),
 			version,
-			versionDocument: await versionResponse.json()
+			versionDocument
 		});
+		const attestationResponse = await fetch(attestationUrl, {
+			headers: { accept: 'application/json' },
+			signal
+		});
+		if (!attestationResponse.ok) {
+			throw new Error(
+				`Registry returned HTTP ${attestationResponse.status} for the provenance attestation.`
+			);
+		}
+		await attestationResponse.json();
 		console.log(
-			`Verified ${EXPECTED_PACKAGE_NAME}@${version}: latest, tarball integrity, and provenance attestation.`
+			`Verified ${EXPECTED_PACKAGE_NAME}@${version}: latest, tarball integrity, and available provenance attestation.`
 		);
 		process.exit(0);
 	} catch (error) {

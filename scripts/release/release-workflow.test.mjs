@@ -4,6 +4,10 @@ import { test } from 'node:test';
 
 const workflowPath = new URL('../../.github/workflows/release.yml', import.meta.url);
 const workflow = await readFile(workflowPath, 'utf8');
+const ciWorkflow = await readFile(
+	new URL('../../.github/workflows/ci.yml', import.meta.url),
+	'utf8'
+);
 const publicationVerifier = await readFile(
 	new URL('./verify-publication.mjs', import.meta.url),
 	'utf8'
@@ -31,12 +35,22 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	assert.match(workflow, /runs-on: ubuntu-24\.04/);
 	assert.match(workflow, /timeout-minutes: 90/);
 	assert.match(workflow, /environment: npm-production/);
+	assert.match(workflow, /COREPACK_ENABLE_DOWNLOAD_PROMPT: 0/);
 	assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
 	assert.match(workflow, /permissions:\n      contents: read\n      id-token: write/);
 	assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
 	assert.match(workflow, /node-version: 22\.21\.1/);
 	assert.match(workflow, /npm install --global npm@11\.19\.0/);
+	assert.match(
+		workflow,
+		/PACKAGE_MANAGER_SPEC="\$\(node -p 'require\("\.\/package\.json"\)\.packageManager'\)"/
+	);
+	assert.match(workflow, /corepack install --global "\$PACKAGE_MANAGER_SPEC"/);
 	assert.match(workflow, /test "\$\(pnpm --version\)" = "10\.24\.0"/);
+	assert.equal(
+		rootManifest.packageManager,
+		'pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a'
+	);
 });
 
 test('pins every third-party action to an immutable commit', () => {
@@ -60,13 +74,21 @@ test('guards package identity, master ancestry, and one-time versions before pac
 		'Verify npm version is unpublished',
 		'Install dependencies from lockfile',
 		'Audit high-severity dependencies',
-		'Install Chromium for release E2E gates',
 		'Run full release gate and build',
 		'Pack the release artifact once'
 	]);
-	assert.match(workflow, /pnpm --dir apps\/web exec playwright install --with-deps chromium/);
-	assert.match(workflow, /run: pnpm run ci/);
+	assert.match(workflow, /run: pnpm run ci:quality/);
+	assert.doesNotMatch(workflow, /playwright install|test:e2e|run: pnpm run ci\n/);
 	assert.match(rootManifest.scripts['ci:quality'], /pnpm run test:release-tools/);
+});
+
+test('keeps WebGPU E2E off GitHub-hosted runners', () => {
+	assert.match(ciWorkflow, /runs-on: ubuntu-24\.04/);
+	assert.match(ciWorkflow, /run: pnpm run ci:quality/);
+	assert.doesNotMatch(ciWorkflow, /playwright install|test:e2e|pnpm run ci\n/);
+	assert.doesNotMatch(rootManifest.scripts['ci:quality'], /consumers:browser|test:e2e/);
+	assert.match(rootManifest.scripts.ci, /pnpm run ci:quality && pnpm run ci:e2e/);
+	assert.match(rootManifest.scripts['ci:e2e'], /check:motion-gpu:consumers:browser/);
 });
 
 test('tests, dry-runs, and publishes the same exact tarball in order', () => {

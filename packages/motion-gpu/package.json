@@ -87,6 +87,7 @@
 		"prepack": "pnpm run build",
 		"check": "svelte-check --tsconfig ./tsconfig.json && vue-tsc --project ./tsconfig.vue.json --noEmit && publint",
 		"check:consumers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs",
+		"check:consumers:browser": "node ./scripts/consumers/packed-consumers.mjs --browser-runtime",
 		"check:consumers:peers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs --peer-matrix",
 		"test": "vitest run",
 		"test:coverage": "vitest run --coverage",

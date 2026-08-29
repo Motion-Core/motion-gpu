@@ -86,16 +86,27 @@ test('injects a package spec without retaining the fixture file prefix', () => {
 
 test('parses package spec and peer matrix CLI options without ambiguity', () => {
 	assert.deepEqual(
-		parsePackedConsumerArguments(['--peer-matrix', '--package-spec', '/tmp/motion-gpu.tgz']),
+		parsePackedConsumerArguments([
+			'--browser-runtime',
+			'--peer-matrix',
+			'--package-spec',
+			'/tmp/motion-gpu.tgz'
+		]),
 		{
+			includeBrowserRuntime: true,
 			includeMinimumPeers: true,
 			packageSpec: '/tmp/motion-gpu.tgz'
 		}
 	);
 	assert.deepEqual(parsePackedConsumerArguments([]), {
+		includeBrowserRuntime: false,
 		includeMinimumPeers: false,
 		packageSpec: undefined
 	});
+	assert.throws(
+		() => parsePackedConsumerArguments(['--browser-runtime', '--browser-runtime']),
+		/may only be provided once/
+	);
 	assert.throws(() => parsePackedConsumerArguments(['--package-spec']), /requires a value/);
 	assert.throws(
 		() => parsePackedConsumerArguments(['--package-spec', '--peer-matrix']),

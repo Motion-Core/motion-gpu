@@ -121,6 +121,9 @@ test('verifies provenance and exact registry consumers after publication', () =>
 	assert.match(workflow, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
 	assert.match(workflow, /path: \$\{\{ steps\.pack\.outputs\.metadata \}\}/);
 	assert.match(publicationVerifier, /REGISTRY_ATTEMPT_TIMEOUT_MS = 30_000/);
+	assert.match(publicationVerifier, /const controller = new AbortController\(\)/);
+	assert.match(publicationVerifier, /AbortSignal\.any\(\[/);
+	assert.match(publicationVerifier, /controller\.abort\(\)/);
 	assert.match(
 		publicationVerifier,
 		/fetch\(versionUrl, \{ headers: \{ accept: 'application\/json' \}, signal \}\)/

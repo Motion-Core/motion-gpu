@@ -22,8 +22,12 @@ const REGISTRY_ATTEMPT_TIMEOUT_MS = 30_000;
 let lastError;
 
 for (let attempt = 1; attempt <= 30; attempt += 1) {
+	const controller = new AbortController();
 	try {
-		const signal = AbortSignal.timeout(REGISTRY_ATTEMPT_TIMEOUT_MS);
+		const signal = AbortSignal.any([
+			controller.signal,
+			AbortSignal.timeout(REGISTRY_ATTEMPT_TIMEOUT_MS)
+		]);
 		const [versionResponse, tagsResponse] = await Promise.all([
 			fetch(versionUrl, { headers: { accept: 'application/json' }, signal }),
 			fetch(tagsUrl, { headers: { accept: 'application/json' }, signal })
@@ -45,6 +49,7 @@ for (let attempt = 1; attempt <= 30; attempt += 1) {
 		);
 		process.exit(0);
 	} catch (error) {
+		controller.abort();
 		lastError = error;
 		console.error(
 			`Registry verification attempt ${attempt}/30 is not ready: ${error instanceof Error ? error.message : String(error)}`

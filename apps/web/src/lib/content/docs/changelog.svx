@@ -457,8 +457,8 @@ description: All notable changes to Motion GPU will be documented in this file. 
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/336e4c8c...HEAD
-[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...336e4c8c
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/b12e580d...HEAD
+[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...b12e580d
 [0.15.1]: https://github.com/Motion-Core/motion-gpu/compare/5c8bfe5...2351fb7f
 [0.15.0]: https://github.com/Motion-Core/motion-gpu/compare/2cd2bce...14760502
 [0.14.0]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...2cd2bce

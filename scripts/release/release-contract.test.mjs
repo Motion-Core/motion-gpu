@@ -229,7 +229,10 @@ test('requires exact latest, integrity, and npm provenance registry metadata', (
 			}
 		}
 	};
-	assert.doesNotThrow(() => assertRegistryPublication(publication));
+	assert.equal(
+		assertRegistryPublication(publication),
+		'https://registry.npmjs.org/-/npm/v1/attestations/example'
+	);
 	assert.throws(
 		() => assertRegistryPublication({ ...publication, tags: { latest: '0.15.1' } }),
 		/dist-tag latest/
@@ -252,6 +255,23 @@ test('requires exact latest, integrity, and npm provenance registry metadata', (
 				versionDocument: {
 					...publication.versionDocument,
 					dist: { integrity: 'sha512-exact' }
+				}
+			}),
+		/provenance/
+	);
+	assert.throws(
+		() =>
+			assertRegistryPublication({
+				...publication,
+				versionDocument: {
+					...publication.versionDocument,
+					dist: {
+						...publication.versionDocument.dist,
+						attestations: {
+							...publication.versionDocument.dist.attestations,
+							url: 'https://example.com/attestations/package'
+						}
+					}
 				}
 			}),
 		/provenance/

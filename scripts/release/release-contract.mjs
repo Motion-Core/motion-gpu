@@ -196,12 +196,15 @@ export function assertRegistryPublication({ expectedIntegrity, tags, version, ve
 	}
 
 	const attestations = versionDocument.dist?.attestations;
+	const attestationUrlPrefix = `${NPM_REGISTRY_URL}/-/npm/v1/attestations/`;
 	if (
 		!attestations ||
 		typeof attestations.url !== 'string' ||
-		!attestations.url.startsWith('https://') ||
+		!attestations.url.startsWith(attestationUrlPrefix) ||
 		attestations.provenance?.predicateType !== 'https://slsa.dev/provenance/v1'
 	) {
 		throw new Error('Registry has not exposed the expected npm provenance attestation.');
 	}
+
+	return attestations.url;
 }

@@ -155,4 +155,10 @@ test('verifies provenance and exact registry consumers after publication', () =>
 		publicationVerifier,
 		/fetch\(tagsUrl, \{ headers: \{ accept: 'application\/json' \}, signal \}\)/
 	);
+	assert.match(publicationVerifier, /const attestationUrl = assertRegistryPublication\(/);
+	assert.match(
+		publicationVerifier,
+		/fetch\(attestationUrl, \{\n\s+headers: \{ accept: 'application\/json' \},\n\s+signal\n\s+\}\)/
+	);
+	assert.match(publicationVerifier, /await attestationResponse\.json\(\)/);
 });

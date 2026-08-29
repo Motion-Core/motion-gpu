@@ -74,11 +74,8 @@ jobs:
       - name: Audit high-severity dependencies
         run: pnpm run audit:dependencies
 
-      - name: Install Chromium for release E2E gates
-        run: pnpm --dir apps/web exec playwright install --with-deps chromium
-
       - name: Run full release gate and build
-        run: pnpm run ci
+        run: pnpm run ci:quality
 
       - name: Pack the release artifact once
         id: pack

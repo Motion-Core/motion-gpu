@@ -4,6 +4,10 @@ import { test } from 'node:test';
 
 const workflowPath = new URL('../../.github/workflows/release.yml', import.meta.url);
 const workflow = await readFile(workflowPath, 'utf8');
+const ciWorkflow = await readFile(
+	new URL('../../.github/workflows/ci.yml', import.meta.url),
+	'utf8'
+);
 const publicationVerifier = await readFile(
 	new URL('./verify-publication.mjs', import.meta.url),
 	'utf8'
@@ -70,13 +74,19 @@ test('guards package identity, master ancestry, and one-time versions before pac
 		'Verify npm version is unpublished',
 		'Install dependencies from lockfile',
 		'Audit high-severity dependencies',
-		'Install Chromium for release E2E gates',
 		'Run full release gate and build',
 		'Pack the release artifact once'
 	]);
-	assert.match(workflow, /pnpm --dir apps\/web exec playwright install --with-deps chromium/);
-	assert.match(workflow, /run: pnpm run ci/);
+	assert.match(workflow, /run: pnpm run ci:quality/);
+	assert.doesNotMatch(workflow, /playwright install|test:e2e|run: pnpm run ci\n/);
 	assert.match(rootManifest.scripts['ci:quality'], /pnpm run test:release-tools/);
+});
+
+test('keeps WebGPU E2E off GitHub-hosted runners', () => {
+	assert.match(ciWorkflow, /runs-on: ubuntu-24\.04/);
+	assert.match(ciWorkflow, /run: pnpm run ci:quality/);
+	assert.doesNotMatch(ciWorkflow, /playwright install|test:e2e|pnpm run ci\n/);
+	assert.match(rootManifest.scripts.ci, /pnpm run ci:quality && pnpm run ci:e2e/);
 });
 
 test('tests, dry-runs, and publishes the same exact tarball in order', () => {

@@ -13,7 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Added `workgroupSize` to `ComputePass` and `PingPongComputePass` for auto-dispatch when WGSL uses an override or non-literal `@workgroup_size` expression. Compute contract validation now ignores comments and accepts valid WGSL attribute ordering.
-- Svelte, React, and Vue entrypoints now export the color-pipeline and `MotionGPUError*` type families. Packed-consumer checks enforce the exact runtime and type-only surface of all ten entrypoints.
+- Svelte, React, and Vue entrypoints now export the color-pipeline and `MotionGPUError*` type families. Packed-consumer checks enforce the exact runtime and type-only declaration surface of all ten entrypoints and verify that each emitted JavaScript namespace matches it.
 
 ### Changed
 
@@ -24,11 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - Error history is now normalized, trimmed, and published only by the runtime as a deeply frozen snapshot, preventing duplicate callbacks or consumer mutation from changing later history in Svelte, React, or Vue.
+- Structured shader-compilation diagnostics now detach and deeply freeze their complete payload, so caller mutation cannot alter an attached error or a later report.
 - Multiple default error overlays now share one document-level owner stack. Only the top overlay traps focus or handles `Escape`; closing it transfers ownership to the previous overlay, and closing the last one restores focus and background state.
 - Texture and render-target formats are validated against the active device before allocation or pipeline creation. Built-in passes reject incompatible integer and depth slots with a Motion GPU diagnostic, while float32 sampling falls back to nearest filtering when `float32-filterable` is unavailable.
 - An explicit `workgroupSize` no longer hides an out-of-range literal or malformed `@workgroup_size` attribute; explicit dimensions override only valid non-literal WGSL expressions.
-- Pointer hooks now apply `enabled` and outside-tracking changes without remounting, keep the first pointer active until release, and release capture during disable or unmount consistently across Svelte, React, and Vue.
-- Storage-buffer writes now copy their source bytes immediately. Reading a buffer flushes its queued writes in order first, so write-then-read observes the new data without replaying failed operations in a later frame.
+- Pointer hooks now apply `enabled` and outside-tracking changes without remounting, keep the first pointer active until release, deduplicate bubbling canvas/window moves, and release capture during disable or unmount consistently across Svelte, React, and Vue.
+- Storage-buffer writes now copy their source bytes immediately. Reading a buffer flushes its queued writes in order first, and failed read prerequisites preserve writes for the normal frame flush without replaying failed operations in a later frame.
 - Texture loading now honors both cancellation signals, shares only bodyless `GET`/`HEAD` requests, isolates mutation requests, and clears controller loading state when lazy URL or options providers throw.
 
 ## [0.15.1] - 2026-08-26
@@ -455,8 +456,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/b12e580d...HEAD
-[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...b12e580d
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/657c5fa7...HEAD
+[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...657c5fa7
 [0.15.1]: https://github.com/Motion-Core/motion-gpu/compare/5c8bfe5...2351fb7f
 [0.15.0]: https://github.com/Motion-Core/motion-gpu/compare/2cd2bce...14760502
 [0.14.0]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...2cd2bce

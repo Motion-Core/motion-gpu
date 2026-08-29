@@ -35,18 +35,24 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	assert.match(workflow, /runs-on: ubuntu-24\.04/);
 	assert.match(workflow, /timeout-minutes: 90/);
 	assert.match(workflow, /environment: npm-production/);
-	assert.match(workflow, /COREPACK_ENABLE_DOWNLOAD_PROMPT: 0/);
 	assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
 	assert.match(workflow, /permissions:\n      contents: read\n      id-token: write/);
 	assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
 	assert.match(workflow, /node-version: 22\.21\.1/);
-	assert.match(workflow, /npm install --global npm@11\.19\.0/);
 	assert.match(
 		workflow,
-		/PACKAGE_MANAGER_SPEC="\$\(node -p 'require\("\.\/package\.json"\)\.packageManager'\)"/
+		/- name: Set up exact pnpm\n        uses: pnpm\/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6\.0\.10\n\n/
 	);
-	assert.match(workflow, /corepack install --global "\$PACKAGE_MANAGER_SPEC"/);
+	assert.match(workflow, /npm install --global npm@11\.19\.0/);
+	assert.doesNotMatch(workflow, /corepack/);
 	assert.match(workflow, /test "\$\(pnpm --version\)" = "10\.24\.0"/);
+	assertOrdered([
+		'Check out exact release tag',
+		'Set up exact Node.js',
+		'Set up exact pnpm',
+		'Pin npm and verify toolchain',
+		'Validate stable release identity'
+	]);
 	assert.equal(
 		rootManifest.packageManager,
 		'pnpm@10.24.0+sha512.01ff8ae71b4419903b65c60fb2dc9d34cf8bb6e06d03bde112ef38f7a34d6904c424ba66bea5cdcf12890230bf39f9580473140ed9c946fef328b6e5238a345a'

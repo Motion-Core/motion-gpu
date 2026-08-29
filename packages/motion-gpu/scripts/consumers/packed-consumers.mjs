@@ -1,16 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import {
-	access,
-	cp,
-	mkdtemp,
-	mkdir,
-	readdir,
-	readFile,
-	rm,
-	stat,
-	writeFile
-} from 'node:fs/promises';
+import { access, cp, mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -592,12 +582,12 @@ async function startPackedFixtureServer(directory) {
 	const server = createServer(async (request, response) => {
 		try {
 			const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
-			let file = path.resolve(root, `.${pathname}`);
+			const requestedFile = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
+			const file = path.resolve(root, `.${requestedFile}`);
 			if (file !== root && !file.startsWith(`${root}${path.sep}`)) {
 				response.writeHead(403).end('Forbidden');
 				return;
 			}
-			if ((await stat(file)).isDirectory()) file = path.join(file, 'index.html');
 			const body = await readFile(file);
 			response.writeHead(200, {
 				'content-type': packedFixtureMimeTypes[path.extname(file)] ?? 'application/octet-stream'

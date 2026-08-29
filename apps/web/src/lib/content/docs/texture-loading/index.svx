@@ -31,7 +31,7 @@ Read `.current` in frame callbacks and subscribe when UI must react.
 | Field | Default | Purpose |
 | --- | --- | --- |
 | `colorSpace` | `'srgb'` | Loaded texture metadata and decode default |
-| `requestInit` | — | Forwarded fetch options |
+| `requestInit` | — | Forwarded fetch options; its `signal` also cancels this caller |
 | `decode` | Derived | `createImageBitmap` conversion, premultiplication, and orientation |
 | `signal` | — | External cancellation |
 | `update`, `flipY`, `premultipliedAlpha`, `generateMipmaps` | — | Metadata copied to each loaded texture |
@@ -47,8 +47,14 @@ Each `LoadedTexture` contains its URL, `ImageBitmap`, dimensions, color-space an
 - A failed batch aborts sibling requests and disposes textures that already completed.
 - Successful replacement disposes the previous bitmap list.
 - `AbortError` is treated as cancellation and does not populate error state.
-- Other failures populate both the raw error and normalized report.
+- Other failures, including lazy URL/options provider errors, populate both the raw error and normalized report and always clear loading state.
 
-Requests with the same URL, normalized fetch options, color space, and decode options share a reference-counted blob request. The cache entry is removed when its final consumer releases it; an unsettled request is aborted at that point.
+`signal` and `requestInit.signal` both cancel the calling load. A shared fetch remains active while
+another caller still references it.
+
+Only `GET` and `HEAD` requests without a body can share a reference-counted blob request. They must
+have the same URL, normalized fetch options, color space, and decode options. Requests using other
+methods or any body always run independently. A cache entry is removed when its final consumer
+releases it; an unsettled request is aborted at that point.
 
 Pass each loaded bitmap through `state.setTexture(...)`. See [Textures](/docs/textures) for upload and sampler behavior.

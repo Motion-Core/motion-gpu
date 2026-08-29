@@ -7,6 +7,7 @@ import {
 	buildComputeResourceBindings,
 	buildComputeShaderSource
 } from '../../lib/core/compute-shader';
+import { createManagedComputePass } from '../helpers/managed-pass';
 
 // ── Mock WebGPU runtime ───────────────────────────────────────────────────────
 
@@ -537,7 +538,7 @@ describe('storage textures', () => {
 				}
 			};
 
-			const computePass = {
+			const computePass = createManagedComputePass({
 				isCompute: true as const,
 				enabled: true,
 				getCompute: () =>
@@ -547,7 +548,7 @@ describe('storage textures', () => {
 				getResources: () => ({
 					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
 				})
-			};
+			});
 
 			const renderer = await createRenderer(
 				baseOptions(runtime, {
@@ -589,7 +590,7 @@ describe('storage textures', () => {
 		it('does not bind group 2 when no storage textures are defined', async () => {
 			const runtime = createWebGpuRuntime();
 
-			const computePass = {
+			const computePass = createManagedComputePass({
 				isCompute: true as const,
 				enabled: true,
 				getCompute: () =>
@@ -599,7 +600,7 @@ describe('storage textures', () => {
 				getResources: () => ({
 					buf: { buffer: 'buf', access: 'storage-read-write' as const }
 				})
-			};
+			});
 
 			const renderer = await createRenderer(
 				baseOptions(runtime, {
@@ -638,7 +639,7 @@ describe('storage textures', () => {
 				}
 			};
 
-			const computePass = {
+			const computePass = createManagedComputePass({
 				isCompute: true as const,
 				enabled: true,
 				getCompute: () =>
@@ -649,7 +650,7 @@ describe('storage textures', () => {
 					particles: { buffer: 'particles', access: 'storage-read-write' as const },
 					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
 				})
-			};
+			});
 
 			const renderer = await createRenderer(
 				baseOptions(runtime, {
@@ -696,7 +697,7 @@ describe('storage textures', () => {
 				}
 			};
 
-			const clearPass = {
+			const clearPass = createManagedComputePass({
 				isCompute: true as const,
 				enabled: true,
 				getCompute: () =>
@@ -706,9 +707,9 @@ describe('storage textures', () => {
 				getResources: () => ({
 					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
 				})
-			};
+			});
 
-			const writePass = {
+			const writePass = createManagedComputePass({
 				isCompute: true as const,
 				enabled: true,
 				getCompute: () =>
@@ -718,7 +719,7 @@ describe('storage textures', () => {
 				getResources: () => ({
 					uDensity: { texture: 'uDensity', access: 'storage-write' as const }
 				})
-			};
+			});
 
 			const renderer = await createRenderer(
 				baseOptions(runtime, {

@@ -48,7 +48,7 @@ describe('advanced scheduler helpers', () => {
 		const registry = createFrameRegistry();
 
 		const config = applySchedulerPreset(registry, 'balanced', {
-			profilingWindow: 96.7
+			profilingWindow: 96
 		});
 
 		expect(config).toEqual({
@@ -57,6 +57,28 @@ describe('advanced scheduler helpers', () => {
 			profilingWindow: 96
 		});
 		expect(registry.getProfilingWindow()).toBe(96);
+	});
+
+	it('accepts inclusive profiling window boundaries', () => {
+		const registry = createFrameRegistry();
+
+		expect(applySchedulerPreset(registry, 'balanced', { profilingWindow: 1 }).profilingWindow).toBe(
+			1
+		);
+		expect(
+			applySchedulerPreset(registry, 'balanced', { profilingWindow: 10_000 }).profilingWindow
+		).toBe(10_000);
+	});
+
+	it('rejects profiling windows outside the registry contract', () => {
+		const registry = createFrameRegistry();
+
+		for (const profilingWindow of [96.7, 0, -1, 10_001, Number.NaN, Infinity, -Infinity]) {
+			expect(() => applySchedulerPreset(registry, 'balanced', { profilingWindow })).toThrow(
+				/profilingWindow must be a safe integer between 1 and 10000/
+			);
+		}
+		expect(registry.getProfilingWindow()).toBe(120);
 	});
 
 	it('throws when diagnostics and profiling overrides diverge', () => {

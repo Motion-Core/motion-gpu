@@ -5,6 +5,7 @@
 	import type { FragMaterial } from '../core/material';
 	import { createCurrentWritable as currentWritable } from '../core/current-value';
 	import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report';
+	import { createMotionGPUUserContextStore } from '../core/motiongpu-context';
 	import MotionGPUErrorOverlay from './MotionGPUErrorOverlay.svelte';
 	import { createMotionGPURuntimeLoop } from '../core/runtime-loop';
 	import type {
@@ -33,7 +34,7 @@
 		errorRenderer?: Snippet<[MotionGPUErrorReport]>;
 		onError?: (report: MotionGPUErrorReport) => void;
 		errorHistoryLimit?: number;
-		onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+		onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 		canvas?: HTMLCanvasElement | undefined;
 		children?: Snippet;
 	}
@@ -76,19 +77,14 @@
 	}: Props = $props();
 
 	let errorReport = $state<MotionGPUErrorReport | null>(null);
-	let errorHistory = $state<MotionGPUErrorReport[]>([]);
+	const dismissErrorOverlay = (): void => {
+		errorReport = null;
+	};
 
 	let forwardedCanvasProps = $derived.by(() => {
 		void blockedHeight;
 		void blockedWidth;
 		return canvasProps;
-	});
-
-	let normalizedErrorHistoryLimit = $derived.by(() => {
-		if (!Number.isFinite(errorHistoryLimit) || errorHistoryLimit <= 0) {
-			return 0;
-		}
-		return Math.floor(errorHistoryLimit);
 	});
 
 	const bindCanvas = (node: HTMLCanvasElement) => {
@@ -132,7 +128,7 @@
 		registry.setAutoRender(value);
 		requestFrame();
 	});
-	const userState = currentWritable<Record<string | symbol, unknown>>({});
+	const userState = createMotionGPUUserContextStore();
 
 	provideMotionGPUContext({
 		get canvas() {
@@ -176,30 +172,11 @@
 			clearColor,
 			color,
 			deviceDescriptor,
+			errorHistoryLimit,
 			material,
 			passes,
 			renderTargets
 		]);
-	});
-
-	$effect(() => {
-		const limit = normalizedErrorHistoryLimit;
-		if (limit <= 0) {
-			if (errorHistory.length === 0) {
-				return;
-			}
-			errorHistory = [];
-			onErrorHistory?.([]);
-			return;
-		}
-
-		if (errorHistory.length <= limit) {
-			return;
-		}
-
-		const trimmed = errorHistory.slice(errorHistory.length - limit);
-		errorHistory = trimmed;
-		onErrorHistory?.(trimmed);
 	});
 
 	onMount(() => {
@@ -209,12 +186,6 @@
 				'initialization'
 			);
 			errorReport = report;
-			const historyLimit = normalizedErrorHistoryLimit;
-			if (historyLimit > 0) {
-				const nextHistory = [report].slice(-historyLimit);
-				errorHistory = nextHistory;
-				onErrorHistory?.(nextHistory);
-			}
 			onError?.(report);
 			return () => registry.clear();
 		}
@@ -235,9 +206,6 @@
 			getOnError: () => onError,
 			getErrorHistoryLimit: () => errorHistoryLimit,
 			getOnErrorHistory: () => onErrorHistory,
-			reportErrorHistory: (history) => {
-				errorHistory = history;
-			},
 			reportError: (report) => {
 				errorReport = report;
 			}
@@ -257,7 +225,7 @@
 		{#if errorRenderer}
 			{@render errorRenderer(errorReport)}
 		{:else}
-			<MotionGPUErrorOverlay report={errorReport} />
+			<MotionGPUErrorOverlay report={errorReport} onDismiss={dismissErrorOverlay} />
 		{/if}
 	{/if}
 	{@render children?.()}

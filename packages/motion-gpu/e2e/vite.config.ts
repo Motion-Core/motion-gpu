@@ -24,6 +24,7 @@ const port = framework === 'react' ? 4176 : framework === 'vue' ? 4177 : 4175;
 
 export default defineConfig({
 	root: path.resolve(dirname, rootDirectory),
+	cacheDir: path.resolve(dirname, '../node_modules/.vite', `motion-gpu-e2e-${framework}`),
 	plugins: framework === 'svelte' ? [svelte()] : framework === 'vue' ? [vue()] : [],
 	server: {
 		host: '127.0.0.1',

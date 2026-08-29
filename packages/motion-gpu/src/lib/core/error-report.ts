@@ -31,6 +31,7 @@ export type MotionGPUErrorCode =
 	| 'RENDER_GRAPH_INVALID'
 	| 'PINGPONG_CONFIGURATION_INVALID'
 	| 'TEXTURE_USAGE_INVALID'
+	| 'FORMAT_CAPABILITY_MISSING'
 	| 'TEXTURE_REQUEST_FAILED'
 	| 'TEXTURE_DECODE_UNAVAILABLE'
 	| 'TEXTURE_REQUEST_ABORTED'
@@ -56,34 +57,34 @@ export type MotionGPUErrorSeverity = 'error' | 'fatal';
  * One source-code line displayed in diagnostics snippet.
  */
 export interface MotionGPUErrorSourceLine {
-	number: number;
-	code: string;
-	highlight: boolean;
+	readonly number: number;
+	readonly code: string;
+	readonly highlight: boolean;
 }
 
 /**
  * Structured source context displayed for shader compilation errors.
  */
 export interface MotionGPUErrorSource {
-	component: string;
-	location: string;
-	line: number;
-	column?: number;
-	snippet: MotionGPUErrorSourceLine[];
+	readonly component: string;
+	readonly location: string;
+	readonly line: number;
+	readonly column?: number;
+	readonly snippet: readonly MotionGPUErrorSourceLine[];
 }
 
 /**
  * Optional runtime context captured with diagnostics payload.
  */
 export interface MotionGPUErrorContext {
-	materialSignature?: string;
-	passGraph?: {
-		passCount: number;
-		enabledPassCount: number;
-		inputs: string[];
-		outputs: string[];
+	readonly materialSignature?: string;
+	readonly passGraph?: {
+		readonly passCount: number;
+		readonly enabledPassCount: number;
+		readonly inputs: readonly string[];
+		readonly outputs: readonly string[];
 	};
-	activeRenderTargets: string[];
+	readonly activeRenderTargets: readonly string[];
 }
 
 /**
@@ -93,51 +94,51 @@ export interface MotionGPUErrorReport {
 	/**
 	 * Stable machine-readable category code.
 	 */
-	code: MotionGPUErrorCode;
+	readonly code: MotionGPUErrorCode;
 	/**
 	 * Severity level used by diagnostics UIs and telemetry.
 	 */
-	severity: MotionGPUErrorSeverity;
+	readonly severity: MotionGPUErrorSeverity;
 	/**
 	 * Whether runtime may recover without full renderer re-creation.
 	 */
-	recoverable: boolean;
+	readonly recoverable: boolean;
 	/**
 	 * Short category title.
 	 */
-	title: string;
+	readonly title: string;
 	/**
 	 * Primary human-readable message.
 	 */
-	message: string;
+	readonly message: string;
 	/**
 	 * Suggested remediation hint.
 	 */
-	hint: string;
+	readonly hint: string;
 	/**
 	 * Additional parsed details (for example WGSL line errors).
 	 */
-	details: string[];
+	readonly details: readonly string[];
 	/**
 	 * Stack trace lines when available.
 	 */
-	stack: string[];
+	readonly stack: readonly string[];
 	/**
 	 * Original unmodified message.
 	 */
-	rawMessage: string;
+	readonly rawMessage: string;
 	/**
 	 * Runtime phase where the error occurred.
 	 */
-	phase: MotionGPUErrorPhase;
+	readonly phase: MotionGPUErrorPhase;
 	/**
 	 * Optional source context for shader-related diagnostics.
 	 */
-	source: MotionGPUErrorSource | null;
+	readonly source: MotionGPUErrorSource | null;
 	/**
 	 * Optional runtime context snapshot (material/pass graph/render targets).
 	 */
-	context: MotionGPUErrorContext | null;
+	readonly context: MotionGPUErrorContext | null;
 }
 
 type MotionGPUClassifiedError = Error & {
@@ -227,6 +228,12 @@ function classifyErrorCode(
 				...common,
 				title: 'External compute resource is stale or incompatible',
 				hint: 'Return a live resource from the current device and keep resourceId, format, usage and size metadata accurate.'
+			};
+		case 'FORMAT_CAPABILITY_MISSING':
+			return {
+				...common,
+				title: 'Texture format capability is missing',
+				hint: 'Use a compatible format, select a custom typed pass, or enable the required GPU device feature.'
 			};
 		case 'RESOURCE_REGISTRY_DUPLICATE':
 			return {
@@ -654,6 +661,53 @@ function classifyErrorMessage(
 	};
 }
 
+function cloneAndFreezeSource(source: MotionGPUErrorSource | null): MotionGPUErrorSource | null {
+	if (!source) {
+		return null;
+	}
+
+	const snippet = Object.freeze(
+		source.snippet.map((line) =>
+			Object.freeze({
+				number: line.number,
+				code: line.code,
+				highlight: line.highlight
+			})
+		)
+	);
+	return Object.freeze({
+		component: source.component,
+		location: source.location,
+		line: source.line,
+		...(source.column !== undefined ? { column: source.column } : {}),
+		snippet
+	});
+}
+
+function cloneAndFreezeContext(
+	context: MotionGPUErrorContext | null
+): MotionGPUErrorContext | null {
+	if (!context) {
+		return null;
+	}
+
+	const passGraph = context.passGraph
+		? Object.freeze({
+				passCount: context.passGraph.passCount,
+				enabledPassCount: context.passGraph.enabledPassCount,
+				inputs: Object.freeze([...context.passGraph.inputs]),
+				outputs: Object.freeze([...context.passGraph.outputs])
+			})
+		: undefined;
+	return Object.freeze({
+		...(context.materialSignature !== undefined
+			? { materialSignature: context.materialSignature }
+			: {}),
+		...(passGraph ? { passGraph } : {}),
+		activeRenderTargets: Object.freeze([...context.activeRenderTargets])
+	});
+}
+
 /**
  * Converts unknown errors to a consistent, display-ready error report.
  *
@@ -707,18 +761,18 @@ export function toMotionGPUErrorReport(
 		};
 	}
 
-	return {
+	return Object.freeze({
 		code: classification.code,
 		severity: classification.severity,
 		recoverable: classification.recoverable,
 		title: classification.title,
 		message,
 		hint: classification.hint,
-		details,
-		stack,
+		details: Object.freeze([...details]),
+		stack: Object.freeze([...stack]),
 		rawMessage,
 		phase,
-		source,
-		context
-	};
+		source: cloneAndFreezeSource(source),
+		context: cloneAndFreezeContext(context)
+	});
 }

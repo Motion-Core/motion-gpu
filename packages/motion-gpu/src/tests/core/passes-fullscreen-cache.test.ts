@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlitPass } from '../../lib/passes';
+import { toMotionGPUErrorReport } from '../../lib/core/error-report';
 import type { RenderPassContext, RenderTarget } from '../../lib/core/types';
 
 // ---------------------------------------------------------------------------
@@ -207,6 +208,59 @@ describe('FullscreenPass resource caching', () => {
 				})
 			])
 		});
+	});
+
+	it('uses filtering layout for float32 input when float32-filterable is enabled', () => {
+		const pass = new BlitPass();
+		const context = createPassContext({
+			input: createTarget('source-rgba32', 'rgba32float')
+		});
+		const device = context.device as unknown as FakeDevice;
+		(device.features as unknown as Set<string>).add('float32-filterable');
+
+		pass.render(context);
+
+		expect(device.createSampler).toHaveBeenCalledWith(
+			expect.objectContaining({ magFilter: 'linear', minFilter: 'linear' })
+		);
+		expect(device.createBindGroupLayout).toHaveBeenCalledWith({
+			entries: expect.arrayContaining([
+				expect.objectContaining({ sampler: { type: 'filtering' } }),
+				expect.objectContaining({ texture: expect.objectContaining({ sampleType: 'float' }) })
+			])
+		});
+	});
+
+	it.each(['rgba8uint', 'rgba8sint', 'depth24plus'] as const)(
+		'rejects %s input before creating a render pipeline',
+		(format) => {
+			const pass = new BlitPass({ input: 'fxInput' });
+			const context = createPassContext({ input: createTarget('fx-input', format) });
+			const device = context.device as unknown as FakeDevice;
+			let thrown: unknown;
+
+			try {
+				pass.render(context);
+			} catch (error) {
+				thrown = error;
+			}
+
+			expect(device.createRenderPipeline).not.toHaveBeenCalled();
+			const report = toMotionGPUErrorReport(thrown, 'render');
+			expect(report.code).toBe('FORMAT_CAPABILITY_MISSING');
+			expect(report.message).toContain('target "fxInput"');
+			expect(report.message).toContain(`format "${format}"`);
+			expect(report.message).toContain('BlitPass');
+		}
+	);
+
+	it('rejects an integer output before creating a render pipeline', () => {
+		const pass = new BlitPass({ output: 'fxOutput' });
+		const context = createPassContext({ output: createTarget('fx-output', 'rgba8uint') });
+		const device = context.device as unknown as FakeDevice;
+
+		expect(() => pass.render(context)).toThrow(/float color render attachment/);
+		expect(device.createRenderPipeline).not.toHaveBeenCalled();
 	});
 
 	it('caches separate bind group layouts for different input sampling layouts', () => {

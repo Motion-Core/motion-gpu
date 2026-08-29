@@ -1,6 +1,11 @@
 import type { AnyPass, RenderPass, RenderPassInputSlot, RenderPassOutputSlot } from './types.js';
 import type { ResolvedComputeAccess, ResolvedComputePassResources } from './compute-resources.js';
 import { createMotionGPUError } from './error-report.js';
+import {
+	assertMotionGPUPass,
+	isManagedComputePass,
+	isManagedFeedbackPass
+} from './pass-contract.js';
 
 /**
  * Resolved render-pass step with defaults applied.
@@ -285,13 +290,13 @@ export function planRenderGraph(
 	let enabledIndex = 0;
 
 	for (const pass of passes ?? []) {
+		assertMotionGPUPass(pass);
 		if (pass.enabled === false) {
 			continue;
 		}
 
 		// Compute passes don't participate in slot routing
-		const isCompute = 'isCompute' in pass && (pass as { isCompute?: boolean }).isCompute === true;
-		if (isCompute) {
+		if (isManagedComputePass(pass)) {
 			const resolvedResources = computeOptions?.getResolvedResources(pass);
 			const step: RenderGraphStep = {
 				kind: 'compute',
@@ -311,10 +316,7 @@ export function planRenderGraph(
 			continue;
 		}
 
-		const isFeedback =
-			'isPingPongShader' in pass &&
-			(pass as { isPingPongShader?: boolean }).isPingPongShader === true;
-		if (isFeedback) {
+		if (isManagedFeedbackPass(pass)) {
 			const step: RenderGraphStep = {
 				kind: 'feedback',
 				pass,

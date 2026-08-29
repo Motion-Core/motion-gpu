@@ -56,7 +56,7 @@ function getKeepAliveExpression(layout: UniformLayout): string {
 /**
  * Builds texture sampler/texture binding declarations.
  */
-function buildTextureBindings(textureKeys: string[]): string {
+function buildTextureBindings(textureKeys: readonly string[]): string {
 	if (textureKeys.length === 0) {
 		return '';
 	}
@@ -82,8 +82,8 @@ function buildTextureBindings(textureKeys: string[]): string {
  * Builds read-only storage buffer bindings for fragment shader.
  */
 function buildFragmentStorageBufferBindings(
-	storageBufferKeys: string[],
-	definitions: Record<string, { type: StorageBufferType }>
+	storageBufferKeys: readonly string[],
+	definitions: Readonly<Record<string, { type: StorageBufferType }>>
 ): string {
 	if (storageBufferKeys.length === 0) {
 		return '';
@@ -227,12 +227,12 @@ function countLines(source: string, end = source.length): number {
 export function buildShaderSource(
 	fragmentWgsl: string,
 	uniformLayout: UniformLayout,
-	textureKeys: string[] = [],
+	textureKeys: readonly string[] = [],
 	options?: {
 		convertLinearToSrgb?: boolean;
 		premultiplyOutputAlpha?: boolean;
-		storageBufferKeys?: string[];
-		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;
+		storageBufferKeys?: readonly string[];
+		storageBufferDefinitions?: Readonly<Record<string, { type: StorageBufferType }>>;
 	}
 ): string {
 	const uniformFields = buildUniformStruct(uniformLayout);
@@ -310,13 +310,13 @@ fn motiongpuFragmentMain(in: MotionGPUVertexOut) -> @location(0) vec4f {
 export function buildShaderSourceWithMap(
 	fragmentWgsl: string,
 	uniformLayout: UniformLayout,
-	textureKeys: string[] = [],
+	textureKeys: readonly string[] = [],
 	options?: {
 		convertLinearToSrgb?: boolean;
 		premultiplyOutputAlpha?: boolean;
 		fragmentLineMap?: MaterialLineMap;
-		storageBufferKeys?: string[];
-		storageBufferDefinitions?: Record<string, { type: StorageBufferType }>;
+		storageBufferKeys?: readonly string[];
+		storageBufferDefinitions?: Readonly<Record<string, { type: StorageBufferType }>>;
 	}
 ): BuiltShaderSource {
 	const code = buildShaderSource(fragmentWgsl, uniformLayout, textureKeys, options);
@@ -358,7 +358,7 @@ export function buildShaderSourceWithMap(
 export function buildPingPongShaderSource(
 	fragmentWgsl: string,
 	uniformLayout: UniformLayout,
-	textureKeys: string[] = []
+	textureKeys: readonly string[] = []
 ): string {
 	const uniformFields = buildUniformStruct(uniformLayout);
 	const keepAliveExpression = getKeepAliveExpression(uniformLayout);
@@ -421,7 +421,7 @@ fn motiongpuPingPongFragment(in: MotionGPUPingPongVertexOut) -> @location(0) vec
 export function buildPingPongShaderSourceWithMap(
 	fragmentWgsl: string,
 	uniformLayout: UniformLayout,
-	textureKeys: string[] = [],
+	textureKeys: readonly string[] = [],
 	options?: {
 		fragmentLineMap?: MaterialLineMap;
 	}

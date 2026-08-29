@@ -29,6 +29,11 @@ command to diagnose a hardware suite in a visible browser.
 Use this suite when changing material normalization, uniform handling, graph planning, scheduling, or
 resource caches. Its baseline is `benchmarks/baselines/core.json`.
 
+The tracked CPU baselines are local release gates for the recorded environment, not universal
+performance targets. A strict comparison requires the same Node, V8, pnpm, OS, CPU, power mode,
+configuration, and suite hash. If the suite hash changes, archive the old baseline and capture a new
+one under controlled conditions instead of comparing unrelated workloads.
+
 ## Browser runtime suite
 
 `perf:runtime` runs the dedicated `?scenario=perf` application in Chromium with SwiftShader. It
@@ -146,3 +151,7 @@ Tracked baselines live in:
 - `benchmarks/baselines/runtime.json`
 - `benchmarks/baselines/<adapter>-<fingerprint>.json`
 - `benchmarks/baselines/<adapter>-real-renderer-<fingerprint>.json`
+
+Historical schema-v2 CPU baselines remain in `core-schema-v2.json` and
+`runtime-schema-v2.json`. Strict commands read only `core.json` and `runtime.json`, which use the
+current schema.

@@ -115,7 +115,7 @@ Enforce these constraints without exceptions:
 `fn frag(uv: vec2f) -> vec4f`
 4. Material, `ShaderPass`, and `PingPongShaderPass` helpers may read the current Y-up coordinates from `motiongpuFragment.uv`. Keep the explicit `uv` entrypoint parameter; do not replace the required signatures with `frag()` or `shade(inputColor)`.
 5. `motiongpuFragment` is fragment-only. In compute shaders, derive coordinates from `global_invocation_id` and an explicitly chosen domain size.
-6. `ComputePass` shader must contain `@compute @workgroup_size(...)` and a `fn compute(...)` entrypoint.
+6. `ComputePass` shader must contain `@compute`, `@workgroup_size(...)`, and a `fn compute(...)` entrypoint. Provide `workgroupSize` when the WGSL attribute uses an override or non-literal expression.
 7. Call `useFrame()`, `useMotionGPU()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
 8. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
 9. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:

@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
 import { toMotionGPUErrorReport } from '../../lib/core/error-report';
+import { defineMaterial } from '../../lib/core/material';
 import { createRenderer } from '../../lib/core/renderer';
+import { BlitPass } from '../../lib/passes';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
 import type { RenderPass, RenderTargetDefinitionMap } from '../../lib/core/types';
 
@@ -1810,27 +1812,20 @@ describe('createRenderer', () => {
 
 	it('rejects an unknown render-target format before GPU allocation', async () => {
 		const runtime = createWebGpuRuntime();
-		const renderer = await createRenderer({
-			...baseOptions(runtime),
-			renderTargets: {
-				invalid: {
-					width: 8,
-					height: 8,
-					format: 'rgba999unorm' as unknown as GPUTextureFormat
-				}
-			},
-			passes: [{ needsSwap: false, output: 'invalid', render: vi.fn() }]
-		});
-
-		expect(() =>
-			renderer.render({
-				time: 0,
-				delta: 0.016,
-				renderMode: 'always',
-				uniforms: {},
-				textures: {}
+		await expect(
+			createRenderer({
+				...baseOptions(runtime),
+				renderTargets: {
+					invalid: {
+						width: 8,
+						height: 8,
+						format: 'rgba999unorm' as unknown as GPUTextureFormat
+					}
+				},
+				passes: [{ needsSwap: false, output: 'invalid', render: vi.fn() }]
 			})
-		).toThrow(/Render target format "rgba999unorm" is not a recognized GPUTextureFormat/);
+		).rejects.toThrow(/target "invalid" uses format "rgba999unorm".*recognized GPUTextureFormat/);
+		expect(runtime.device.createRenderPipeline).not.toHaveBeenCalled();
 		expect(
 			runtime.device.createTexture.mock.calls.some(
 				([descriptor]) =>
@@ -1838,9 +1833,173 @@ describe('createRenderer', () => {
 					('rgba999unorm' as unknown as GPUTextureFormat)
 			)
 		).toBe(false);
+	});
 
+	it.each(['rgba8uint', 'rgba8sint', 'depth24plus'] as const)(
+		'rejects workingFormat %s before any render pipeline is created',
+		async (format) => {
+			const runtime = createWebGpuRuntime();
+			let thrown: unknown;
+			try {
+				await createRenderer({
+					...baseOptions(runtime),
+					color: { workingFormat: format }
+				});
+			} catch (error) {
+				thrown = error;
+			}
+
+			expect(runtime.device.createRenderPipeline).not.toHaveBeenCalled();
+			const report = toMotionGPUErrorReport(thrown, 'initialization');
+			expect(report.code).toBe('FORMAT_CAPABILITY_MISSING');
+			expect(report.message).toContain('target "workingFormat"');
+			expect(report.message).toContain(`format "${format}"`);
+			expect(report.message).toContain('Scene pipeline');
+		}
+	);
+
+	it('rejects an integer named input for a built-in pass before any pipeline is created', async () => {
+		const runtime = createWebGpuRuntime();
+		let thrown: unknown;
+		try {
+			await createRenderer({
+				...baseOptions(runtime),
+				renderTargets: {
+					fxInteger: { width: 8, height: 8, format: 'rgba8uint' }
+				},
+				passes: [
+					{ needsSwap: false, output: 'fxInteger', render: vi.fn() },
+					new BlitPass({ needsSwap: false, input: 'fxInteger', output: 'canvas' })
+				]
+			});
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(runtime.device.createRenderPipeline).not.toHaveBeenCalled();
+		const report = toMotionGPUErrorReport(thrown, 'initialization');
+		expect(report.code).toBe('FORMAT_CAPABILITY_MISSING');
+		expect(report.message).toContain('target "fxInteger"');
+		expect(report.message).toContain('format "rgba8uint"');
+		expect(report.message).toContain('BlitPass');
+		expect(report.message).toContain('float texture sampling');
+	});
+
+	it('keeps integer named targets open to structural custom render passes', async () => {
+		const runtime = createWebGpuRuntime();
+		const customWriter: RenderPass = {
+			needsSwap: false,
+			output: 'fxInteger',
+			render: vi.fn()
+		};
+		const customReader: RenderPass = {
+			needsSwap: false,
+			input: 'fxInteger',
+			output: 'canvas',
+			render: vi.fn()
+		};
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			renderTargets: {
+				fxInteger: { width: 8, height: 8, format: 'rgba8uint' }
+			},
+			passes: [customWriter, customReader]
+		});
+
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+
+		expect(customWriter.render).toHaveBeenCalledTimes(1);
+		expect(customReader.render).toHaveBeenCalledTimes(1);
 		renderer.destroy();
 	});
+
+	it('rejects an unfilterable final named target before creating the presentation pipeline', async () => {
+		const runtime = createWebGpuRuntime();
+		let thrown: unknown;
+		try {
+			await createRenderer({
+				...baseOptions(runtime),
+				renderTargets: {
+					fxFinal: { width: 8, height: 8, format: 'rgba32float' }
+				},
+				passes: [{ needsSwap: false, output: 'fxFinal', render: vi.fn() }]
+			});
+		} catch (error) {
+			thrown = error;
+		}
+
+		expect(runtime.device.createRenderPipeline).not.toHaveBeenCalled();
+		const report = toMotionGPUErrorReport(thrown, 'initialization');
+		expect(report.code).toBe('FORMAT_CAPABILITY_MISSING');
+		expect(report.message).toContain('Presentation pass');
+		expect(report.message).toContain('target "fxFinal"');
+		expect(report.message).toContain('filterable float texture sampling');
+	});
+
+	it('reads dynamic target/pass providers once per frame and validates their shared snapshot', async () => {
+		const runtime = createWebGpuRuntime();
+		const getRenderTargets = vi.fn((): RenderTargetDefinitionMap => ({
+			fxMain: { width: 8, height: 8, format: 'rgba8unorm' }
+		}));
+		const getPasses = vi.fn((): RenderPass[] => [
+			{ needsSwap: false, output: 'fxMain', render: vi.fn() }
+		]);
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getRenderTargets,
+			getPasses
+		});
+
+		// Existing diagnostics preflight captures one provider snapshot during initialization.
+		expect(getRenderTargets).toHaveBeenCalledTimes(1);
+		expect(getPasses).toHaveBeenCalledTimes(1);
+		renderer.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+		expect(getRenderTargets).toHaveBeenCalledTimes(2);
+		expect(getPasses).toHaveBeenCalledTimes(2);
+		renderer.destroy();
+	});
+
+	it.each([
+		[[], 'nearest', 'unfilterable-float', 'non-filtering'],
+		[['float32-filterable'], 'linear', 'float', 'filtering']
+	] as const)(
+		'uses a compatible presentation sampler for rgba32float with features %j',
+		async (features, filter, sampleType, samplerType) => {
+			const runtime = createWebGpuRuntime();
+			for (const feature of features) {
+				(runtime.device.features as unknown as Set<string>).add(feature);
+			}
+			const renderer = await createRenderer({
+				...baseOptions(runtime),
+				color: { workingFormat: 'rgba32float' }
+			});
+
+			expect(runtime.device.createSampler).toHaveBeenCalledWith(
+				expect.objectContaining({ magFilter: filter, minFilter: filter })
+			);
+			expect(runtime.device.createBindGroupLayout).toHaveBeenCalledWith({
+				entries: expect.arrayContaining([
+					expect.objectContaining({ sampler: { type: samplerType } }),
+					expect.objectContaining({
+						texture: expect.objectContaining({ sampleType })
+					})
+				])
+			});
+			renderer.destroy();
+		}
+	);
 
 	it('throws when render graph references unknown runtime target slot', async () => {
 		const runtime = createWebGpuRuntime();
@@ -1993,12 +2152,21 @@ describe('createRenderer', () => {
 	it('uploads initialData to storage buffer on creation', async () => {
 		const runtime = createWebGpuRuntime();
 		const initialData = new Float32Array([1, 2, 3, 4]);
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				data: { size: 16, type: 'array<f32>', initialData }
+			}
+		});
+
+		initialData[0] = 100;
+		const exposedSnapshot = material.storageBuffers.data?.initialData as Float32Array;
+		exposedSnapshot.set([200, 300, 400, 500]);
+
 		const renderer = await createRenderer({
 			...baseOptions(runtime),
 			storageBufferKeys: ['data'],
-			storageBufferDefinitions: {
-				data: { size: 16, type: 'array<f32>', initialData }
-			}
+			storageBufferDefinitions: material.storageBuffers
 		});
 
 		const writeBufferCalls = runtime.device.queue.writeBuffer.mock.calls;
@@ -2007,6 +2175,12 @@ describe('createRenderer', () => {
 			(call) => call[0] === (storageBuffer as unknown as GPUBuffer)
 		);
 		expect(storageWriteCall).toBeDefined();
+		const uploaded = new Float32Array(
+			storageWriteCall?.[2] as ArrayBuffer,
+			storageWriteCall?.[3] as number,
+			(storageWriteCall?.[4] as number) / Float32Array.BYTES_PER_ELEMENT
+		);
+		expect(Array.from(uploaded)).toEqual([1, 2, 3, 4]);
 
 		renderer.destroy();
 	});
@@ -2882,24 +3056,20 @@ describe('createRenderer', () => {
 	it('dispatches ping-pong compute iterations with alternating read/write bind groups', async () => {
 		const runtime = createWebGpuRuntime();
 		const resolveDispatch = vi.fn(() => [1, 1, 1] as [number, number, number]);
-		const pingPongPass = {
-			enabled: true,
-			isCompute: true,
-			isPingPong: true,
-			getCompute: () =>
-				`@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
-			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
-			resolveDispatch,
-			getResources: () => ({
+		const { PingPongComputePass } = await import('../../lib/passes/PingPongComputePass');
+		const pingPongPass = new PingPongComputePass({
+			compute: `@compute @workgroup_size(8, 8) fn compute(@builtin(global_invocation_id) id: vec3u) {}`,
+			dispatch: resolveDispatch,
+			resources: {
 				simA: { texture: 'sim', access: 'sampled' as const, pingPong: 'read' as const },
 				simB: {
 					texture: 'sim',
 					access: 'storage-write' as const,
 					pingPong: 'write' as const
 				}
-			}),
-			getIterations: () => 2
-		};
+			},
+			iterations: 2
+		});
 		const renderer = await createRenderer({
 			...baseOptions(runtime),
 			textureKeys: ['sim'],

@@ -9,6 +9,10 @@ import { useFrame } from '../lib/vue/frame-context.js';
 import FragCanvas from '../lib/vue/FragCanvas.vue';
 import type { MotionGPUContext } from '../lib/vue/motiongpu-context.js';
 import { useMotionGPU } from '../lib/vue/motiongpu-context.js';
+import {
+	runErrorHistoryContract,
+	type ErrorHistoryMutationMode
+} from './helpers/error-history-contract.js';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -220,7 +224,7 @@ const FragCanvasFrameMutationHarness = defineComponent({
 			required: false
 		},
 		onErrorHistory: {
-			type: Function as PropType<(history: MotionGPUErrorReport[]) => void>,
+			type: Function as PropType<(history: readonly MotionGPUErrorReport[]) => void>,
 			required: false
 		},
 		errorHistoryLimit: {
@@ -770,6 +774,10 @@ describe('Vue FragCanvas runtime', () => {
 		).find((section) => section.querySelector('summary')?.textContent?.includes('Runtime context'));
 		expect(runtimeContextDetails).toBeTruthy();
 		expect(runtimeContextDetails?.hasAttribute('open')).toBe(false);
+		document.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		);
+		await waitFor(() => expect(screen.queryByTestId('motiongpu-error')).toBeNull());
 	});
 
 	it('renders include diagnostics location in overlay source header', async () => {
@@ -1249,5 +1257,45 @@ describe('Vue FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalled();
 		});
+	});
+
+	runErrorHistoryContract('Vue', async ({ historyLimit: initialLimit, onErrorHistory }) => {
+		const renderer: MockRenderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+		let historyLimit = initialLimit;
+		let mode: ErrorHistoryMutationMode | 'none' = 'none';
+		let maxDelta = 0.1;
+		let timestamp = 16;
+		const getProps = () => ({
+			material: runtimeBindingsMaterial,
+			mode,
+			onErrorHistory,
+			errorHistoryLimit: historyLimit,
+			maxDelta,
+			showErrorOverlay: false
+		});
+		const view = render(FragCanvasFrameMutationHarness, { props: getProps() });
+
+		await flushFrame(timestamp);
+		timestamp += 16;
+		await flushFrame(timestamp);
+		timestamp += 16;
+
+		return {
+			emitError: async (nextMode) => {
+				mode = nextMode;
+				maxDelta += 0.1;
+				await view.rerender(getProps());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			updateLimit: async (nextLimit) => {
+				historyLimit = nextLimit;
+				await view.rerender(getProps());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			unmount: () => view.unmount()
+		};
 	});
 });

@@ -2,10 +2,27 @@
  * Core runtime and API contracts used by MotionGPU's renderer, hooks and scheduler.
  */
 
+import type { MaterialLineMap } from './material-contracts.js';
+import { managedPassBrand } from './pass-brand.js';
+
 /**
  * WGSL-compatible uniform primitive and aggregate types supported by MotionGPU.
  */
 export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
+
+type NumericTypedArray = Float32Array | Uint32Array | Int32Array;
+type TypedArrayMutator = 'copyWithin' | 'fill' | 'reverse' | 'set' | 'sort';
+
+/**
+ * Read-only structural view accepted from a mutable typed array without exposing its mutators.
+ * `subarray` is narrowed as well because it aliases the same backing storage.
+ */
+type ReadonlyTypedArrayView<T extends NumericTypedArray> = Omit<
+	Readonly<T>,
+	TypedArrayMutator | 'subarray'
+> & {
+	readonly subarray: (begin?: number, end?: number) => ReadonlyTypedArrayView<T>;
+};
 
 /**
  * Explicitly typed uniform declaration.
@@ -16,16 +33,22 @@ export type UniformType = 'f32' | 'vec2f' | 'vec3f' | 'vec4f' | 'mat4x4f';
 /**
  * Accepted matrix value formats for `mat4x4f` uniforms.
  */
-export type UniformMat4Value = readonly number[] | Float32Array;
+export type UniformMat4Value = readonly number[] | ReadonlyTypedArrayView<Float32Array>;
+
+type ReadonlyUniformValue<TValue> = TValue extends NumericTypedArray
+	? ReadonlyTypedArrayView<TValue>
+	: TValue extends readonly number[]
+		? Readonly<TValue>
+		: TValue;
 
 /**
  * Runtime value shape by WGSL uniform type tag.
  */
 export interface UniformValueByType {
 	f32: number;
-	vec2f: [number, number];
-	vec3f: [number, number, number];
-	vec4f: [number, number, number, number];
+	vec2f: readonly [number, number];
+	vec3f: readonly [number, number, number];
+	vec4f: readonly [number, number, number, number];
 	mat4x4f: UniformMat4Value;
 }
 
@@ -36,11 +59,11 @@ export interface TypedUniform<
 	/**
 	 * WGSL type tag.
 	 */
-	type: TType;
+	readonly type: TType;
 	/**
 	 * Runtime value matching {@link type}.
 	 */
-	value: TValue;
+	readonly value: ReadonlyUniformValue<TValue>;
 }
 
 /**
@@ -48,9 +71,9 @@ export interface TypedUniform<
  */
 export type UniformValue =
 	| number
-	| [number, number]
-	| [number, number, number]
-	| [number, number, number, number]
+	| readonly [number, number]
+	| readonly [number, number, number]
+	| readonly [number, number, number, number]
 	| TypedUniform<'f32'>
 	| TypedUniform<'vec2f'>
 	| TypedUniform<'vec3f'>
@@ -69,19 +92,19 @@ export interface UniformLayoutEntry {
 	/**
 	 * Uniform field name.
 	 */
-	name: string;
+	readonly name: string;
 	/**
 	 * WGSL field type.
 	 */
-	type: UniformType;
+	readonly type: UniformType;
 	/**
 	 * Byte offset within packed uniform buffer.
 	 */
-	offset: number;
+	readonly offset: number;
 	/**
 	 * Field byte size without trailing alignment padding.
 	 */
-	size: number;
+	readonly size: number;
 }
 
 /**
@@ -91,15 +114,15 @@ export interface UniformLayout {
 	/**
 	 * Layout entries sorted by uniform name.
 	 */
-	entries: UniformLayoutEntry[];
+	readonly entries: readonly UniformLayoutEntry[];
 	/**
 	 * Fast lookup table by uniform name.
 	 */
-	byName: Record<string, UniformLayoutEntry>;
+	readonly byName: Readonly<Record<string, UniformLayoutEntry>>;
 	/**
 	 * Final uniform buffer size in bytes.
 	 */
-	byteLength: number;
+	readonly byteLength: number;
 }
 
 /**
@@ -114,35 +137,35 @@ export interface TextureData {
 	/**
 	 * GPU-uploadable image source.
 	 */
-	source: TextureSource;
+	readonly source: TextureSource;
 	/**
 	 * Optional explicit width override.
 	 */
-	width?: number;
+	readonly width?: number;
 	/**
 	 * Optional explicit height override.
 	 */
-	height?: number;
+	readonly height?: number;
 	/**
 	 * Optional runtime color space override.
 	 */
-	colorSpace?: 'srgb' | 'linear';
+	readonly colorSpace?: 'srgb' | 'linear';
 	/**
 	 * Optional runtime flip-y override.
 	 */
-	flipY?: boolean;
+	readonly flipY?: boolean;
 	/**
 	 * Optional runtime premultiplied-alpha override.
 	 */
-	premultipliedAlpha?: boolean;
+	readonly premultipliedAlpha?: boolean;
 	/**
 	 * Optional runtime mipmap generation override.
 	 */
-	generateMipmaps?: boolean;
+	readonly generateMipmaps?: boolean;
 	/**
 	 * Runtime update strategy override.
 	 */
-	update?: TextureUpdateMode;
+	readonly update?: TextureUpdateMode;
 }
 
 /**
@@ -165,59 +188,59 @@ export interface TextureDefinition {
 	 * Unsupported when `storage` is true; storage textures are allocated from
 	 * explicit dimensions and updated by compute passes.
 	 */
-	source?: TextureValue;
+	readonly source?: TextureValue;
 	/**
 	 * Source color space used for format/decode decisions.
 	 */
-	colorSpace?: 'srgb' | 'linear';
+	readonly colorSpace?: 'srgb' | 'linear';
 	/**
 	 * Vertical flip during upload.
 	 */
-	flipY?: boolean;
+	readonly flipY?: boolean;
 	/**
 	 * Enables mipmap generation.
 	 */
-	generateMipmaps?: boolean;
+	readonly generateMipmaps?: boolean;
 	/**
 	 * Enables premultiplied-alpha upload mode.
 	 */
-	premultipliedAlpha?: boolean;
+	readonly premultipliedAlpha?: boolean;
 	/**
 	 * Dynamic source update strategy.
 	 */
-	update?: TextureUpdateMode;
+	readonly update?: TextureUpdateMode;
 	/**
 	 * Sampler anisotropy level (clamped internally).
 	 */
-	anisotropy?: number;
+	readonly anisotropy?: number;
 	/**
 	 * Min/mag filter mode.
 	 */
-	filter?: GPUFilterMode;
+	readonly filter?: GPUFilterMode;
 	/**
 	 * U axis address mode.
 	 */
-	addressModeU?: GPUAddressMode;
+	readonly addressModeU?: GPUAddressMode;
 	/**
 	 * V axis address mode.
 	 */
-	addressModeV?: GPUAddressMode;
+	readonly addressModeV?: GPUAddressMode;
 	/**
 	 * When true, this texture is also writable by compute passes.
 	 */
-	storage?: boolean;
+	readonly storage?: boolean;
 	/**
 	 * Required when storage is true. Must be a storage-compatible format.
 	 */
-	format?: GPUTextureFormat;
+	readonly format?: GPUTextureFormat;
 	/**
 	 * Explicit texture width. Required when `storage` is true.
 	 */
-	width?: number;
+	readonly width?: number;
 	/**
 	 * Explicit texture height. Required when `storage` is true.
 	 */
-	height?: number;
+	readonly height?: number;
 	/**
 	 * When true, texture is visible (sampled) in fragment shader.
 	 *
@@ -226,7 +249,7 @@ export interface TextureDefinition {
 	 * fail WebGPU validation against integer sample types). Setting this to
 	 * `true` for an integer storage format throws at material resolution.
 	 */
-	fragmentVisible?: boolean;
+	readonly fragmentVisible?: boolean;
 }
 
 /**
@@ -266,19 +289,22 @@ export interface StorageBufferDefinition {
 	/**
 	 * Buffer size in bytes. Must be > 0 and multiple of 4.
 	 */
-	size: number;
+	readonly size: number;
 	/**
 	 * WGSL type annotation for codegen.
 	 */
-	type: StorageBufferType;
+	readonly type: StorageBufferType;
 	/**
 	 * Access mode in compute shader. Default: 'read-write'.
 	 */
-	access?: StorageBufferAccess;
+	readonly access?: StorageBufferAccess;
 	/**
 	 * Initial data uploaded on creation.
 	 */
-	initialData?: Float32Array | Uint32Array | Int32Array;
+	readonly initialData?:
+		| ReadonlyTypedArrayView<Float32Array>
+		| ReadonlyTypedArrayView<Uint32Array>
+		| ReadonlyTypedArrayView<Int32Array>;
 }
 
 /**
@@ -715,6 +741,10 @@ export interface ComputePassContext {
  * Formal render pass contract used by MotionGPU render graph.
  */
 export interface RenderPass extends RenderPassFlags {
+	/** Reserved for renderer-managed compute passes. */
+	readonly isCompute?: never;
+	/** Reserved for renderer-managed feedback passes. */
+	readonly isPingPongShader?: never;
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */
@@ -746,26 +776,56 @@ export interface RenderPass extends RenderPassFlags {
 }
 
 /**
- * Minimal marker interface for renderer-managed pre-scene compute passes.
- * Compute passes do not participate in render-pass slot routing.
+ * Nominal contract implemented only by renderer-managed pre-scene compute passes.
+ * Custom compute passes are not part of the public runtime contract.
  */
 export interface ComputePassLike {
+	readonly [managedPassBrand]: 'compute';
 	readonly isCompute: true;
-	enabled?: boolean;
+	readonly isPingPong?: true;
+	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
-	dispose?: () => void;
+	dispose: () => void;
+	getCompute: () => string;
+	getResources: () => ComputeResourceMap;
+	getWorkgroupSize: () => [number, number, number];
+	resolveDispatch: (context: {
+		width: number;
+		height: number;
+		time: number;
+		delta: number;
+		workgroupSize: [number, number, number];
+	}) => [number, number, number];
+	getIterations?: () => number;
 }
 
 /**
- * Minimal marker interface for renderer-managed pre-scene fragment feedback passes.
+ * Nominal contract for renderer-managed pre-scene fragment feedback passes.
  * These passes render into private ping-pong textures and do not participate in
  * post-scene render-pass slot routing.
  */
 export interface PingPongShaderPassLike {
+	readonly [managedPassBrand]: 'feedback';
 	readonly isPingPongShader: true;
-	enabled?: boolean;
+	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
-	dispose?: () => void;
+	dispose: () => void;
+	getTarget: () => string;
+	getFragment: () => string;
+	getFragmentLineMap: () => MaterialLineMap;
+	resolveSize: (canvasSize: { width: number; height: number }) => {
+		width: number;
+		height: number;
+	};
+	getIterations: () => number;
+	getFormat: () => GPUTextureFormat;
+	getFilter: () => GPUFilterMode;
+	getAddressModeU: () => GPUAddressMode;
+	getAddressModeV: () => GPUAddressMode;
+	getClearColor: () => [number, number, number, number];
+	getCurrentOutput: () => string;
+	advanceFrame: () => void;
+	consumeResetColor: () => [number, number, number, number] | null;
 }
 
 /**
@@ -804,11 +864,11 @@ export interface FrameState {
 	 */
 	setTexture: (name: string, value: TextureValue) => void;
 	/**
-	 * Writes data to a named storage buffer.
+	 * Queues an owned byte copy for a named storage buffer.
 	 */
 	writeStorageBuffer: (name: string, data: ArrayBufferView, options?: { offset?: number }) => void;
 	/**
-	 * Async readback of storage buffer data.
+	 * Flushes queued writes for the named buffer, then reads its data back asynchronously.
 	 */
 	readStorageBuffer: (name: string) => Promise<ArrayBuffer>;
 	/**
@@ -842,7 +902,7 @@ export interface FrameState {
 export interface PendingStorageWrite {
 	/** Storage buffer name. */
 	name: string;
-	/** Data to write. */
+	/** Owned byte copy to write. */
 	data: ArrayBufferView;
 	/** Byte offset into the storage buffer. */
 	offset: number;
@@ -860,12 +920,7 @@ export interface RendererOptions {
 	/**
 	 * 1-based source map for preprocessed fragment lines.
 	 */
-	fragmentLineMap: Array<{
-		kind: 'fragment' | 'include' | 'define';
-		line: number;
-		include?: string;
-		define?: string;
-	} | null>;
+	fragmentLineMap: MaterialLineMap;
 	/**
 	 * Original material fragment source before preprocessing.
 	 */
@@ -873,7 +928,7 @@ export interface RendererOptions {
 	/**
 	 * Include sources used while preprocessing material fragment.
 	 */
-	includeSources: Record<string, string>;
+	includeSources: Readonly<Record<string, string>>;
 	/**
 	 * Deterministic define block source used for diagnostics mapping.
 	 */
@@ -899,23 +954,23 @@ export interface RendererOptions {
 	/**
 	 * Sorted texture keys.
 	 */
-	textureKeys: string[];
+	textureKeys: readonly string[];
 	/**
 	 * Texture definitions by key.
 	 */
-	textureDefinitions: TextureDefinitionMap;
+	textureDefinitions: Readonly<TextureDefinitionMap>;
 	/**
 	 * Sorted storage buffer keys.
 	 */
-	storageBufferKeys?: string[];
+	storageBufferKeys?: readonly string[];
 	/**
 	 * Storage buffer definitions by key.
 	 */
-	storageBufferDefinitions?: Record<string, import('./types.js').StorageBufferDefinition>;
+	storageBufferDefinitions?: Readonly<Record<string, StorageBufferDefinition>>;
 	/**
 	 * Sorted storage texture keys (textures with storage:true).
 	 */
-	storageTextureKeys?: string[];
+	storageTextureKeys?: readonly string[];
 	/**
 	 * Static render target definitions.
 	 */

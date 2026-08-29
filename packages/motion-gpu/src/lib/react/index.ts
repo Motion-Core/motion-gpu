@@ -19,6 +19,10 @@ export type {
 	FrameInvalidationToken,
 	FrameState,
 	OutputEncoding,
+	ToneMapping,
+	OutputDynamicRange,
+	CanvasColorSpace,
+	ColorPipelineOptions,
 	AnyPass,
 	ComputePassLike,
 	PingPongShaderPassLike,
@@ -60,6 +64,15 @@ export type {
 	TypedMaterialDefineValue,
 	TypedMaterialVectorDefineValue
 } from '../core/material.js';
+export type {
+	MotionGPUErrorCode,
+	MotionGPUErrorContext,
+	MotionGPUErrorPhase,
+	MotionGPUErrorReport,
+	MotionGPUErrorSeverity,
+	MotionGPUErrorSource,
+	MotionGPUErrorSourceLine
+} from '../core/error-report.js';
 export type { MotionGPUContext } from './motiongpu-context.js';
 export type { UseFrameOptions, UseFrameResult } from './frame-context.js';
 export type {

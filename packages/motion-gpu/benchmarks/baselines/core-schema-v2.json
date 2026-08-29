@@ -1,0 +1,21 @@
+{
+	"schemaVersion": 2,
+	"updatedAt": "2026-08-12T20:16:18.407Z",
+	"metrics": {
+		"resolve_material_cached_hz": 101374553.4441369,
+		"resolve_material_uncached_hz": 49902.79345253593,
+		"resolve_material_uncached_64_vec4_hz": 19441.75375478608,
+		"pack_uniforms_into_64_vec4_hz": 446340.6821521914,
+		"pack_uniforms_into_fast_64_vec4_hz": 1427857.3227861754,
+		"plan_render_graph_16_passes_hz": 1262898.1031080976,
+		"resolve_render_targets_8_hz": 3888411.7662734906,
+		"frame_registry_run_64_tasks_hz": 3399641.6693454464,
+		"frame_registry_run_64_tasks_profiled_hz": 170711.25332147384,
+		"compute_bindgroup_cache_hit_hz": 143251794.17644855,
+		"pack_uniforms_mat4_float32array_hz": 39031701.94380746,
+		"find_dirty_ranges_clean_frame_hz": 11162459.781382022,
+		"find_dirty_ranges_one_vec4_hz": 4916629.876745987,
+		"find_dirty_ranges_32_fragmented_vec4_hz": 3535083.9659455228,
+		"renderer_uniform_update_64_vec4_one_dirty_hz": 1135067.4627035463
+	}
+}

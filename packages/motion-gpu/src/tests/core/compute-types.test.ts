@@ -5,8 +5,12 @@ import type {
 	StorageBufferDefinitionMap,
 	StorageBufferType,
 	ComputePassContext,
-	TextureDefinition
+	TextureData,
+	TextureDefinition,
+	AnyPass,
+	RenderPass
 } from '../../lib/core/types';
+import { ComputePass } from '../../lib/passes/ComputePass';
 
 function assertType<T>(value: T): void {
 	void value;
@@ -14,6 +18,20 @@ function assertType<T>(value: T): void {
 }
 
 describe('compute types', () => {
+	it('keeps custom render passes structural and managed compute passes nominal', () => {
+		const custom: RenderPass = { render: () => {} };
+		const managed: AnyPass = new ComputePass({
+			compute:
+				'@compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) { _ = id; }'
+		});
+		// @ts-expect-error A structural marker is not a renderer-managed compute pass.
+		const structural: AnyPass = { isCompute: true, enabled: true };
+
+		expect(typeof custom.render).toBe('function');
+		expect(managed).toBeInstanceOf(ComputePass);
+		expect((structural as unknown as { isCompute: boolean }).isCompute).toBe(true);
+	});
+
 	it('StorageBufferDefinition accepts valid size/type/access combinations', () => {
 		const definition: StorageBufferDefinition = {
 			size: 1024,
@@ -48,6 +66,44 @@ describe('compute types', () => {
 		};
 		expect(u32Def.initialData).toBeInstanceOf(Uint32Array);
 		expect(i32Def.initialData).toBeInstanceOf(Int32Array);
+	});
+
+	it('keeps material resource descriptors readonly while accepting mutable inputs', () => {
+		const canvas = document.createElement('canvas');
+		const mutableInitialData = new Float32Array([1, 2, 3, 4]);
+		const textureData: TextureData = { source: canvas, width: 16 };
+		const textureDefinition: TextureDefinition = {
+			source: textureData,
+			filter: 'linear'
+		};
+		const storageDefinition: StorageBufferDefinition = {
+			size: 16,
+			type: 'array<f32>',
+			initialData: mutableInitialData
+		};
+
+		const assertReadonlyDescriptors = (): void => {
+			// @ts-expect-error texture payload fields are immutable
+			textureData.width = 32;
+			// @ts-expect-error texture definition fields are immutable
+			textureDefinition.filter = 'nearest';
+			// @ts-expect-error storage descriptor fields are immutable
+			storageDefinition.size = 32;
+			// @ts-expect-error storage initialData references are immutable
+			storageDefinition.initialData = new Float32Array(4);
+			if (storageDefinition.initialData) {
+				// @ts-expect-error storage initialData elements are immutable through the public contract
+				storageDefinition.initialData[0] = 9;
+				// @ts-expect-error storage initialData typed-array mutators are hidden
+				storageDefinition.initialData.set([9], 0);
+			}
+		};
+		void assertReadonlyDescriptors;
+
+		canvas.width = 32;
+		expect(textureData.source.width).toBe(32);
+		expect(textureDefinition.filter).toBe('linear');
+		expect(storageDefinition.initialData).toBe(mutableInitialData);
 	});
 
 	it('StorageBufferType covers all expected WGSL array types', () => {

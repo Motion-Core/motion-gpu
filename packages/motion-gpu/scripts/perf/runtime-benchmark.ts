@@ -12,6 +12,7 @@ import {
 	type AdapterIdentity,
 	type BenchmarkEnvironment
 } from './benchmark-schema';
+import { compareBenchmarkMetrics } from './benchmark-regression';
 import { computeRobustStats, type RobustStats } from './statistics';
 
 const SCRIPT_DIR = import.meta.dirname;
@@ -113,15 +114,6 @@ interface RuntimeBaselineDocument {
 	environment: BenchmarkEnvironment;
 	config: RuntimeBenchmarkDocument['config'];
 	metrics: Partial<MetricMap>;
-}
-
-interface ComparisonRow {
-	metric: MetricKey;
-	current: number;
-	baseline: number | null;
-	deltaPct: number | null;
-	regression: boolean;
-	rule: (typeof METRIC_RULES)[MetricKey];
 }
 
 type PerfWindow = Window &
@@ -399,54 +391,6 @@ async function sampleManualAdvanceLatency(page: Page, sampleCount: number): Prom
 			maxMs: sorted[sorted.length - 1] ?? 0
 		};
 	}, sampleCount);
-}
-
-function compareAgainstBaseline(
-	current: MetricMap,
-	baseline: Partial<MetricMap>
-): {
-	rows: ComparisonRow[];
-	regressions: ComparisonRow[];
-} {
-	const rows: ComparisonRow[] = [];
-
-	for (const metricName of Object.keys(METRIC_RULES) as MetricKey[]) {
-		const rule = METRIC_RULES[metricName];
-		const currentValue = current[metricName];
-		const baselineValue = baseline[metricName];
-		if (baselineValue === undefined) {
-			rows.push({
-				metric: metricName,
-				current: currentValue,
-				baseline: null,
-				deltaPct: null,
-				regression: false,
-				rule
-			});
-			continue;
-		}
-		const deltaPct =
-			baselineValue === 0
-				? currentValue === 0
-					? 0
-					: Number.POSITIVE_INFINITY
-				: ((currentValue - baselineValue) / baselineValue) * 100;
-		const regression = baselineValue === 0 ? currentValue > 0 : deltaPct > rule.maxRegressionPct;
-
-		rows.push({
-			metric: metricName,
-			current: currentValue,
-			baseline: baselineValue,
-			deltaPct,
-			regression,
-			rule
-		});
-	}
-
-	return {
-		rows,
-		regressions: rows.filter((row) => row.regression)
-	};
 }
 
 function formatNumber(value: number): string {
@@ -802,7 +746,11 @@ async function main(): Promise<void> {
 			return;
 		}
 
-		const { rows, regressions } = compareAgainstBaseline(result.metrics, baseline.metrics);
+		const { rows, regressions } = compareBenchmarkMetrics(
+			result.metrics,
+			baseline.metrics,
+			METRIC_RULES
+		);
 		console.log('Comparison to baseline:');
 		for (const row of rows) {
 			if (row.baseline === null || row.deltaPct === null) {

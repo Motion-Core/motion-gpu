@@ -52,13 +52,14 @@ Both expose `setSize`, `render`, and `dispose` through the render-pass lifecycle
 ```ts
 new ComputePass({
 	compute: string,
+	workgroupSize?: [number, number?, number?],
 	resources?: ComputeResourceMap,
 	dispatch?: tuple | 'auto' | (context) => [number, number, number],
 	enabled?: boolean
 })
 ```
 
-The source requires `@compute`, numeric `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature.
+The source requires `@compute`, `@workgroup_size(...)`, a `compute` function, and `@builtin(global_invocation_id)` in its signature. Literal dimensions are inferred. Set `workgroupSize` when WGSL uses an override or non-literal constant expression; it must match literal WGSL when both are present.
 
 `resources` is keyed by WGSL alias. An omitted map is equivalent to `{}`; no material storage resource is injected implicitly.
 
@@ -92,7 +93,7 @@ type ComputeResourceDescriptor =
 Texture views support `baseMipLevel`, `mipLevelCount`, `baseArrayLayer`, and `arrayLayerCount: 1`. String references are material keys. External references are borrowed typed objects with a stable `resourceId`; see [Compute Shaders](/docs/compute-shaders#borrowed-webgpu-resources) for their metadata and ownership contract.
 
 ```ts
-setCompute(source): void
+setCompute(source, { workgroupSize? }): void
 setDispatch(dispatch): void
 getCompute(): string
 getResources(): ComputeResourceMap
@@ -101,7 +102,8 @@ resolveDispatch(context): [number, number, number]
 dispose(): void
 ```
 
-`isCompute` is the readonly `true` discriminant.
+`isCompute` is a readonly `true` discriminant for inspection. It is not an extension point: custom
+compute objects are rejected by the render graph.
 
 ## `PingPongComputePass`
 
@@ -122,9 +124,11 @@ new PingPongComputePass({
 
 The renderer keeps A/B names and parity private. It publishes the latest result under the logical material key after the iteration batch.
 
+`workgroupSize` has the same override/non-literal behavior as `ComputePass`.
+
 ```ts
 setIterations(count): void
-setCompute(source): void
+setCompute(source, { workgroupSize? }): void
 setDispatch(dispatch): void
 getIterations(): number
 getCompute(): string
@@ -174,7 +178,9 @@ getClearColor(): RGBA
 dispose(): void
 ```
 
-`isPingPongShader` is the readonly `true` discriminant. `setDimensions`, `setScale`, and `reset` request A/B reinitialization; `consumeResetColor` is renderer-facing and clears that pending request.
+`isPingPongShader` is a readonly `true` discriminant for inspection, not a structural extension
+point. `setDimensions`, `setScale`, and `reset` request A/B reinitialization;
+`consumeResetColor` is renderer-facing and clears that pending request.
 
 `frag` and its helper functions can read the ping-pong target coordinates from `motiongpuFragment.uv`. They use the pass target dimensions and the same public Y-up orientation as the `uv` parameter.
 

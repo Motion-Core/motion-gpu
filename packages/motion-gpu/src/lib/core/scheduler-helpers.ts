@@ -79,12 +79,14 @@ const PRESET_CONFIG: Record<SchedulerPreset, SchedulerPresetConfig> = {
 	}
 };
 
+const MAX_PROFILING_WINDOW = 10_000;
+
 function assertProfilingWindow(value: number): number {
-	if (!Number.isFinite(value) || value <= 0) {
-		throw new Error('profilingWindow must be a finite number greater than 0');
+	if (!Number.isSafeInteger(value) || value < 1 || value > MAX_PROFILING_WINDOW) {
+		throw new Error(`profilingWindow must be a safe integer between 1 and ${MAX_PROFILING_WINDOW}`);
 	}
 
-	return Math.floor(value);
+	return value;
 }
 
 /**

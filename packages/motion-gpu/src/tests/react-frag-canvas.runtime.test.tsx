@@ -9,6 +9,10 @@ import { FragCanvas } from '../lib/react/FragCanvas.js';
 import type { MotionGPUContext } from '../lib/react/motiongpu-context.js';
 import { useMotionGPU } from '../lib/react/motiongpu-context.js';
 import { useFrame } from '../lib/react/frame-context.js';
+import {
+	runErrorHistoryContract,
+	type ErrorHistoryMutationMode
+} from './helpers/error-history-contract.js';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -181,7 +185,7 @@ function FragCanvasFrameMutationHarness({
 	material: FragMaterial;
 	mode?: FrameMutationMode;
 	onError?: (report: MotionGPUErrorReport) => void;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 	errorHistoryLimit?: number;
 	showErrorOverlay?: boolean;
 }) {
@@ -666,6 +670,10 @@ describe('React FragCanvas runtime', () => {
 		).find((section) => section.querySelector('summary')?.textContent?.includes('Runtime context'));
 		expect(runtimeContextDetails).toBeTruthy();
 		expect(runtimeContextDetails?.hasAttribute('open')).toBe(false);
+		document.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		);
+		await waitFor(() => expect(screen.queryByTestId('motiongpu-error')).toBeNull());
 	});
 
 	it('renders include diagnostics location in overlay source header', async () => {
@@ -1127,5 +1135,44 @@ describe('React FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(renderer.render).toHaveBeenCalled();
 		});
+	});
+
+	runErrorHistoryContract('React', async ({ historyLimit: initialLimit, onErrorHistory }) => {
+		const renderer: MockRenderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+		let historyLimit = initialLimit;
+		let mode: ErrorHistoryMutationMode | 'none' = 'none';
+		let timestamp = 16;
+		const renderHarness = () => (
+			<FragCanvasFrameMutationHarness
+				material={runtimeBindingsMaterial}
+				mode={mode}
+				onErrorHistory={onErrorHistory}
+				errorHistoryLimit={historyLimit}
+				showErrorOverlay={false}
+			/>
+		);
+		const view = render(renderHarness());
+
+		await flushFrame(timestamp);
+		timestamp += 16;
+		await flushFrame(timestamp);
+		timestamp += 16;
+
+		return {
+			emitError: async (nextMode) => {
+				mode = nextMode;
+				view.rerender(renderHarness());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			updateLimit: async (nextLimit) => {
+				historyLimit = nextLimit;
+				view.rerender(renderHarness());
+				await flushFrame(timestamp);
+				timestamp += 16;
+			},
+			unmount: () => view.unmount()
+		};
 	});
 });

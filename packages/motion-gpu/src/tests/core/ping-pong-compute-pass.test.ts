@@ -49,6 +49,25 @@ describe('PingPongComputePass', () => {
 		expect(() => createPass({ compute: 'fn bad() {}' })).toThrow(/@compute/);
 	});
 
+	it('uses an explicit workgroup size for an override expression', () => {
+		const compute = `
+override TILE_SIZE: u32 = 8;
+@compute @workgroup_size(TILE_SIZE, TILE_SIZE)
+fn compute(@builtin(global_invocation_id) id: vec3u) {}
+`;
+		const pass = createPass({ compute, workgroupSize: [8, 8] });
+		expect(pass.getWorkgroupSize()).toEqual([8, 8, 1]);
+		expect(
+			pass.resolveDispatch({
+				width: 65,
+				height: 33,
+				time: 0,
+				delta: 0.016,
+				workgroupSize: [8, 8, 1]
+			})
+		).toEqual([9, 5, 1]);
+	});
+
 	it('requires exactly one ping-pong read and write descriptor', () => {
 		for (const resources of [
 			{},

@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"engines": {
-		"node": ">=22.0.0"
+		"node": ">=22.18.0"
 	},
 	"workspaces": [
 		"apps/*",
@@ -31,6 +31,7 @@
 		"test:motion-gpu": "pnpm --dir packages/motion-gpu run test",
 		"test:motion-gpu:coverage": "pnpm --dir packages/motion-gpu run test:coverage",
 		"test:motion-gpu:perf-tools": "pnpm --dir packages/motion-gpu run test:perf-tools",
+		"test:release-tools": "node --test ./scripts/release/*.test.mjs",
 		"perf:motion-gpu:core": "pnpm --dir packages/motion-gpu run perf:core",
 		"perf:motion-gpu:core:check": "pnpm --dir packages/motion-gpu run perf:core:check",
 		"perf:motion-gpu:core:baseline": "pnpm --dir packages/motion-gpu run perf:core:baseline",
@@ -52,7 +53,7 @@
 		"format:check:root": "oxfmt --check .oxfmtrc.json pnpm-workspace.yaml package.json CONTRIBUTING.md scripts .github .githooks",
 		"format:check": "pnpm run format:check:root && pnpm --dir apps/web run format:check && pnpm --dir packages/motion-gpu run format:check",
 		"precommit": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint",
-		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:motion-gpu:consumers && pnpm run check:motion-gpu:consumers:peers && pnpm run check:web && pnpm run test:motion-gpu:coverage && pnpm run test:motion-gpu:perf-tools && pnpm --dir apps/web test --passWithNoTests",
+		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run build && pnpm run check:motion-gpu && pnpm run check:motion-gpu:consumers && pnpm run check:motion-gpu:consumers:peers && pnpm run check:web && pnpm run test:motion-gpu:coverage && pnpm run test:motion-gpu:perf-tools && pnpm run test:release-tools && pnpm --dir apps/web test --passWithNoTests",
 		"ci:e2e": "pnpm --dir packages/motion-gpu run test:e2e && pnpm --dir apps/web run test:e2e",
 		"ci": "pnpm run ci:quality && pnpm run ci:e2e",
 		"prepare": "node ./scripts/setup-git-hooks.mjs"

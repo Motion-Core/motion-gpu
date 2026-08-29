@@ -124,6 +124,7 @@ const ABORT = { svelte_bundler_aborted: true };
 let previous: {
 	key: string;
 	cache: RollupCache | undefined;
+	cssById: Map<string, string>;
 };
 
 async function get_bundle(
@@ -400,8 +401,8 @@ async function get_bundle(
 		}
 	};
 
-	const handled_css_ids = new Set<string>();
-	let user_css = '';
+	const cssById = previous?.key === key ? new Map(previous.cssById) : new Map<string, string>();
+	let activeCssIds: string[] = [];
 
 	bundle = await rollup({
 		input: './__entry.js',
@@ -430,13 +431,13 @@ async function get_bundle(
 			}),
 			{
 				name: 'css',
+				buildEnd() {
+					activeCssIds = [...this.getModuleIds()].filter((id) => id.endsWith('.css'));
+				},
 				transform(code, id) {
 					if (id.endsWith('.css')) {
-						if (!handled_css_ids.has(id)) {
-							handled_css_ids.add(id);
-							// We do not resolve nested CSS imports in the playground runtime.
-							user_css += '\n' + code.replace(/@import\s+["'][^"']+["'][^;]*;/g, '');
-						}
+						// We do not resolve nested CSS imports in the playground runtime.
+						cssById.set(id, code.replace(/@import\s+["'][^"']+["'][^;]*;/g, ''));
 						return {
 							code: '',
 							map: null
@@ -452,7 +453,16 @@ async function get_bundle(
 		}
 	});
 
-	previous = { key, cache: bundle.cache };
+	const activeCssById = new Map<string, string>();
+	for (const id of activeCssIds) {
+		const css = cssById.get(id);
+		if (css !== undefined) {
+			activeCssById.set(id, css);
+		}
+	}
+	const user_css = [...activeCssById.values()].join('\n');
+
+	previous = { key, cache: bundle.cache, cssById: activeCssById };
 
 	return {
 		bundle,

@@ -5,7 +5,7 @@ import {
 	defineMaterial,
 	resolveMaterial
 } from '../../lib/core/material';
-import type { TypedUniform } from '../../lib/core/types';
+import type { StorageBufferDefinition, TypedUniform } from '../../lib/core/types';
 
 function assertType<T>(value: T): void {
 	void value;
@@ -94,16 +94,26 @@ describe('material', () => {
 			generateMipmaps: true,
 			update: 'onInvalidate'
 		};
+		const textureDefinition: {
+			source: typeof texturePayload;
+			filter: GPUFilterMode;
+			addressModeU: GPUAddressMode;
+		} = {
+			source: texturePayload,
+			filter: 'linear',
+			addressModeU: 'repeat'
+		};
+		const transform: { type: 'mat4x4f'; value: Float32Array } = {
+			type: 'mat4x4f',
+			value: matrix
+		};
+		const uniforms = { uTint: tint, uTransform: transform };
+		const textures = { uMain: textureDefinition };
 
 		const material = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
-			uniforms: {
-				uTint: tint,
-				uTransform: { type: 'mat4x4f', value: matrix }
-			},
-			textures: {
-				uMain: { source: texturePayload }
-			}
+			uniforms,
+			textures
 		});
 
 		tint[0] = 0;
@@ -114,6 +124,14 @@ describe('material', () => {
 		texturePayload.premultipliedAlpha = false;
 		texturePayload.generateMipmaps = false;
 		texturePayload.update = 'once';
+		textureDefinition.filter = 'nearest';
+		textureDefinition.addressModeU = 'clamp-to-edge';
+		transform.value = new Float32Array(16).fill(12);
+		uniforms.uTint = [9, 9, 9, 9];
+		textures.uMain = {
+			...textureDefinition,
+			source: { ...texturePayload, width: 4 }
+		};
 
 		expect(material.uniforms.uTint).toEqual([1, 0.5, 0.25, 1]);
 		expect(
@@ -143,6 +161,55 @@ describe('material', () => {
 			true
 		);
 		expect((material.textures.uMain?.source as { update?: string }).update).toBe('onInvalidate');
+		expect(material.textures.uMain?.filter).toBe('linear');
+		expect(material.textures.uMain?.addressModeU).toBe('repeat');
+
+		const storedTint = material.uniforms.uTint as readonly number[];
+		const storedTransform = material.uniforms.uTransform as TypedUniform<'mat4x4f'>;
+		const storedDefinition = material.textures.uMain;
+		const storedPayload = storedDefinition?.source as {
+			readonly source: HTMLCanvasElement;
+			readonly width?: number;
+		};
+
+		expect(Object.isFrozen(storedTint)).toBe(true);
+		expect(Object.isFrozen(storedTransform)).toBe(true);
+		expect(Object.isFrozen(storedTransform.value)).toBe(true);
+		expect(Object.isFrozen(storedDefinition)).toBe(true);
+		expect(Object.isFrozen(storedPayload)).toBe(true);
+		expect(Object.isFrozen(canvas)).toBe(false);
+
+		expect(() => {
+			(material as { fragment: string }).fragment = '';
+		}).toThrow();
+		expect(() => {
+			(material.uniforms as { uTint: unknown }).uTint = 0;
+		}).toThrow();
+		expect(() => {
+			(storedTint as number[])[0] = 9;
+		}).toThrow();
+		expect(() => {
+			(storedTransform as { type: string }).type = 'vec4f';
+		}).toThrow();
+		expect(() => {
+			(storedTransform.value as number[])[0] = 9;
+		}).toThrow();
+		expect(() => {
+			(material.textures as { uMain: unknown }).uMain = {};
+		}).toThrow();
+		expect(() => {
+			(storedDefinition as { filter?: GPUFilterMode }).filter = 'nearest';
+		}).toThrow();
+		expect(() => {
+			(storedPayload as { width?: number }).width = 2;
+		}).toThrow();
+
+		canvas.width = 32;
+		expect(storedPayload.source.width).toBe(32);
+		expect(storedTint[0]).toBe(1);
+		expect(storedTransform.value[0]).toBe(1);
+		expect(storedDefinition?.filter).toBe('linear');
+		expect(storedPayload.width).toBe(16);
 	});
 
 	it('normalizes Float32Array mat4x4f material defaults into frozen snapshots', () => {
@@ -222,6 +289,94 @@ describe('material', () => {
 		expect(resolved.uniformLayout.entries.map((entry) => entry.name)).toEqual(['a', 'b']);
 		expect(resolved.textureKeys).toEqual(['x', 'z']);
 		expect(resolved.signature).toContain('"uniforms":["a:f32","b:f32"]');
+	});
+
+	it('publishes an immutable resolved snapshot without exposing mutable cache state', () => {
+		const canvas = document.createElement('canvas');
+		const material = withMockedStack(
+			['Error', '    at createMaterial (/app/Scene.svelte:12:4)'].join('\n'),
+			() =>
+				defineMaterial({
+					fragment: '#include <tone>\nfn frag(uv: vec2f) -> vec4f { return tone(uv) * GAIN; }',
+					uniforms: { uMix: [0.25, 0.75] },
+					textures: {
+						uMain: { source: { source: canvas, width: 16, height: 8 } },
+						uStorage: {
+							storage: true,
+							format: 'rgba8unorm',
+							width: 8,
+							height: 8
+						}
+					},
+					defines: { GAIN: 1 },
+					includes: {
+						tone: 'fn tone(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+					},
+					storageBuffers: {
+						particles: { size: 16, type: 'array<f32>' }
+					}
+				})
+		);
+		const resolved = resolveMaterial(material);
+		const mappedLine = resolved.fragmentLineMap.find((entry) => entry !== null);
+		const textureSource = resolved.textures.uMain?.source as { width?: number };
+
+		expect(mappedLine).not.toBeNull();
+		expect(resolved.source).not.toBeNull();
+		expect(
+			[
+				resolved,
+				resolved.fragmentLineMap,
+				mappedLine,
+				resolved.uniforms,
+				resolved.textures,
+				resolved.textures.uMain,
+				textureSource,
+				resolved.uniformLayout,
+				resolved.uniformLayout.entries,
+				resolved.uniformLayout.entries[0],
+				resolved.uniformLayout.byName,
+				resolved.textureKeys,
+				resolved.includeSources,
+				resolved.source,
+				resolved.storageBufferKeys,
+				resolved.storageTextureKeys
+			].every((value) => Object.isFrozen(value))
+		).toBe(true);
+
+		expect(() => {
+			(resolved as { signature: string }).signature = 'corrupted';
+		}).toThrow();
+		expect(() => {
+			(resolved.fragmentLineMap as Array<unknown>)[1] = null;
+		}).toThrow();
+		expect(() => {
+			(mappedLine as { line: number }).line = 999;
+		}).toThrow();
+		expect(() => {
+			(resolved.uniformLayout.entries as Array<unknown>).push({});
+		}).toThrow();
+		expect(() => {
+			(resolved.uniformLayout.byName as Record<string, unknown>).corrupted = {};
+		}).toThrow();
+		expect(() => {
+			(resolved.textureKeys as string[]).push('corrupted');
+		}).toThrow();
+		expect(() => {
+			textureSource.width = 1;
+		}).toThrow();
+		expect(() => {
+			(resolved.source as { line: number }).line = 999;
+		}).toThrow();
+
+		const cached = resolveMaterial(material);
+		expect(cached).toBe(resolved);
+		expect(cached.signature).not.toBe('corrupted');
+		expect(cached.textureKeys).toEqual(['uMain', 'uStorage']);
+		expect(cached.storageBufferKeys).toEqual(['particles']);
+		expect(cached.storageTextureKeys).toEqual(['uStorage']);
+		expect(cached.uniformLayout.byName.uMix?.offset).toBe(0);
+		expect((cached.textures.uMain?.source as { width?: number }).width).toBe(16);
 	});
 
 	it('changes signature when defines change', () => {
@@ -521,17 +676,72 @@ fn colorize(uv: vec2f) -> vec4f {
 		expect(material.storageBuffers).toEqual({});
 	});
 
-	it('deep clones initialData to prevent mutation', () => {
+	it('keeps storage buffer snapshots and canonical initialData isolated from mutation', () => {
 		const initialData = new Float32Array([1, 2, 3, 4]);
+		const definition: {
+			size: number;
+			type: StorageBufferDefinition['type'];
+			access: NonNullable<StorageBufferDefinition['access']>;
+			initialData: Float32Array;
+		} = {
+			size: 16,
+			type: 'array<f32>',
+			access: 'read',
+			initialData
+		};
 		const material = defineMaterial({
 			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
 			storageBuffers: {
-				buf: { size: 16, type: 'array<f32>', initialData }
+				buf: definition
 			}
 		});
 
 		initialData[0] = 999;
-		expect(material.storageBuffers.buf?.initialData?.[0]).toBe(1);
+		definition.size = 32;
+		definition.access = 'read-write';
+
+		const storedDefinition = material.storageBuffers.buf;
+		const firstRead = storedDefinition?.initialData as Float32Array;
+		firstRead[0] = 777;
+		firstRead.set([888, 999], 1);
+
+		const secondRead = storedDefinition?.initialData as Float32Array;
+		const resolved = resolveMaterial(material);
+		const pristine = resolveMaterial(
+			defineMaterial({
+				fragment: material.fragment,
+				storageBuffers: {
+					buf: {
+						size: 16,
+						type: 'array<f32>',
+						access: 'read',
+						initialData: new Float32Array([1, 2, 3, 4])
+					}
+				}
+			})
+		);
+		expect(Object.isFrozen(material.storageBuffers)).toBe(true);
+		expect(Object.isFrozen(storedDefinition)).toBe(true);
+		expect(storedDefinition?.size).toBe(16);
+		expect(storedDefinition?.access).toBe('read');
+		expect(firstRead).not.toBe(secondRead);
+		expect(Array.from(secondRead)).toEqual([1, 2, 3, 4]);
+		expect(resolved.signature).toBe(pristine.signature);
+		expect(() => {
+			(material.storageBuffers as { buf: unknown }).buf = {
+				size: 16,
+				type: 'array<f32>'
+			};
+		}).toThrow();
+		expect(() => {
+			(storedDefinition as { size: number }).size = 64;
+		}).toThrow();
+		expect(() => {
+			(storedDefinition as unknown as { initialData?: Float32Array }).initialData =
+				new Float32Array([9]);
+		}).toThrow();
+		expect(storedDefinition?.size).toBe(16);
+		expect(Array.from(storedDefinition?.initialData ?? [])).toEqual([1, 2, 3, 4]);
 	});
 
 	it('rejects invalid storage buffer name', () => {

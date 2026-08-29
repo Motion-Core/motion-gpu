@@ -1,10 +1,15 @@
-import { assertComputeContract, extractWorkgroupSize } from '../core/compute-shader.js';
+import {
+	assertComputeContract,
+	resolveWorkgroupSize,
+	type ComputeWorkgroupSize
+} from '../core/compute-shader.js';
 import {
 	copyComputeResourceMap,
 	normalizeComputeResourceMap,
 	resolveComputePingPongResourcePair
 } from '../core/compute-resources.js';
 import { createMotionGPUError } from '../core/error-report.js';
+import { managedPassBrand } from '../core/pass-brand.js';
 import type { ComputeResourceMap } from '../core/types.js';
 import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.js';
 
@@ -16,6 +21,8 @@ export interface PingPongComputePassOptions {
 	 * Compute shader WGSL source code.
 	 */
 	compute: string;
+	/** Explicit size for override/non-literal `@workgroup_size` expressions. */
+	workgroupSize?: ComputeWorkgroupSize;
 	/**
 	 * Pass-local resources keyed by their WGSL binding aliases.
 	 * Must contain one sampled `pingPong: 'read'` descriptor and one
@@ -44,6 +51,9 @@ export interface PingPongComputePassOptions {
  * reaction-diffusion, and particle systems.
  */
 export class PingPongComputePass {
+	/** Internal nominal marker for renderer-managed compute passes. */
+	readonly [managedPassBrand] = 'compute' as const;
+
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */
@@ -66,8 +76,8 @@ export class PingPongComputePass {
 	private workgroupSize: [number, number, number];
 
 	constructor(options: PingPongComputePassOptions) {
-		assertComputeContract(options.compute);
-		const workgroupSize = extractWorkgroupSize(options.compute);
+		assertComputeContract(options.compute, options.workgroupSize);
+		const workgroupSize = resolveWorkgroupSize(options.compute, options.workgroupSize);
 		const resources = normalizeComputeResourceMap(options.resources);
 		try {
 			resolveComputePingPongResourcePair(resources);
@@ -101,9 +111,9 @@ export class PingPongComputePass {
 	/**
 	 * Replaces compute shader and updates workgroup size.
 	 */
-	setCompute(compute: string): void {
-		assertComputeContract(compute);
-		const workgroupSize = extractWorkgroupSize(compute);
+	setCompute(compute: string, options?: { workgroupSize?: ComputeWorkgroupSize }): void {
+		assertComputeContract(compute, options?.workgroupSize);
+		const workgroupSize = resolveWorkgroupSize(compute, options?.workgroupSize);
 		this.compute = compute;
 		this.workgroupSize = workgroupSize;
 	}

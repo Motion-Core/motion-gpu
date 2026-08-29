@@ -304,5 +304,38 @@ export function defineTextureHookContract({
 				abortSignalRef.any = originalAny;
 			}
 		});
+
+		it('supports cancellation through requestInit.signal', async () => {
+			let aborted = false;
+			vi.stubGlobal(
+				'fetch',
+				vi.fn((_: string, requestInit?: RequestInit) => {
+					const signal = requestInit?.signal as AbortSignal | undefined;
+					return new Promise((_, reject) => {
+						const onAbort = (): void => {
+							aborted = true;
+							reject(createAbortError());
+						};
+						signal?.addEventListener('abort', onAbort, { once: true });
+					});
+				})
+			);
+			const controller = new AbortController();
+			const view = mount(['/assets/request-init-abort.png'], {
+				requestInit: { signal: controller.signal }
+			});
+
+			await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+			controller.abort();
+
+			await waitFor(() => {
+				const result = requireResult(view);
+				expect(result.loading.current).toBe(false);
+				expect(result.error.current).toBeNull();
+				expect(result.errorReport.current).toBeNull();
+				expect(result.textures.current).toBeNull();
+			});
+			expect(aborted).toBe(true);
+		});
 	});
 }

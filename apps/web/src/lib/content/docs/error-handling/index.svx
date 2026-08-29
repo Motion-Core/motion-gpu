@@ -5,6 +5,10 @@ description: Normalize WebGPU, shader, resource, and runtime failures into stabl
 
 All adapters route initialization and render failures through `toMotionGPUErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
 
+Import `MotionGPUErrorReport` and the related error types from the same Svelte, React, or Vue
+entrypoint as your adapter. The framework-neutral root and `/core` entrypoints export the same type
+family.
+
 ## Report
 
 ```ts
@@ -77,9 +81,11 @@ Common resolutions:
 | `errorHistoryLimit` | `0` | Enables bounded history when positive |
 | `onErrorHistory` | — | Receives fresh history snapshots |
 
-History limits are floored; non-finite and non-positive values disable history. Consecutive reports with the same phase, title, message, and raw message are deduplicated. Reducing the limit trims existing history. Consumer mutation cannot change the internal snapshot.
+History limits are floored; non-finite and non-positive values disable history. Consecutive reports with the same phase, title, message, and raw message are deduplicated. Reducing the limit trims existing history. Consumer mutation cannot change the internal snapshot. The runtime owns this sequence and calls `onErrorHistory` once for each actual history change.
 
 The default overlay shows classification metadata, hints, technical details, source snippets, and runtime context when available. Adapter portals keep it outside canvas drawing while preserving the canvas subtree context.
+
+When several canvases fail at once, their default overlays share one document-level stack. Only the top overlay owns focus and responds to `Escape`. Closing it focuses the previous overlay; closing the final overlay restores the original focus target and the page's prior `inert` state.
 
 ## Shader diagnostics
 

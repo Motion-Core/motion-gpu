@@ -22,6 +22,7 @@ import type {
 	RenderPass,
 	StorageBufferDefinition
 } from '../../lib/core/types';
+import { createManagedComputePass } from '../helpers/managed-pass';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -577,20 +578,15 @@ describe('storage buffer validation: edge cases', () => {
 		expect(() => assertStorageTextureFormat('t', 'bgra8unorm')).not.toThrow();
 	});
 
-	it('assertStorageTextureFormat rejects rgb10a2unorm', () => {
-		expect(() => assertStorageTextureFormat('t', 'rgb10a2unorm' as GPUTextureFormat)).toThrow(
-			/storage-compatible format/
-		);
+	it('assertStorageTextureFormat accepts tier1 storage formats before device resolution', () => {
+		expect(() => assertStorageTextureFormat('t', 'rgb10a2unorm' as GPUTextureFormat)).not.toThrow();
 	});
 });
 
 describe('render graph: compute pass edge cases', () => {
 	it('multiple disabled compute passes produce empty plan', () => {
 		const plan = planRenderGraph(
-			[
-				{ isCompute: true as const, enabled: false } as unknown as RenderPass,
-				{ isCompute: true as const, enabled: false } as unknown as RenderPass
-			],
+			[createManagedComputePass({ enabled: false }), createManagedComputePass({ enabled: false })],
 			[0, 0, 0, 1]
 		);
 		expect(plan.steps).toHaveLength(0);
@@ -599,7 +595,7 @@ describe('render graph: compute pass edge cases', () => {
 
 	it('compute pass between two render passes does not break slot tracking', () => {
 		const render1: RenderPass = { render: () => {}, needsSwap: false, output: 'target' };
-		const compute = { isCompute: true as const, enabled: true } as unknown as RenderPass;
+		const compute = createManagedComputePass();
 		const render2: RenderPass = {
 			render: () => {},
 			needsSwap: false,
@@ -614,7 +610,7 @@ describe('render graph: compute pass edge cases', () => {
 	});
 
 	it('compute pass step always has needsSwap=false and preserve=true', () => {
-		const compute = { isCompute: true as const, enabled: true } as unknown as RenderPass;
+		const compute = createManagedComputePass();
 		const plan = planRenderGraph([compute], [0.5, 0.5, 0.5, 1]);
 		const step = plan.steps[0]!;
 		expect(step.needsSwap).toBe(false);
@@ -651,7 +647,7 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			}
 		};
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
@@ -661,7 +657,7 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			getResources: () => ({
 				uOutput: { texture: 'uOutput', access: 'storage-write' as const }
 			})
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -705,13 +701,13 @@ describe('renderer: compute pipeline bind group alignment', () => {
 	it('disabled compute pass does not trigger dispatch', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: false,
 			getCompute: () => VALID_1D,
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [256, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -742,7 +738,7 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			}
 		};
 
-		const pingPongPass = {
+		const pingPongPass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			isPingPong: true as const,
@@ -752,7 +748,7 @@ describe('renderer: compute pipeline bind group alignment', () => {
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [8, 8, 1] as [number, number, number],
 			getIterations: () => 3
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -953,20 +949,20 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
 		const shaderSource =
 			'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}';
-		const pass1 = {
+		const pass1 = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () => shaderSource,
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
-		};
-		const pass2 = {
+		});
+		const pass2 = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () => shaderSource, // Same source
 			resolveDispatch: () => [2, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -992,7 +988,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	it('compute pass with storage buffers only (no textures): correct bind groups', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
@@ -1002,7 +998,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 			getResources: () => ({
 				data: { buffer: 'data', access: 'storage-read-write' as const }
 			})
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1034,14 +1030,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	it('compute pass dispatchWorkgroups receives resolved values', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
 				'@compute @workgroup_size(16, 16)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 			resolveDispatch: () => [10, 20, 3] as [number, number, number],
 			getWorkgroupSize: () => [16, 16, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1065,14 +1061,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	it('compute pass rejects invalid dispatch values before command encoding', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
 				'@compute @workgroup_size(16)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 			resolveDispatch: () => [0, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [16, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1098,14 +1094,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	it('compute pass rejects dispatch values above the device limit', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
 				'@compute @workgroup_size(16)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 			resolveDispatch: () => [65_536, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [16, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1141,13 +1137,13 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 				'}'
 			].join('\n');
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () => makeComputeSource(sourceIndex),
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [1, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1178,14 +1174,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 	it('compute pass ends after dispatch', async () => {
 		const runtime = createWebGpuRuntime();
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
 				'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
-		};
+		});
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
@@ -1210,14 +1206,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 		const runtime = createWebGpuRuntime();
 		const callOrder: string[] = [];
 
-		const computePass = {
+		const computePass = createManagedComputePass({
 			isCompute: true as const,
 			enabled: true,
 			getCompute: () =>
 				'@compute @workgroup_size(64)\nfn compute(@builtin(global_invocation_id) id: vec3u) {}',
 			resolveDispatch: () => [1, 1, 1] as [number, number, number],
 			getWorkgroupSize: () => [64, 1, 1] as [number, number, number]
-		};
+		});
 
 		// Using a render pass that tracks when it renders
 		const renderPass: RenderPass = {
@@ -1244,7 +1240,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
 		const renderer = await createRenderer(
 			baseOptions(runtime, {
-				getPasses: () => [computePass, renderPass as unknown as typeof computePass]
+				getPasses: () => [computePass, renderPass]
 			})
 		);
 

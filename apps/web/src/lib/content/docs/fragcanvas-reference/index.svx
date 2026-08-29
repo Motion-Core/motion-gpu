@@ -47,6 +47,9 @@ vueLang="ts"
 | `canvasColorSpace` | `'srgb'` | Canvas presentation space, including optional `'display-p3'` |
 | `workingFormat` | `'auto'` | Uses `rgba16float` for HDR or tone mapping; otherwise canvas format |
 
+`ToneMapping`, `OutputDynamicRange`, `CanvasColorSpace`, and `ColorPipelineOptions` are exported
+from the root, core, and framework adapter entrypoints.
+
 Available `toneMapping` values:
 
 | Value | Algorithm |

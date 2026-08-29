@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount } from 'svelte';
 	import { createCurrentWritable } from '../../lib/core/current-value';
 	import { createFrameRegistry } from '../../lib/core/frame-registry';
 	import type { RenderMode } from '../../lib/core/types';
@@ -79,7 +79,7 @@
 	};
 
 	provideMotionGPUContext(context);
-	const pointer = usePointer(untrack(() => pointerOptions));
+	const pointer = usePointer(() => pointerOptions);
 
 	$effect(() => {
 		renderModeState.set(renderMode);

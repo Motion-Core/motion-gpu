@@ -59,7 +59,7 @@ export class ShaderPass extends FullscreenPass {
 	private program: string;
 
 	constructor(options: ShaderPassOptions) {
-		super(options);
+		super('ShaderPass', options);
 		this.fragment = options.fragment;
 		this.program = buildShaderPassProgram(options.fragment);
 	}

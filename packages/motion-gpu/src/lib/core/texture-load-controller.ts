@@ -56,10 +56,12 @@ export function createTextureLoadController({
 		errorReport.set(null);
 
 		const previous = textures.current;
-		const options = getOptions() ?? {};
-		const mergedSignal = mergeAbortSignals(controller.signal, options.signal);
+		let mergedSignal: ReturnType<typeof mergeAbortSignals> | null = null;
 		try {
-			const loaded = await loadTexturesFromUrls(getUrls(), {
+			const urls = getUrls();
+			const options = getOptions() ?? {};
+			mergedSignal = mergeAbortSignals(controller.signal, options.signal);
+			const loaded = await loadTexturesFromUrls(urls, {
 				...options,
 				signal: mergedSignal.signal
 			});
@@ -81,7 +83,7 @@ export function createTextureLoadController({
 		} finally {
 			if (!disposed && version === requestVersion) loading.set(false);
 			if (activeController === controller) activeController = null;
-			mergedSignal.dispose();
+			mergedSignal?.dispose();
 		}
 	};
 

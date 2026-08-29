@@ -290,10 +290,13 @@ export function preprocessMaterialFragment<
 	lines.push(...fragmentExpanded.lines);
 	mapEntries.push(...fragmentExpanded.mapEntries);
 
-	const lineMap: MaterialLineMap = [null, ...mapEntries];
-	return {
+	const lineMap: MaterialLineMap = Object.freeze([
+		null,
+		...mapEntries.map((entry) => (entry === null ? null : Object.freeze(entry)))
+	]);
+	return Object.freeze({
 		fragment: lines.join('\n'),
 		lineMap,
 		defineBlockSource: defineLines.join('\n')
-	};
+	});
 }

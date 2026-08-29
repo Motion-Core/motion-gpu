@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { attachShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
+import {
+	attachShaderCompilationDiagnostics,
+	type ShaderCompilationDiagnosticsPayload
+} from '../../lib/core/error-diagnostics';
 import {
 	attachMotionGPUErrorContext,
 	createMotionGPUError,
@@ -215,6 +218,65 @@ describe('error report', () => {
 			},
 			activeRenderTargets: ['fxMain']
 		});
+	});
+
+	it('clones and deeply freezes reports without freezing diagnostic inputs', () => {
+		const diagnostic = {
+			generatedLine: 4,
+			message: 'invalid expression',
+			sourceLocation: { kind: 'fragment' as const, line: 2 }
+		};
+		const diagnostics = [diagnostic];
+		const diagnosticContext = {
+			materialSignature: 'mutable-input',
+			passGraph: {
+				passCount: 1,
+				enabledPassCount: 1,
+				inputs: ['source'],
+				outputs: ['canvas']
+			},
+			activeRenderTargets: ['canvas']
+		};
+		const payload = {
+			kind: 'shader-compilation' as const,
+			diagnostics,
+			fragmentSource: ['fn frag() -> vec4f {', '\tbad;', '}'].join('\n'),
+			includeSources: {},
+			materialSource: null,
+			runtimeContext: diagnosticContext
+		} satisfies ShaderCompilationDiagnosticsPayload;
+		const error = attachShaderCompilationDiagnostics(
+			new Error('WGSL compilation failed:\ninvalid expression'),
+			payload
+		);
+		const report = toMotionGPUErrorReport(error, 'render');
+
+		expect(Object.isFrozen(report)).toBe(true);
+		expect(Object.isFrozen(report.details)).toBe(true);
+		expect(Object.isFrozen(report.stack)).toBe(true);
+		expect(Object.isFrozen(report.source)).toBe(true);
+		expect(Object.isFrozen(report.source?.snippet)).toBe(true);
+		expect(report.source?.snippet.every((line) => Object.isFrozen(line))).toBe(true);
+		expect(Object.isFrozen(report.context)).toBe(true);
+		expect(Object.isFrozen(report.context?.activeRenderTargets)).toBe(true);
+		expect(Object.isFrozen(report.context?.passGraph)).toBe(true);
+		expect(Object.isFrozen(report.context?.passGraph?.inputs)).toBe(true);
+		expect(Object.isFrozen(report.context?.passGraph?.outputs)).toBe(true);
+
+		expect(Object.isFrozen(payload)).toBe(false);
+		expect(Object.isFrozen(diagnostics)).toBe(false);
+		expect(Object.isFrozen(diagnostic)).toBe(false);
+		expect(Object.isFrozen(diagnosticContext)).toBe(false);
+		expect(Object.isFrozen(diagnosticContext.passGraph)).toBe(false);
+		expect(Object.isFrozen(diagnosticContext.passGraph.inputs)).toBe(false);
+
+		diagnosticContext.passGraph.inputs.push('late-input');
+		diagnosticContext.activeRenderTargets.push('late-target');
+		diagnostic.message = 'mutated after normalization';
+
+		expect(report.context?.passGraph?.inputs).toEqual(['source']);
+		expect(report.context?.activeRenderTargets).toEqual(['canvas']);
+		expect(report.message).toContain('invalid expression');
 	});
 
 	it('uses material source filename when component name is unavailable', () => {

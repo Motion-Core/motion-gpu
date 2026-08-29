@@ -119,7 +119,7 @@ interface NormalizedTextureLoadOptions {
 }
 
 interface TextureResourceCacheEntry {
-	key: string;
+	key: string | null;
 	refs: number;
 	controller: AbortController;
 	settled: boolean;
@@ -150,9 +150,12 @@ export function isAbortError(error: unknown): boolean {
 
 export function mergeAbortSignals(
 	primary: AbortSignal,
-	secondary: AbortSignal | undefined
+	...secondarySignals: Array<AbortSignal | null | undefined>
 ): MergedAbortSignal {
-	if (!secondary) {
+	const signals = [primary, ...secondarySignals].filter(
+		(signal): signal is AbortSignal => signal != null
+	);
+	if (signals.length === 1) {
 		return {
 			signal: primary,
 			dispose: () => {}
@@ -161,7 +164,7 @@ export function mergeAbortSignals(
 
 	if (typeof AbortSignal.any === 'function') {
 		return {
-			signal: AbortSignal.any([primary, secondary]),
+			signal: AbortSignal.any(signals),
 			dispose: () => {}
 		};
 	}
@@ -173,8 +176,9 @@ export function mergeAbortSignals(
 			return;
 		}
 		disposed = true;
-		primary.removeEventListener('abort', abort);
-		secondary.removeEventListener('abort', abort);
+		for (const signal of signals) {
+			signal.removeEventListener('abort', abort);
+		}
 	};
 	const abort = (): void => {
 		if (!fallback.signal.aborted) {
@@ -183,7 +187,7 @@ export function mergeAbortSignals(
 		cleanup();
 	};
 
-	if (primary.aborted || secondary.aborted) {
+	if (signals.some((signal) => signal.aborted)) {
 		fallback.abort();
 		return {
 			signal: fallback.signal,
@@ -191,71 +195,60 @@ export function mergeAbortSignals(
 		};
 	}
 
-	primary.addEventListener('abort', abort, { once: true });
-	secondary.addEventListener('abort', abort, { once: true });
+	for (const signal of signals) {
+		signal.addEventListener('abort', abort, { once: true });
+	}
 
-	return {
-		signal: fallback.signal,
-		dispose: cleanup
-	};
+	return { signal: fallback.signal, dispose: cleanup };
 }
 
-function toBodyFingerprint(body: BodyInit | null | undefined): string | null {
-	if (body == null) {
-		return null;
-	}
-
-	if (typeof body === 'string') {
-		return `string:${body}`;
-	}
-
-	if (body instanceof URLSearchParams) {
-		return `urlsearchparams:${body.toString()}`;
-	}
-
-	if (typeof FormData !== 'undefined' && body instanceof FormData) {
-		const entries = Array.from(body.entries()).map(([key, value]) => `${key}:${String(value)}`);
-		return `formdata:${entries.join('&')}`;
-	}
-
-	if (body instanceof Blob) {
-		return `blob:${body.type}:${body.size}`;
-	}
-
-	if (body instanceof ArrayBuffer) {
-		return `arraybuffer:${body.byteLength}`;
-	}
-
-	if (ArrayBuffer.isView(body)) {
-		return `view:${body.byteLength}`;
-	}
-
-	return `opaque:${Object.prototype.toString.call(body)}`;
+function canShareTextureRequest(requestInit: RequestInit | undefined): boolean {
+	const method = (requestInit?.method ?? 'GET').toUpperCase();
+	return (method === 'GET' || method === 'HEAD') && requestInit?.body == null;
 }
 
 function normalizeRequestInit(requestInit: RequestInit | undefined): Record<string, unknown> {
-	if (!requestInit) {
-		return {};
-	}
-
-	const headers = new Headers(requestInit.headers);
+	const headers = new Headers(requestInit?.headers);
 	const headerEntries = Array.from(headers.entries()).sort(([a], [b]) => a.localeCompare(b));
 	const normalized: Record<string, unknown> = {};
 
-	normalized.method = (requestInit.method ?? 'GET').toUpperCase();
-	normalized.mode = requestInit.mode ?? null;
-	normalized.cache = requestInit.cache ?? null;
-	normalized.credentials = requestInit.credentials ?? null;
-	normalized.redirect = requestInit.redirect ?? null;
-	normalized.referrer = requestInit.referrer ?? null;
-	normalized.referrerPolicy = requestInit.referrerPolicy ?? null;
-	normalized.integrity = requestInit.integrity ?? null;
-	normalized.keepalive = requestInit.keepalive ?? false;
-	normalized.priority = requestInit.priority ?? null;
+	normalized.method = (requestInit?.method ?? 'GET').toUpperCase();
+	normalized.mode = requestInit?.mode ?? null;
+	normalized.cache = requestInit?.cache ?? null;
+	normalized.credentials = requestInit?.credentials ?? null;
+	normalized.redirect = requestInit?.redirect ?? null;
+	normalized.referrer = requestInit?.referrer ?? null;
+	normalized.referrerPolicy = requestInit?.referrerPolicy ?? null;
+	normalized.integrity = requestInit?.integrity ?? null;
+	normalized.keepalive = requestInit?.keepalive ?? false;
+	normalized.priority = requestInit?.priority ?? null;
 	normalized.headers = headerEntries;
-	normalized.body = toBodyFingerprint(requestInit.body);
 
 	return normalized;
+}
+
+function withoutRequestSignal(requestInit: RequestInit | undefined): RequestInit | undefined {
+	if (!requestInit || requestInit.signal == null) {
+		return requestInit;
+	}
+
+	const rest = { ...requestInit };
+	delete rest.signal;
+	return rest;
+}
+
+function mergeTextureClientSignals(
+	options: NormalizedTextureLoadOptions
+): MergedAbortSignal | null {
+	const primary = options.signal ?? options.requestInit?.signal;
+	if (!primary) {
+		return null;
+	}
+
+	return mergeAbortSignals(
+		primary,
+		options.signal === undefined ? undefined : options.requestInit?.signal
+	);
 }
 
 function normalizeTextureLoadOptions(options: TextureLoadOptions): NormalizedTextureLoadOptions {
@@ -294,7 +287,7 @@ function normalizeTextureLoadOptions(options: TextureLoadOptions): NormalizedTex
 }
 
 /**
- * Builds deterministic resource cache key from full URL IO config.
+ * Builds a deterministic resource cache key for cache-eligible URL IO config.
  */
 export function buildTextureResourceCacheKey(
 	url: string,
@@ -328,9 +321,11 @@ function acquireTextureBlob(
 	entry: TextureResourceCacheEntry;
 	release: () => void;
 } {
-	const key = buildTextureResourceCacheKey(url, options);
-	const existing = resourceCache.get(key);
-	if (existing) {
+	const key = canShareTextureRequest(options.requestInit)
+		? buildTextureResourceCacheKey(url, options)
+		: null;
+	const existing = key === null ? undefined : resourceCache.get(key);
+	if (existing && key !== null) {
 		existing.refs += 1;
 		let released = false;
 		return {
@@ -345,7 +340,9 @@ function acquireTextureBlob(
 					if (!existing.settled) {
 						existing.controller.abort();
 					}
-					resourceCache.delete(key);
+					if (resourceCache.get(key) === existing) {
+						resourceCache.delete(key);
+					}
 				}
 			}
 		};
@@ -374,12 +371,16 @@ function acquireTextureBlob(
 				return blob;
 			})
 			.catch((error) => {
-				resourceCache.delete(key);
+				if (key !== null && resourceCache.get(key) === entry) {
+					resourceCache.delete(key);
+				}
 				throw error;
 			})
 	};
 
-	resourceCache.set(key, entry);
+	if (key !== null) {
+		resourceCache.set(key, entry);
+	}
 	let released = false;
 	return {
 		entry,
@@ -393,7 +394,9 @@ function acquireTextureBlob(
 				if (!entry.settled) {
 					entry.controller.abort();
 				}
-				resourceCache.delete(key);
+				if (key !== null && resourceCache.get(key) === entry) {
+					resourceCache.delete(key);
+				}
 			}
 		}
 	};
@@ -438,11 +441,17 @@ export async function loadTextureFromUrl(
 	}
 
 	const normalized = normalizeTextureLoadOptions(options);
-	const { entry, release } = acquireTextureBlob(url, options);
+	const clientSignal = mergeTextureClientSignals(normalized);
+	let release: (() => void) | null = null;
 	let bitmap: ImageBitmap | null = null;
 
 	try {
-		const blob = await awaitWithAbort(entry.blobPromise, normalized.signal);
+		if (clientSignal?.signal.aborted) {
+			throw createAbortError();
+		}
+		const acquired = acquireTextureBlob(url, options);
+		release = acquired.release;
+		const blob = await awaitWithAbort(acquired.entry.blobPromise, clientSignal?.signal);
 
 		const bitmapOptions: ImageBitmapOptions = {
 			colorSpaceConversion: normalized.decode.colorSpaceConversion,
@@ -458,7 +467,7 @@ export async function loadTextureFromUrl(
 			? await createImageBitmap(blob)
 			: await createImageBitmap(blob, bitmapOptions);
 
-		if (normalized.signal?.aborted) {
+		if (clientSignal?.signal.aborted) {
 			bitmap.close();
 			bitmap = null;
 			throw createAbortError();
@@ -501,7 +510,8 @@ export async function loadTextureFromUrl(
 		}
 		throw error;
 	} finally {
-		release();
+		release?.();
+		clientSignal?.dispose();
 	}
 }
 
@@ -518,7 +528,12 @@ export async function loadTexturesFromUrls(
 ): Promise<LoadedTexture[]> {
 	const loaded: LoadedTexture[] = [];
 	const batchController = new AbortController();
-	const mergedSignal = mergeAbortSignals(batchController.signal, options.signal);
+	const mergedSignal = mergeAbortSignals(
+		batchController.signal,
+		options.signal,
+		options.requestInit?.signal
+	);
+	const requestInit = withoutRequestSignal(options.requestInit);
 	const abortBatch = (): void => {
 		if (!batchController.signal.aborted) {
 			batchController.abort();
@@ -531,6 +546,7 @@ export async function loadTexturesFromUrls(
 		const loadPromises = urls.map(async (url) => {
 			const texture = await loadTextureFromUrl(url, {
 				...options,
+				...(requestInit !== undefined ? { requestInit } : {}),
 				signal: mergedSignal.signal
 			});
 			if (failed) {

@@ -10,6 +10,7 @@ import {
 	type UsePointerOptions,
 	type UsePointerResult
 } from '../lib/vue/use-pointer.js';
+import { runPointerHookContract } from './helpers/pointer-hook-contract.js';
 
 interface PointerProbePayload {
 	pointer: UsePointerResult;
@@ -91,7 +92,7 @@ const PointerProbe = defineComponent({
 		}
 	},
 	setup(props) {
-		const pointer = usePointer(props.options);
+		const pointer = usePointer(() => props.options);
 		onMounted(() => {
 			props.onProbe({ pointer });
 		});
@@ -110,6 +111,28 @@ const MotionGPUProvider = defineComponent({
 	setup(props, { slots }) {
 		provideMotionGPUContext(props.payload.context);
 		return () => slots.default?.() ?? null;
+	}
+});
+
+const PointerContractProvider = defineComponent({
+	name: 'VuePointerContractProvider',
+	props: {
+		onProbe: {
+			type: Function as PropType<(value: PointerProbePayload) => void>,
+			required: true
+		},
+		options: {
+			type: Object as PropType<UsePointerOptions>,
+			required: true
+		},
+		payload: {
+			type: Object as PropType<{ context: MotionGPUContext }>,
+			required: true
+		}
+	},
+	setup(props) {
+		provideMotionGPUContext(props.payload.context);
+		return () => h(PointerProbe, { onProbe: props.onProbe, options: props.options });
 	}
 });
 
@@ -469,4 +492,35 @@ describe('vue usePointer', () => {
 		expect(invalidateSpy).toHaveBeenCalledTimes(1);
 		expect(advanceSpy).toHaveBeenCalledTimes(1);
 	});
+});
+
+runPointerHookContract('Vue', async (options) => {
+	const onProbe = vi.fn();
+	const canvas = document.createElement('canvas');
+	canvas.getBoundingClientRect = () =>
+		({
+			left: 0,
+			top: 0,
+			width: 100,
+			height: 100
+		}) as DOMRect;
+	const payload = createRuntimeHarness({ canvas });
+	const view = render(PointerContractProvider, {
+		props: { onProbe, options, payload }
+	});
+
+	await waitFor(() => {
+		expect(onProbe).toHaveBeenCalledTimes(1);
+	});
+	const probe = onProbe.mock.calls[0]?.[0] as PointerProbePayload | undefined;
+	if (!probe) {
+		throw new Error('Expected pointer probe payload');
+	}
+
+	return {
+		canvas,
+		pointer: probe.pointer,
+		updateOptions: (nextOptions) => view.rerender({ onProbe, options: nextOptions, payload }),
+		unmount: () => view.unmount()
+	};
 });

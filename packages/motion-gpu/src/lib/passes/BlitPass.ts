@@ -41,7 +41,7 @@ export class BlitPass extends FullscreenPass {
 	}
 
 	constructor(options: BlitPassOptions = {}) {
-		super(options);
+		super('BlitPass', options);
 	}
 
 	protected getVertexEntryPoint(): string {

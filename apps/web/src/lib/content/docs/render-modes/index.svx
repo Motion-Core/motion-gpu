@@ -62,6 +62,8 @@ const lastRun = scheduler.getLastRunTimings();
 const profile = scheduler.getProfilingSnapshot();
 ```
 
+The profiling window must be a safe integer from 1 through 10,000 frames. Schedule, last-run timing, and profiling results are deeply frozen snapshots; copy them before adding application metadata.
+
 Diagnostics and profiling currently share one internal toggle, so advanced preset overrides must give them the same value. Available presets are `'performance'`, `'balanced'`, and `'debug'`:
 
 ```ts

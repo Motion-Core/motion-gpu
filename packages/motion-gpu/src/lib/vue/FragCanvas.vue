@@ -23,7 +23,7 @@ export interface FragCanvasProps {
 	showErrorOverlay?: boolean;
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 }
 
 const initialDpr = typeof window === 'undefined' ? 1 : (window.devicePixelRatio ?? 1);
@@ -43,6 +43,7 @@ import {
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport } from '../core/error-report.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
+import { createMotionGPUUserContextStore } from '../core/motiongpu-context.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import { provideFrameRegistry } from './frame-context.js';
 import { provideMotionGPUContext } from './motiongpu-context.js';
@@ -101,7 +102,9 @@ defineSlots<{
 
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvasEl');
 const errorReport = shallowRef<MotionGPUErrorReport | null>(null);
-const errorHistory = shallowRef<MotionGPUErrorReport[]>([]);
+const dismissErrorOverlay = (): void => {
+	errorReport.value = null;
+};
 const getCanvas = (): HTMLCanvasElement | undefined => canvasRef.value ?? undefined;
 
 defineExpose({
@@ -142,7 +145,7 @@ const autoRenderState = currentWritable<boolean>(true, (value) => {
 	registry.setAutoRender(value);
 	requestFrame();
 });
-const userState = currentWritable<Record<string | symbol, unknown>>({});
+const userState = createMotionGPUUserContextStore();
 
 provideMotionGPUContext({
 	get canvas() {
@@ -171,17 +174,6 @@ provideMotionGPUContext({
 		getProfilingSnapshot: registry.getProfilingSnapshot
 	}
 });
-
-/**
- * Normalizes the user-supplied error history limit to a non-negative integer.
- */
-function getNormalizedErrorHistoryLimit(value: number): number {
-	if (!Number.isFinite(value) || value <= 0) {
-		return 0;
-	}
-
-	return Math.floor(value);
-}
 
 watch(
 	() => props.renderMode,
@@ -217,6 +209,7 @@ watch(
 		() => props.clearColor,
 		() => props.color,
 		() => props.deviceDescriptor,
+		() => props.errorHistoryLimit,
 		() => props.material,
 		() => props.passes,
 		() => props.renderTargets
@@ -225,26 +218,6 @@ watch(
 		requestFrame();
 	}
 );
-
-watch([() => errorHistory.value, () => props.errorHistoryLimit], ([history, rawLimit]) => {
-	const limit = getNormalizedErrorHistoryLimit(rawLimit);
-	if (limit <= 0) {
-		if (history.length === 0) {
-			return;
-		}
-		errorHistory.value = [];
-		props.onErrorHistory?.([]);
-		return;
-	}
-
-	if (history.length <= limit) {
-		return;
-	}
-
-	const trimmed = history.slice(history.length - limit);
-	errorHistory.value = trimmed;
-	props.onErrorHistory?.(trimmed);
-});
 
 onMounted(() => {
 	renderModeState.set(props.renderMode);
@@ -260,12 +233,6 @@ onMounted(() => {
 			'initialization'
 		);
 		errorReport.value = report;
-		const historyLimit = getNormalizedErrorHistoryLimit(props.errorHistoryLimit);
-		if (historyLimit > 0) {
-			const nextHistory = [report].slice(-historyLimit);
-			errorHistory.value = nextHistory;
-			props.onErrorHistory?.(nextHistory);
-		}
 		props.onError?.(report);
 		return;
 	}
@@ -286,9 +253,6 @@ onMounted(() => {
 		getOnError: () => props.onError,
 		getErrorHistoryLimit: () => props.errorHistoryLimit,
 		getOnErrorHistory: () => props.onErrorHistory,
-		reportErrorHistory: (history) => {
-			errorHistory.value = history;
-		},
 		reportError: (report) => {
 			errorReport.value = report;
 		}
@@ -310,7 +274,7 @@ onBeforeUnmount(() => {
 		<canvas v-bind="canvasAttrs" ref="canvasEl" :style="resolvedCanvasStyle"></canvas>
 		<template v-if="showErrorOverlay && errorReport">
 			<slot name="errorRenderer" :report="errorReport">
-				<MotionGPUErrorOverlay :report="errorReport" />
+				<MotionGPUErrorOverlay :report="errorReport" :onDismiss="dismissErrorOverlay" />
 			</slot>
 		</template>
 		<slot />

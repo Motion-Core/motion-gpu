@@ -1,0 +1,124 @@
+name: release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-production
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish npm package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: npm-production
+    env:
+      NPM_CONFIG_REGISTRY: https://registry.npmjs.org
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out exact release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.21.1
+
+      - name: Pin npm and pnpm
+        shell: bash
+        run: |
+          npm install --global npm@11.19.0
+          corepack enable
+          test "$(node --version)" = "v22.21.1"
+          test "$(npm --version)" = "11.19.0"
+          test "$(pnpm --version)" = "10.24.0"
+          test "$(npm config get registry)" = "https://registry.npmjs.org/"
+
+      - name: Validate stable release identity
+        id: release
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: node ./scripts/release/preflight.mjs "$GITHUB_EVENT_PATH" "$RELEASE_REPOSITORY" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag commit is on master
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          git fetch --no-tags origin master:refs/remotes/origin/master
+          TAG_COMMIT="$(git rev-list --max-count=1 "$RELEASE_TAG")"
+          test "$TAG_COMMIT" = "$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$TAG_COMMIT" refs/remotes/origin/master
+
+      - name: Verify npm version is unpublished
+        run: node ./scripts/release/assert-unpublished.mjs "${{ steps.release.outputs.version }}"
+
+      - name: Install dependencies from lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit high-severity dependencies
+        run: pnpm run audit:dependencies
+
+      - name: Install Chromium for release E2E gates
+        run: pnpm --dir apps/web exec playwright install --with-deps chromium
+
+      - name: Run full release gate and build
+        run: pnpm run ci
+
+      - name: Pack the release artifact once
+        id: pack
+        env:
+          PACK_DIRECTORY: ${{ runner.temp }}/motion-gpu-release-artifact
+        shell: bash
+        run: |
+          mkdir -p "$PACK_DIRECTORY"
+          PACK_METADATA="$PACK_DIRECTORY/npm-pack.json"
+          npm pack --json --ignore-scripts --pack-destination "$PACK_DIRECTORY" --workspace @motion-core/motion-gpu > "$PACK_METADATA"
+          node ./scripts/release/validate-packed-artifact.mjs "$PACK_METADATA" "$PACK_DIRECTORY" "${{ steps.release.outputs.version }}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test exact tarball with current and minimum peers
+        run: node ./packages/motion-gpu/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.pack.outputs.tarball }}"
+
+      - name: Dry-run exact tarball publication
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --dry-run --access public --tag latest
+
+      - name: Publish exact tarball through npm trusted publishing
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --access public --tag latest
+
+      - name: Verify registry version, latest, integrity, and provenance
+        run: node ./scripts/release/verify-publication.mjs "${{ steps.release.outputs.version }}" "${{ steps.pack.outputs.tarball }}"
+
+      - name: Audit signatures after a fresh exact-version install
+        env:
+          PACKAGE_VERSION: ${{ steps.release.outputs.version }}
+        shell: bash
+        run: |
+          AUDIT_DIRECTORY="$(mktemp -d "${RUNNER_TEMP}/motion-gpu-registry-audit.XXXXXX")"
+          cd "$AUDIT_DIRECTORY"
+          npm init --yes
+          npm install --ignore-scripts --save-exact "@motion-core/motion-gpu@$PACKAGE_VERSION"
+          npm audit signatures
+
+      - name: Smoke test exact registry version with current and minimum peers
+        run: node ./packages/motion-gpu/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.release.outputs.version }}"
+
+      - name: Preserve npm pack metadata
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-pack-metadata-v${{ steps.release.outputs.version }}
+          path: ${{ steps.pack.outputs.metadata }}
+          if-no-files-found: error
+          retention-days: 90

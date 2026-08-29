@@ -52,6 +52,8 @@ state.writeStorageBuffer('particles', data, { offset: 0 });
 
 Offset and `data.byteLength` must be finite integer multiples of four, and the write must fit inside the buffer. Writes are queued and flushed before rendering or compute dispatch. An attempted batch is cleared even if the flush or render fails; it is not replayed automatically.
 
+Motion GPU copies the selected bytes when `writeStorageBuffer(...)` is called. Changing the source typed array afterward does not change the queued write.
+
 Runtime writes do not rebuild the renderer. They update the initial value imported by compute for that frame.
 
 ## CPU readback
@@ -60,6 +62,8 @@ Runtime writes do not rebuild the renderer. They update the initial value import
 const bytes = await state.readStorageBuffer('particles');
 ```
 
-Readback requires an initialized renderer and returns a copied `ArrayBuffer`. Internally it copies into a temporary `MAP_READ | COPY_DST` staging buffer, maps it, copies the bytes, and destroys the staging buffer. This synchronizes GPU work with the CPU and should not be used as a per-frame feedback path.
+Readback requires an initialized renderer and returns a copied `ArrayBuffer`. Before submitting the GPU copy, it flushes queued writes for that buffer in call order. A write followed by a read therefore observes the new data, including overlapping writes where the later call wins. The attempted writes are removed from the queue even if flushing or readback fails.
+
+Internally, readback copies into a temporary `MAP_READ | COPY_DST` staging buffer, maps it, copies the bytes, and destroys the staging buffer. This synchronizes GPU work with the CPU and should not be used as a per-frame feedback path.
 
 Adding or changing the buffer declaration rebuilds the renderer. Changing a pass resource topology requires a new pass instance. Read and write operations do neither. See [Compute Shaders](/docs/compute-shaders) and [Hooks API](/docs/api-hooks-reference#framestate).

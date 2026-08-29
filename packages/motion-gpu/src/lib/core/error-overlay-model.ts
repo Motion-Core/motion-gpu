@@ -1,8 +1,8 @@
 import type { MotionGPUErrorContext, MotionGPUErrorReport } from './error-report.js';
 
 export interface MotionGPUErrorOverlayModel {
-	displayMessage: string;
-	runtimeContextText: string;
+	readonly displayMessage: string;
+	readonly runtimeContextText: string;
 }
 
 function normalizeErrorText(value: string): string {
@@ -47,7 +47,7 @@ function formatMaterialSignature(value: string): string {
 	}
 }
 
-function appendList(lines: string[], values: string[], indent = 2): void {
+function appendList(lines: string[], values: readonly string[], indent = 2): void {
 	const prefix = ' '.repeat(indent);
 	if (values.length === 0) {
 		lines.push(`${prefix}- <none>`);

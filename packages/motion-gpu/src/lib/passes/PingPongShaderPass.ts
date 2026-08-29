@@ -1,6 +1,7 @@
-import { storageTextureSampleScalarType } from '../core/compute-shader.js';
+import { resolveTextureFormatCapabilities } from '../core/format-capabilities.js';
 import { preprocessMaterialFragment, type MaterialLineMap } from '../core/material-preprocess.js';
 import type { MaterialDefines, MaterialIncludes } from '../core/material.js';
+import { managedPassBrand } from '../core/pass-brand.js';
 import { assertUniformName } from '../core/uniforms.js';
 
 const FRAGMENT_FUNCTION_SIGNATURE_PATTERN =
@@ -136,7 +137,8 @@ function assertIterations(count: number): number {
 }
 
 function assertFloatSampledFormat(format: GPUTextureFormat): GPUTextureFormat {
-	if (storageTextureSampleScalarType(format) !== 'f32') {
+	const sampleType = resolveTextureFormatCapabilities(format).sampleType;
+	if (sampleType !== 'float' && sampleType !== 'unfilterable-float') {
 		throw new Error(
 			`PingPongShaderPass format "${format}" must be float-sampled so fragment shaders can read the previous state.`
 		);
@@ -169,6 +171,9 @@ function resolveDimension(
  * texture slot.
  */
 export class PingPongShaderPass {
+	/** Internal nominal marker for renderer-managed feedback passes. */
+	readonly [managedPassBrand] = 'feedback' as const;
+
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */

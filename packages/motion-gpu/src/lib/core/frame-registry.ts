@@ -119,9 +119,9 @@ export interface UseFrameResult {
  * Snapshot of the resolved stage/task execution order.
  */
 export interface FrameScheduleSnapshot {
-	stages: Array<{
-		key: string;
-		tasks: string[];
+	readonly stages: ReadonlyArray<{
+		readonly key: string;
+		readonly tasks: readonly string[];
 	}>;
 }
 
@@ -129,13 +129,15 @@ export interface FrameScheduleSnapshot {
  * Optional scheduler diagnostics payload captured for the last run.
  */
 export interface FrameRunTimings {
-	total: number;
-	stages: Record<
-		string,
-		{
-			duration: number;
-			tasks: Record<string, number>;
-		}
+	readonly total: number;
+	readonly stages: Readonly<
+		Record<
+			string,
+			{
+				readonly duration: number;
+				readonly tasks: Readonly<Record<string, number>>;
+			}
+		>
 	>;
 }
 
@@ -143,27 +145,29 @@ export interface FrameRunTimings {
  * Aggregated timing statistics for stage/task profiling.
  */
 export interface FrameTimingStats {
-	last: number;
-	avg: number;
-	min: number;
-	max: number;
-	count: number;
+	readonly last: number;
+	readonly avg: number;
+	readonly min: number;
+	readonly max: number;
+	readonly count: number;
 }
 
 /**
  * Profiling snapshot aggregated from the configured history window.
  */
 export interface FrameProfilingSnapshot {
-	window: number;
-	frameCount: number;
-	lastFrame: FrameRunTimings | null;
-	total: FrameTimingStats;
-	stages: Record<
-		string,
-		{
-			timings: FrameTimingStats;
-			tasks: Record<string, FrameTimingStats>;
-		}
+	readonly window: number;
+	readonly frameCount: number;
+	readonly lastFrame: FrameRunTimings | null;
+	readonly total: FrameTimingStats;
+	readonly stages: Readonly<
+		Record<
+			string,
+			{
+				readonly timings: FrameTimingStats;
+				readonly tasks: Readonly<Record<string, FrameTimingStats>>;
+			}
+		>
 	>;
 }
 
@@ -174,13 +178,22 @@ interface RegisteredFrameTask extends UseFrameResult {
 	unsubscribe: () => void;
 }
 
+interface DiagnosticEntry {
+	diagnosticId: number;
+	diagnosticKey: string;
+}
+
 /**
  * Internal mutable task descriptor used by scheduler runtime.
  */
 interface InternalTask {
 	task: FrameTask;
-	/** Pre-computed string form of `task.key` — avoids Symbol.toString() on every profiling frame. */
-	keyString: string;
+	/** Stable identity used independently from the human-readable key label. */
+	diagnosticId: number;
+	/** Human-readable key label used by schedule snapshots and diagnostics. */
+	keyLabel: string;
+	/** Collision-safe timing key. Plain string task keys remain backwards compatible. */
+	diagnosticKey: string;
 	callback: FrameCallback;
 	order: number;
 	started: boolean;
@@ -203,6 +216,12 @@ interface InternalTask {
  */
 interface InternalStage {
 	key: FrameKey;
+	/** Stable identity used independently from the human-readable key label. */
+	diagnosticId: number;
+	/** Human-readable key label used by schedule snapshots and diagnostics. */
+	keyLabel: string;
+	/** Collision-safe timing key. Plain string stage keys remain backwards compatible. */
+	diagnosticKey: string;
 	order: number;
 	started: boolean;
 	before: Set<FrameKey>;
@@ -216,6 +235,7 @@ interface InternalStage {
  */
 export const DEFAULT_FRAME_STAGE_KEY = Symbol('motiongpu-main-stage');
 const RENDER_MODE_INVALIDATION_TOKEN = Symbol('motiongpu-render-mode-change');
+const MAX_PROFILING_WINDOW = 10_000;
 
 /**
  * Default stage callback that runs tasks immediately.
@@ -238,6 +258,69 @@ function asArray<T>(value: T | T[] | undefined): T[] {
  */
 function frameKeyToString(key: FrameKey): string {
 	return typeof key === 'symbol' ? key.toString() : key;
+}
+
+/**
+ * Creates the preferred serializable diagnostics key for a frame key.
+ */
+function createDiagnosticKey(key: FrameKey, kind: 'stage' | 'task', id: number): string {
+	if (typeof key === 'string') {
+		return key;
+	}
+
+	return `${frameKeyToString(key)} [${kind}:${id}]`;
+}
+
+/**
+ * Assigns a unique diagnostics key while keeping plain string keys unchanged.
+ * Returns whether an existing entry had to be reassigned.
+ */
+function assignDiagnosticKey<T extends DiagnosticEntry>(
+	entry: T,
+	entries: Iterable<T>,
+	kind: 'stage' | 'task',
+	getKey: (entry: T) => FrameKey
+): boolean {
+	const key = getKey(entry);
+	if (typeof key === 'string') {
+		entry.diagnosticKey = key;
+		let reassignedExistingEntry = false;
+		for (const other of entries) {
+			if (typeof getKey(other) === 'symbol' && other.diagnosticKey === key) {
+				assignDiagnosticKey(other, entries, kind, getKey);
+				reassignedExistingEntry = true;
+			}
+		}
+		return reassignedExistingEntry;
+	}
+
+	const usedKeys = new Set<string>();
+	for (const other of entries) {
+		if (other !== entry) {
+			usedKeys.add(other.diagnosticKey);
+		}
+	}
+
+	const preferredKey = createDiagnosticKey(key, kind, entry.diagnosticId);
+	let diagnosticKey = preferredKey;
+	let collisionIndex = 0;
+	while (usedKeys.has(diagnosticKey)) {
+		collisionIndex += 1;
+		diagnosticKey = `${preferredKey} [collision:${collisionIndex}]`;
+	}
+	entry.diagnosticKey = diagnosticKey;
+	return false;
+}
+
+/**
+ * Validates profiling history capacity before allocating its ring buffer.
+ */
+function assertProfilingWindow(value: number): number {
+	if (!Number.isSafeInteger(value) || value < 1 || value > MAX_PROFILING_WINDOW) {
+		throw new Error(`profilingWindow must be a safe integer between 1 and ${MAX_PROFILING_WINDOW}`);
+	}
+
+	return value;
 }
 
 /**
@@ -380,13 +463,13 @@ function normalizeTaskInvalidation(
  */
 function buildTimingStats(samples: number[], last: number): FrameTimingStats {
 	if (samples.length === 0) {
-		return {
+		return Object.freeze({
 			last,
 			avg: 0,
 			min: 0,
 			max: 0,
 			count: 0
-		};
+		});
 	}
 
 	let sum = 0;
@@ -403,13 +486,13 @@ function buildTimingStats(samples: number[], last: number): FrameTimingStats {
 		}
 	}
 
-	return {
+	return Object.freeze({
 		last,
 		avg: sum / samples.length,
 		min,
 		max,
 		count: samples.length
-	};
+	});
 }
 
 /**
@@ -634,7 +717,7 @@ export interface FrameRegistry {
 	 */
 	setProfilingEnabled: (enabled: boolean) => void;
 	/**
-	 * Sets profiling history window (in frames).
+	 * Sets profiling history window between 1 and 10,000 frames.
 	 */
 	setProfilingWindow: (window: number) => void;
 	/**
@@ -662,7 +745,7 @@ export interface FrameRegistry {
 	 */
 	getProfilingEnabled: () => boolean;
 	/**
-	 * Returns active profiling history window (in frames).
+	 * Returns active profiling history window between 1 and 10,000 frames.
 	 */
 	getProfilingWindow: () => number;
 	/**
@@ -720,7 +803,7 @@ export function createFrameRegistry(options?: {
 	let autoRender = options?.autoRender ?? true;
 	let maxDelta = options?.maxDelta ?? 0.1;
 	let profilingEnabled = options?.profilingEnabled ?? options?.diagnosticsEnabled ?? false;
-	let profilingWindow = options?.profilingWindow ?? 120;
+	let profilingWindow = assertProfilingWindow(options?.profilingWindow ?? 120);
 	let lastRunTimings: FrameRunTimings | null = null;
 
 	// Ring buffer for profiling history. Replaces the Array.shift()-based
@@ -732,6 +815,7 @@ export function createFrameRegistry(options?: {
 	const invalidationTokens = new Set<FrameInvalidationToken>();
 	let shouldAdvance = false;
 	let orderCounter = 0;
+	let diagnosticIdCounter = 0;
 
 	// Pre-allocated object for the clamped-delta frame state, mutated in-place
 	// each frame instead of allocating a new spread object when maxDelta fires.
@@ -746,21 +830,13 @@ export function createFrameRegistry(options?: {
 		return value;
 	};
 
-	const assertProfilingWindow = (value: number): number => {
-		if (!Number.isFinite(value) || value <= 0) {
-			throw new Error('profilingWindow must be a finite number greater than 0');
-		}
-		return Math.floor(value);
-	};
-
 	maxDelta = assertMaxDelta(maxDelta);
-	profilingWindow = assertProfilingWindow(profilingWindow);
 
 	const stages = new Map<FrameKey, InternalStage>();
 	let scheduleDirty = true;
 	let sortedStages: InternalStage[] = [];
 	const sortedTasksByStage = new Map<FrameKey, InternalTask[]>();
-	let scheduleSnapshot: FrameScheduleSnapshot = { stages: [] };
+	let scheduleSnapshot: FrameScheduleSnapshot = Object.freeze({ stages: Object.freeze([]) });
 
 	const markScheduleDirty = (): void => {
 		scheduleDirty = true;
@@ -812,14 +888,18 @@ export function createFrameRegistry(options?: {
 			sortedTasksByStage.set(stageKey, taskList);
 		}
 
-		scheduleSnapshot = {
-			stages: sortedStages.map((stage) => ({
-				key: frameKeyToString(stage.key),
-				tasks: (sortedTasksByStage.get(stage.key) ?? []).map((task) =>
-					frameKeyToString(task.task.key)
+		scheduleSnapshot = Object.freeze({
+			stages: Object.freeze(
+				sortedStages.map((stage) =>
+					Object.freeze({
+						key: stage.keyLabel,
+						tasks: Object.freeze(
+							(sortedTasksByStage.get(stage.key) ?? []).map((task) => task.keyLabel)
+						)
+					})
 				)
-			}))
-		};
+			)
+		});
 
 		scheduleDirty = false;
 	};
@@ -876,28 +956,34 @@ export function createFrameRegistry(options?: {
 			}
 		}
 
-		const stagesSnapshot: FrameProfilingSnapshot['stages'] = {};
+		const stagesSnapshot = Object.create(null) as Record<
+			string,
+			{
+				readonly timings: FrameTimingStats;
+				readonly tasks: Readonly<Record<string, FrameTimingStats>>;
+			}
+		>;
 		for (const [stageKey, stageBucket] of stageBuckets) {
 			const lastStageDuration = lastRunTimings?.stages[stageKey]?.duration ?? 0;
-			const taskSnapshot: Record<string, FrameTimingStats> = {};
+			const taskSnapshot = Object.create(null) as Record<string, FrameTimingStats>;
 			for (const [taskKey, taskDurations] of stageBucket.taskDurations) {
 				const lastTaskDuration = lastRunTimings?.stages[stageKey]?.tasks[taskKey] ?? 0;
 				taskSnapshot[taskKey] = buildTimingStats(taskDurations, lastTaskDuration);
 			}
 
-			stagesSnapshot[stageKey] = {
+			stagesSnapshot[stageKey] = Object.freeze({
 				timings: buildTimingStats(stageBucket.durations, lastStageDuration),
-				tasks: taskSnapshot
-			};
+				tasks: Object.freeze(taskSnapshot)
+			});
 		}
 
-		return {
+		return Object.freeze({
 			window: profilingWindow,
 			frameCount: ringCount,
 			lastFrame: lastRunTimings,
 			total: buildTimingStats(totalDurations, lastRunTimings?.total ?? 0),
-			stages: stagesSnapshot
-		};
+			stages: Object.freeze(stagesSnapshot)
+		});
 	};
 
 	const ensureStage = (
@@ -925,8 +1011,12 @@ export function createFrameRegistry(options?: {
 			return existing;
 		}
 
+		const diagnosticId = diagnosticIdCounter++;
 		const stage: InternalStage = {
 			key: stageKey,
+			diagnosticId,
+			keyLabel: frameKeyToString(stageKey),
+			diagnosticKey: createDiagnosticKey(stageKey, 'stage', diagnosticId),
 			order: orderCounter++,
 			started: true,
 			before: new Set((stageOptions?.before ?? []).map((entry) => toStageKey(entry))),
@@ -935,6 +1025,9 @@ export function createFrameRegistry(options?: {
 			tasks: new Map()
 		};
 		stages.set(stageKey, stage);
+		if (assignDiagnosticKey(stage, stages.values(), 'stage', (entry) => entry.key)) {
+			clearProfiling();
+		}
 		markScheduleDirty();
 		return stage;
 	};
@@ -1016,9 +1109,12 @@ export function createFrameRegistry(options?: {
 				taskOptions.autoStart ?? true
 			);
 
+			const diagnosticId = diagnosticIdCounter++;
 			const internalTask: InternalTask = {
 				task: { key, stage: stage.key },
-				keyString: frameKeyToString(key),
+				diagnosticId,
+				keyLabel: frameKeyToString(key),
+				diagnosticKey: createDiagnosticKey(key, 'task', diagnosticId),
 				callback,
 				order: orderCounter++,
 				started: taskOptions.autoStart ?? true,
@@ -1035,6 +1131,11 @@ export function createFrameRegistry(options?: {
 			}
 
 			stage.tasks.set(key, internalTask);
+			if (
+				assignDiagnosticKey(internalTask, stage.tasks.values(), 'task', (entry) => entry.task.key)
+			) {
+				clearProfiling();
+			}
 			markScheduleDirty();
 			internalTask.startedStoreSet(resolveEffectiveRunning(internalTask));
 
@@ -1088,14 +1189,20 @@ export function createFrameRegistry(options?: {
 			}
 			syncSchedule();
 			const frameStart = profilingEnabled ? performance.now() : 0;
-			const stageTimings: FrameRunTimings['stages'] = {};
+			const stageTimings = Object.create(null) as Record<
+				string,
+				{
+					readonly duration: number;
+					readonly tasks: Readonly<Record<string, number>>;
+				}
+			>;
 
 			for (const stage of sortedStages) {
 				if (!stage.started) {
 					continue;
 				}
 				const stageStart = profilingEnabled ? performance.now() : 0;
-				const taskTimings: Record<string, number> = {};
+				const taskTimings = Object.create(null) as Record<string, number>;
 				const taskList = sortedTasksByStage.get(stage.key) ?? [];
 
 				stage.callback(frameState, () => {
@@ -1107,25 +1214,25 @@ export function createFrameRegistry(options?: {
 
 						task.callback(frameState);
 						if (profilingEnabled) {
-							taskTimings[task.keyString] = performance.now() - taskStart;
+							taskTimings[task.diagnosticKey] = performance.now() - taskStart;
 						}
 						applyTaskInvalidation(task);
 					}
 				});
 
 				if (profilingEnabled) {
-					stageTimings[frameKeyToString(stage.key)] = {
+					stageTimings[stage.diagnosticKey] = Object.freeze({
 						duration: performance.now() - stageStart,
-						tasks: taskTimings
-					};
+						tasks: Object.freeze(taskTimings)
+					});
 				}
 			}
 
 			if (profilingEnabled) {
-				const timings = {
+				const timings: FrameRunTimings = Object.freeze({
 					total: performance.now() - frameStart,
-					stages: stageTimings
-				};
+					stages: Object.freeze(stageTimings)
+				});
 				lastRunTimings = timings;
 				pushProfile(timings);
 			}

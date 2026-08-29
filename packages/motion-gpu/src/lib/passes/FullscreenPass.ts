@@ -6,6 +6,14 @@ import type {
 	RenderPassOutputSlot
 } from '../core/types.js';
 import { resolveTextureSamplingLayout } from '../core/textures.js';
+import {
+	assertFloatRenderableFormat,
+	assertFloatSampledFormat
+} from '../core/format-capabilities.js';
+import {
+	builtInRenderPassBrand,
+	type BuiltInRenderPassFormatContract
+} from '../core/pass-brand.js';
 
 export interface FullscreenPassOptions extends RenderPassFlags {
 	enabled?: boolean;
@@ -19,6 +27,7 @@ export interface FullscreenPassOptions extends RenderPassFlags {
  * Shared base for fullscreen texture sampling passes.
  */
 export abstract class FullscreenPass implements RenderPass {
+	readonly [builtInRenderPassBrand]: BuiltInRenderPassFormatContract;
 	enabled: boolean;
 	needsSwap: boolean;
 	input: RenderPassInputSlot;
@@ -34,7 +43,12 @@ export abstract class FullscreenPass implements RenderPass {
 	private readonly pipelineByFormat = new Map<string, GPURenderPipeline>();
 	private bindGroupByView = new WeakMap<GPUTextureView, GPUBindGroup>();
 
-	protected constructor(options: FullscreenPassOptions = {}) {
+	protected constructor(passName: string, options: FullscreenPassOptions = {}) {
+		this[builtInRenderPassBrand] = Object.freeze({
+			passName,
+			input: 'float-sampled',
+			output: 'float-renderable'
+		});
 		this.enabled = options.enabled ?? true;
 		this.needsSwap = options.needsSwap ?? true;
 		this.input = options.input ?? 'source';
@@ -66,6 +80,19 @@ export abstract class FullscreenPass implements RenderPass {
 		bindGroupLayout: GPUBindGroupLayout;
 		pipeline: GPURenderPipeline;
 	} {
+		const passName = this[builtInRenderPassBrand].passName;
+		assertFloatSampledFormat({
+			format: inputFormat,
+			target: String(this.input),
+			pass: passName,
+			deviceFeatures: device.features
+		});
+		assertFloatRenderableFormat({
+			format: outputFormat,
+			target: String(this.output),
+			pass: passName,
+			deviceFeatures: device.features
+		});
 		if (this.device !== device) {
 			this.device = device;
 			this.invalidateFullscreenCache();

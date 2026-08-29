@@ -2,12 +2,14 @@
 import ComputeScenario from './scenarios/ComputeScenario.vue';
 import LifecycleScenario from './scenarios/LifecycleScenario.vue';
 import MixedPassesScenario from './scenarios/MixedPassesScenario.vue';
+import StorageWriteReadScenario from './scenarios/StorageWriteReadScenario.vue';
 import PassesScenario from './scenarios/PassesScenario.vue';
 import PerfScenario from './scenarios/PerfScenario.vue';
 import RuntimeScenario from './scenarios/RuntimeScenario.vue';
 import ShaderRecoveryScenario from './scenarios/ShaderRecoveryScenario.vue';
 import TextureScenario from './scenarios/TextureScenario.vue';
 import UniformsScenario from './scenarios/UniformsScenario.vue';
+import ErrorOverlayStyleScenario from './scenarios/ErrorOverlayStyleScenario.vue';
 
 type Scenario =
 	| 'runtime'
@@ -18,7 +20,9 @@ type Scenario =
 	| 'compute'
 	| 'uniforms'
 	| 'lifecycle'
-	| 'mixed-passes';
+	| 'mixed-passes'
+	| 'storage-proof'
+	| 'error-overlay-style';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
@@ -30,7 +34,9 @@ function resolveScenario(): Scenario {
 		queryScenario === 'compute' ||
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
-		queryScenario === 'mixed-passes'
+		queryScenario === 'mixed-passes' ||
+		queryScenario === 'storage-proof' ||
+		queryScenario === 'error-overlay-style'
 	) {
 		return queryScenario;
 	}
@@ -52,4 +58,6 @@ const scenario = resolveScenario();
 	<UniformsScenario v-if="scenario === 'uniforms'" />
 	<LifecycleScenario v-if="scenario === 'lifecycle'" />
 	<MixedPassesScenario v-if="scenario === 'mixed-passes'" />
+	<StorageWriteReadScenario v-if="scenario === 'storage-proof'" />
+	<ErrorOverlayStyleScenario v-if="scenario === 'error-overlay-style'" />
 </template>

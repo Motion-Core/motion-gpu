@@ -2,8 +2,8 @@ import type { MaterialSourceLocation, MaterialSourceMetadata } from './material-
 export type { MaterialSourceMetadata } from './material-contracts.js';
 
 export interface ComputeSourceLocation {
-	kind: 'compute';
-	line: number;
+	readonly kind: 'compute';
+	readonly line: number;
 }
 
 export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocation;
@@ -12,40 +12,40 @@ export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocatio
  * One WGSL compiler diagnostic enriched with source-location metadata.
  */
 export interface ShaderCompilationDiagnostic {
-	generatedLine: number;
-	message: string;
-	linePos?: number;
-	lineLength?: number;
-	sourceLocation: ShaderSourceLocation | null;
+	readonly generatedLine: number;
+	readonly message: string;
+	readonly linePos?: number;
+	readonly lineLength?: number;
+	readonly sourceLocation: ShaderSourceLocation | null;
 }
 
 /**
  * Runtime context snapshot captured for shader compilation diagnostics.
  */
 export interface ShaderCompilationRuntimeContext {
-	materialSignature?: string;
-	passGraph?: {
-		passCount: number;
-		enabledPassCount: number;
-		inputs: string[];
-		outputs: string[];
+	readonly materialSignature?: string;
+	readonly passGraph?: {
+		readonly passCount: number;
+		readonly enabledPassCount: number;
+		readonly inputs: readonly string[];
+		readonly outputs: readonly string[];
 	};
-	activeRenderTargets: string[];
+	readonly activeRenderTargets: readonly string[];
 }
 
 /**
  * Structured payload attached to WGSL compilation errors.
  */
 export interface ShaderCompilationDiagnosticsPayload {
-	kind: 'shader-compilation';
-	shaderStage?: 'fragment' | 'compute';
-	diagnostics: ShaderCompilationDiagnostic[];
-	fragmentSource: string;
-	computeSource?: string;
-	includeSources: Record<string, string>;
-	defineBlockSource?: string;
-	materialSource: MaterialSourceMetadata | null;
-	runtimeContext?: ShaderCompilationRuntimeContext;
+	readonly kind: 'shader-compilation';
+	readonly shaderStage?: 'fragment' | 'compute';
+	readonly diagnostics: readonly ShaderCompilationDiagnostic[];
+	readonly fragmentSource: string;
+	readonly computeSource?: string;
+	readonly includeSources: Readonly<Record<string, string>>;
+	readonly defineBlockSource?: string;
+	readonly materialSource: MaterialSourceMetadata | null;
+	readonly runtimeContext?: ShaderCompilationRuntimeContext;
 }
 
 type MotionGPUErrorWithDiagnostics = Error & {
@@ -120,7 +120,7 @@ function isShaderCompilationDiagnostic(value: unknown): value is ShaderCompilati
 	return true;
 }
 
-function isStringArray(value: unknown): value is string[] {
+function isStringArray(value: unknown): value is readonly string[] {
 	return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
@@ -160,6 +160,90 @@ function isShaderCompilationRuntimeContext(
 	return true;
 }
 
+function freezeShaderSourceLocation(
+	location: ShaderSourceLocation | null
+): ShaderSourceLocation | null {
+	if (location === null) {
+		return null;
+	}
+
+	return Object.freeze({
+		kind: location.kind,
+		line: location.line,
+		...('include' in location && location.include !== undefined
+			? { include: location.include }
+			: {}),
+		...('define' in location && location.define !== undefined ? { define: location.define } : {})
+	}) as ShaderSourceLocation;
+}
+
+function freezeMaterialSource(
+	source: MaterialSourceMetadata | null
+): MaterialSourceMetadata | null {
+	if (source === null) {
+		return null;
+	}
+
+	return Object.freeze({
+		...(source.component !== undefined ? { component: source.component } : {}),
+		...(source.file !== undefined ? { file: source.file } : {}),
+		...(source.line !== undefined ? { line: source.line } : {}),
+		...(source.column !== undefined ? { column: source.column } : {}),
+		...(source.functionName !== undefined ? { functionName: source.functionName } : {})
+	});
+}
+
+function freezeRuntimeContext(
+	context: ShaderCompilationRuntimeContext
+): ShaderCompilationRuntimeContext {
+	return Object.freeze({
+		...(context.materialSignature !== undefined
+			? { materialSignature: context.materialSignature }
+			: {}),
+		...(context.passGraph !== undefined
+			? {
+					passGraph: Object.freeze({
+						passCount: context.passGraph.passCount,
+						enabledPassCount: context.passGraph.enabledPassCount,
+						inputs: Object.freeze([...context.passGraph.inputs]),
+						outputs: Object.freeze([...context.passGraph.outputs])
+					})
+				}
+			: {}),
+		activeRenderTargets: Object.freeze([...context.activeRenderTargets])
+	});
+}
+
+function freezeDiagnosticsPayload(
+	payload: ShaderCompilationDiagnosticsPayload
+): ShaderCompilationDiagnosticsPayload {
+	return Object.freeze({
+		kind: 'shader-compilation',
+		...(payload.shaderStage !== undefined ? { shaderStage: payload.shaderStage } : {}),
+		diagnostics: Object.freeze(
+			payload.diagnostics.map((diagnostic) =>
+				Object.freeze({
+					generatedLine: diagnostic.generatedLine,
+					message: diagnostic.message,
+					...(diagnostic.linePos !== undefined ? { linePos: diagnostic.linePos } : {}),
+					...(diagnostic.lineLength !== undefined ? { lineLength: diagnostic.lineLength } : {}),
+					sourceLocation: freezeShaderSourceLocation(diagnostic.sourceLocation)
+				})
+			)
+		),
+		fragmentSource: payload.fragmentSource,
+		...(payload.computeSource !== undefined ? { computeSource: payload.computeSource } : {}),
+		includeSources: Object.freeze(Object.fromEntries(Object.entries(payload.includeSources))),
+		...(payload.defineBlockSource !== undefined
+			? { defineBlockSource: payload.defineBlockSource }
+			: {}),
+		materialSource: freezeMaterialSource(payload.materialSource),
+		...(payload.runtimeContext !== undefined
+			? { runtimeContext: freezeRuntimeContext(payload.runtimeContext) }
+			: {})
+	});
+}
+
 /**
  * Attaches structured diagnostics payload to an Error.
  */
@@ -167,7 +251,7 @@ export function attachShaderCompilationDiagnostics(
 	error: Error,
 	payload: ShaderCompilationDiagnosticsPayload
 ): Error {
-	(error as MotionGPUErrorWithDiagnostics).motiongpuDiagnostics = payload;
+	(error as MotionGPUErrorWithDiagnostics).motiongpuDiagnostics = freezeDiagnosticsPayload(payload);
 	return error;
 }
 
@@ -229,17 +313,17 @@ export function getShaderCompilationDiagnostics(
 		return null;
 	}
 
-	return {
+	return freezeDiagnosticsPayload({
 		kind: 'shader-compilation',
 		...(record.shaderStage !== undefined
 			? { shaderStage: record.shaderStage as 'fragment' | 'compute' }
 			: {}),
-		diagnostics: record.diagnostics as ShaderCompilationDiagnostic[],
+		diagnostics: record.diagnostics as readonly ShaderCompilationDiagnostic[],
 		fragmentSource: record.fragmentSource,
 		...(record.computeSource !== undefined
 			? { computeSource: record.computeSource as string }
 			: {}),
-		includeSources: includeSources as Record<string, string>,
+		includeSources: includeSources as Readonly<Record<string, string>>,
 		...(record.defineBlockSource !== undefined
 			? { defineBlockSource: record.defineBlockSource as string }
 			: {}),
@@ -247,5 +331,5 @@ export function getShaderCompilationDiagnostics(
 		...(record.runtimeContext !== undefined
 			? { runtimeContext: record.runtimeContext as ShaderCompilationRuntimeContext }
 			: {})
-	};
+	});
 }

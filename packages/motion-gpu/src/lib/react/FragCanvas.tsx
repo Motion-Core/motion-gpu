@@ -1,6 +1,7 @@
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toMotionGPUErrorReport, type MotionGPUErrorReport } from '../core/error-report.js';
 import type { FragMaterial } from '../core/material.js';
+import { createMotionGPUUserContextStore } from '../core/motiongpu-context.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
 import { createMotionGPURuntimeLoop } from '../core/runtime-loop.js';
 import type {
@@ -39,7 +40,7 @@ interface FragCanvasOwnProps {
 	errorRenderer?: (report: MotionGPUErrorReport) => ReactNode;
 	onError?: (report: MotionGPUErrorReport) => void;
 	errorHistoryLimit?: number;
-	onErrorHistory?: (history: MotionGPUErrorReport[]) => void;
+	onErrorHistory?: (history: readonly MotionGPUErrorReport[]) => void;
 	children?: ReactNode;
 	ref?: Ref<HTMLCanvasElement>;
 }
@@ -66,7 +67,7 @@ interface RuntimePropsSnapshot {
 	deviceDescriptor: GPUDeviceDescriptor | undefined;
 	onError: ((report: MotionGPUErrorReport) => void) | undefined;
 	errorHistoryLimit: number;
-	onErrorHistory: ((history: MotionGPUErrorReport[]) => void) | undefined;
+	onErrorHistory: ((history: readonly MotionGPUErrorReport[]) => void) | undefined;
 }
 
 interface FragCanvasRuntimeState {
@@ -122,7 +123,7 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		registry.setAutoRender(value);
 		requestFrame();
 	});
-	const userState = currentWritable<Record<string | symbol, unknown>>({});
+	const userState = createMotionGPUUserContextStore();
 
 	const context: MotionGPUContext = {
 		get canvas() {
@@ -166,14 +167,6 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		invalidateFrame,
 		advanceFrame
 	};
-}
-
-function getNormalizedErrorHistoryLimit(value: number): number {
-	if (!Number.isFinite(value) || value <= 0) {
-		return 0;
-	}
-
-	return Math.floor(value);
 }
 
 function setExternalRef<T>(ref: Ref<T> | undefined, value: T | null): (() => void) | undefined {
@@ -256,7 +249,9 @@ export function FragCanvas({
 	};
 
 	const [errorReport, setErrorReport] = useState<MotionGPUErrorReport | null>(null);
-	const [errorHistory, setErrorHistory] = useState<MotionGPUErrorReport[]>([]);
+	const dismissErrorOverlay = useCallback((): void => {
+		setErrorReport(null);
+	}, []);
 
 	useEffect(() => {
 		runtime.renderModeState.set(renderMode);
@@ -275,26 +270,6 @@ export function FragCanvas({
 	}, [dpr, runtime]);
 
 	useEffect(() => {
-		const limit = getNormalizedErrorHistoryLimit(errorHistoryLimit);
-		if (limit <= 0) {
-			if (errorHistory.length === 0) {
-				return;
-			}
-			setErrorHistory([]);
-			onErrorHistory?.([]);
-			return;
-		}
-
-		if (errorHistory.length <= limit) {
-			return;
-		}
-
-		const trimmed = errorHistory.slice(errorHistory.length - limit);
-		setErrorHistory(trimmed);
-		onErrorHistory?.(trimmed);
-	}, [errorHistory, errorHistoryLimit, onErrorHistory]);
-
-	useEffect(() => {
 		const canvas = runtime.canvasRef.current;
 		if (!canvas) {
 			const report = toMotionGPUErrorReport(
@@ -302,14 +277,6 @@ export function FragCanvas({
 				'initialization'
 			);
 			setErrorReport(report);
-			const historyLimit = getNormalizedErrorHistoryLimit(
-				runtimePropsRef.current.errorHistoryLimit
-			);
-			if (historyLimit > 0) {
-				const nextHistory = [report].slice(-historyLimit);
-				setErrorHistory(nextHistory);
-				runtimePropsRef.current.onErrorHistory?.(nextHistory);
-			}
 			runtimePropsRef.current.onError?.(report);
 			return () => {
 				runtime.registry.clear();
@@ -332,9 +299,6 @@ export function FragCanvas({
 			getOnError: () => runtimePropsRef.current.onError,
 			getErrorHistoryLimit: () => runtimePropsRef.current.errorHistoryLimit,
 			getOnErrorHistory: () => runtimePropsRef.current.onErrorHistory,
-			reportErrorHistory: (history) => {
-				setErrorHistory(history);
-			},
 			reportError: (report) => {
 				setErrorReport(report);
 			}
@@ -354,6 +318,7 @@ export function FragCanvas({
 		clearColor,
 		color,
 		deviceDescriptor,
+		errorHistoryLimit,
 		material,
 		passes,
 		renderTargets,
@@ -406,7 +371,7 @@ export function FragCanvas({
 						errorRenderer ? (
 							errorRenderer(errorReport)
 						) : (
-							<MotionGPUErrorOverlay report={errorReport} />
+							<MotionGPUErrorOverlay report={errorReport} onDismiss={dismissErrorOverlay} />
 						)
 					) : null}
 					{children}

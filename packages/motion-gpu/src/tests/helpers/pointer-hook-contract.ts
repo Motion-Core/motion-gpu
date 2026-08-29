@@ -162,13 +162,46 @@ export function runPointerHookContract(framework: string, mount: MountPointerHoo
 			);
 			expect(harness.pointer.state.current.px).toEqual([130, 20]);
 
-			harness.canvas.dispatchEvent(
-				createPointer('pointercancel', {
+			window.dispatchEvent(
+				createPointer('pointerup', {
 					pointerId: 12,
-					clientX: 130,
-					clientY: 20
+					clientX: 140,
+					clientY: 20,
+					buttons: 0
 				})
 			);
+			expect(harness.pointer.state.current).toMatchObject({
+				px: [140, 20],
+				inside: false,
+				pressed: false,
+				pointerId: null,
+				buttons: 0
+			});
+
+			harness.canvas.dispatchEvent(
+				createPointer('pointerdown', {
+					pointerId: 13,
+					clientX: 30,
+					clientY: 30,
+					buttons: 1
+				})
+			);
+			expect(harness.pointer.state.current).toMatchObject({
+				pressed: true,
+				pointerId: 13
+			});
+
+			window.dispatchEvent(
+				createPointer('pointercancel', {
+					pointerId: 13,
+					clientX: 140,
+					clientY: 30
+				})
+			);
+			expect(harness.pointer.state.current).toMatchObject({
+				pressed: false,
+				pointerId: null
+			});
 			await harness.unmount();
 		});
 

@@ -200,7 +200,8 @@ export interface PointerControllerOptions {
 	 */
 	capturePointer?: boolean;
 	/**
-	 * Tracks pointer move/up outside canvas while pointer is pressed.
+	 * Tracks pointer movement outside canvas while pointer is pressed.
+	 * Pointer release/cancellation is still observed to keep press state consistent.
 	 *
 	 * @default true
 	 */
@@ -332,7 +333,8 @@ export function createPointerController(
 	let canvas: HTMLCanvasElement | null = null;
 	let windowTarget: Window | null = null;
 	let canvasListenersAttached = false;
-	let windowListenersAttached = false;
+	let windowMoveListenerAttached = false;
+	let windowReleaseListenersAttached = false;
 	let activePointerId: number | null = null;
 	let capturedPointerId: number | null = null;
 	let downSnapshot: PointerDownSnapshot | null = null;
@@ -660,26 +662,42 @@ export function createPointerController(
 		}
 	};
 
-	const attachWindowListeners = (): void => {
-		if (windowListenersAttached || !windowTarget || !shouldTrackOutside()) {
+	const attachWindowMoveListener = (): void => {
+		if (windowMoveListenerAttached || !windowTarget || !shouldTrackOutside()) {
 			return;
 		}
 
 		windowTarget.addEventListener('pointermove', handleWindowPointerMove);
-		windowTarget.addEventListener('pointerup', handlePointerUp);
-		windowTarget.addEventListener('pointercancel', handlePointerCancel);
-		windowListenersAttached = true;
+		windowMoveListenerAttached = true;
 	};
 
-	const detachWindowListeners = (): void => {
-		if (!windowListenersAttached || !windowTarget) {
+	const detachWindowMoveListener = (): void => {
+		if (!windowMoveListenerAttached || !windowTarget) {
 			return;
 		}
 
 		windowTarget.removeEventListener('pointermove', handleWindowPointerMove);
+		windowMoveListenerAttached = false;
+	};
+
+	const attachWindowReleaseListeners = (): void => {
+		if (windowReleaseListenersAttached || !windowTarget) {
+			return;
+		}
+
+		windowTarget.addEventListener('pointerup', handlePointerUp);
+		windowTarget.addEventListener('pointercancel', handlePointerCancel);
+		windowReleaseListenersAttached = true;
+	};
+
+	const detachWindowReleaseListeners = (): void => {
+		if (!windowReleaseListenersAttached || !windowTarget) {
+			return;
+		}
+
 		windowTarget.removeEventListener('pointerup', handlePointerUp);
 		windowTarget.removeEventListener('pointercancel', handlePointerCancel);
-		windowListenersAttached = false;
+		windowReleaseListenersAttached = false;
 	};
 
 	const attachCanvasListeners = (): void => {
@@ -693,11 +711,13 @@ export function createPointerController(
 		canvas.addEventListener('pointercancel', handlePointerCancel);
 		canvas.addEventListener('pointerleave', handlePointerLeave);
 		canvasListenersAttached = true;
-		attachWindowListeners();
+		attachWindowReleaseListeners();
+		attachWindowMoveListener();
 	};
 
 	const detachCanvasListeners = (): void => {
-		detachWindowListeners();
+		detachWindowMoveListener();
+		detachWindowReleaseListeners();
 		if (!canvasListenersAttached || !canvas) {
 			return;
 		}
@@ -755,9 +775,9 @@ export function createPointerController(
 			}
 
 			if (trackingOutside) {
-				attachWindowListeners();
+				attachWindowMoveListener();
 			} else {
-				detachWindowListeners();
+				detachWindowMoveListener();
 			}
 		},
 		destroy

@@ -14,13 +14,13 @@
 		"gpu",
 		"postprocessing"
 	],
-	"homepage": "https://github.com/Motion-Core/motion-gpu/tree/master/packages/motion-gpu#readme",
+	"homepage": "https://github.com/kaltwrk/motion-gpu/tree/master/packages/motion-gpu#readme",
 	"bugs": {
-		"url": "https://github.com/Motion-Core/motion-gpu/issues"
+		"url": "https://github.com/kaltwrk/motion-gpu/issues"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/Motion-Core/motion-gpu.git",
+		"url": "https://github.com/kaltwrk/motion-gpu",
 		"directory": "packages/motion-gpu"
 	},
 	"license": "MIT",

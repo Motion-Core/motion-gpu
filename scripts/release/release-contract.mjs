@@ -2,7 +2,7 @@ import path from 'node:path';
 
 export const EXPECTED_PACKAGE_NAME = '@motion-core/motion-gpu';
 export const EXPECTED_GITHUB_REPOSITORY = 'kaltwrk/motion-gpu';
-export const EXPECTED_REPOSITORY_URL = 'git+https://github.com/Motion-Core/motion-gpu.git';
+export const EXPECTED_REPOSITORY_URL = `https://github.com/${EXPECTED_GITHUB_REPOSITORY}`;
 export const EXPECTED_REPOSITORY_DIRECTORY = 'packages/motion-gpu';
 export const NPM_REGISTRY_URL = 'https://registry.npmjs.org';
 

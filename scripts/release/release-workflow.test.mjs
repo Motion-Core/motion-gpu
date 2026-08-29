@@ -35,7 +35,7 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	assert.match(workflow, /runs-on: ubuntu-24\.04/);
 	assert.match(workflow, /timeout-minutes: 90/);
 	assert.match(workflow, /environment: npm-production/);
-	assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
+	assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org\/\n/);
 	assert.match(workflow, /permissions:\n      contents: read\n      id-token: write/);
 	assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
 	assert.match(workflow, /node-version: 22\.21\.1/);

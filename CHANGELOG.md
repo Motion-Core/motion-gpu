@@ -3,7 +3,7 @@
 All notable changes to Motion GPU will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.16.0] - 2026-08-29
 
 ### Breaking
 
@@ -455,7 +455,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...HEAD
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/336e4c8c...HEAD
+[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...336e4c8c
 [0.15.1]: https://github.com/Motion-Core/motion-gpu/compare/5c8bfe5...2351fb7f
 [0.15.0]: https://github.com/Motion-Core/motion-gpu/compare/2cd2bce...14760502
 [0.14.0]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...2cd2bce

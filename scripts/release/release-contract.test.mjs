@@ -104,7 +104,7 @@ test('requires exact package and GitHub repository identity', () => {
 				manifest: packageManifest,
 				version: '0.16.0'
 			}),
-		/Motion-Core\/motion-gpu/
+		/kaltwrk\/motion-gpu/
 	);
 	assert.throws(
 		() =>

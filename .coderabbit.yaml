@@ -2,10 +2,6 @@
 
 reviews:
   review_status: true
-  path_filters:
-    - '!apps/web/tests/**'
-    - '!packages/motion-gpu/e2e/**'
-    - '!packages/motion-gpu/src/tests/**'
   auto_review:
     enabled: true
     drafts: false

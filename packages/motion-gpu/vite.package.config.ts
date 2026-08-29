@@ -110,21 +110,19 @@ function emitTypesPlugin(): Plugin {
 	};
 }
 
-function injectVueAdapterCssImportPlugin(): Plugin {
-	const vueEntryChunkPath = 'vue/index.js';
-	const vueCssImport = "import '../motion-gpu.css';\n";
+function injectAdapterCssImportsPlugin(): Plugin {
+	const adapterEntryChunkPaths = ['react/index.js', 'svelte/index.js', 'vue/index.js'];
+	const adapterCssImport = "import '../motion-gpu.css';\n";
 
 	return {
-		name: 'motion-gpu-inject-vue-css-import',
+		name: 'motion-gpu-inject-adapter-css-imports',
 		apply: 'build',
 		generateBundle(_, bundle) {
-			const chunk = bundle[vueEntryChunkPath];
-			if (!chunk || chunk.type !== 'chunk') {
-				return;
-			}
-
-			if (!chunk.code.includes('../motion-gpu.css')) {
-				chunk.code = `${vueCssImport}${chunk.code}`;
+			for (const chunkPath of adapterEntryChunkPaths) {
+				const chunk = bundle[chunkPath];
+				if (chunk?.type === 'chunk' && !chunk.code.includes('../motion-gpu.css')) {
+					chunk.code = `${adapterCssImport}${chunk.code}`;
+				}
 			}
 		}
 	};
@@ -152,7 +150,7 @@ function isExternal(id: string): boolean {
 }
 
 export default defineConfig({
-	plugins: [vue(), copySvelteFilesPlugin(), injectVueAdapterCssImportPlugin(), emitTypesPlugin()],
+	plugins: [vue(), copySvelteFilesPlugin(), injectAdapterCssImportsPlugin(), emitTypesPlugin()],
 	build: {
 		target: 'es2022',
 		outDir: 'dist',

@@ -9,6 +9,7 @@ import RuntimeScenario from './scenarios/RuntimeScenario.vue';
 import ShaderRecoveryScenario from './scenarios/ShaderRecoveryScenario.vue';
 import TextureScenario from './scenarios/TextureScenario.vue';
 import UniformsScenario from './scenarios/UniformsScenario.vue';
+import ErrorOverlayStyleScenario from './scenarios/ErrorOverlayStyleScenario.vue';
 
 type Scenario =
 	| 'runtime'
@@ -20,7 +21,8 @@ type Scenario =
 	| 'uniforms'
 	| 'lifecycle'
 	| 'mixed-passes'
-	| 'storage-proof';
+	| 'storage-proof'
+	| 'error-overlay-style';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
@@ -33,7 +35,8 @@ function resolveScenario(): Scenario {
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
 		queryScenario === 'mixed-passes' ||
-		queryScenario === 'storage-proof'
+		queryScenario === 'storage-proof' ||
+		queryScenario === 'error-overlay-style'
 	) {
 		return queryScenario;
 	}
@@ -56,4 +59,5 @@ const scenario = resolveScenario();
 	<LifecycleScenario v-if="scenario === 'lifecycle'" />
 	<MixedPassesScenario v-if="scenario === 'mixed-passes'" />
 	<StorageWriteReadScenario v-if="scenario === 'storage-proof'" />
+	<ErrorOverlayStyleScenario v-if="scenario === 'error-overlay-style'" />
 </template>

@@ -441,10 +441,16 @@ async function assertPackedArtifacts(coreConsumerDirectory) {
 
 	await access(path.join(installedPackage, 'dist/motion-gpu.css'));
 	await access(path.join(installedPackage, 'dist/svelte/FragCanvas.svelte'));
-	const svelteEntry = await readFile(path.join(installedPackage, 'dist/svelte/index.js'), 'utf8');
-	assert.match(svelteEntry, /["']\.\/FragCanvas\.svelte["']/);
-	const vueEntry = await readFile(path.join(installedPackage, 'dist/vue/index.js'), 'utf8');
-	assert.match(vueEntry, /["']\.\.\/motion-gpu\.css["']/);
+	for (const adapter of ['react', 'svelte', 'vue']) {
+		const adapterEntry = await readFile(
+			path.join(installedPackage, `dist/${adapter}/index.js`),
+			'utf8'
+		);
+		assert.match(adapterEntry, /["']\.\.\/motion-gpu\.css["']/);
+		if (adapter === 'svelte') {
+			assert.match(adapterEntry, /["']\.\/FragCanvas\.svelte["']/);
+		}
+	}
 }
 
 function collectDeclarationPublicApi(installedPackage, exportsMap) {

@@ -8,6 +8,7 @@ import { UniformsScenario } from './scenarios/UniformsScenario';
 import { LifecycleScenario } from './scenarios/LifecycleScenario';
 import { MixedPassesScenario } from './scenarios/MixedPassesScenario';
 import { StorageWriteReadScenario } from './scenarios/StorageWriteReadScenario';
+import { ErrorOverlayStyleScenario } from './scenarios/ErrorOverlayStyleScenario';
 
 type Scenario =
 	| 'runtime'
@@ -19,7 +20,8 @@ type Scenario =
 	| 'uniforms'
 	| 'lifecycle'
 	| 'mixed-passes'
-	| 'storage-proof';
+	| 'storage-proof'
+	| 'error-overlay-style';
 
 function resolveScenario(): Scenario {
 	const queryScenario = new URLSearchParams(window.location.search).get('scenario');
@@ -33,7 +35,8 @@ function resolveScenario(): Scenario {
 		queryScenario === 'uniforms' ||
 		queryScenario === 'lifecycle' ||
 		queryScenario === 'mixed-passes' ||
-		queryScenario === 'storage-proof'
+		queryScenario === 'storage-proof' ||
+		queryScenario === 'error-overlay-style'
 	) {
 		return queryScenario;
 	}
@@ -57,6 +60,7 @@ export function App() {
 			{scenario === 'lifecycle' ? <LifecycleScenario /> : null}
 			{scenario === 'mixed-passes' ? <MixedPassesScenario /> : null}
 			{scenario === 'storage-proof' ? <StorageWriteReadScenario /> : null}
+			{scenario === 'error-overlay-style' ? <ErrorOverlayStyleScenario /> : null}
 		</>
 	);
 }

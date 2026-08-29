@@ -86,7 +86,9 @@ test('keeps WebGPU E2E off GitHub-hosted runners', () => {
 	assert.match(ciWorkflow, /runs-on: ubuntu-24\.04/);
 	assert.match(ciWorkflow, /run: pnpm run ci:quality/);
 	assert.doesNotMatch(ciWorkflow, /playwright install|test:e2e|pnpm run ci\n/);
+	assert.doesNotMatch(rootManifest.scripts['ci:quality'], /consumers:browser|test:e2e/);
 	assert.match(rootManifest.scripts.ci, /pnpm run ci:quality && pnpm run ci:e2e/);
+	assert.match(rootManifest.scripts['ci:e2e'], /check:motion-gpu:consumers:browser/);
 });
 
 test('tests, dry-runs, and publishes the same exact tarball in order', () => {

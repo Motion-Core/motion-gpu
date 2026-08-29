@@ -133,11 +133,20 @@ export function injectPackageSpec(manifestSource, dependencySpec) {
 }
 
 export function parsePackedConsumerArguments(arguments_) {
+	let includeBrowserRuntime = false;
 	let includeMinimumPeers = false;
 	let packageSpec;
 
 	for (let index = 0; index < arguments_.length; index += 1) {
 		const argument = arguments_[index];
+		if (argument === '--browser-runtime') {
+			if (includeBrowserRuntime) {
+				throw new Error('Packed consumer option --browser-runtime may only be provided once.');
+			}
+			includeBrowserRuntime = true;
+			continue;
+		}
+
 		if (argument === '--peer-matrix') {
 			if (includeMinimumPeers) {
 				throw new Error('Packed consumer option --peer-matrix may only be provided once.');
@@ -161,7 +170,7 @@ export function parsePackedConsumerArguments(arguments_) {
 		throw new Error(`Unknown packed consumer option: ${argument}`);
 	}
 
-	return { includeMinimumPeers, packageSpec };
+	return { includeBrowserRuntime, includeMinimumPeers, packageSpec };
 }
 
 export function assertPublicExportMap(exportsMap) {
@@ -690,7 +699,7 @@ async function prepareTarball(temporaryRoot) {
 	return findPackedTarball(artifactDirectory);
 }
 
-async function checkProfile(temporaryRoot, packageSpec, profile) {
+async function checkProfile(temporaryRoot, packageSpec, profile, includeBrowserRuntime) {
 	const profileRoot = path.join(temporaryRoot, profile.name);
 	await mkdir(profileRoot, { recursive: true });
 	console.log(`[packed-consumers] checking ${profile.name} dependency profile`);
@@ -702,10 +711,16 @@ async function checkProfile(temporaryRoot, packageSpec, profile) {
 	await assertNodeSsrImports(consumerRoot);
 	await assertInternalImportsAreBlocked(coreConsumerDirectory);
 	await checkAndBuildFixtures(consumerRoot);
-	await assertPackedCustomRenderPassRuntime(consumerRoot);
+	if (includeBrowserRuntime) {
+		await assertPackedCustomRenderPassRuntime(consumerRoot);
+	}
 }
 
-export async function runPackedConsumerChecks({ includeMinimumPeers = false, packageSpec } = {}) {
+export async function runPackedConsumerChecks({
+	includeBrowserRuntime = false,
+	includeMinimumPeers = false,
+	packageSpec
+} = {}) {
 	const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), 'motion-gpu-packed-consumers-'));
 
 	try {
@@ -723,7 +738,7 @@ export async function runPackedConsumerChecks({ includeMinimumPeers = false, pac
 			profiles.push({ name: 'minimum', versions: minimumVersions });
 		}
 		for (const profile of profiles) {
-			await checkProfile(temporaryRoot, resolvedPackageSpec, profile);
+			await checkProfile(temporaryRoot, resolvedPackageSpec, profile, includeBrowserRuntime);
 		}
 		console.log(
 			`Packed consumer checks passed for all 10 entrypoints (${profiles.map(({ name }) => name).join(' + ')} profiles).`

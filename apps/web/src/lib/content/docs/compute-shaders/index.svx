@@ -11,7 +11,7 @@ Use `PingPongShaderPass` when a fullscreen simulation only samples the previous 
 
 Compute source must contain:
 
-- `@workgroup_size(...)` dimensions from 1 through 65535;
+- one to three positive integer `@workgroup_size(...)` dimensions. Usable values must fit the active device's `maxComputeWorkgroupSizeX`, `maxComputeWorkgroupSizeY`, and `maxComputeWorkgroupSizeZ` limits, and their product must not exceed `maxComputeInvocationsPerWorkgroup`;
 - a function named `compute` with the `@compute` attribute;
 - `@builtin(global_invocation_id)` in that function's parameters.
 

@@ -447,7 +447,6 @@ export function createMotionGPURuntimeLoop(
 				`Unknown storage buffer "${name}". Declare it in material.storageBuffers first.`
 			);
 		}
-		const writes = takePendingStorageWrites(name);
 		if (!renderer) {
 			return Promise.reject(
 				new Error(`Cannot read storage buffer "${name}": renderer not initialized.`)
@@ -465,6 +464,7 @@ export function createMotionGPURuntimeLoop(
 		if (!definition) {
 			return Promise.reject(new Error(`Missing definition for storage buffer "${name}".`));
 		}
+		const writes = takePendingStorageWrites(name);
 		try {
 			if (writes.length > 0) {
 				renderer.flushStorageWrites(writes);

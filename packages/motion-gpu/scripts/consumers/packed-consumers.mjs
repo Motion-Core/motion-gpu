@@ -19,6 +19,13 @@ const fixturePublicEntries = {
 	svelte: ['./svelte', './svelte/advanced'],
 	vue: ['./vue', './vue/advanced']
 };
+
+function toPublicPackageSpecifier(entryName) {
+	return entryName === '.'
+		? '@motion-core/motion-gpu'
+		: `@motion-core/motion-gpu/${entryName.slice(2)}`;
+}
+
 const entryAliases = {
 	'.': 'Root',
 	'./advanced': 'RootAdvanced',
@@ -31,20 +38,14 @@ const entryAliases = {
 	'./vue': 'Vue',
 	'./vue/advanced': 'VueAdvanced'
 };
-export const nodeSsrEntrypointsByFixture = Object.freeze({
-	core: Object.freeze([
-		'@motion-core/motion-gpu',
-		'@motion-core/motion-gpu/advanced',
-		'@motion-core/motion-gpu/core',
-		'@motion-core/motion-gpu/core/advanced'
-	]),
-	react: Object.freeze(['@motion-core/motion-gpu/react', '@motion-core/motion-gpu/react/advanced']),
-	svelte: Object.freeze([
-		'@motion-core/motion-gpu/svelte',
-		'@motion-core/motion-gpu/svelte/advanced'
-	]),
-	vue: Object.freeze(['@motion-core/motion-gpu/vue', '@motion-core/motion-gpu/vue/advanced'])
-});
+export const nodeSsrEntrypointsByFixture = Object.freeze(
+	Object.fromEntries(
+		Object.entries(fixturePublicEntries).map(([fixtureName, entries]) => [
+			fixtureName,
+			Object.freeze(entries.map(toPublicPackageSpecifier))
+		])
+	)
+);
 export const nodeSsrEntrypoints = Object.freeze(Object.values(nodeSsrEntrypointsByFixture).flat());
 const currentVersions = {
 	core: { typescript: '5.9.3', vite: '8.2.1' },
@@ -217,10 +218,7 @@ export function createPublicApiCompileContract(fixtureName) {
 	for (const entryName of entries) {
 		const expected = publicApiManifest[entryName];
 		const aliasPrefix = entryAliases[entryName];
-		const specifier =
-			entryName === '.'
-				? '@motion-core/motion-gpu'
-				: `@motion-core/motion-gpu/${entryName.slice(2)}`;
+		const specifier = toPublicPackageSpecifier(entryName);
 		const runtimeImports = expected.runtime.map(
 			(symbol) => `${symbol} as ${aliasPrefix}_${symbol}`
 		);
@@ -236,13 +234,42 @@ export function createPublicApiCompileContract(fixtureName) {
 	return lines.join('\n');
 }
 
+/** Ensures emitted JavaScript exposes the exact runtime namespace promised by declarations. */
+export function assertRuntimePublicApi(entrypoint, namespace, expectedRuntime) {
+	const actual = Object.keys(namespace).sort();
+	const expected = [...expectedRuntime].sort();
+	if (JSON.stringify(actual) === JSON.stringify(expected)) {
+		return;
+	}
+
+	const missing = expected.filter((symbol) => !actual.includes(symbol));
+	const unexpected = actual.filter((symbol) => !expected.includes(symbol));
+	throw new Error(
+		`${entrypoint} emitted runtime exports changed. Missing: ${missing.join(', ') || 'none'}; unexpected: ${unexpected.join(', ') || 'none'}.`
+	);
+}
+
 /** Generates the direct Node import contract used against the installed package. */
 export function createNodeSsrImportContract(entrypoints = nodeSsrEntrypoints) {
+	const expectedRuntime = Object.fromEntries(
+		entrypoints.map((entrypoint) => {
+			const manifestEntry = Object.entries(publicApiManifest).find(
+				([entryName]) => toPublicPackageSpecifier(entryName) === entrypoint
+			);
+			if (!manifestEntry) {
+				throw new Error(`Unknown public API entrypoint ${entrypoint}.`);
+			}
+			return [entrypoint, manifestEntry[1].runtime];
+		})
+	);
+
 	return [
 		"const browserGlobals = ['navigator', 'document', 'window'];",
 		'for (const globalName of browserGlobals) { if (!Reflect.deleteProperty(globalThis, globalName)) throw new Error(`Could not remove ${globalName} for the SSR import contract.`); if (globalName in globalThis) throw new Error(`SSR import contract must run without ${globalName}.`); }',
 		`const entrypoints = ${JSON.stringify(entrypoints)};`,
-		'for (const entrypoint of entrypoints) await import(entrypoint);'
+		`const expectedRuntime = ${JSON.stringify(expectedRuntime)};`,
+		`const assertRuntimePublicApi = ${assertRuntimePublicApi.toString()};`,
+		'for (const entrypoint of entrypoints) { const namespace = await import(entrypoint); assertRuntimePublicApi(entrypoint, namespace, expectedRuntime[entrypoint]); }'
 	].join(' ');
 }
 

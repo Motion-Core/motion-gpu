@@ -4,6 +4,10 @@ import { test } from 'node:test';
 
 const workflowPath = new URL('../../.github/workflows/release.yml', import.meta.url);
 const workflow = await readFile(workflowPath, 'utf8');
+const publicationVerifier = await readFile(
+	new URL('./verify-publication.mjs', import.meta.url),
+	'utf8'
+);
 const rootManifest = JSON.parse(
 	await readFile(new URL('../../package.json', import.meta.url), 'utf8')
 );
@@ -116,4 +120,13 @@ test('verifies provenance and exact registry consumers after publication', () =>
 	]);
 	assert.match(workflow, /uses: actions\/upload-artifact@[a-f0-9]{40}/);
 	assert.match(workflow, /path: \$\{\{ steps\.pack\.outputs\.metadata \}\}/);
+	assert.match(publicationVerifier, /REGISTRY_ATTEMPT_TIMEOUT_MS = 30_000/);
+	assert.match(
+		publicationVerifier,
+		/fetch\(versionUrl, \{ headers: \{ accept: 'application\/json' \}, signal \}\)/
+	);
+	assert.match(
+		publicationVerifier,
+		/fetch\(tagsUrl, \{ headers: \{ accept: 'application\/json' \}, signal \}\)/
+	);
 });

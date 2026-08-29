@@ -342,6 +342,7 @@ export function createPointerController(
 	let previousPx: PointerVec2 | null = null;
 	let previousUv: PointerVec2 | null = null;
 	let previousTimeSeconds = 0;
+	const handledCanvasMoveEvents = new WeakSet<PointerEvent>();
 
 	const isEnabled = (): boolean => options.enabled ?? true;
 	const shouldTrackOutside = (): boolean => options.trackWhilePressedOutsideCanvas ?? true;
@@ -525,6 +526,7 @@ export function createPointerController(
 		if (!canvas || (activePointerId !== null && event.pointerId !== activePointerId)) {
 			return;
 		}
+		handledCanvasMoveEvents.add(event);
 
 		const point = getPointerCoordinates(
 			event.clientX,
@@ -552,7 +554,12 @@ export function createPointerController(
 	};
 
 	const handleWindowPointerMove = (event: PointerEvent): void => {
-		if (!canvas || activePointerId === null || event.pointerId !== activePointerId) {
+		if (
+			handledCanvasMoveEvents.has(event) ||
+			!canvas ||
+			activePointerId === null ||
+			event.pointerId !== activePointerId
+		) {
 			return;
 		}
 

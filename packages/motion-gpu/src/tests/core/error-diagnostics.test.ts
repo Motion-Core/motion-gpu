@@ -37,6 +37,61 @@ describe('error diagnostics', () => {
 		expect(payload?.materialSource?.component).toBe('Scene.svelte');
 	});
 
+	it('isolates and deeply freezes attached diagnostics snapshots', () => {
+		const diagnostics = [
+			{
+				generatedLine: 12,
+				message: 'unknown symbol',
+				sourceLocation: { kind: 'include' as const, include: 'tone', line: 3 }
+			}
+		];
+		const includeSources = { tone: 'fn tone() -> f32 { return 1.0; }' };
+		const materialSource = { component: 'Scene.svelte', line: 22 };
+		const runtimeContext = {
+			activeRenderTargets: ['fxMain'],
+			passGraph: {
+				passCount: 1,
+				enabledPassCount: 1,
+				inputs: ['source'],
+				outputs: ['target']
+			}
+		};
+		const error = attachShaderCompilationDiagnostics(new Error('compile failed'), {
+			kind: 'shader-compilation',
+			diagnostics,
+			fragmentSource: 'fragment',
+			includeSources,
+			materialSource,
+			runtimeContext
+		});
+
+		diagnostics[0]!.message = 'mutated';
+		includeSources.tone = 'mutated';
+		materialSource.component = 'Mutated.svelte';
+		runtimeContext.passGraph.inputs.push('mutated');
+
+		const payload = getShaderCompilationDiagnostics(error);
+		expect(payload?.diagnostics[0]?.message).toBe('unknown symbol');
+		expect(payload?.includeSources.tone).toContain('fn tone');
+		expect(payload?.materialSource?.component).toBe('Scene.svelte');
+		expect(payload?.runtimeContext?.passGraph?.inputs).toEqual(['source']);
+		for (const value of [
+			payload,
+			payload?.diagnostics,
+			payload?.diagnostics[0],
+			payload?.diagnostics[0]?.sourceLocation,
+			payload?.includeSources,
+			payload?.materialSource,
+			payload?.runtimeContext,
+			payload?.runtimeContext?.activeRenderTargets,
+			payload?.runtimeContext?.passGraph,
+			payload?.runtimeContext?.passGraph?.inputs,
+			payload?.runtimeContext?.passGraph?.outputs
+		]) {
+			expect(Object.isFrozen(value)).toBe(true);
+		}
+	});
+
 	it('returns null for non-error values and unrelated payload kinds', () => {
 		expect(getShaderCompilationDiagnostics('broken')).toBeNull();
 

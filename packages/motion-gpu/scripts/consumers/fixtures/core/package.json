@@ -2,6 +2,9 @@
 	"name": "@motion-gpu-consumers/core",
 	"private": true,
 	"type": "module",
+	"engines": {
+		"node": ">=22.18.0"
+	},
 	"scripts": {
 		"build": "vite build",
 		"check": "tsc --noEmit",

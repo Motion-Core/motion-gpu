@@ -18,13 +18,15 @@ const expectedIntegrity = `sha512-${createHash('sha512').update(tarball).digest(
 const packagePath = encodeURIComponent(EXPECTED_PACKAGE_NAME);
 const versionUrl = `${NPM_REGISTRY_URL}/${packagePath}/${version}`;
 const tagsUrl = `${NPM_REGISTRY_URL}/-/package/${packagePath}/dist-tags`;
+const REGISTRY_ATTEMPT_TIMEOUT_MS = 30_000;
 let lastError;
 
 for (let attempt = 1; attempt <= 30; attempt += 1) {
 	try {
+		const signal = AbortSignal.timeout(REGISTRY_ATTEMPT_TIMEOUT_MS);
 		const [versionResponse, tagsResponse] = await Promise.all([
-			fetch(versionUrl, { headers: { accept: 'application/json' } }),
-			fetch(tagsUrl, { headers: { accept: 'application/json' } })
+			fetch(versionUrl, { headers: { accept: 'application/json' }, signal }),
+			fetch(tagsUrl, { headers: { accept: 'application/json' }, signal })
 		]);
 		if (!versionResponse.ok || !tagsResponse.ok) {
 			throw new Error(

@@ -160,6 +160,90 @@ function isShaderCompilationRuntimeContext(
 	return true;
 }
 
+function freezeShaderSourceLocation(
+	location: ShaderSourceLocation | null
+): ShaderSourceLocation | null {
+	if (location === null) {
+		return null;
+	}
+
+	return Object.freeze({
+		kind: location.kind,
+		line: location.line,
+		...('include' in location && location.include !== undefined
+			? { include: location.include }
+			: {}),
+		...('define' in location && location.define !== undefined ? { define: location.define } : {})
+	}) as ShaderSourceLocation;
+}
+
+function freezeMaterialSource(
+	source: MaterialSourceMetadata | null
+): MaterialSourceMetadata | null {
+	if (source === null) {
+		return null;
+	}
+
+	return Object.freeze({
+		...(source.component !== undefined ? { component: source.component } : {}),
+		...(source.file !== undefined ? { file: source.file } : {}),
+		...(source.line !== undefined ? { line: source.line } : {}),
+		...(source.column !== undefined ? { column: source.column } : {}),
+		...(source.functionName !== undefined ? { functionName: source.functionName } : {})
+	});
+}
+
+function freezeRuntimeContext(
+	context: ShaderCompilationRuntimeContext
+): ShaderCompilationRuntimeContext {
+	return Object.freeze({
+		...(context.materialSignature !== undefined
+			? { materialSignature: context.materialSignature }
+			: {}),
+		...(context.passGraph !== undefined
+			? {
+					passGraph: Object.freeze({
+						passCount: context.passGraph.passCount,
+						enabledPassCount: context.passGraph.enabledPassCount,
+						inputs: Object.freeze([...context.passGraph.inputs]),
+						outputs: Object.freeze([...context.passGraph.outputs])
+					})
+				}
+			: {}),
+		activeRenderTargets: Object.freeze([...context.activeRenderTargets])
+	});
+}
+
+function freezeDiagnosticsPayload(
+	payload: ShaderCompilationDiagnosticsPayload
+): ShaderCompilationDiagnosticsPayload {
+	return Object.freeze({
+		kind: 'shader-compilation',
+		...(payload.shaderStage !== undefined ? { shaderStage: payload.shaderStage } : {}),
+		diagnostics: Object.freeze(
+			payload.diagnostics.map((diagnostic) =>
+				Object.freeze({
+					generatedLine: diagnostic.generatedLine,
+					message: diagnostic.message,
+					...(diagnostic.linePos !== undefined ? { linePos: diagnostic.linePos } : {}),
+					...(diagnostic.lineLength !== undefined ? { lineLength: diagnostic.lineLength } : {}),
+					sourceLocation: freezeShaderSourceLocation(diagnostic.sourceLocation)
+				})
+			)
+		),
+		fragmentSource: payload.fragmentSource,
+		...(payload.computeSource !== undefined ? { computeSource: payload.computeSource } : {}),
+		includeSources: Object.freeze(Object.fromEntries(Object.entries(payload.includeSources))),
+		...(payload.defineBlockSource !== undefined
+			? { defineBlockSource: payload.defineBlockSource }
+			: {}),
+		materialSource: freezeMaterialSource(payload.materialSource),
+		...(payload.runtimeContext !== undefined
+			? { runtimeContext: freezeRuntimeContext(payload.runtimeContext) }
+			: {})
+	});
+}
+
 /**
  * Attaches structured diagnostics payload to an Error.
  */
@@ -167,7 +251,7 @@ export function attachShaderCompilationDiagnostics(
 	error: Error,
 	payload: ShaderCompilationDiagnosticsPayload
 ): Error {
-	(error as MotionGPUErrorWithDiagnostics).motiongpuDiagnostics = payload;
+	(error as MotionGPUErrorWithDiagnostics).motiongpuDiagnostics = freezeDiagnosticsPayload(payload);
 	return error;
 }
 
@@ -229,7 +313,7 @@ export function getShaderCompilationDiagnostics(
 		return null;
 	}
 
-	return {
+	return freezeDiagnosticsPayload({
 		kind: 'shader-compilation',
 		...(record.shaderStage !== undefined
 			? { shaderStage: record.shaderStage as 'fragment' | 'compute' }
@@ -247,5 +331,5 @@ export function getShaderCompilationDiagnostics(
 		...(record.runtimeContext !== undefined
 			? { runtimeContext: record.runtimeContext as ShaderCompilationRuntimeContext }
 			: {})
-	};
+	});
 }

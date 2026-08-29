@@ -5,6 +5,7 @@ import {
 	applyExactVersions,
 	assertPublicApiSymbols,
 	assertPublicExportMap,
+	assertRuntimePublicApi,
 	createNodeSsrImportContract,
 	createNodeSsrLoader,
 	createPublicApiCompileContract,
@@ -165,6 +166,7 @@ test('generates direct SSR imports for all public entrypoints without browser gl
 		assert.match(contract, new RegExp(`['"]${globalName}['"]`));
 	}
 	assert.match(contract, /await import\(entrypoint\)/);
+	assert.match(contract, /assertRuntimePublicApi\(entrypoint, namespace/);
 	for (const entrypoint of nodeSsrEntrypoints) {
 		assert.match(contract, new RegExp(JSON.stringify(entrypoint).replaceAll('/', '\\/')));
 	}
@@ -174,6 +176,20 @@ test('generates direct SSR imports for all public entrypoints without browser gl
 	assert.match(loader, /ERR_MODULE_NOT_FOUND/);
 	assert.match(loader, /`\$\{specifier\}\.js`/);
 	assert.match(loader, /url\.endsWith\('\.css'\)/);
+});
+
+test('rejects emitted JavaScript missing a declared runtime export', () => {
+	assert.doesNotThrow(() =>
+		assertRuntimePublicApi('@motion-core/motion-gpu/core', { present: true }, ['present'])
+	);
+	assert.throws(
+		() =>
+			assertRuntimePublicApi('@motion-core/motion-gpu/core', { present: true }, [
+				'missing',
+				'present'
+			]),
+		/Missing: missing/
+	);
 });
 
 test('core fixture compiles and runs a structural custom RenderPass contract', async () => {
@@ -189,6 +205,7 @@ test('core fixture compiles and runs a structural custom RenderPass contract', a
 	assert.match(fixtureSource, /const acceptedPasses: AnyPass\[\] = \[structuralCustomRenderPass\]/);
 	assert.match(fixtureSource, /structuralCustomRenderPass\.render\(\)/);
 	assert.equal(fixtureManifest.scripts['test:custom-pass'], 'node src/custom-render-pass.ts');
+	assert.equal(fixtureManifest.engines.node, '>=22.18.0');
 });
 
 test('core fixture proves readonly contracts while accepting mutable inputs', async () => {

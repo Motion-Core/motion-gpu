@@ -287,6 +287,65 @@ describe('runtime-loop', () => {
 		loop.destroy();
 	});
 
+	it('preserves queued writes for the frame flush when read prerequisites are unavailable', async () => {
+		const registry = createFrameRegistry();
+		let readError: unknown = null;
+		let attempted = false;
+		registry.register('writer-reader', (state) => {
+			if (attempted) {
+				return;
+			}
+			attempted = true;
+			state.writeStorageBuffer('particles', new Float32Array([7]));
+			void state.readStorageBuffer('particles').catch((error) => {
+				readError = error;
+			});
+		});
+		let flushedWrites: Array<{ name: string; offset: number }> = [];
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => ({ queue: { submit: vi.fn() } })),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string; offset: number }>) => {
+				flushedWrites = writes.map(({ name, offset }) => ({ name, offset }));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createMotionGPURuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await Promise.resolve();
+
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('not allocated on GPU');
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+		expect(flushedWrites).toEqual([{ name: 'particles', offset: 0 }]);
+		loop.destroy();
+	});
+
 	it('rejects readStorageBuffer when renderer has no device accessor', async () => {
 		const registry = createFrameRegistry();
 		let readError: unknown = null;

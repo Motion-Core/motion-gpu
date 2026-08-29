@@ -252,6 +252,38 @@ export function runPointerHookContract(framework: string, mount: MountPointerHoo
 			await harness.unmount();
 		});
 
+		it('handles a bubbling outside canvas move only once', async () => {
+			const onMove = vi.fn();
+			const harness = await mount({ onMove });
+			installPointerCaptureHarness(harness.canvas);
+			harness.canvas.dispatchEvent(
+				createPointer('pointerdown', {
+					pointerId: 25,
+					clientX: 20,
+					clientY: 20,
+					buttons: 1
+				})
+			);
+
+			harness.canvas.dispatchEvent(
+				createPointer('pointermove', {
+					pointerId: 25,
+					clientX: 140,
+					clientY: 20,
+					buttons: 1
+				})
+			);
+
+			expect(onMove).toHaveBeenCalledTimes(1);
+			expect(harness.pointer.state.current).toMatchObject({
+				px: [140, 20],
+				inside: false,
+				pressed: true,
+				dragging: true
+			});
+			await harness.unmount();
+		});
+
 		it('releases capture and removes canvas/window listeners on unmount', async () => {
 			const onDown = vi.fn();
 			const onMove = vi.fn();

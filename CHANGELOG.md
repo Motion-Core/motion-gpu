@@ -456,8 +456,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Namespaced user-context APIs for plugin-like integrations.
 - Core tests and TypeScript hardening across runtime/public API behavior.
 
-[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/657c5fa7...HEAD
-[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...657c5fa7
+[Unreleased]: https://github.com/Motion-Core/motion-gpu/compare/2cd79015...HEAD
+[0.16.0]: https://github.com/Motion-Core/motion-gpu/compare/2351fb7f...2cd79015
 [0.15.1]: https://github.com/Motion-Core/motion-gpu/compare/5c8bfe5...2351fb7f
 [0.15.0]: https://github.com/Motion-Core/motion-gpu/compare/2cd2bce...14760502
 [0.14.0]: https://github.com/Motion-Core/motion-gpu/compare/eeeb14c...2cd2bce

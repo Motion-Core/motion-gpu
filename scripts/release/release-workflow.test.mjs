@@ -39,18 +39,13 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	assert.match(workflow, /permissions:\n      contents: read\n      id-token: write/);
 	assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
 	assert.match(workflow, /node-version: 22\.21\.1/);
-	assert.match(
-		workflow,
-		/- name: Set up exact pnpm\n        uses: pnpm\/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6\.0\.10\n\n/
-	);
-	assert.match(workflow, /npm install --global npm@11\.19\.0/);
-	assert.doesNotMatch(workflow, /corepack/);
+	assert.match(workflow, /npm install --global npm@11\.19\.0 pnpm@10\.24\.0/);
+	assert.doesNotMatch(workflow, /corepack|pnpm\/action-setup/);
 	assert.match(workflow, /test "\$\(pnpm --version\)" = "10\.24\.0"/);
 	assertOrdered([
 		'Check out exact release tag',
 		'Set up exact Node.js',
-		'Set up exact pnpm',
-		'Pin npm and verify toolchain',
+		'Pin npm and pnpm',
 		'Validate stable release identity'
 	]);
 	assert.equal(

@@ -36,13 +36,10 @@ jobs:
         with:
           node-version: 22.21.1
 
-      - name: Set up exact pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - name: Pin npm and verify toolchain
+      - name: Pin npm and pnpm
         shell: bash
         run: |
-          npm install --global npm@11.19.0
+          npm install --global npm@11.19.0 pnpm@10.24.0
           test "$(node --version)" = "v22.21.1"
           test "$(npm --version)" = "11.19.0"
           test "$(pnpm --version)" = "10.24.0"

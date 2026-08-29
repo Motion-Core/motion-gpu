@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 90
     environment: npm-production
     env:
+      COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
       NPM_CONFIG_REGISTRY: https://registry.npmjs.org
     permissions:
       contents: read
@@ -41,6 +42,8 @@ jobs:
         run: |
           npm install --global npm@11.19.0
           corepack enable
+          PACKAGE_MANAGER_SPEC="$(node -p 'require("./package.json").packageManager')"
+          corepack install --global "$PACKAGE_MANAGER_SPEC"
           test "$(node --version)" = "v22.21.1"
           test "$(npm --version)" = "11.19.0"
           test "$(pnpm --version)" = "10.24.0"

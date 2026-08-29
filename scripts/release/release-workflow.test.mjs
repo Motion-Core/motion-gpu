@@ -31,12 +31,19 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	assert.match(workflow, /runs-on: ubuntu-24\.04/);
 	assert.match(workflow, /timeout-minutes: 90/);
 	assert.match(workflow, /environment: npm-production/);
+	assert.match(workflow, /COREPACK_ENABLE_DOWNLOAD_PROMPT: 0/);
 	assert.match(workflow, /NPM_CONFIG_REGISTRY: https:\/\/registry\.npmjs\.org/);
 	assert.match(workflow, /permissions:\n      contents: read\n      id-token: write/);
 	assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\./);
 	assert.match(workflow, /node-version: 22\.21\.1/);
 	assert.match(workflow, /npm install --global npm@11\.19\.0/);
+	assert.match(
+		workflow,
+		/PACKAGE_MANAGER_SPEC="\$\(node -p 'require\("\.\/package\.json"\)\.packageManager'\)"/
+	);
+	assert.match(workflow, /corepack install --global "\$PACKAGE_MANAGER_SPEC"/);
 	assert.match(workflow, /test "\$\(pnpm --version\)" = "10\.24\.0"/);
+	assert.match(rootManifest.packageManager, /^pnpm@10\.24\.0\+sha512\./);
 });
 
 test('pins every third-party action to an immutable commit', () => {

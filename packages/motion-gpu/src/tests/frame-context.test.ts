@@ -622,6 +622,73 @@ describe('frame registry', () => {
 		expect(profilingTasks.every(([, stats]) => stats.count === 2)).toBe(true);
 	});
 
+	it('does not mix profiling history when a late string task key displaces a symbol key', () => {
+		const registry = createFrameRegistry({
+			profilingEnabled: true,
+			profilingWindow: 4
+		});
+		registry.register(Symbol('late-task'), () => undefined);
+		registry.run(createState(registry));
+
+		const symbolDiagnosticKey = Object.values(registry.getLastRunTimings()?.stages ?? {}).flatMap(
+			(stage) => Object.keys(stage.tasks)
+		)[0];
+		expect(symbolDiagnosticKey).toMatch(/^Symbol\(late-task\) \[task:\d+\]$/);
+
+		registry.register(symbolDiagnosticKey as string, () => undefined);
+		registry.run(createState(registry));
+
+		const timingTaskKeys = Object.values(registry.getLastRunTimings()?.stages ?? {}).flatMap(
+			(stage) => Object.keys(stage.tasks)
+		);
+		const profiling = registry.getProfilingSnapshot();
+		const profilingTasks = Object.values(profiling?.stages ?? {}).flatMap((stage) =>
+			Object.entries(stage.tasks)
+		);
+
+		expect(timingTaskKeys).toHaveLength(2);
+		expect(new Set(timingTaskKeys).size).toBe(2);
+		expect(timingTaskKeys).toContain(symbolDiagnosticKey);
+		expect(timingTaskKeys.some((key) => key.startsWith(`${symbolDiagnosticKey} [collision:`))).toBe(
+			true
+		);
+		expect(profiling?.frameCount).toBe(1);
+		expect(profilingTasks).toHaveLength(2);
+		expect(profilingTasks.every(([, stats]) => stats.count === 1)).toBe(true);
+	});
+
+	it('does not mix profiling history when a late string stage key displaces a symbol key', () => {
+		const registry = createFrameRegistry({
+			profilingEnabled: true,
+			profilingWindow: 4
+		});
+		registry.createStage(Symbol('late-stage'));
+		registry.run(createState(registry));
+
+		const symbolDiagnosticKey = Object.keys(registry.getLastRunTimings()?.stages ?? {}).find(
+			(key) => key.startsWith('Symbol(late-stage) [stage:')
+		);
+		expect(symbolDiagnosticKey).toMatch(/^Symbol\(late-stage\) \[stage:\d+\]$/);
+
+		registry.createStage(symbolDiagnosticKey as string);
+		registry.run(createState(registry));
+
+		const timingStageKeys = Object.keys(registry.getLastRunTimings()?.stages ?? {});
+		const collidingTimingKeys = timingStageKeys.filter(
+			(key) => key === symbolDiagnosticKey || key.startsWith(`${symbolDiagnosticKey} [collision:`)
+		);
+		const profiling = registry.getProfilingSnapshot();
+		const collidingProfilingStages = Object.entries(profiling?.stages ?? {}).filter(
+			([key]) => key === symbolDiagnosticKey || key.startsWith(`${symbolDiagnosticKey} [collision:`)
+		);
+
+		expect(collidingTimingKeys).toHaveLength(2);
+		expect(new Set(collidingTimingKeys).size).toBe(2);
+		expect(profiling?.frameCount).toBe(1);
+		expect(collidingProfilingStages).toHaveLength(2);
+		expect(collidingProfilingStages.every(([, stage]) => stage.timings.count === 1)).toBe(true);
+	});
+
 	it('does not let attempted snapshot mutations affect later reads', () => {
 		const registry = createFrameRegistry({ profilingEnabled: true });
 		registry.createStage('immutable-stage');

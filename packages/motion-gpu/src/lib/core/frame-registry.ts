@@ -273,22 +273,25 @@ function createDiagnosticKey(key: FrameKey, kind: 'stage' | 'task', id: number):
 
 /**
  * Assigns a unique diagnostics key while keeping plain string keys unchanged.
+ * Returns whether an existing entry had to be reassigned.
  */
 function assignDiagnosticKey<T extends DiagnosticEntry>(
 	entry: T,
 	entries: Iterable<T>,
 	kind: 'stage' | 'task',
 	getKey: (entry: T) => FrameKey
-): void {
+): boolean {
 	const key = getKey(entry);
 	if (typeof key === 'string') {
 		entry.diagnosticKey = key;
+		let reassignedExistingEntry = false;
 		for (const other of entries) {
 			if (typeof getKey(other) === 'symbol' && other.diagnosticKey === key) {
 				assignDiagnosticKey(other, entries, kind, getKey);
+				reassignedExistingEntry = true;
 			}
 		}
-		return;
+		return reassignedExistingEntry;
 	}
 
 	const usedKeys = new Set<string>();
@@ -306,6 +309,7 @@ function assignDiagnosticKey<T extends DiagnosticEntry>(
 		diagnosticKey = `${preferredKey} [collision:${collisionIndex}]`;
 	}
 	entry.diagnosticKey = diagnosticKey;
+	return false;
 }
 
 /**
@@ -1021,7 +1025,9 @@ export function createFrameRegistry(options?: {
 			tasks: new Map()
 		};
 		stages.set(stageKey, stage);
-		assignDiagnosticKey(stage, stages.values(), 'stage', (entry) => entry.key);
+		if (assignDiagnosticKey(stage, stages.values(), 'stage', (entry) => entry.key)) {
+			clearProfiling();
+		}
 		markScheduleDirty();
 		return stage;
 	};
@@ -1125,7 +1131,11 @@ export function createFrameRegistry(options?: {
 			}
 
 			stage.tasks.set(key, internalTask);
-			assignDiagnosticKey(internalTask, stage.tasks.values(), 'task', (entry) => entry.task.key);
+			if (
+				assignDiagnosticKey(internalTask, stage.tasks.values(), 'task', (entry) => entry.task.key)
+			) {
+				clearProfiling();
+			}
 			markScheduleDirty();
 			internalTask.startedStoreSet(resolveEffectiveRunning(internalTask));
 

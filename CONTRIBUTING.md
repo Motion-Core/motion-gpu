@@ -30,8 +30,12 @@ Performance checks are kept separate from the required PR gate. Their baselines 
 pnpm run perf:spektral:core:check
 pnpm run perf:spektral:check
 pnpm run perf:spektral:gpu:check
+pnpm run perf:spektral:renderer:check
+pnpm run bundle:spektral:check
 ```
 
-The GPU check requires a hardware WebGPU adapter with timestamp queries and a baseline generated on
-the same GPU, driver, OS, and Chromium major version. Create it with
-`pnpm run perf:spektral:gpu:baseline`. The command rejects SwiftShader and other software adapters.
+The strict GPU and real-renderer checks are local release gates, not GitHub-hosted checks. Run them
+on the reference Apple M4 Pro/Metal machine against baselines with the same GPU, backend, driver,
+macOS, Chromium major, and benchmark-suite fingerprint. Create those baselines with
+`pnpm run perf:spektral:gpu:baseline` and `pnpm run perf:spektral:renderer:baseline`. The hardware
+commands reject SwiftShader and other software adapters.

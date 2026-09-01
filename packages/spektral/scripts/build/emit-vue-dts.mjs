@@ -6,6 +6,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(dirname, '../..');
 
 function runVueTsc() {
+	// tsconfig.vue.json deliberately preserves declarations while omitting declaration maps. The
+	// executable JS maps retain sourcesContent and own the source-navigation contract.
 	return new Promise((resolve, reject) => {
 		const vueTscBin = path.resolve(packageRoot, 'node_modules/.bin/vue-tsc');
 		const child = spawn(vueTscBin, ['--project', 'tsconfig.vue.json'], {

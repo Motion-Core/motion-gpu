@@ -27,6 +27,12 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"sideEffects": [
+		"**/*.css",
+		"./dist/react/index.js",
+		"./dist/svelte/index.js",
+		"./dist/vue/index.js"
+	],
 	"type": "module",
 	"types": "./dist/index.d.ts",
 	"exports": {
@@ -76,10 +82,7 @@
 	"files": [
 		"dist",
 		"!dist/**/*.test.*",
-		"!dist/**/*.spec.*",
-		"src/lib",
-		"!src/lib/**/*.test.*",
-		"!src/lib/**/*.spec.*"
+		"!dist/**/*.spec.*"
 	],
 	"scripts": {
 		"build": "vite build --config ./vite.package.config.ts",
@@ -90,6 +93,7 @@
 		"check:consumers:browser": "node ./scripts/consumers/packed-consumers.mjs --browser-runtime",
 		"check:consumers:peers": "node --test ./scripts/consumers/packed-consumers.test.mjs && node ./scripts/consumers/packed-consumers.mjs --peer-matrix",
 		"test": "vitest run",
+		"test:build-tools": "node --test ./scripts/build/*.test.mjs",
 		"test:coverage": "vitest run --coverage",
 		"test:perf-tools": "tsx --test ./scripts/perf/benchmark-regression.test.ts ./scripts/perf/benchmark-schema.test.ts ./scripts/perf/statistics.test.ts ./scripts/perf/real-renderer-results.test.ts",
 		"test:watch": "vitest",

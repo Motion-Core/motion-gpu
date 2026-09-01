@@ -13,7 +13,7 @@
 		"noUnusedParameters": true,
 		"verbatimModuleSyntax": true,
 		"declaration": true,
-		"declarationMap": true,
+		"declarationMap": false,
 		"declarationDir": "./dist",
 		"emitDeclarationOnly": true,
 		"rootDir": "./src/lib",

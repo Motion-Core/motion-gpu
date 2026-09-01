@@ -9,6 +9,9 @@ const packageRoot = path.resolve(dirname, '../..');
 const distDirectory = path.resolve(packageRoot, 'dist');
 const sourceDirectory = path.resolve(packageRoot, 'src/lib');
 
+// Keep declarations in the public artifact, but omit declaration maps: they do not embed
+// sourcesContent, duplicate source paths already covered by executable JS maps, and would consume
+// the release's strict 1.5 MB unpacked-size budget without improving source navigation.
 await emitDts({
 	declarationDir: distDirectory,
 	libRoot: sourceDirectory,

@@ -8,32 +8,30 @@ import vue from '@vitejs/plugin-vue';
 const packageRoot = path.dirname(fileURLToPath(new URL('./package.json', import.meta.url)));
 const sourceRoot = path.resolve(packageRoot, 'src/lib');
 
-function collectScriptEntryPoints(directory: string): Record<string, string> {
-	const entries = readdirSync(directory, { withFileTypes: true });
-	const entryPoints: Record<string, string> = {};
+const publicEntryPaths = [
+	'index',
+	'advanced',
+	'core/index',
+	'core/advanced',
+	'react/index',
+	'react/advanced',
+	'svelte/index',
+	'svelte/advanced',
+	'vue/index',
+	'vue/advanced'
+];
 
-	for (const entry of entries) {
-		const fullPath = path.join(directory, entry.name);
-		if (entry.isDirectory()) {
-			Object.assign(entryPoints, collectScriptEntryPoints(fullPath));
-			continue;
-		}
+// Raw Svelte components are published unchanged. These adapter-local modules expose providers used
+// only by the raw components, so they must be build entries to survive tree shaking. Core imports
+// remain live through the public core and compiled adapter graphs. These are not package exports.
+const rawSvelteRuntimeEntryPaths = ['svelte/frame-context', 'svelte/spektral-context'];
 
-		if (!entry.isFile()) {
-			continue;
-		}
-		if (!(fullPath.endsWith('.ts') || fullPath.endsWith('.tsx') || fullPath.endsWith('.vue'))) {
-			continue;
-		}
-
-		const entryName = toPosixPath(path.relative(sourceRoot, fullPath)).replace(/\.[^/.]+$/, '');
-		entryPoints[entryName] = fullPath;
-	}
-
-	return entryPoints;
-}
-
-const entryPoints = collectScriptEntryPoints(sourceRoot);
+const entryPoints = Object.fromEntries(
+	[...publicEntryPaths, ...rawSvelteRuntimeEntryPaths].map((entry) => [
+		entry,
+		path.resolve(sourceRoot, `${entry}.ts`)
+	])
+);
 
 function toPosixPath(value: string) {
 	return value.split(path.sep).join('/');
@@ -97,7 +95,12 @@ function runNodeScript(scriptPath: string): Promise<void> {
 function emitTypesPlugin(): Plugin {
 	const emitDtsScript = path.resolve(packageRoot, 'scripts/build/emit-dts.mjs');
 	const emitVueDtsScript = path.resolve(packageRoot, 'scripts/build/emit-vue-dts.mjs');
+	const pruneDtsScript = path.resolve(packageRoot, 'scripts/build/prune-unreachable-dts.mjs');
 	const patchDtsScript = path.resolve(packageRoot, 'scripts/build/patch-webgpu-types-dts.mjs');
+	const deduplicateVueMapsScript = path.resolve(
+		packageRoot,
+		'scripts/build/deduplicate-vue-facade-maps.mjs'
+	);
 
 	return {
 		name: 'spektral-emit-types',
@@ -105,13 +108,22 @@ function emitTypesPlugin(): Plugin {
 		async writeBundle() {
 			await runNodeScript(emitDtsScript);
 			await runNodeScript(emitVueDtsScript);
+			await runNodeScript(pruneDtsScript);
 			await runNodeScript(patchDtsScript);
+			await runNodeScript(deduplicateVueMapsScript);
 		}
 	};
 }
 
 function injectAdapterCssImportsPlugin(): Plugin {
-	const adapterEntryChunkPaths = ['react/index.js', 'svelte/index.js', 'vue/index.js'];
+	const adapterEntryChunkPaths = [
+		'react/index.js',
+		'react/advanced.js',
+		'svelte/index.js',
+		'svelte/advanced.js',
+		'vue/index.js',
+		'vue/advanced.js'
+	];
 	const adapterCssImport = "import '../spektral.css';\n";
 
 	return {
@@ -156,21 +168,25 @@ export default defineConfig({
 		outDir: 'dist',
 		emptyOutDir: true,
 		sourcemap: true,
-		minify: false,
+		minify: 'oxc',
 		reportCompressedSize: false,
 		lib: {
 			entry: entryPoints,
 			formats: ['es']
 		},
 		rolldownOptions: {
-			treeshake: false,
 			external: isExternal,
 			output: {
 				format: 'es',
 				preserveModules: true,
 				preserveModulesRoot: sourceRoot,
 				entryFileNames: '[name].js',
-				chunkFileNames: 'chunks/[name]-[hash].js'
+				chunkFileNames: 'chunks/[name]-[hash].js',
+				minify: {
+					compress: true,
+					mangle: true,
+					codegen: { removeWhitespace: true, legalComments: 'none' }
+				}
 			}
 		}
 	}

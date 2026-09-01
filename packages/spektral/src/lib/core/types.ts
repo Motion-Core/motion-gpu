@@ -745,6 +745,8 @@ export interface RenderPass extends RenderPassFlags {
 	readonly isCompute?: never;
 	/** Reserved for renderer-managed feedback passes. */
 	readonly isPingPongShader?: never;
+	/** Optional human-readable label exposed by render-graph diagnostics. */
+	readonly label?: string;
 	/**
 	 * Enables/disables this pass without removing it from graph.
 	 */
@@ -783,6 +785,7 @@ export interface ComputePassLike {
 	readonly [managedPassBrand]: 'compute';
 	readonly isCompute: true;
 	readonly isPingPong?: true;
+	readonly label?: string;
 	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
 	dispose: () => void;
@@ -807,6 +810,7 @@ export interface ComputePassLike {
 export interface PingPongShaderPassLike {
 	readonly [managedPassBrand]: 'feedback';
 	readonly isPingPongShader: true;
+	readonly label?: string;
 	enabled: boolean;
 	setSize?: (width: number, height: number) => void;
 	dispose: () => void;

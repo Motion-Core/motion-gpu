@@ -52,10 +52,21 @@ Returns `SpektralContext`:
 | `renderMode` | `CurrentWritable<RenderMode>` |
 | `autoRender` | `CurrentWritable<boolean>` |
 | `user` | `CurrentWritable<Record<string &#124; symbol, unknown>>` |
+| `graph` | `SpektralGraph` |
 | `invalidate`, `advance` | `() => void` |
 | `scheduler` | `SpektralScheduler` |
 
 The scheduler exposes `createStage`, `getStage`, schedule inspection, diagnostics/profiling setters and getters, reset, last-run timings, and rolling snapshots.
+
+### `SpektralGraph`
+
+```ts
+graph.getSnapshot(): RenderGraphSnapshot
+```
+
+`RenderGraphSnapshot` is an experimental, deeply frozen schema with `schemaVersion: 1`. It contains ordered nodes, deduplicated resources, directed edges with dependency reasons, and `finalOutput`. Reads are cached by graph plan: unchanged plans return the same object, while a rebuild returns a new one and leaves earlier snapshots intact.
+
+Logical resource IDs come from declarations. Physical IDs are opaque and remain stable only within one renderer lifecycle. The snapshot is serializable and excludes GPU objects, WGSL, uniform or storage data, callbacks, and timings. Before initialization and after teardown, `getSnapshot()` returns the shared empty snapshot.
 
 ## `usePointer(options?)`
 
@@ -106,4 +117,4 @@ React also provides a context-bound `useSetSpektralUserContext()` setter.
 | `existing` | `'skip' &#124; 'replace' &#124; 'merge'` | `'skip'` |
 | `functionValue` | `'factory' &#124; 'value'` | `'factory'` |
 
-See [Frame Scheduler](/docs/frame-scheduler), [Hooks & Context](/docs/hooks-and-context), [Texture Loading](/docs/texture-loading), and [User Context](/docs/user-context).
+See [Frame Scheduler](/docs/frame-scheduler), [Hooks & Context](/docs/hooks-and-context), [Render Passes](/docs/render-passes), [Texture Loading](/docs/texture-loading), and [User Context](/docs/user-context).

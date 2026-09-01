@@ -6,11 +6,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Svelte](https://img.shields.io/badge/Svelte-5-orange.svg)](https://svelte.dev)
-[![React](https://img.shields.io/badge/React-18%2B-149eca.svg)](https://react.dev)
+[![React](https://img.shields.io/badge/React-19-149eca.svg)](https://react.dev)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883.svg)](https://vuejs.org)
 [![WebGPU](https://img.shields.io/badge/Shaders-WGSL-blueviolet.svg)](https://gpuweb.github.io/gpuweb/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org)
-[![npm](https://img.shields.io/badge/npm-@motion--core%2Fmotion--gpu-red.svg)](https://www.npmjs.com/package/spektral)
+[![npm](https://img.shields.io/npm/v/spektral.svg)](https://www.npmjs.com/package/spektral)
 
 </div>
 
@@ -43,6 +43,7 @@ Import from the entry point that matches your application:
 - Runtime updates for uniforms, textures, and storage buffers
 - Render, feedback, and compute passes for multi-step GPU work
 - Explicit render modes and a scheduler for frame-level control
+- Source-mapped shader diagnostics and inspectable render-graph snapshots
 - The same core API across Svelte, React, and Vue
 
 ## Before you start
@@ -53,10 +54,10 @@ shader and compute workflows. If your project needs meshes, cameras, lighting, o
 
 ## Documentation
 
-[Start with the installation guide](https://spektral.dev/docs/getting-started), then use the
-[full documentation](https://spektral.dev/docs) for materials, shaders, passes, runtime behavior,
+[Start with the installation guide](https://spektral.madebyhex.com/docs/getting-started), then use the
+[full documentation](https://spektral.madebyhex.com/docs) for materials, shaders, passes, runtime behavior,
 and API contracts. You can also explore complete applications in the
-[playground](https://spektral.dev/playground).
+[playground](https://spektral.madebyhex.com/playground).
 
 AI tools can access the documentation through
 [Context7](https://context7.com/kaltwrk/spektral).

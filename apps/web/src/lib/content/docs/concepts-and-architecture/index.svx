@@ -25,6 +25,10 @@ When `FragCanvas` mounts, its adapter:
 4. requests the WebGPU adapter and device;
 5. creates buffers, textures, bind groups, and render or compute pipelines as needed.
 
+Before the first frame, the renderer asynchronously prepares every active built-in fullscreen
+pipeline for its resolved input and output formats. Shader hot edits prepare in the background and
+keep the last-known-good pipeline until the latest source succeeds.
+
 If initialization fails, the runtime reports the normalized error and retries with exponential backoff from 250 ms to an 8-second cap. A pipeline-signature change resets the backoff.
 
 ## Frame order

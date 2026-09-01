@@ -159,6 +159,11 @@ test.describe('spektral mixed passes e2e', () => {
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
 		await expect(page.getByTestId('error-count')).toHaveText('0');
 
+		// Establish the renderer before introducing the invalid dynamic pass.
+		// Initial pass failures intentionally reject renderer initialization;
+		// this scenario exercises recoverable errors on an active renderer.
+		await advanceAndWait(page);
+
 		// Apply bad shader pass
 		await page.getByTestId('set-config-bad-shader-pass').click();
 		await advanceAndWait(page);
@@ -221,6 +226,10 @@ test.describe('spektral mixed passes e2e', () => {
 		await expect(page.getByTestId('gpu-status')).toHaveText('ready');
 		await expect(page.getByTestId('controls-ready')).toHaveText('yes');
 		await expect(page.getByTestId('error-count')).toHaveText('0');
+
+		// Keep this on the dynamic-pass path. An invalid pass present during
+		// renderer creation is a non-recoverable initialization failure.
+		await advanceAndWait(page);
 
 		// First active error should be reported once, even if the failing
 		// pass remains active across multiple manual frames.

@@ -157,6 +157,21 @@ const detailsSummary = computed(() =>
 						<p class="spektral-error-hint">{{ report.hint }}</p>
 					</div>
 
+					<dl
+						v-if="model.metadata.length > 0"
+						class="spektral-error-metadata"
+						aria-label="Shader diagnostics"
+					>
+						<div
+							v-for="entry in model.metadata"
+							:key="entry.label"
+							class="spektral-error-metadata-item"
+						>
+							<dt>{{ entry.label }}</dt>
+							<dd>{{ entry.value }}</dd>
+						</div>
+					</dl>
+
 					<section
 						v-if="report.source"
 						class="spektral-error-source"

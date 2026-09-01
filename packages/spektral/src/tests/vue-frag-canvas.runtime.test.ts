@@ -742,6 +742,19 @@ describe('Vue FragCanvas runtime', () => {
 		expect(overlay.querySelector('[role="tablist"]')).toBeNull();
 		expect(overlay.querySelector('[role="tab"]')).toBeNull();
 		expect(overlay.querySelector('.spektral-error-source-frame > figcaption')).not.toBeNull();
+		const metadata = overlay.querySelector('.spektral-error-metadata');
+		expect(metadata?.tagName).toBe('DL');
+		expect(metadata?.getAttribute('aria-label')).toBe('Shader diagnostics');
+		expect(
+			Array.from(metadata?.querySelectorAll('.spektral-error-metadata-item') ?? []).map((item) => [
+				item.querySelector('dt')?.textContent,
+				item.querySelector('dd')?.textContent
+			])
+		).toEqual([
+			['Stage', 'fragment'],
+			['Source', 'user'],
+			['Location', '2:6']
+		]);
 		expect(overlay.textContent).toContain('WGSL compilation failed');
 		expect(overlay.textContent).toContain('missing return');
 		expect(overlay.textContent).toContain('OverlayScene.svelte (fragment line 2');

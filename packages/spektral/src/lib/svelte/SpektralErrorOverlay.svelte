@@ -135,6 +135,17 @@
 					<p class="spektral-error-hint">{report.hint}</p>
 				</div>
 
+				{#if model.metadata.length > 0}
+					<dl class="spektral-error-metadata" aria-label="Shader diagnostics">
+						{#each model.metadata as entry (entry.label)}
+							<div class="spektral-error-metadata-item">
+								<dt>{entry.label}</dt>
+								<dd>{entry.value}</dd>
+							</div>
+						{/each}
+					</dl>
+				{/if}
+
 				{#if report.source}
 					<section class="spektral-error-source" aria-labelledby={sourceTitleId}>
 						<h3 id={sourceTitleId} class="spektral-error-source-title">Source</h3>

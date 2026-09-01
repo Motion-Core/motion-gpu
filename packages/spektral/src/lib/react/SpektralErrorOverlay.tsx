@@ -146,6 +146,17 @@ export function SpektralErrorOverlay({ report, onDismiss }: SpektralErrorOverlay
 							<p className="spektral-error-hint">{report.hint}</p>
 						</div>
 
+						{model.metadata.length > 0 ? (
+							<dl className="spektral-error-metadata" aria-label="Shader diagnostics">
+								{model.metadata.map((entry) => (
+									<div key={entry.label} className="spektral-error-metadata-item">
+										<dt>{entry.label}</dt>
+										<dd>{entry.value}</dd>
+									</div>
+								))}
+							</dl>
+						) : null}
+
 						{report.source ? (
 							<section className="spektral-error-source" aria-labelledby={sourceTitleId}>
 								<h3 id={sourceTitleId} className="spektral-error-source-title">

@@ -291,6 +291,46 @@
 	color: var(--spektral-color-foreground-muted);
 }
 
+.spektral-error-metadata {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 1rem 0 0;
+	padding: 0;
+}
+
+.spektral-error-metadata-item {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.375rem;
+	min-inline-size: 0;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--spektral-guide-ink);
+	border-radius: var(--spektral-radius-sm);
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-inset);
+}
+
+.spektral-error-metadata-item dt,
+.spektral-error-metadata-item dd {
+	margin: 0;
+	font-size: 0.75rem;
+	line-height: 1.35;
+}
+
+.spektral-error-metadata-item dt {
+	font-weight: 500;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-metadata-item dd {
+	min-inline-size: 0;
+	font-family: var(--spektral-font-mono);
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+	color: var(--spektral-color-foreground);
+}
+
 .spektral-error-source {
 	display: grid;
 	gap: 0.75rem;

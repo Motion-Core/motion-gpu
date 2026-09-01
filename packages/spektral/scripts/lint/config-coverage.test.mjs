@@ -6,6 +6,14 @@ import { assertConfiguredFile } from './config-coverage.mjs';
 
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 
+test('external packed-consumer templates are linted by their isolated toolchains', async () => {
+	const eslint = new ESLint({ cwd: packageRoot });
+	assert.equal(
+		await eslint.isPathIgnored('scripts/consumers/fixtures/sveltekit/src/routes/+page.svelte'),
+		true
+	);
+});
+
 test('the sentinel rejects an unconfigured production-like extension', async () => {
 	const eslint = new ESLint({ cwd: packageRoot });
 

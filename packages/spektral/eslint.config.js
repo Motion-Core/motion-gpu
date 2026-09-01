@@ -33,7 +33,13 @@ const vueRecommended = vue.configs['flat/recommended-error'].map((config) => ({
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
 	{
-		ignores: ['dist/**', '.svelte-kit/**', 'coverage/**', 'scripts/lint/fixtures/**']
+		ignores: [
+			'dist/**',
+			'.svelte-kit/**',
+			'coverage/**',
+			'scripts/consumers/fixtures/**',
+			'scripts/lint/fixtures/**'
+		]
 	},
 	createSharedRecommendedConfigs({
 		js,

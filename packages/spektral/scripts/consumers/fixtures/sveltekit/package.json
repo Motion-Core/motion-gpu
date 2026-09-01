@@ -1,0 +1,21 @@
+{
+	"name": "@spektral-consumers/sveltekit",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "vite build",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./.svelte-kit/tsconfig.json"
+	},
+	"dependencies": {
+		"spektral": "file:__SPEKTRAL_TARBALL__",
+		"svelte": "^5.29.0"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.20.8",
+		"@sveltejs/vite-plugin-svelte": "^4.0.0",
+		"svelte-check": "^4.3.0",
+		"typescript": "^5.9.3",
+		"vite": "^5.4.21"
+	}
+}

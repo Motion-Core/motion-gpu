@@ -1,0 +1,21 @@
+{
+	"name": "@spektral-consumers/next",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "node ./build.mjs",
+		"check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"next": "^15.0.8",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"spektral": "file:__SPEKTRAL_TARBALL__"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.0.0",
+		"typescript": "^5.9.3"
+	}
+}

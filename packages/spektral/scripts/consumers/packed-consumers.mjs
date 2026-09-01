@@ -11,7 +11,15 @@ import { publicApiManifest } from './public-api-manifest.mjs';
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const repositoryRoot = path.resolve(packageRoot, '../..');
 const fixtureRoot = fileURLToPath(new URL('./fixtures', import.meta.url));
-const fixtureNames = ['core', 'react', 'svelte', 'vue'];
+const fixtureNames = ['core', 'react', 'svelte', 'sveltekit', 'next', 'vue'];
+const fixtureContractProfile = {
+	core: 'core',
+	react: 'react',
+	svelte: 'svelte',
+	sveltekit: 'svelte',
+	next: 'react',
+	vue: 'vue'
+};
 const expectedPublicEntries = Object.keys(publicApiManifest);
 const fixturePublicEntries = {
 	core: ['.', './advanced', './core', './core/advanced'],
@@ -62,6 +70,24 @@ const currentVersions = {
 		typescript: '5.9.3',
 		vite: '8.2.1'
 	},
+	sveltekit: {
+		'@sveltejs/adapter-static': '3.0.10',
+		'@sveltejs/kit': '2.70.3',
+		'@sveltejs/vite-plugin-svelte': '7.3.0',
+		'svelte-check': '4.7.6',
+		svelte: '5.56.9',
+		typescript: '5.9.3',
+		vite: '8.2.1'
+	},
+	next: {
+		'@types/node': '25.8.0',
+		'@types/react': '19.2.18',
+		'@types/react-dom': '19.2.4',
+		next: '16.3.3',
+		react: '19.2.8',
+		'react-dom': '19.2.8',
+		typescript: '5.9.3'
+	},
 	vue: {
 		'@vitejs/plugin-vue': '6.0.8',
 		typescript: '5.9.3',
@@ -84,6 +110,22 @@ const minimumVersions = {
 		'@sveltejs/vite-plugin-svelte': '4.0.0',
 		svelte: '5.29.0',
 		vite: '5.4.21'
+	},
+	sveltekit: {
+		...currentVersions.sveltekit,
+		'@sveltejs/kit': '2.20.8',
+		'@sveltejs/vite-plugin-svelte': '4.0.0',
+		svelte: '5.29.0',
+		vite: '5.4.21'
+	},
+	next: {
+		...currentVersions.next,
+		'@types/node': '22.15.3',
+		'@types/react': '19.0.0',
+		'@types/react-dom': '19.0.0',
+		next: '15.0.8',
+		react: '19.0.0',
+		'react-dom': '19.0.0'
 	},
 	vue: { ...currentVersions.vue, vue: '3.5.2' }
 };
@@ -362,6 +404,14 @@ async function findPackedTarball(directory) {
 async function installFixtures(temporaryRoot, dependencySpec, profile) {
 	const consumerRoot = path.join(temporaryRoot, 'consumers');
 	await mkdir(consumerRoot, { recursive: true });
+	await cp(
+		path.join(fixtureRoot, 'vite-spektral-source-maps.mjs'),
+		path.join(consumerRoot, 'vite-spektral-source-maps.mjs')
+	);
+	await cp(
+		path.join(fixtureRoot, 'vite-spektral-source-maps.d.mts'),
+		path.join(consumerRoot, 'vite-spektral-source-maps.d.mts')
+	);
 
 	for (const fixtureName of fixtureNames) {
 		const fixtureDirectory = path.join(consumerRoot, fixtureName);
@@ -372,7 +422,7 @@ async function installFixtures(temporaryRoot, dependencySpec, profile) {
 		await writeFile(manifestPath, `${JSON.stringify(manifest, null, '\t')}\n`);
 		await writeFile(
 			path.join(fixtureDirectory, 'src/public-api-contract.ts'),
-			createPublicApiCompileContract(fixtureName)
+			createPublicApiCompileContract(fixtureContractProfile[fixtureName])
 		);
 		await writeFile(path.join(fixtureDirectory, 'ssr-loader.mjs'), createNodeSsrLoader());
 	}
@@ -566,6 +616,42 @@ async function assertNodeSsrImports(consumerRoot) {
 	}
 }
 
+export function assertBundledSourceNavigation(sourceMaps, fixtureName) {
+	let embeddedLibrarySources = 0;
+	for (const { file, source } of sourceMaps) {
+		let sourceMap;
+		try {
+			sourceMap = JSON.parse(source);
+		} catch {
+			throw new Error(`${fixtureName} emitted invalid JavaScript source map ${file}.`);
+		}
+		if (!Array.isArray(sourceMap.sources) || !Array.isArray(sourceMap.sourcesContent)) continue;
+		for (const [index, mappedSource] of sourceMap.sources.entries()) {
+			if (typeof mappedSource !== 'string') continue;
+			const normalizedSource = mappedSource.replaceAll('\\', '/');
+			const installedPackageSource =
+				normalizedSource.includes('/node_modules/') &&
+				normalizedSource.includes('/spektral/src/lib/');
+			const nextWebpackSource =
+				normalizedSource.startsWith('webpack://') &&
+				/src\/lib\/(?:core|passes|react|svelte|vue)(?:\/|\.)/.test(normalizedSource);
+			if (!installedPackageSource && !nextWebpackSource) continue;
+			const embeddedSource = sourceMap.sourcesContent[index];
+			assert.equal(
+				typeof embeddedSource,
+				'string',
+				`${fixtureName} source map ${file} omitted sourcesContent for ${mappedSource}.`
+			);
+			embeddedLibrarySources += 1;
+		}
+	}
+	assert.ok(
+		embeddedLibrarySources > 0,
+		`${fixtureName} emitted no source-navigation path to embedded Spektral src/lib sources.`
+	);
+	return embeddedLibrarySources;
+}
+
 async function findFilesWithExtension(directory, extension) {
 	const matches = [];
 	for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -579,7 +665,57 @@ async function findFilesWithExtension(directory, extension) {
 	return matches;
 }
 
+async function assertBundleSourceNavigation(directory, fixtureName) {
+	const mapFiles = await findFilesWithExtension(directory, '.js.map');
+	assert.ok(mapFiles.length > 0, `${fixtureName} consumer emitted no JavaScript source maps.`);
+	assertBundledSourceNavigation(
+		await Promise.all(
+			mapFiles.map(async (file) => ({
+				file: normalizePath(path.relative(directory, file)),
+				source: await readFile(file, 'utf8')
+			}))
+		),
+		fixtureName
+	);
+}
+
+async function assertCssSideEffectPreserved(directory, fixtureName) {
+	const stylesheets = await findFilesWithExtension(directory, '.css');
+	assert.ok(stylesheets.length > 0, `${fixtureName} consumer emitted no CSS artifact.`);
+	const combinedCss = (
+		await Promise.all(stylesheets.map((stylesheet) => readFile(stylesheet, 'utf8')))
+	).join('\n');
+	assert.match(
+		combinedCss,
+		/\.spektral-(?:canvas-wrap|error-overlay)/,
+		`${fixtureName} consumer tree-shook the Spektral stylesheet side effect.`
+	);
+}
+
+async function assertNodeSourceNavigation(coreConsumerDirectory) {
+	const contract = [
+		"import { defineMaterial } from 'spektral';",
+		"try { defineMaterial({ fragment: '' }); throw new Error('Expected defineMaterial to reject an empty fragment.'); }",
+		"catch (error) { const stack = String(error?.stack ?? ''); if (!/src\\/lib\\/core\\/material\\.ts:\\d+:\\d+/.test(stack)) throw new Error(`Spektral source map did not resolve the stack to src/lib/core/material.ts.\\n${stack}`); }"
+	].join('\n');
+	await runCommand('node', ['--enable-source-maps', '--input-type=module', '--eval', contract], {
+		cwd: coreConsumerDirectory
+	});
+}
+
+export const rebundledSourceMapContract =
+	'[packed-consumers] rebundled source navigation uses an explicit pass-through map-chain hook; direct published maps and Node stacks require no hook.';
+
 async function checkAndBuildFixtures(consumerRoot) {
+	console.log(rebundledSourceMapContract);
+	const outputDirectoryByFixture = {
+		core: 'dist',
+		next: '.next',
+		react: 'dist',
+		svelte: 'dist',
+		sveltekit: 'build',
+		vue: 'dist'
+	};
 	for (const fixtureName of fixtureNames) {
 		const fixtureDirectory = path.join(consumerRoot, fixtureName);
 		await runCommand('pnpm', ['run', 'check'], { cwd: fixtureDirectory });
@@ -587,15 +723,12 @@ async function checkAndBuildFixtures(consumerRoot) {
 			await runCommand('pnpm', ['run', 'test:custom-pass'], { cwd: fixtureDirectory });
 		}
 		await runCommand('pnpm', ['run', 'build'], { cwd: fixtureDirectory });
-		await access(path.join(fixtureDirectory, 'dist/index.html'));
-	}
-
-	for (const fixtureName of ['svelte', 'vue']) {
-		const stylesheets = await findFilesWithExtension(
-			path.join(consumerRoot, fixtureName, 'dist'),
-			'.css'
-		);
-		assert.ok(stylesheets.length > 0, `${fixtureName} consumer emitted no CSS artifact.`);
+		const outputDirectory = path.join(fixtureDirectory, outputDirectoryByFixture[fixtureName]);
+		await access(outputDirectory);
+		await assertBundleSourceNavigation(outputDirectory, fixtureName);
+		if (fixtureName !== 'core') {
+			await assertCssSideEffectPreserved(outputDirectory, fixtureName);
+		}
 	}
 }
 
@@ -705,6 +838,7 @@ async function checkProfile(temporaryRoot, packageSpec, profile, includeBrowserR
 	await assertPackedArtifacts(coreConsumerDirectory);
 	await assertNodeSsrImports(consumerRoot);
 	await assertInternalImportsAreBlocked(coreConsumerDirectory);
+	await assertNodeSourceNavigation(coreConsumerDirectory);
 	await checkAndBuildFixtures(consumerRoot);
 	if (includeBrowserRuntime) {
 		await assertPackedCustomRenderPassRuntime(consumerRoot);

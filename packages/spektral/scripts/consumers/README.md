@@ -10,9 +10,21 @@ from the package `tsconfig.json`.
 - build and pack Spektral once;
 - copy each template to a temporary workspace without the repository's dependency overrides;
 - install the tarball using the repository's pinned pnpm version;
-- type-check with `skipLibCheck: false` and build the core, React, Svelte and Vue consumers;
-- resolve all ten public export targets and verify the CSS and raw Svelte artifacts; and
+- type-check with `skipLibCheck: false` and build core/Vite, React/Vite, Svelte/Vite,
+  SvelteKit/Vite, Next and Vue/Vite consumers;
+- resolve all ten public export targets, verify CSS execution through emitted bundle artifacts, and
+  retain the raw Svelte artifacts;
+- verify executable maps embed `src/lib` sources and that Node stack traces navigate through the
+  packed maps without publishing `src/lib`; and
 - prove that `src` and `dist` internals remain blocked by the package export map.
+
+The published JavaScript maps and Node stack navigation work directly from the tarball, without a
+consumer hook. Rebundlers have a different contract: Vite/Rollup and Next/Webpack do not preserve a
+`node_modules` input map through the final bundle by default, so these fixtures install a minimal,
+explicit map-chain hook. The hook reads the adjacent `.js.map` from the installed `spektral` tarball
+and returns that map unchanged to the bundler. It does not create source paths or `sourcesContent`.
+The final bundle assertion therefore verifies both the published map and the configured bundler
+chain; it is not a claim that rebundled source navigation is zero-config.
 
 Do not add a source alias or workspace link to these templates. That would make the check stop testing
 the artifact users actually install. The runner and its unit tests remain covered by the package's
@@ -24,7 +36,8 @@ format and lint commands.
 changing the repository lockfile or inheriting root overrides:
 
 - `current` pins the stable dependency versions recorded in the runner;
-- `minimum` pins React/ReactDOM 19.0.0, Svelte 5.29.0 and Vue 3.5.2.
+- `minimum` pins React/ReactDOM 19.0.0, Next 15.0.8, Svelte 5.29.0, SvelteKit 2.20.8
+  and Vue 3.5.2.
 
 Svelte's lower bound is 5.29.0 because the published raw components use `{@attach ...}`, which Svelte
 [introduced in 5.29](https://svelte.dev/docs/svelte/@attach). A direct probe showed that Svelte 5.0.0
@@ -38,6 +51,6 @@ first patch with the required parameter. The isolated consumer check confirms th
 runtime bundle against that exact version.
 
 The manual matrix validates the lower and current endpoints, not every minor release between them. It
-is intentionally separate from `ci:quality` because it duplicates four isolated installs, checks and
-builds. Raising the Svelte and Vue peer floors is a package contract change and requires release/semver
-review.
+is intentionally separate from `ci:quality` because it duplicates six isolated installs, checks and
+builds. Raising the React, Svelte or Vue peer floors is a package contract change and requires
+release/semver review.

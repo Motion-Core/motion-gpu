@@ -1,8 +1,8 @@
 {
 	"schemaVersion": 3,
-	"updatedAt": "2026-08-28T23:42:24.167Z",
+	"updatedAt": "2026-08-31T20:05:02.980Z",
 	"environment": {
-		"commitSha": "9c673758686911a5619dd7e42624093ef3fd9e0d",
+		"commitSha": "eae1e1e6df1aa2c77f2f3615bc98a40e9141524e",
 		"dirty": false,
 		"node": "v22.21.1",
 		"v8": "12.4.254.21-node.33",
@@ -27,7 +27,7 @@
 			"driver": "",
 			"isFallbackAdapter": true
 		},
-		"suiteHash": "2b4c3e2ca7cac3dfafb06619ed827970ab1cead51b2fc84f978d79e5f5821518"
+		"suiteHash": "44308a56ca137fbea96179e62b821bed11ad5f0f529ca76ca3b4933f068d42f4"
 	},
 	"config": {
 		"serverMode": "production-build-preview",
@@ -40,9 +40,9 @@
 		"computeStorageSampleFrames": 1000
 	},
 	"metrics": {
-		"startup_cold_first_frame_median_ms": 53.52533299999993,
-		"startup_warm_first_frame_median_ms": 69.87977049999995,
-		"manual_advance_latency_p95_ms": 10.299999952316284,
+		"startup_cold_first_frame_median_ms": 55.2276250000001,
+		"startup_warm_first_frame_median_ms": 66.63137500000016,
+		"manual_advance_latency_p95_ms": 9.399999976158142,
 		"compute_storage_bindgroup_creations_per_1000_frames": 4
 	}
 }

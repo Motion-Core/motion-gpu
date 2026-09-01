@@ -3,8 +3,8 @@
 	"name": "spektral",
 	"compatibility_date": "2025-09-27",
 	"vars": {
-		"PUBLIC_PLAYGROUND_PREVIEW_ORIGIN": "https://preview.spektral.dev",
-		"PLAYGROUND_PREVIEW_PARENT_ORIGINS": "https://spektral.dev,https://www.spektral.dev"
+		"PUBLIC_PLAYGROUND_PREVIEW_ORIGIN": "https://preview.spektral.madebyhex.com",
+		"PLAYGROUND_PREVIEW_PARENT_ORIGINS": "https://spektral.madebyhex.com"
 	},
 	"observability": {
 		"enabled": true
@@ -16,16 +16,24 @@
 	},
 	"routes": [
 		{
-			"pattern": "spektral.dev/*",
-			"zone_name": "spektral.dev"
+			"pattern": "spektral.madebyhex.com/*",
+			"zone_name": "madebyhex.com"
 		},
 		{
-			"pattern": "www.spektral.dev/*",
-			"zone_name": "spektral.dev"
+			"pattern": "preview.spektral.madebyhex.com/*",
+			"zone_name": "madebyhex.com"
 		},
 		{
-			"pattern": "preview.spektral.dev/*",
-			"zone_name": "spektral.dev"
+			"pattern": "motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "www.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "preview.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
 		}
 	],
 	"rules": [

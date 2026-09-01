@@ -86,7 +86,7 @@
 			(() => {
 				document.documentElement.classList.add('js');
 
-				const storageKey = 'docs-theme';
+				const storageKey = 'spektral-docs-theme';
 				const storedTheme = localStorage.getItem(storageKey);
 				const isDark =
 					storedTheme === 'dark' ||
@@ -94,7 +94,7 @@
 				document.documentElement.classList.toggle('dark', isDark);
 				document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
 
-				const packageManagerStorageKey = 'docs-package-manager';
+				const packageManagerStorageKey = 'spektral-docs-package-manager';
 				const packageManagerDefault = 'npm';
 				const enabledPackageManagers = ['npm', 'pnpm', 'bun', 'yarn'];
 				const storedPackageManager = localStorage.getItem(packageManagerStorageKey);

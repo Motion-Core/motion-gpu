@@ -8,10 +8,10 @@ export const siteConfig = {
 	/** Compact site name for environments with strict length limits. */
 	shortName: 'Spektral Docs',
 	/** Public canonical URL used to build absolute links. */
-	url: 'https://spektral.dev',
+	url: 'https://spektral.madebyhex.com',
 	/** Default SEO description for the homepage and fallback metadata. */
 	description:
-		'A minimalist WebGPU framework for Svelte 5, React 19, and Vue 3. Build high-performance, GPU-accelerated visualizations with a declarative API, strict runtime contracts, and type-safe WGSL shaders.',
+		'A WebGPU library for fullscreen WGSL shaders with framework-neutral core APIs and adapters for Svelte 5, React 19, and Vue 3.',
 	/** Author shown in metadata and structured data. */
 	author: 'Marek Jóźwiak',
 	/** Primary SEO keywords for indexing and discovery. */

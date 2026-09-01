@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlitPass, CopyPass, ShaderPass } from '../../lib/passes';
 import type { RenderPassContext, RenderTarget } from '../../lib/core/types';
+import {
+	prepareFullscreenPass,
+	type PreparedFullscreenPassContract
+} from '../../lib/core/pass-brand';
 
 function createTarget(key: string): RenderTarget {
 	return {
@@ -20,14 +24,35 @@ function createFakeDevice() {
 		),
 		createShaderModule: vi.fn((descriptor: GPUShaderModuleDescriptor) => {
 			void descriptor;
-			return { type: 'shader-module' } as unknown as GPUShaderModule;
+			return {
+				type: 'shader-module',
+				getCompilationInfo: vi.fn(async () => ({ messages: [] }))
+			} as unknown as GPUShaderModule;
 		}),
 		createPipelineLayout: vi.fn(
 			() => ({ type: 'pipeline-layout' }) as unknown as GPUPipelineLayout
 		),
 		createRenderPipeline: vi.fn(() => ({ type: 'pipeline' }) as unknown as GPURenderPipeline),
+		createRenderPipelineAsync: vi.fn(
+			async () => ({ type: 'pipeline' }) as unknown as GPURenderPipeline
+		),
+		pushErrorScope: vi.fn(),
+		popErrorScope: vi.fn(async () => null),
 		createBindGroup: vi.fn(() => ({ type: 'bind-group' }) as unknown as GPUBindGroup)
 	} satisfies Partial<GPUDevice>;
+}
+
+async function preparePass(
+	pass: PreparedFullscreenPassContract,
+	context: RenderPassContext,
+	owner: object = pass
+): Promise<void> {
+	await pass[prepareFullscreenPass]({
+		device: context.device,
+		owner,
+		inputFormat: context.input.format,
+		outputFormat: context.output.format
+	});
 }
 
 function createPassContext(overrides?: Partial<RenderPassContext>): RenderPassContext {
@@ -137,7 +162,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(pass.getFragment()).toContain('fn shade(inputColor: vec4f, uv: vec2f)');
 	});
 
-	it('exposes fragment-local uv to ShaderPass helper functions', () => {
+	it('exposes fragment-local uv to ShaderPass helper functions', async () => {
 		const pass = new ShaderPass({
 			fragment: `
 fn getUv() -> vec2f {
@@ -152,6 +177,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		const context = createPassContext();
 		const device = context.device as unknown as ReturnType<typeof createFakeDevice>;
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		const descriptor = device.createShaderModule.mock.calls[0]?.[0] as
@@ -180,7 +206,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(fallbackRender).not.toHaveBeenCalled();
 	});
 
-	it('falls back to blit when CopyPass cannot use direct copy', () => {
+	it('falls back to blit when CopyPass cannot use direct copy', async () => {
 		const pass = new CopyPass();
 		const context = createPassContext({ clear: true });
 		const fallbackRender = vi.spyOn(
@@ -188,13 +214,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			'render'
 		);
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
-	it('falls back to blit when source and target dimensions mismatch', () => {
+	it('falls back to blit when source and target dimensions mismatch', async () => {
 		const pass = new CopyPass();
 		const context = createPassContext();
 		context.output = { ...context.output, width: context.input.width + 1 };
@@ -203,13 +230,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			'render'
 		);
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
-	it('falls back to blit when source and target formats mismatch', () => {
+	it('falls back to blit when source and target formats mismatch', async () => {
 		const pass = new CopyPass();
 		const context = createPassContext();
 		context.output = { ...context.output, format: 'rgba16float' };
@@ -218,13 +246,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			'render'
 		);
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
-	it('falls back to blit when copying to the same texture', () => {
+	it('falls back to blit when copying to the same texture', async () => {
 		const pass = new CopyPass();
 		const context = createPassContext();
 		context.output = context.input;
@@ -233,13 +262,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			'render'
 		);
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
-	it('falls back to blit when preserve=false', () => {
+	it('falls back to blit when preserve=false', async () => {
 		const pass = new CopyPass();
 		const context = createPassContext({ preserve: false });
 		const fallbackRender = vi.spyOn(
@@ -247,13 +277,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			'render'
 		);
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(context.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(fallbackRender).toHaveBeenCalledTimes(1);
 	});
 
-	it('falls back to blit when source or target resolves to canvas texture', () => {
+	it('falls back to blit when source or target resolves to canvas texture', async () => {
 		const pass = new CopyPass();
 		const sourceCanvasContext = createPassContext();
 		sourceCanvasContext.input = sourceCanvasContext.canvas;
@@ -261,6 +292,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 			(pass as unknown as { fallbackBlit: BlitPass }).fallbackBlit,
 			'render'
 		);
+		await preparePass(pass, sourceCanvasContext);
 		pass.render(sourceCanvasContext);
 		expect(sourceCanvasContext.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(sourceFallback).toHaveBeenCalledTimes(1);
@@ -269,6 +301,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 
 		const targetCanvasContext = createPassContext();
 		targetCanvasContext.output = targetCanvasContext.canvas;
+		await preparePass(pass, targetCanvasContext);
 		pass.render(targetCanvasContext);
 		expect(targetCanvasContext.commandEncoder.copyTextureToTexture).not.toHaveBeenCalled();
 		expect(sourceFallback).toHaveBeenCalledTimes(1);
@@ -284,7 +317,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(disposeSpy).toHaveBeenCalledTimes(1);
 	});
 
-	it('reuses ShaderPass pipeline cache and invalidates it after setFragment', () => {
+	it('reuses ShaderPass pipeline cache and prepares a hot edit asynchronously', async () => {
 		const pass = new ShaderPass({
 			fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
@@ -295,17 +328,19 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		const context = createPassContext();
 		const device = context.device as unknown as ReturnType<typeof createFakeDevice>;
 
+		await preparePass(pass, context);
 		pass.render(context);
 		pass.render(context);
-		expect(device.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
 
 		pass.setFragment(`
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 	return vec4f(inputColor.rg, uv.x, inputColor.a);
 }
 `);
+		await preparePass(pass, context);
 		pass.render(context);
-		expect(device.createRenderPipeline).toHaveBeenCalledTimes(2);
+		expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
 	});
 
 	it('rejects invalid ShaderPass fragments in setFragment without mutating active fragment', () => {
@@ -324,22 +359,24 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(pass.getFragment()).toBe(originalFragment);
 	});
 
-	it('reuses BlitPass pipeline cache and resets it for a different device', () => {
+	it('reuses BlitPass pipeline cache and resets it for a different device', async () => {
 		const pass = new BlitPass();
 		const firstContext = createPassContext();
 		const secondContext = createPassContext();
 		const firstDevice = firstContext.device as unknown as ReturnType<typeof createFakeDevice>;
 		const secondDevice = secondContext.device as unknown as ReturnType<typeof createFakeDevice>;
 
+		await preparePass(pass, firstContext);
 		pass.render(firstContext);
 		pass.render(firstContext);
+		await preparePass(pass, secondContext);
 		pass.render(secondContext);
 
-		expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
-		expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(firstDevice.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
+		expect(secondDevice.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
 	});
 
-	it('resets ShaderPass GPU caches when rendering with a different device', () => {
+	it('resets ShaderPass GPU caches when rendering with a different device', async () => {
 		const pass = new ShaderPass({
 			fragment: `
 fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
@@ -352,11 +389,13 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		const firstDevice = firstContext.device as unknown as ReturnType<typeof createFakeDevice>;
 		const secondDevice = secondContext.device as unknown as ReturnType<typeof createFakeDevice>;
 
+		await preparePass(pass, firstContext);
 		pass.render(firstContext);
+		await preparePass(pass, secondContext);
 		pass.render(secondContext);
 
-		expect(firstDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
-		expect(secondDevice.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(firstDevice.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
+		expect(secondDevice.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
 	});
 
 	it('forwards CopyPass setSize to fallback blit implementation', () => {
@@ -371,7 +410,7 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(setSizeSpy).toHaveBeenCalledWith(320, 240);
 	});
 
-	it('supports setSize/dispose smoke flow for BlitPass and ShaderPass', () => {
+	it('supports setSize/dispose smoke flow for BlitPass and ShaderPass', async () => {
 		const blit = new BlitPass();
 		const shader = new ShaderPass({
 			fragment: `
@@ -402,12 +441,14 @@ fn shade(inputColor: vec4f, uv: vec2f) -> vec4f {
 		expect(() => blit.setSize(1920, 1080)).not.toThrow();
 		expect(() => shader.setSize(1920, 1080)).not.toThrow();
 
+		await Promise.all([preparePass(blit, context), preparePass(shader, context)]);
 		blit.render(context);
 		shader.render(context);
 
 		blit.dispose();
 		shader.dispose();
 
+		await Promise.all([preparePass(blit, context), preparePass(shader, context)]);
 		expect(() => blit.render(context)).not.toThrow();
 		expect(() => shader.render(context)).not.toThrow();
 

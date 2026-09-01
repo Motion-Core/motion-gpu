@@ -3,6 +3,12 @@ import type { SpektralErrorContext, SpektralErrorReport } from './error-report.j
 export interface SpektralErrorOverlayModel {
 	readonly displayMessage: string;
 	readonly runtimeContextText: string;
+	readonly metadata: readonly SpektralErrorOverlayMetadata[];
+}
+
+export interface SpektralErrorOverlayMetadata {
+	readonly label: string;
+	readonly value: string;
 }
 
 function normalizeErrorText(value: string): string {
@@ -82,12 +88,43 @@ function formatRuntimeContext(context: SpektralErrorContext | null): string {
 	return lines.join('\n');
 }
 
+function buildMetadata(report: SpektralErrorReport): readonly SpektralErrorOverlayMetadata[] {
+	const shader = report.shader;
+	if (!shader) return Object.freeze([]);
+	const metadata: SpektralErrorOverlayMetadata[] = [];
+	if (shader.passKind) {
+		metadata.push({
+			label: 'Pass',
+			value: shader.passLabel ? `${shader.passLabel} (${shader.passKind})` : shader.passKind
+		});
+	}
+	metadata.push({ label: 'Stage', value: shader.stage });
+	if (shader.inputFormat && shader.outputFormat) {
+		metadata.push({
+			label: 'Formats',
+			value: `${shader.inputFormat} → ${shader.outputFormat}`
+		});
+	}
+	metadata.push({
+		label: 'Source',
+		value: shader.sourceKind === 'wrapper' ? 'library wrapper' : 'user'
+	});
+	if (shader.line !== undefined) {
+		metadata.push({
+			label: 'Location',
+			value: `${shader.line}${shader.column !== undefined ? `:${shader.column}` : ''}`
+		});
+	}
+	return Object.freeze(metadata.map((entry) => Object.freeze(entry)));
+}
+
 /** Creates the framework-neutral text model rendered by all error overlays. */
 export function createSpektralErrorOverlayModel(
 	report: SpektralErrorReport
 ): SpektralErrorOverlayModel {
-	return {
+	return Object.freeze({
 		displayMessage: resolveDisplayMessage(report),
-		runtimeContextText: formatRuntimeContext(report.context)
-	};
+		runtimeContextText: formatRuntimeContext(report.context),
+		metadata: buildMetadata(report)
+	});
 }

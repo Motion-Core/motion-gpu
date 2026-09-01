@@ -1,4 +1,9 @@
-import { FullscreenPass, type FullscreenPassOptions } from './FullscreenPass.js';
+import type { ShaderLineMap } from '../core/shader.js';
+import {
+	FullscreenPass,
+	type FullscreenPassOptions,
+	type FullscreenShaderProgram
+} from './FullscreenPass.js';
 
 const FULLSCREEN_BLIT_SHADER = `
 struct SpektralVertexOut {
@@ -30,14 +35,27 @@ fn spektralBlitFragment(in: SpektralVertexOut) -> @location(0) vec4f {
 }
 `;
 
+const BLIT_LINE_MAP: ShaderLineMap = (() => {
+	const lines = FULLSCREEN_BLIT_SHADER.split('\n');
+	const map: ShaderLineMap = new Array(lines.length + 1);
+	for (let line = 1; line <= lines.length; line += 1) map[line] = { kind: 'wrapper', line };
+	return map;
+})();
+
+const FULLSCREEN_BLIT_PROGRAM: FullscreenShaderProgram = {
+	code: FULLSCREEN_BLIT_SHADER,
+	lineMap: BLIT_LINE_MAP,
+	fragmentSource: ''
+};
+
 export type BlitPassOptions = FullscreenPassOptions;
 
 /**
  * Fullscreen texture blit pass.
  */
 export class BlitPass extends FullscreenPass {
-	protected getProgram(): string {
-		return FULLSCREEN_BLIT_SHADER;
+	protected getProgram(): FullscreenShaderProgram {
+		return FULLSCREEN_BLIT_PROGRAM;
 	}
 
 	constructor(options: BlitPassOptions = {}) {

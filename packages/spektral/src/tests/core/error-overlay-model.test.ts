@@ -16,6 +16,7 @@ function report(overrides: Partial<SpektralErrorReport> = {}): SpektralErrorRepo
 		phase: 'render',
 		source: null,
 		context: null,
+		shader: null,
 		...overrides
 	};
 }
@@ -90,5 +91,45 @@ describe('createSpektralErrorOverlayModel', () => {
 				report({ context: { materialSignature: '  raw\nsignature  ', activeRenderTargets: [] } })
 			).runtimeContextText
 		).toBe('materialSignature:\n  raw\n  signature\nactiveRenderTargets:\n  - <none>');
+	});
+
+	it('provides compact frozen shader metadata shared by every overlay', () => {
+		const model = createSpektralErrorOverlayModel(
+			report({
+				shader: {
+					passKind: 'ShaderPass',
+					passLabel: 'Bloom composite',
+					stage: 'fragment',
+					inputFormat: 'rgba16float',
+					outputFormat: 'rgba8unorm',
+					sourceKind: 'user',
+					line: 12,
+					column: 7
+				}
+			})
+		);
+		expect(model.metadata).toEqual([
+			{ label: 'Pass', value: 'Bloom composite (ShaderPass)' },
+			{ label: 'Stage', value: 'fragment' },
+			{ label: 'Formats', value: 'rgba16float → rgba8unorm' },
+			{ label: 'Source', value: 'user' },
+			{ label: 'Location', value: '12:7' }
+		]);
+		expect(Object.isFrozen(model)).toBe(true);
+		expect(Object.isFrozen(model.metadata)).toBe(true);
+		expect(Object.isFrozen(model.metadata[0])).toBe(true);
+	});
+
+	it('labels wrapper diagnostics as library-owned source', () => {
+		const model = createSpektralErrorOverlayModel(
+			report({
+				shader: {
+					passKind: 'ShaderPass',
+					stage: 'fragment',
+					sourceKind: 'wrapper'
+				}
+			})
+		);
+		expect(model.metadata).toContainEqual({ label: 'Source', value: 'library wrapper' });
 	});
 });

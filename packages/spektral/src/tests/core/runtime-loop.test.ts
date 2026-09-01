@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCurrentWritable } from '../../lib/core/current-value';
 import { createFrameRegistry } from '../../lib/core/frame-registry';
 import { defineMaterial } from '../../lib/core/material';
+import { attachShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
 
 const { createRendererMock } = vi.hoisted(() => ({
 	createRendererMock: vi.fn()
@@ -512,6 +513,56 @@ describe('runtime-loop', () => {
 		expect(lateRenderer.destroy).toHaveBeenCalledTimes(1);
 	});
 
+	it('renders async renderer readiness in manual mode without another user advance', async () => {
+		const registry = createFrameRegistry({ renderMode: 'manual' });
+		let requestRendererFrame: (() => void) | undefined;
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		renderer.render.mockImplementationOnce(() => {
+			Promise.resolve().then(() => requestRendererFrame?.());
+		});
+		createRendererMock.mockImplementation(
+			async (options: { requestRender?: () => void }): Promise<MockRenderer> => {
+				requestRendererFrame = options.requestRender;
+				return renderer;
+			}
+		);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () =>
+				defineMaterial({
+					fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+				}),
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16); // renderer initialization
+		await flushFrame(32); // manual mode remains idle
+		expect(renderer.render).not.toHaveBeenCalled();
+
+		loop.advance();
+		await flushFrame(48); // first frame discovers pending async renderer work
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(1);
+
+		await flushFrame(64); // readiness callback must render, not just run another RAF
+		expect(renderer.render).toHaveBeenCalledTimes(2);
+		loop.destroy();
+	});
+
 	it('rebuilds renderer when adapterOptions or deviceDescriptor change', async () => {
 		const registry = createFrameRegistry();
 		const material = defineMaterial({
@@ -952,6 +1003,130 @@ describe('runtime-loop', () => {
 		]);
 		expect(renderer.render).toHaveBeenCalledTimes(1);
 
+		loop.destroy();
+	});
+
+	it('does not deduplicate identical shader messages from different pass/source metadata', async () => {
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+		const reports: unknown[] = [];
+		const histories: Array<readonly unknown[]> = [];
+		const onError = vi.fn();
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => onError,
+			reportError: (report) => reports.push(report),
+			getErrorHistoryLimit: () => 10,
+			reportErrorHistory: (history) => histories.push(history)
+		});
+
+		await flushFrame(16);
+		const channel = (
+			createRendererMock.mock.calls[0]?.[0] as {
+				reportAsyncError?: (error: Error) => void;
+			}
+		).reportAsyncError!;
+		const shaderError = (
+			passLabel: string,
+			sourceLocation: { kind: 'fragment' | 'wrapper'; line: number }
+		) =>
+			attachShaderCompilationDiagnostics(new Error('identical compilation failure at line 3'), {
+				kind: 'shader-compilation',
+				shaderStage: 'fragment',
+				diagnostics: [
+					{
+						generatedLine: 3,
+						linePos: 5,
+						message: 'identical compilation failure at line 3',
+						sourceLocation
+					}
+				],
+				fragmentSource: 'line1\nline2\nline3',
+				includeSources: {},
+				materialSource: null,
+				pipeline: {
+					passKind: 'ShaderPass',
+					passLabel,
+					inputFormat: 'rgba8unorm',
+					outputFormat: 'rgba8unorm'
+				}
+			});
+
+		channel(shaderError('Pass A', { kind: 'fragment', line: 3 }));
+		channel(shaderError('Pass B', { kind: 'wrapper', line: 3 }));
+
+		expect(reports).toHaveLength(2);
+		expect(onError).toHaveBeenCalledTimes(2);
+		expect(histories.at(-1)).toHaveLength(2);
+		expect(
+			reports.map(
+				(report) => (report as { shader: { passLabel?: string; sourceKind: string } }).shader
+			)
+		).toEqual([
+			{
+				passKind: 'ShaderPass',
+				passLabel: 'Pass A',
+				stage: 'fragment',
+				inputFormat: 'rgba8unorm',
+				outputFormat: 'rgba8unorm',
+				sourceKind: 'user',
+				line: 3,
+				column: 5
+			},
+			{
+				passKind: 'ShaderPass',
+				passLabel: 'Pass B',
+				stage: 'fragment',
+				inputFormat: 'rgba8unorm',
+				outputFormat: 'rgba8unorm',
+				sourceKind: 'wrapper',
+				line: 3,
+				column: 5
+			}
+		]);
+		loop.destroy();
+	});
+
+	it('resets and forwards the graph updater before a renderer rebuild that fails', async () => {
+		createRendererMock.mockRejectedValue(new Error('renderer rebuild failed'));
+		const graphUpdater = { setSnapshot: vi.fn(), reset: vi.fn() };
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry: createFrameRegistry(),
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: vi.fn(),
+			graphUpdater
+		});
+
+		await flushFrame(16);
+		expect(graphUpdater.reset).toHaveBeenCalledTimes(1);
+		expect(createRendererMock.mock.calls[0]?.[0]).toMatchObject({ graphUpdater });
 		loop.destroy();
 	});
 });

@@ -56,25 +56,34 @@ describe('error diagnostics', () => {
 				outputs: ['target']
 			}
 		};
+		const pipeline = {
+			passKind: 'ShaderPass',
+			passLabel: 'Editable',
+			inputFormat: 'rgba8unorm' as const,
+			outputFormat: 'rgba16float' as const
+		};
 		const error = attachShaderCompilationDiagnostics(new Error('compile failed'), {
 			kind: 'shader-compilation',
 			diagnostics,
 			fragmentSource: 'fragment',
 			includeSources,
 			materialSource,
-			runtimeContext
+			runtimeContext,
+			pipeline
 		});
 
 		diagnostics[0]!.message = 'mutated';
 		includeSources.tone = 'mutated';
 		materialSource.component = 'Mutated.svelte';
 		runtimeContext.passGraph.inputs.push('mutated');
+		pipeline.passLabel = 'Mutated';
 
 		const payload = getShaderCompilationDiagnostics(error);
 		expect(payload?.diagnostics[0]?.message).toBe('unknown symbol');
 		expect(payload?.includeSources.tone).toContain('fn tone');
 		expect(payload?.materialSource?.component).toBe('Scene.svelte');
 		expect(payload?.runtimeContext?.passGraph?.inputs).toEqual(['source']);
+		expect(payload?.pipeline?.passLabel).toBe('Editable');
 		for (const value of [
 			payload,
 			payload?.diagnostics,
@@ -86,7 +95,8 @@ describe('error diagnostics', () => {
 			payload?.runtimeContext?.activeRenderTargets,
 			payload?.runtimeContext?.passGraph,
 			payload?.runtimeContext?.passGraph?.inputs,
-			payload?.runtimeContext?.passGraph?.outputs
+			payload?.runtimeContext?.passGraph?.outputs,
+			payload?.pipeline
 		]) {
 			expect(Object.isFrozen(value)).toBe(true);
 		}

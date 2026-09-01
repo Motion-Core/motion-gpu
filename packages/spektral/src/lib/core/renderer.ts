@@ -1,20 +1,13 @@
 import { buildRenderTargetSignature, resolveRenderTargetDefinitions } from './render-targets.js';
-import { planRenderGraph, type RenderGraphPlan } from './render-graph.js';
 import {
-	buildPingPongShaderSourceWithMap,
-	buildShaderSourceWithMap,
-	formatShaderSourceLocation,
-	type ShaderLineMap
-} from './shader.js';
-import {
-	attachShaderCompilationDiagnostics,
-	type ShaderCompilationDiagnostic,
-	type ShaderCompilationRuntimeContext
-} from './error-diagnostics.js';
+	hasSameRenderGraphPhysicalAccessSignature,
+	planRenderGraph,
+	type RenderGraphPlan
+} from './render-graph.js';
+import { createRenderGraphSnapshotBuilder } from './render-graph-snapshot.js';
+import { buildPingPongShaderSourceWithMap, buildShaderSourceWithMap } from './shader.js';
 import { attachSpektralErrorContext, createSpektralError } from './error-report.js';
 import {
-	assertTextureDimensionsWithinLimit,
-	assertTextureFormat,
 	getTextureMipLevelCount,
 	normalizeTextureDefinitions,
 	resolveTextureSamplingLayout,
@@ -28,20 +21,18 @@ import {
 	createComputeBindGroupCache,
 	type ComputeBindGroupCache
 } from './compute-bindgroup-cache.js';
-import {
-	createComputeExternalResolutionState,
-	resolveComputePassResources,
-	type ComputeResourceResolverLimits,
-	type ResolvedComputePassResources,
-	type ResolvedComputeResource
-} from './compute-resources.js';
+import type { ResolvedComputePassResources, ResolvedComputeResource } from './compute-resources.js';
 import {
 	ComputeSampledFallbackTexturePool,
 	toComputeSampledFallbackClass
 } from './compute-fallback-textures.js';
 import { MaterialResourceRegistry, type RuntimeTextureResource } from './resource-registry.js';
 import { normalizeStorageBufferDefinition } from './storage-buffers.js';
-import { isManagedComputePass, isManagedFeedbackPass } from './pass-contract.js';
+import {
+	isManagedComputePass,
+	isManagedFeedbackPass,
+	isPreparedFullscreenPass
+} from './pass-contract.js';
 import {
 	validateBuiltInRenderPassFormats,
 	validatePresentationSourceFormat,
@@ -58,26 +49,73 @@ import {
 } from './format-capabilities.js';
 import {
 	buildCanvasConfiguration,
-	buildPresentationShader,
 	resolveColorPipeline,
 	shouldConvertLinearToSrgb,
 	type EffectiveDynamicRange
 } from './color-pipeline.js';
 import type {
+	RenderGraphPassSnapshot,
+	RuntimeRenderTarget,
+	RuntimeTextureBinding
+} from './renderer/internal-types.js';
+import {
+	assertCompilation,
+	assertComputeCompilationAsync,
+	buildShaderCompilationRuntimeContext,
+	toComputeCompilationError
+} from './renderer/pipeline-compilation.js';
+import {
+	createPresentationPipeline,
+	presentToCanvas,
+	toClearValue,
+	toPremultipliedCanvasClearValue
+} from './renderer/presentation.js';
+import {
+	executePostSceneRenderGraph,
+	isRenderGraphPlanCacheValid,
+	updateRenderGraphPassSnapshots
+} from './renderer/render-graph-execution.js';
+import {
+	isFullscreenPassPreparationReady,
+	prepareActiveFullscreenPasses,
+	prepareResolvedFullscreenPass,
+	resolveFullscreenPassPreparation,
+	releasePreparedFullscreenPass
+} from './renderer/fullscreen-pass-preparation.js';
+import {
+	assertTextureAllocationSize,
+	createBindGroupLayoutEntries,
+	createGpuMipmapGenerator,
+	createRenderTexture,
+	destroyRenderTexture,
+	findDirtyFloatRanges,
+	getComputeResourceResolverLimits,
+	getMaxComputeWorkgroupsPerDimension,
+	getTextureBindings,
+	markTextureMipmapsDirty,
+	resizeCanvas,
+	uploadTextureBaseLevel,
+	validateComputeDispatch
+} from './renderer/resource-synchronization.js';
+import { createComputePassResourceResolutionCache } from './renderer/compute-resource-resolution.js';
+import type {
 	AnyPass,
 	ComputePassLike,
 	PingPongShaderPassLike,
-	RenderPass,
 	RenderPassInputSlot,
-	RenderPassOutputSlot,
 	RenderMode,
 	RenderTarget,
 	Renderer,
 	RendererOptions,
-	TextureSource,
-	TextureUpdateMode,
 	TextureValue
 } from './types.js';
+
+export { findDirtyFloatRanges } from './renderer/resource-synchronization.js';
+
+// A runtime constructs the replacement renderer before destroying the previous
+// one. Track updater ownership outside a renderer instance so old teardown cannot
+// clear a snapshot already owned by its successor.
+const graphUpdaterOwners = new WeakMap<object, object>();
 
 /**
  * Binding index for frame uniforms (`time`, `delta`, `resolution`).
@@ -88,51 +126,6 @@ const FRAME_BINDING = 0;
  * Binding index for material uniform buffer.
  */
 const UNIFORM_BINDING = 1;
-
-/**
- * First binding index used for texture sampler/texture pairs.
- */
-const FIRST_TEXTURE_BINDING = 2;
-
-/**
- * Runtime texture binding state associated with a single texture key.
- */
-interface RuntimeTextureBinding {
-	key: string;
-	resource: RuntimeTextureResource;
-	samplerBinding: number;
-	textureBinding: number;
-	fragmentVisible: boolean;
-	sampler: GPUSampler;
-	fallbackView: GPUTextureView;
-	source: TextureSource | null;
-	samplerType: GPUSamplerBindingType;
-	effectiveFilter: GPUFilterMode;
-	colorSpace: 'srgb' | 'linear';
-	defaultColorSpace: 'srgb' | 'linear';
-	flipY: boolean;
-	defaultFlipY: boolean;
-	generateMipmaps: boolean;
-	defaultGenerateMipmaps: boolean;
-	premultipliedAlpha: boolean;
-	defaultPremultipliedAlpha: boolean;
-	update: TextureUpdateMode;
-	defaultUpdate?: TextureUpdateMode;
-	lastToken: TextureValue;
-	mipmapsDirty: boolean;
-	feedbackViewActive: boolean;
-}
-
-/**
- * Runtime render target allocation metadata.
- */
-interface RuntimeRenderTarget {
-	texture: GPUTexture;
-	view: GPUTextureView;
-	width: number;
-	height: number;
-	format: GPUTextureFormat;
-}
 
 /**
  * Runtime ping-pong storage textures for a single logical target key.
@@ -175,847 +168,6 @@ interface PingPongShaderTexturePair {
 }
 
 /**
- * Cached pass properties used to validate render-graph cache correctness.
- */
-interface RenderGraphPassSnapshot {
-	pass: AnyPass;
-	enabled: RenderPass['enabled'];
-	needsSwap: RenderPass['needsSwap'];
-	input: RenderPass['input'];
-	output: RenderPass['output'];
-	clear: RenderPass['clear'];
-	preserve: RenderPass['preserve'];
-	hasClearColor: boolean;
-	clearColor0: number;
-	clearColor1: number;
-	clearColor2: number;
-	clearColor3: number;
-}
-
-const DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION = 65_535;
-const COMPUTE_DISPATCH_AXES = ['x', 'y', 'z'] as const;
-const DEFAULT_MAX_TEXTURE_DIMENSION_2D = 8192;
-
-/**
- * Formats an invalid compute dispatch value for deterministic diagnostics.
- */
-function formatComputeDispatchValue(value: unknown): string {
-	if (value === undefined) {
-		return 'undefined';
-	}
-	if (typeof value === 'number') {
-		return Number.isNaN(value) ? 'NaN' : String(value);
-	}
-	if (typeof value === 'string') {
-		return `"${value}"`;
-	}
-
-	try {
-		return JSON.stringify(value) ?? String(value);
-	} catch {
-		return String(value);
-	}
-}
-
-/**
- * Reads the compute workgroup limit with a fallback for partial or mocked devices.
- */
-function getMaxComputeWorkgroupsPerDimension(device: GPUDevice): number {
-	const max = (device.limits as GPUSupportedLimits | undefined)?.maxComputeWorkgroupsPerDimension;
-	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
-		return Math.floor(max);
-	}
-
-	return DEFAULT_MAX_COMPUTE_WORKGROUPS_PER_DIMENSION;
-}
-
-/**
- * Reads the device 2D texture limit with a fallback for partial or mocked devices.
- */
-function getMaxTextureDimension2D(device: GPUDevice): number {
-	const max = (device.limits as GPUSupportedLimits | undefined)?.maxTextureDimension2D;
-	if (typeof max === 'number' && Number.isFinite(max) && max > 0) {
-		return Math.floor(max);
-	}
-
-	return DEFAULT_MAX_TEXTURE_DIMENSION_2D;
-}
-
-/**
- * Checks a planned texture size against the active device before GPU allocation.
- */
-function assertTextureAllocationSize(
-	device: GPUDevice,
-	width: number,
-	height: number,
-	label: string
-): void {
-	assertTextureDimensionsWithinLimit(width, height, getMaxTextureDimension2D(device), label);
-}
-
-/**
- * Reads a positive integer device limit or returns the supplied compatibility fallback.
- */
-function getPositiveDeviceLimit(
-	device: GPUDevice,
-	name: keyof ComputeResourceResolverLimits,
-	fallback: number
-): number {
-	const value = (device.limits as unknown as Record<string, unknown> | undefined)?.[name];
-	return typeof value === 'number' && Number.isFinite(value) && value > 0
-		? Math.floor(value)
-		: fallback;
-}
-
-/**
- * Captures the device limits used while validating compute resource bindings.
- */
-function getComputeResourceResolverLimits(device: GPUDevice): ComputeResourceResolverLimits {
-	return {
-		maxBindingsPerBindGroup: getPositiveDeviceLimit(device, 'maxBindingsPerBindGroup', 1000),
-		maxSampledTexturesPerShaderStage: getPositiveDeviceLimit(
-			device,
-			'maxSampledTexturesPerShaderStage',
-			16
-		),
-		maxSamplersPerShaderStage: getPositiveDeviceLimit(device, 'maxSamplersPerShaderStage', 16),
-		maxStorageTexturesPerShaderStage: getPositiveDeviceLimit(
-			device,
-			'maxStorageTexturesPerShaderStage',
-			4
-		),
-		maxStorageBuffersPerShaderStage: getPositiveDeviceLimit(
-			device,
-			'maxStorageBuffersPerShaderStage',
-			8
-		),
-		maxStorageBufferBindingSize: getPositiveDeviceLimit(
-			device,
-			'maxStorageBufferBindingSize',
-			128 * 1024 * 1024
-		)
-	};
-}
-
-/**
- * Resolves and validates a three-axis dispatch tuple against the active device limit.
- */
-function validateComputeDispatch(
-	dispatch: unknown,
-	maxWorkgroupsPerDimension: number,
-	label: string
-): [number, number, number] {
-	if (!Array.isArray(dispatch)) {
-		throw new Error(
-			`${label} dispatch must resolve to an array [x, y, z], got ${formatComputeDispatchValue(dispatch)}.`
-		);
-	}
-
-	const resolved = [dispatch[0], dispatch[1] ?? 1, dispatch[2] ?? 1] as const;
-	const output: [number, number, number] = [1, 1, 1];
-
-	for (let index = 0; index < COMPUTE_DISPATCH_AXES.length; index += 1) {
-		const axis = COMPUTE_DISPATCH_AXES[index];
-		const value = resolved[index];
-		if (
-			typeof value !== 'number' ||
-			!Number.isFinite(value) ||
-			!Number.isInteger(value) ||
-			value < 1
-		) {
-			throw new Error(
-				`${label} dispatch ${axis} must be a positive integer, got ${formatComputeDispatchValue(value)}.`
-			);
-		}
-		if (value > maxWorkgroupsPerDimension) {
-			throw new Error(
-				`${label} dispatch ${axis} must be <= device.limits.maxComputeWorkgroupsPerDimension (${maxWorkgroupsPerDimension}), got ${value}.`
-			);
-		}
-		output[index] = value;
-	}
-
-	return output;
-}
-
-/**
- * Returns sampler/texture binding slots for a texture index.
- */
-function getTextureBindings(index: number): {
-	samplerBinding: number;
-	textureBinding: number;
-} {
-	const samplerBinding = FIRST_TEXTURE_BINDING + index * 2;
-	return {
-		samplerBinding,
-		textureBinding: samplerBinding + 1
-	};
-}
-
-/**
- * Resizes canvas backing store to match client size and DPR.
- */
-function resizeCanvas(
-	canvas: HTMLCanvasElement,
-	dprInput: number,
-	cssSize?: { width: number; height: number }
-): { width: number; height: number } {
-	const dpr = Number.isFinite(dprInput) && dprInput > 0 ? dprInput : 1;
-	const rect = cssSize ? null : canvas.getBoundingClientRect();
-	const cssWidth = Math.max(0, cssSize?.width ?? rect?.width ?? 0);
-	const cssHeight = Math.max(0, cssSize?.height ?? rect?.height ?? 0);
-	const width = Math.max(1, Math.floor((cssWidth || 1) * dpr));
-	const height = Math.max(1, Math.floor((cssHeight || 1) * dpr));
-
-	if (canvas.width !== width || canvas.height !== height) {
-		canvas.width = width;
-		canvas.height = height;
-	}
-
-	return { width, height };
-}
-
-/**
- * Throws when a shader module contains WGSL compilation errors.
- */
-async function assertCompilation(
-	module: GPUShaderModule,
-	options?: {
-		lineMap?: ShaderLineMap;
-		fragmentSource?: string;
-		computeSource?: string;
-		includeSources?: Record<string, string>;
-		defineBlockSource?: string;
-		materialSource?: {
-			component?: string;
-			file?: string;
-			line?: number;
-			column?: number;
-			functionName?: string;
-		} | null;
-		runtimeContext?: ShaderCompilationRuntimeContext;
-		errorPrefix?: string;
-		shaderStage?: 'fragment' | 'compute';
-	}
-): Promise<void> {
-	const info = await module.getCompilationInfo();
-	const errors = info.messages.filter((message: GPUCompilationMessage) => message.type === 'error');
-
-	if (errors.length === 0) {
-		return;
-	}
-
-	const diagnostics = errors.map((message: GPUCompilationMessage) => ({
-		generatedLine: message.lineNum,
-		message: message.message,
-		linePos: message.linePos,
-		lineLength: message.length,
-		sourceLocation: options?.lineMap?.[message.lineNum] ?? null
-	}));
-
-	const summary = diagnostics
-		.map((diagnostic) => {
-			const sourceLabel = formatShaderSourceLocation(diagnostic.sourceLocation);
-			const generatedLineLabel =
-				diagnostic.generatedLine > 0 ? `generated WGSL line ${diagnostic.generatedLine}` : null;
-			const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
-			if (contextLabel.length === 0) {
-				return diagnostic.message;
-			}
-
-			return `[${contextLabel.join(' | ')}] ${diagnostic.message}`;
-		})
-		.join('\n');
-	const prefix = options?.errorPrefix ?? 'WGSL compilation failed';
-	const error = new Error(`${prefix}:\n${summary}`);
-	throw attachShaderCompilationDiagnostics(error, {
-		kind: 'shader-compilation',
-		...(options?.shaderStage !== undefined ? { shaderStage: options.shaderStage } : {}),
-		diagnostics,
-		fragmentSource: options?.fragmentSource ?? '',
-		...(options?.computeSource !== undefined ? { computeSource: options.computeSource } : {}),
-		includeSources: options?.includeSources ?? {},
-		...(options?.defineBlockSource !== undefined
-			? { defineBlockSource: options.defineBlockSource }
-			: {}),
-		materialSource: options?.materialSource ?? null,
-		...(options?.runtimeContext !== undefined ? { runtimeContext: options.runtimeContext } : {})
-	});
-}
-
-function toSortedUniqueStrings(values: string[]): string[] {
-	return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
-}
-
-/**
- * Best-effort line extraction from a raw GPU error/exception message.
- *
- * Used only as a fallback when WebGPU's structured `getCompilationInfo()` and
- * `popErrorScope()` channels have no per-message line metadata — primarily to
- * keep test mocks that throw synchronously from `createComputePipeline()`
- * reproducible against the structured-diagnostics contract.
- */
-function extractGeneratedLineFromComputeError(message: string): number | null {
-	const lineMatch = message.match(/\bline\s+(\d+)\b/i);
-	if (lineMatch) {
-		const parsed = Number.parseInt(lineMatch[1] ?? '', 10);
-		if (Number.isFinite(parsed) && parsed > 0) {
-			return parsed;
-		}
-	}
-
-	const colonMatch = message.match(/:(\d+):\d+/);
-	if (colonMatch) {
-		const parsed = Number.parseInt(colonMatch[1] ?? '', 10);
-		if (Number.isFinite(parsed) && parsed > 0) {
-			return parsed;
-		}
-	}
-
-	return null;
-}
-
-/**
- * Builds a compute compilation Error with structured diagnostics attached.
- */
-function buildComputeCompilationError(input: {
-	diagnostics: ShaderCompilationDiagnostic[];
-	computeSource: string;
-	runtimeContext: ShaderCompilationRuntimeContext;
-}): Error {
-	const summary = input.diagnostics
-		.map((diagnostic) => {
-			const sourceLabel = formatShaderSourceLocation(diagnostic.sourceLocation);
-			const generatedLineLabel =
-				diagnostic.generatedLine > 0 ? `generated WGSL line ${diagnostic.generatedLine}` : null;
-			const contextLabel = [sourceLabel, generatedLineLabel].filter((value) => Boolean(value));
-			if (contextLabel.length === 0) {
-				return diagnostic.message;
-			}
-
-			return `[${contextLabel.join(' | ')}] ${diagnostic.message}`;
-		})
-		.join('\n');
-
-	const error = new Error(`Compute shader compilation failed:\n${summary}`);
-	return attachShaderCompilationDiagnostics(error, {
-		kind: 'shader-compilation',
-		shaderStage: 'compute',
-		diagnostics: input.diagnostics,
-		fragmentSource: '',
-		computeSource: input.computeSource,
-		includeSources: {},
-		materialSource: null,
-		runtimeContext: input.runtimeContext
-	});
-}
-
-/**
- * Fallback compute-compilation error builder used when the synchronous
- * `createShaderModule` / `createComputePipeline` path itself throws — there is
- * no compilation info or popped scope to inspect, so we extract whatever line
- * hint we can from the raw exception message.
- */
-function toComputeCompilationError(input: {
-	error: unknown;
-	lineMap: ShaderLineMap;
-	computeSource: string;
-	runtimeContext: ShaderCompilationRuntimeContext;
-}): Error {
-	const baseError =
-		input.error instanceof Error ? input.error : new Error(String(input.error ?? 'Unknown error'));
-	const generatedLine = extractGeneratedLineFromComputeError(baseError.message) ?? 0;
-	const sourceLocation = generatedLine > 0 ? (input.lineMap[generatedLine] ?? null) : null;
-	return buildComputeCompilationError({
-		diagnostics: [
-			{
-				generatedLine,
-				message: baseError.message,
-				sourceLocation
-			}
-		],
-		computeSource: input.computeSource,
-		runtimeContext: input.runtimeContext
-	});
-}
-
-/**
- * Awaits the async outputs of a compute shader module + pipeline creation
- * sequence (compilation info + popped validation scope) and, if either reveals
- * an error, returns a fully-attributed compute compilation Error. Returns
- * `null` when both channels are clean.
- */
-async function assertComputeCompilationAsync(input: {
-	module: GPUShaderModule;
-	validationScope: Promise<GPUError | null>;
-	lineMap: ShaderLineMap;
-	computeSource: string;
-	runtimeContext: ShaderCompilationRuntimeContext;
-}): Promise<Error | null> {
-	let compilationMessages: GPUCompilationMessage[] = [];
-	try {
-		const info = await input.module.getCompilationInfo();
-		compilationMessages = info.messages.filter(
-			(message: GPUCompilationMessage) => message.type === 'error'
-		);
-	} catch {
-		// If the runtime cannot report compilation info, fall through to
-		// validation scope or treat as clean.
-	}
-
-	const validationError = await input.validationScope.catch(() => null);
-
-	if (compilationMessages.length === 0 && !validationError) {
-		return null;
-	}
-
-	const diagnostics =
-		compilationMessages.length > 0
-			? compilationMessages.map((message: GPUCompilationMessage) => ({
-					generatedLine: message.lineNum,
-					message: message.message,
-					linePos: message.linePos,
-					lineLength: message.length,
-					sourceLocation: input.lineMap[message.lineNum] ?? null
-				}))
-			: [
-					{
-						generatedLine: 0,
-						message: validationError!.message,
-						sourceLocation: null
-					}
-				];
-
-	return buildComputeCompilationError({
-		diagnostics,
-		computeSource: input.computeSource,
-		runtimeContext: input.runtimeContext
-	});
-}
-
-/**
- * Summarizes enabled pass inputs and outputs for shader compilation diagnostics.
- */
-function buildPassGraphSnapshot(
-	passes: AnyPass[] | undefined
-): NonNullable<ShaderCompilationRuntimeContext['passGraph']> {
-	const declaredPasses = passes ?? [];
-	let enabledPassCount = 0;
-	const inputs: string[] = [];
-	const outputs: string[] = [];
-
-	for (const pass of declaredPasses) {
-		if (pass.enabled === false) {
-			continue;
-		}
-
-		enabledPassCount += 1;
-		if (isManagedComputePass(pass)) {
-			continue;
-		}
-		if (isManagedFeedbackPass(pass)) {
-			continue;
-		}
-		const rp = pass as RenderPass;
-		const needsSwap = rp.needsSwap ?? true;
-		const input = rp.input ?? 'source';
-		const output = rp.output ?? (needsSwap ? 'target' : 'source');
-		inputs.push(input);
-		outputs.push(output);
-	}
-
-	return {
-		passCount: declaredPasses.length,
-		enabledPassCount,
-		inputs: toSortedUniqueStrings(inputs),
-		outputs: toSortedUniqueStrings(outputs)
-	};
-}
-
-/**
- * Captures render targets and pass topology at shader compilation time.
- */
-function buildShaderCompilationRuntimeContext(
-	options: RendererOptions
-): ShaderCompilationRuntimeContext {
-	const passList = options.getPasses?.() ?? options.passes;
-	const renderTargetMap = options.getRenderTargets?.() ?? options.renderTargets;
-
-	return {
-		...(options.materialSignature ? { materialSignature: options.materialSignature } : {}),
-		passGraph: buildPassGraphSnapshot(passList),
-		activeRenderTargets: Object.keys(renderTargetMap ?? {}).sort((a, b) => a.localeCompare(b))
-	};
-}
-
-/**
- * Creates typed descriptor for `copyExternalImageToTexture`.
- */
-function createExternalCopySource(
-	source: CanvasImageSource,
-	options: { flipY?: boolean; premultipliedAlpha?: boolean }
-): GPUCopyExternalImageSourceInfo {
-	const descriptor = {
-		source,
-		...(options.flipY ? { flipY: true } : {}),
-		...(options.premultipliedAlpha ? { premultipliedAlpha: true } : {})
-	};
-
-	return descriptor as GPUCopyExternalImageSourceInfo;
-}
-
-/**
- * Uploads source content to the base GPU texture level.
- */
-function uploadTextureBaseLevel(
-	device: GPUDevice,
-	texture: GPUTexture,
-	uploadOptions: { flipY: boolean; premultipliedAlpha: boolean },
-	source: TextureSource,
-	width: number,
-	height: number
-): void {
-	device.queue.copyExternalImageToTexture(
-		createExternalCopySource(source, {
-			flipY: uploadOptions.flipY,
-			premultipliedAlpha: uploadOptions.premultipliedAlpha
-		}),
-		{ texture, mipLevel: 0 },
-		{ width, height, depthOrArrayLayers: 1 }
-	);
-}
-
-const GPU_MIPMAP_SHADER = `
-struct VertexOutput {
-	@builtin(position) position: vec4f,
-	@location(0) uv: vec2f
-};
-
-@vertex
-fn vertexMain(@builtin(vertex_index) vertexIndex: u32) -> VertexOutput {
-	var positions = array<vec2f, 3>(
-		vec2f(-1.0, -3.0),
-		vec2f(-1.0, 1.0),
-		vec2f(3.0, 1.0)
-	);
-	let position = positions[vertexIndex];
-	var out: VertexOutput;
-	out.position = vec4f(position, 0.0, 1.0);
-	out.uv = position * vec2f(0.5, -0.5) + vec2f(0.5, 0.5);
-	return out;
-}
-
-@group(0) @binding(0) var mipSampler: sampler;
-@group(0) @binding(1) var mipSource: texture_2d<f32>;
-
-@fragment
-fn fragmentMain(in: VertexOutput) -> @location(0) vec4f {
-	return textureSample(mipSource, mipSampler, in.uv);
-}
-`;
-
-interface GpuMipmapGenerator {
-	generate: (input: {
-		commandEncoder: GPUCommandEncoder;
-		texture: GPUTexture;
-		format: GPUTextureFormat;
-		mipLevelCount: number;
-	}) => void;
-}
-
-function createGpuMipmapGenerator(device: GPUDevice): GpuMipmapGenerator {
-	let sampler: GPUSampler | null = null;
-	let shaderModule: GPUShaderModule | null = null;
-	let bindGroupLayout: GPUBindGroupLayout | null = null;
-	let pipelineLayout: GPUPipelineLayout | null = null;
-	const pipelineByFormat = new Map<GPUTextureFormat, GPURenderPipeline>();
-
-	const ensureBindGroupLayout = (): GPUBindGroupLayout => {
-		if (!bindGroupLayout) {
-			bindGroupLayout = device.createBindGroupLayout({
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.FRAGMENT,
-						sampler: { type: 'filtering' }
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.FRAGMENT,
-						texture: { sampleType: 'float' }
-					}
-				]
-			});
-		}
-
-		return bindGroupLayout;
-	};
-
-	const ensurePipeline = (format: GPUTextureFormat): GPURenderPipeline => {
-		const cached = pipelineByFormat.get(format);
-		if (cached) {
-			return cached;
-		}
-
-		const layout = ensureBindGroupLayout();
-		shaderModule ??= device.createShaderModule({ code: GPU_MIPMAP_SHADER });
-		pipelineLayout ??= device.createPipelineLayout({
-			bindGroupLayouts: [layout]
-		});
-		const pipeline = device.createRenderPipeline({
-			layout: pipelineLayout,
-			vertex: {
-				module: shaderModule,
-				entryPoint: 'vertexMain'
-			},
-			fragment: {
-				module: shaderModule,
-				entryPoint: 'fragmentMain',
-				targets: [{ format }]
-			},
-			primitive: {
-				topology: 'triangle-list'
-			}
-		});
-		pipelineByFormat.set(format, pipeline);
-		return pipeline;
-	};
-
-	return {
-		generate: ({ commandEncoder, texture, format, mipLevelCount }) => {
-			if (mipLevelCount <= 1) {
-				return;
-			}
-
-			sampler ??= device.createSampler({
-				minFilter: 'linear',
-				magFilter: 'linear'
-			});
-			const layout = ensureBindGroupLayout();
-			const pipeline = ensurePipeline(format);
-
-			for (let level = 1; level < mipLevelCount; level += 1) {
-				const sourceView = texture.createView({
-					baseMipLevel: level - 1,
-					mipLevelCount: 1
-				});
-				const targetView = texture.createView({
-					baseMipLevel: level,
-					mipLevelCount: 1
-				});
-				const bindGroup = device.createBindGroup({
-					layout,
-					entries: [
-						{ binding: 0, resource: sampler },
-						{ binding: 1, resource: sourceView }
-					]
-				});
-				const pass = commandEncoder.beginRenderPass({
-					colorAttachments: [
-						{
-							view: targetView,
-							clearValue: { r: 0, g: 0, b: 0, a: 0 },
-							loadOp: 'clear',
-							storeOp: 'store'
-						}
-					]
-				});
-				pass.setPipeline(pipeline);
-				pass.setBindGroup(0, bindGroup);
-				pass.draw(3);
-				pass.end();
-			}
-		}
-	};
-}
-
-function markTextureMipmapsDirty(
-	binding: Pick<RuntimeTextureBinding, 'generateMipmaps' | 'mipmapsDirty'>,
-	mipLevelCount: number
-): void {
-	if (binding.generateMipmaps && mipLevelCount > 1) {
-		binding.mipmapsDirty = true;
-	} else {
-		binding.mipmapsDirty = false;
-	}
-}
-
-/**
- * Creates bind group layout entries for frame/uniform buffers plus texture bindings.
- */
-function createBindGroupLayoutEntries(
-	textureBindings: RuntimeTextureBinding[]
-): GPUBindGroupLayoutEntry[] {
-	const entries: GPUBindGroupLayoutEntry[] = [
-		{
-			binding: FRAME_BINDING,
-			visibility: GPUShaderStage.FRAGMENT,
-			buffer: { type: 'uniform', minBindingSize: 16 }
-		},
-		{
-			binding: UNIFORM_BINDING,
-			visibility: GPUShaderStage.FRAGMENT,
-			buffer: { type: 'uniform' }
-		}
-	];
-
-	for (const binding of textureBindings) {
-		entries.push({
-			binding: binding.samplerBinding,
-			visibility: GPUShaderStage.FRAGMENT,
-			sampler: { type: binding.samplerType }
-		});
-
-		entries.push({
-			binding: binding.textureBinding,
-			visibility: GPUShaderStage.FRAGMENT,
-			texture: {
-				sampleType: binding.resource.sampleType,
-				viewDimension: '2d',
-				multisampled: false
-			}
-		});
-	}
-
-	return entries;
-}
-
-/**
- * Maximum gap (in floats) between two dirty ranges that triggers merge.
- *
- * Set to 4 (16 bytes) which covers one vec4f alignment slot.
- */
-const DIRTY_RANGE_MERGE_GAP = 4;
-
-/**
- * Shared empty result returned when no float values differ between snapshots.
- *
- * Avoids allocating a new `[]` on every clean frame (the common steady-state
- * case). Callers must not mutate this reference.
- */
-const EMPTY_DIRTY_RANGES: ReadonlyArray<{ start: number; count: number }> = [];
-
-/**
- * Computes dirty float ranges between two uniform snapshots.
- *
- * Adjacent dirty ranges separated by a gap smaller than or equal to
- * {@link DIRTY_RANGE_MERGE_GAP} are merged to reduce `writeBuffer` calls.
- *
- * Returns a shared empty array reference when the buffers are identical —
- * callers must not mutate the returned array.
- */
-export function findDirtyFloatRanges(
-	previous: Float32Array,
-	next: Float32Array,
-	mergeGapThreshold = DIRTY_RANGE_MERGE_GAP
-): ReadonlyArray<{ start: number; count: number }> {
-	let start = -1;
-	let rangeCount = 0;
-	const ranges: Array<{ start: number; count: number }> = [];
-
-	for (let index = 0; index < next.length; index += 1) {
-		if (previous[index] !== next[index]) {
-			if (start === -1) {
-				start = index;
-			}
-			continue;
-		}
-
-		if (start !== -1) {
-			ranges.push({ start, count: index - start });
-			rangeCount += 1;
-			start = -1;
-		}
-	}
-
-	if (start !== -1) {
-		ranges.push({ start, count: next.length - start });
-		rangeCount += 1;
-	}
-
-	if (rangeCount === 0) {
-		// Most common case in steady-state animations: no dirty ranges.
-		// Return the shared sentinel to avoid a per-frame heap allocation.
-		return EMPTY_DIRTY_RANGES;
-	}
-
-	if (rangeCount <= 1) {
-		return ranges;
-	}
-
-	const merged: Array<{ start: number; count: number }> = [ranges[0]!];
-	for (let index = 1; index < rangeCount; index += 1) {
-		const prev = merged[merged.length - 1]!;
-		const curr = ranges[index]!;
-		const gap = curr.start - (prev.start + prev.count);
-
-		if (gap <= mergeGapThreshold) {
-			prev.count = curr.start + curr.count - prev.start;
-		} else {
-			merged.push(curr);
-		}
-	}
-
-	return merged;
-}
-
-/**
- * Allocates a render target texture with usage flags suitable for passes/blits.
- */
-function createRenderTexture(
-	device: GPUDevice,
-	width: number,
-	height: number,
-	format: GPUTextureFormat
-): RuntimeRenderTarget {
-	assertTextureFormat(format, 'Render target');
-	assertTextureAllocationSize(device, width, height, 'Render target');
-	const texture = device.createTexture({
-		size: { width, height, depthOrArrayLayers: 1 },
-		format,
-		usage:
-			GPUTextureUsage.TEXTURE_BINDING |
-			GPUTextureUsage.RENDER_ATTACHMENT |
-			GPUTextureUsage.COPY_DST |
-			GPUTextureUsage.COPY_SRC
-	});
-
-	return {
-		texture,
-		view: texture.createView(),
-		width,
-		height,
-		format
-	};
-}
-
-/**
- * Destroys a render target texture if present.
- */
-function destroyRenderTexture(target: RuntimeRenderTarget | null): void {
-	target?.texture.destroy();
-}
-
-function toClearValue(color: [number, number, number, number]): GPUColorDict {
-	return {
-		r: color[0],
-		g: color[1],
-		b: color[2],
-		a: color[3]
-	};
-}
-
-function toPremultipliedCanvasClearValue(color: [number, number, number, number]): GPUColorDict {
-	const alpha = Math.min(Math.max(color[3], 0), 1);
-	return {
-		r: color[0] * alpha,
-		g: color[1] * alpha,
-		b: color[2] * alpha,
-		a: alpha
-	};
-}
-
-/**
  * Creates the WebGPU renderer used by `FragCanvas`.
  *
  * @param options - Renderer creation options resolved from material/context state.
@@ -1050,6 +202,11 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 	}
 
 	const device = await adapter.requestDevice(options.deviceDescriptor);
+	const graphUpdaterOwner = {};
+	const graphSnapshotBuilder = createRenderGraphSnapshotBuilder();
+	const ownsGraphUpdater = (): boolean =>
+		options.graphUpdater !== undefined &&
+		graphUpdaterOwners.get(options.graphUpdater as object) === graphUpdaterOwner;
 	const maxComputeWorkgroupsPerDimension = getMaxComputeWorkgroupsPerDimension(device);
 	let isDestroyed = false;
 	let deviceLostMessage: string | null = null;
@@ -1128,6 +285,16 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		options.__onInitializationCleanupRegistered?.();
 		initializationCleanups.push(cleanup);
 	};
+	const fullscreenPassOwner = {};
+	const preparedFullscreenPasses = new Set<Parameters<typeof releasePreparedFullscreenPass>[0]>();
+	const pendingDynamicFullscreenPasses = new Map<
+		Parameters<typeof releasePreparedFullscreenPass>[0],
+		string
+	>();
+	const failedDynamicFullscreenPasses = new Map<
+		Parameters<typeof releasePreparedFullscreenPass>[0],
+		string
+	>();
 
 	const runInitializationCleanups = (): void => {
 		for (let index = initializationCleanups.length - 1; index >= 0; index -= 1) {
@@ -1188,31 +355,51 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			filter: 'linear',
 			deviceFeatures: device.features
 		});
+		const initialPasses = options.getPasses?.() ?? options.passes ?? [];
+		const initialRenderTargets = options.getRenderTargets?.() ?? options.renderTargets;
 		const initialRenderTargetFormats = validateRenderTargetFormats(
-			options.getRenderTargets ? undefined : options.renderTargets,
+			initialRenderTargets,
 			workingFormat,
 			device.features
 		);
-		if (!options.getPasses && !options.getRenderTargets) {
-			const initialPasses = options.passes ?? [];
-			validateBuiltInRenderPassFormats({
-				passes: initialPasses,
+		validateBuiltInRenderPassFormats({
+			passes: initialPasses,
+			workingFormat,
+			namedFormats: initialRenderTargetFormats,
+			deviceFeatures: device.features
+		});
+		const presentationSourceSlot = resolvePresentationSourceSlot(initialPasses);
+		if (presentationSourceSlot !== null) {
+			validatePresentationSourceFormat({
+				slot: presentationSourceSlot,
 				workingFormat,
 				namedFormats: initialRenderTargetFormats,
-				deviceFeatures: device.features
+				deviceFeatures: device.features,
+				requiresFilterableInput: presentationSamplingLayout.samplerType === 'filtering'
 			});
-			const presentationSourceSlot = resolvePresentationSourceSlot(initialPasses);
-			if (presentationSourceSlot !== null) {
-				validatePresentationSourceFormat({
-					slot: presentationSourceSlot,
-					workingFormat,
-					namedFormats: initialRenderTargetFormats,
-					deviceFeatures: device.features,
-					requiresFilterableInput: presentationSamplingLayout.samplerType === 'filtering'
-				});
-			}
 		}
-		const runtimeContext = buildShaderCompilationRuntimeContext(options);
+		registerInitializationCleanup(() => {
+			for (const pass of preparedFullscreenPasses) {
+				releasePreparedFullscreenPass(pass, device, fullscreenPassOwner);
+			}
+			preparedFullscreenPasses.clear();
+		});
+		await prepareActiveFullscreenPasses({
+			passes: initialPasses,
+			device,
+			owner: fullscreenPassOwner,
+			workingFormat,
+			namedFormats: initialRenderTargetFormats,
+			preparedPasses: preparedFullscreenPasses,
+			...(options.reportAsyncError !== undefined
+				? { reportRecoverableError: options.reportAsyncError }
+				: {}),
+			...(options.requestRender !== undefined ? { requestRender: options.requestRender } : {})
+		});
+		const runtimeContext = buildShaderCompilationRuntimeContext(options, {
+			passes: initialPasses,
+			renderTargets: initialRenderTargets
+		});
 		const convertLinearToSrgb =
 			!colorPipeline.requiresPresentationPass &&
 			shouldConvertLinearToSrgb(colorPipeline.outputEncoding, colorPipeline.canvasFormat, 'sdr');
@@ -1482,69 +669,32 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			bindGroupLayouts: [presentationBindGroupLayout]
 		});
 		const presentationPipelines = new Map<string, GPURenderPipeline>();
-		const buildPresentationPipelineKey = (
-			canvasFormat: GPUTextureFormat,
-			dynamicRange: EffectiveDynamicRange,
-			applyFinalTransform: boolean,
-			premultiplyAlpha: boolean
-		): string => {
-			return `${canvasFormat}|${dynamicRange}|${applyFinalTransform}|${premultiplyAlpha}`;
-		};
-		const createPresentationPipeline = async (
+		const ensurePresentationPipeline = async (
 			canvasFormat: GPUTextureFormat,
 			dynamicRange: EffectiveDynamicRange,
 			applyFinalTransform: boolean,
 			premultiplyAlpha: boolean
 		): Promise<void> => {
-			const key = buildPresentationPipelineKey(
+			await createPresentationPipeline({
+				device,
+				pipelineLayout: presentationPipelineLayout,
+				pipelines: presentationPipelines,
+				colorPipeline,
 				canvasFormat,
 				dynamicRange,
 				applyFinalTransform,
-				premultiplyAlpha
-			);
-			if (presentationPipelines.has(key)) {
-				return;
-			}
-
-			const convertPresentationLinearToSrgb =
-				applyFinalTransform &&
-				shouldConvertLinearToSrgb(colorPipeline.outputEncoding, canvasFormat, dynamicRange);
-			const presentationShaderModule = device.createShaderModule({
-				code: buildPresentationShader({
-					toneMapping: applyFinalTransform ? colorPipeline.toneMapping : 'none',
-					convertLinearToSrgb: convertPresentationLinearToSrgb,
-					dynamicRange,
-					premultiplyAlpha
-				})
+				premultiplyAlpha,
+				assertCompilation
 			});
-			await assertCompilation(presentationShaderModule);
-			presentationPipelines.set(
-				key,
-				device.createRenderPipeline({
-					layout: presentationPipelineLayout,
-					vertex: {
-						module: presentationShaderModule,
-						entryPoint: 'spektralPresentationVertex'
-					},
-					fragment: {
-						module: presentationShaderModule,
-						entryPoint: 'spektralPresentationFragment',
-						targets: [{ format: canvasFormat }]
-					},
-					primitive: {
-						topology: 'triangle-list'
-					}
-				})
-			);
 		};
-		await createPresentationPipeline(
+		await ensurePresentationPipeline(
 			colorPipeline.canvasFormat,
 			colorPipeline.dynamicRange === 'auto' ? 'hdr' : colorPipeline.dynamicRange,
 			colorPipeline.requiresPresentationPass,
 			true
 		);
 		if (colorPipeline.dynamicRange === 'auto') {
-			await createPresentationPipeline(
+			await ensurePresentationPipeline(
 				colorPipeline.fallbackCanvasFormat,
 				'sdr',
 				colorPipeline.requiresPresentationPass,
@@ -1807,6 +957,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		const computePipelineCache = new Map<string, ComputePipelineCacheState>();
 		let nextComputePipelineLabelIndex = 0;
 		const computeResourceLimits = getComputeResourceResolverLimits(device);
+		const computeResourceResolutionCache = createComputePassResourceResolutionCache();
 		const computeUniformTopologyKey = options.uniformLayout.entries
 			.map((entry) => `${entry.name}:${entry.type}`)
 			.join(',');
@@ -2592,6 +1743,8 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		let renderTargetFormatSnapshot: RenderTargetFormatMap = {};
 		let renderTargetKeys: string[] = [];
 		let cachedGraphPlan: RenderGraphPlan | null = null;
+		const resolvedComputeResourcesByPass = new Map<AnyPass, ResolvedComputePassResources>();
+		const computeLabelsByPass = new Map<AnyPass, string>();
 		let cachedGraphRenderTargetSignature = '';
 		const cachedGraphClearColor: [number, number, number, number] = [NaN, NaN, NaN, NaN];
 		const cachedGraphPasses: RenderGraphPassSnapshot[] = [];
@@ -2657,65 +1810,15 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			passes: AnyPass[],
 			clearColor: [number, number, number, number]
 		): boolean => {
-			if (!cachedGraphPlan) {
-				return false;
-			}
-
-			if (cachedGraphRenderTargetSignature !== renderTargetSignature) {
-				return false;
-			}
-
-			if (
-				cachedGraphClearColor[0] !== clearColor[0] ||
-				cachedGraphClearColor[1] !== clearColor[1] ||
-				cachedGraphClearColor[2] !== clearColor[2] ||
-				cachedGraphClearColor[3] !== clearColor[3]
-			) {
-				return false;
-			}
-
-			if (cachedGraphPasses.length !== passes.length) {
-				return false;
-			}
-
-			for (let index = 0; index < passes.length; index += 1) {
-				const pass = passes[index];
-				const rp = pass as Partial<RenderPass>;
-				const snapshot = cachedGraphPasses[index];
-				if (!pass || !snapshot || snapshot.pass !== pass) {
-					return false;
-				}
-
-				if (
-					snapshot.enabled !== pass.enabled ||
-					snapshot.needsSwap !== rp.needsSwap ||
-					snapshot.input !== rp.input ||
-					snapshot.output !== rp.output ||
-					snapshot.clear !== rp.clear ||
-					snapshot.preserve !== rp.preserve
-				) {
-					return false;
-				}
-
-				const passClearColor = rp.clearColor;
-				const hasPassClearColor = passClearColor !== undefined;
-				if (snapshot.hasClearColor !== hasPassClearColor) {
-					return false;
-				}
-
-				if (passClearColor) {
-					if (
-						snapshot.clearColor0 !== passClearColor[0] ||
-						snapshot.clearColor1 !== passClearColor[1] ||
-						snapshot.clearColor2 !== passClearColor[2] ||
-						snapshot.clearColor3 !== passClearColor[3]
-					) {
-						return false;
-					}
-				}
-			}
-
-			return true;
+			return isRenderGraphPlanCacheValid({
+				cachedPlan: cachedGraphPlan,
+				cachedRenderTargetSignature: cachedGraphRenderTargetSignature,
+				renderTargetSignature,
+				cachedClearColor: cachedGraphClearColor,
+				clearColor,
+				cachedPasses: cachedGraphPasses,
+				passes
+			});
 		};
 
 		/**
@@ -2732,47 +1835,89 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			cachedGraphClearColor[1] = clearColor[1];
 			cachedGraphClearColor[2] = clearColor[2];
 			cachedGraphClearColor[3] = clearColor[3];
-			cachedGraphPasses.length = passes.length;
+			updateRenderGraphPassSnapshots(cachedGraphPasses, passes);
+		};
 
-			let index = 0;
-			for (const pass of passes) {
-				const rp = pass as Partial<RenderPass>;
-				const passClearColor = rp.clearColor;
-				const hasPassClearColor = passClearColor !== undefined;
-				const snapshot = cachedGraphPasses[index];
-				if (!snapshot) {
-					cachedGraphPasses[index] = {
-						pass,
-						enabled: pass.enabled,
-						needsSwap: rp.needsSwap,
-						input: rp.input,
-						output: rp.output,
-						clear: rp.clear,
-						preserve: rp.preserve,
-						hasClearColor: hasPassClearColor,
-						clearColor0: passClearColor?.[0] ?? 0,
-						clearColor1: passClearColor?.[1] ?? 0,
-						clearColor2: passClearColor?.[2] ?? 0,
-						clearColor3: passClearColor?.[3] ?? 0
-					};
-					index += 1;
+		const releasePassLifecycle = (pass: AnyPass): void => {
+			if (isManagedComputePass(pass)) {
+				computeResourceResolutionCache.delete(pass);
+				pass.dispose?.();
+				return;
+			}
+			if (isPreparedFullscreenPass(pass)) {
+				pendingDynamicFullscreenPasses.delete(pass);
+				failedDynamicFullscreenPasses.delete(pass);
+				if (preparedFullscreenPasses.delete(pass)) {
+					releasePreparedFullscreenPass(pass, device, fullscreenPassOwner);
+				}
+				return;
+			}
+			pass.dispose?.();
+		};
+
+		const resolveFramePasses = (passes: AnyPass[]): AnyPass[] => {
+			const unpreparedFullscreenPasses = new Set<AnyPass>();
+			for (const candidate of passes) {
+				const preparation = resolveFullscreenPassPreparation({
+					candidate,
+					workingFormat,
+					namedFormats: renderTargetFormatSnapshot
+				});
+				if (!preparation) continue;
+				if (isFullscreenPassPreparationReady(preparation, device)) {
+					pendingDynamicFullscreenPasses.delete(preparation.pass);
+					failedDynamicFullscreenPasses.delete(preparation.pass);
 					continue;
 				}
 
-				snapshot.pass = pass;
-				snapshot.enabled = pass.enabled;
-				snapshot.needsSwap = rp.needsSwap;
-				snapshot.input = rp.input;
-				snapshot.output = rp.output;
-				snapshot.clear = rp.clear;
-				snapshot.preserve = rp.preserve;
-				snapshot.hasClearColor = hasPassClearColor;
-				snapshot.clearColor0 = passClearColor?.[0] ?? 0;
-				snapshot.clearColor1 = passClearColor?.[1] ?? 0;
-				snapshot.clearColor2 = passClearColor?.[2] ?? 0;
-				snapshot.clearColor3 = passClearColor?.[3] ?? 0;
-				index += 1;
+				unpreparedFullscreenPasses.add(preparation.pass);
+				const pendingKey = pendingDynamicFullscreenPasses.get(preparation.pass);
+				const failedKey = failedDynamicFullscreenPasses.get(preparation.pass);
+				if (pendingKey === preparation.key || failedKey === preparation.key) continue;
+
+				preparedFullscreenPasses.add(preparation.pass);
+				pendingDynamicFullscreenPasses.set(preparation.pass, preparation.key);
+				void Promise.resolve()
+					.then(() => {
+						if (isDestroyed) return;
+						return prepareResolvedFullscreenPass({
+							preparation,
+							device,
+							owner: fullscreenPassOwner,
+							replaceOwnerFormats: true,
+							retainOwnerOnFailure: true,
+							...(options.reportAsyncError !== undefined
+								? { reportRecoverableError: options.reportAsyncError }
+								: {}),
+							...(options.requestRender !== undefined
+								? { requestRender: options.requestRender }
+								: {})
+						});
+					})
+					.then(
+						() => {
+							if (pendingDynamicFullscreenPasses.get(preparation.pass) !== preparation.key) {
+								return;
+							}
+							pendingDynamicFullscreenPasses.delete(preparation.pass);
+							failedDynamicFullscreenPasses.delete(preparation.pass);
+							if (!isDestroyed) options.requestRender?.();
+						},
+						(error) => {
+							if (pendingDynamicFullscreenPasses.get(preparation.pass) !== preparation.key) {
+								return;
+							}
+							pendingDynamicFullscreenPasses.delete(preparation.pass);
+							failedDynamicFullscreenPasses.set(preparation.pass, preparation.key);
+							options.reportAsyncError?.(
+								error instanceof Error ? error : new Error(String(error ?? 'Unknown WebGPU error'))
+							);
+						}
+					);
 			}
+
+			if (unpreparedFullscreenPasses.size === 0) return passes;
+			return passes.filter((pass) => !unpreparedFullscreenPasses.has(pass));
 		};
 
 		/**
@@ -2811,7 +1956,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 
 			for (const pass of activePasses) {
 				if (!lifecycleNextSet.has(pass)) {
-					pass.dispose?.();
+					releasePassLifecycle(pass);
 				}
 			}
 
@@ -2983,53 +2128,27 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 		/**
 		 * Presents a texture view to the current canvas texture.
 		 */
-		const presentToCanvas = (
+		const present = (
 			commandEncoder: GPUCommandEncoder,
 			sourceView: GPUTextureView,
 			canvasView: GPUTextureView,
 			clearColor: [number, number, number, number],
 			applyFinalTransform: boolean
 		): void => {
-			let bindGroup = presentationBindGroupByView.get(sourceView);
-			if (!bindGroup) {
-				bindGroup = device.createBindGroup({
-					layout: presentationBindGroupLayout,
-					entries: [
-						{ binding: 0, resource: presentationSampler },
-						{ binding: 1, resource: sourceView }
-					]
-				});
-				presentationBindGroupByView.set(sourceView, bindGroup);
-			}
-
-			const pass = commandEncoder.beginRenderPass({
-				colorAttachments: [
-					{
-						view: canvasView,
-						clearValue: toPremultipliedCanvasClearValue(clearColor),
-						loadOp: 'clear',
-						storeOp: 'store'
-					}
-				]
+			presentToCanvas({
+				device,
+				commandEncoder,
+				sourceView,
+				canvasView,
+				clearColor,
+				applyFinalTransform,
+				canvasFormat: effectiveCanvasFormat,
+				dynamicRange: effectiveDynamicRange,
+				pipelines: presentationPipelines,
+				bindGroupLayout: presentationBindGroupLayout,
+				sampler: presentationSampler,
+				bindGroups: presentationBindGroupByView
 			});
-
-			const pipeline = presentationPipelines.get(
-				buildPresentationPipelineKey(
-					effectiveCanvasFormat,
-					effectiveDynamicRange,
-					applyFinalTransform,
-					true
-				)
-			);
-			if (!pipeline) {
-				throw new Error(
-					`Missing presentation pipeline for ${effectiveCanvasFormat}/${effectiveDynamicRange}.`
-				);
-			}
-			pass.setPipeline(pipeline);
-			pass.setBindGroup(0, bindGroup);
-			pass.draw(3);
-			pass.end();
 		};
 
 		const flushStorageWrites = (writes: Parameters<Renderer['flushStorageWrites']>[0]): void => {
@@ -3193,68 +2312,70 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			syncPingPongComputeTextureLifecycle(passes);
 			syncPingPongShaderTextureLifecycle(passes);
 			const runtimeTargets = syncRenderTargets(width, height);
-			const resolvedComputeResourcesByPass = new Map<AnyPass, ResolvedComputePassResources>();
-			const computeLabelsByPass = new Map<AnyPass, string>();
-			const computeExternalState = createComputeExternalResolutionState();
+			const framePasses = resolveFramePasses(passes);
+			resolvedComputeResourcesByPass.clear();
+			computeLabelsByPass.clear();
+			const computeExternalContext = { device, width, height, time, delta };
 			let computeDeclarationIndex = 0;
+			let computeResolutionFrameStarted = false;
 			for (const pass of passes) {
 				if (pass.enabled === false) continue;
 				if (!isManagedComputePass(pass)) continue;
-				const passLabel = `Compute pass #${computeDeclarationIndex}`;
+				if (!computeResolutionFrameStarted) {
+					computeResourceResolutionCache.beginFrame();
+					computeResolutionFrameStarted = true;
+				}
+				const passLabel = pass.label ?? `Compute pass #${computeDeclarationIndex}`;
 				computeDeclarationIndex += 1;
-				const resources = resolveComputePassResources(pass.getResources(), {
-					passLabel,
-					deviceFeatures: device.features as ReadonlySet<string>,
-					limits: computeResourceLimits,
-					externalContext: { device, width, height, time, delta },
-					getMaterialTexture: (logicalId) => resourceRegistry.getTexture(logicalId),
-					getMaterialStorageBuffer: (logicalId) => resourceRegistry.getStorageBuffer(logicalId),
-					getMaterialSampler: (logicalId) => {
-						const binding = textureBindingByKey.get(logicalId);
-						return binding
-							? {
-									logicalId,
-									sampler: binding.sampler,
-									type: binding.samplerType,
-									sampleType: binding.resource.sampleType
-								}
-							: undefined;
-					},
-					createTextureView: createCachedExternalTextureView,
+				const resources = computeResourceResolutionCache.resolve({
+					pass,
 					pingPong: pass.isPingPong === true,
-					externalState: computeExternalState,
-					diagnosticContext: runtimeContext
+					context: {
+						passLabel,
+						deviceFeatures: device.features as ReadonlySet<string>,
+						limits: computeResourceLimits,
+						externalContext: computeExternalContext,
+						getMaterialTexture: (logicalId) => resourceRegistry.getTexture(logicalId),
+						getMaterialStorageBuffer: (logicalId) => resourceRegistry.getStorageBuffer(logicalId),
+						getMaterialSampler: (logicalId) => {
+							const binding = textureBindingByKey.get(logicalId);
+							return binding
+								? {
+										logicalId,
+										sampler: binding.sampler,
+										type: binding.samplerType,
+										sampleType: binding.resource.sampleType
+									}
+								: undefined;
+						},
+						createTextureView: createCachedExternalTextureView,
+						diagnosticContext: runtimeContext
+					}
 				});
 				resolvedComputeResourcesByPass.set(pass, resources);
 				computeLabelsByPass.set(pass, passLabel);
 			}
-			const graphPlan = isGraphPlanCacheValid(passes, clearColor)
-				? (() => {
-						const cached = cachedGraphPlan!;
-						for (const step of cached.computeSteps) {
-							const resources = resolvedComputeResourcesByPass.get(step.pass);
-							if (!resources) {
-								throw new Error('Cached compute graph step is missing resolved resources.');
-							}
-							step.resolvedResources = resources;
-						}
-						return cached;
-					})()
+			const canReuseGraphPlan =
+				isGraphPlanCacheValid(framePasses, clearColor) &&
+				hasSameRenderGraphPhysicalAccessSignature(cachedGraphPlan!, resolvedComputeResourcesByPass);
+			let graphPlanIsFresh = false;
+			const graphPlan = canReuseGraphPlan
+				? cachedGraphPlan!
 				: (() => {
 						let nextPlan: RenderGraphPlan;
 						try {
-							nextPlan = planRenderGraph(passes, clearColor, renderTargetKeys, {
+							nextPlan = planRenderGraph(framePasses, clearColor, renderTargetKeys, {
 								getResolvedResources: (pass) => resolvedComputeResourcesByPass.get(pass),
 								getPassLabel: (pass) => computeLabelsByPass.get(pass) ?? 'Compute pass'
 							});
 						} catch (error) {
 							throw attachSpektralErrorContext(error, runtimeContext);
 						}
-						updateGraphPlanCache(passes, clearColor, nextPlan);
+						graphPlanIsFresh = true;
 						return nextPlan;
 					})();
 			validateBuiltInRenderPassFormats({
-				passes,
+				passes: framePasses,
 				workingFormat,
 				namedFormats: renderTargetFormatSnapshot,
 				deviceFeatures: device.features
@@ -3267,6 +2388,12 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					deviceFeatures: device.features,
 					requiresFilterableInput: presentationSamplingLayout.samplerType === 'filtering'
 				});
+			}
+			if (graphPlanIsFresh) {
+				updateGraphPlanCache(framePasses, clearColor, graphPlan);
+				if (ownsGraphUpdater()) {
+					options.graphUpdater?.setSnapshot(graphSnapshotBuilder.build(graphPlan));
+				}
 			}
 			const canvasTexture = context.getCurrentTexture();
 			// Mutate the pre-allocated surface object rather than allocating a new one.
@@ -3334,7 +2461,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 					}
 					const computePass = step.pass;
 					const computeSource = computePass.getCompute();
-					const resources = step.resolvedResources;
+					const resources = resolvedComputeResourcesByPass.get(step.pass);
 					if (!resources) throw new Error(`${computeStepLabel} is missing resolved resources.`);
 					const pingPongRead = resources.entries.find(
 						(entry) => entry.kind === 'sampled-texture' && entry.pingPong === 'read'
@@ -3558,108 +2685,34 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 			scenePass.draw(3);
 			scenePass.end();
 
-			let finalPresentationSurface: RenderTarget = sceneOutput;
-			if (slots) {
-				const resolveStepSurface = (
-					slot: RenderPassInputSlot | RenderPassOutputSlot
-				): RenderTarget => {
-					if (slot === 'source') {
-						return slots.source;
-					}
-
-					if (slot === 'target') {
-						return slots.target;
-					}
-
-					if (slot === 'canvas') {
-						return slots.canvas;
-					}
-
-					const named = runtimeTargets[slot];
-					if (!named) {
-						throw new Error(`Render graph references unknown runtime target "${slot}".`);
-					}
-
-					return named;
-				};
-
-				for (const step of graphPlan.renderSteps) {
-					const input = resolveStepSurface(step.input);
-					const output = resolveStepSurface(step.output);
-
-					(step.pass as RenderPass).render({
-						device,
-						commandEncoder,
-						source: slots.source,
-						target: slots.target,
-						canvas: slots.canvas,
-						input,
-						output,
-						targets: runtimeTargets,
-						time,
-						delta,
-						width,
-						height,
-						clear: step.clear,
-						clearColor: step.clearColor,
-						preserve: step.preserve,
-						beginRenderPass: (passOptions?: {
-							clear?: boolean;
-							clearColor?: [number, number, number, number];
-							preserve?: boolean;
-							view?: GPUTextureView;
-						}) => {
-							const clear = passOptions?.clear ?? step.clear;
-							const clearColor = passOptions?.clearColor ?? step.clearColor;
-							const preserve = passOptions?.preserve ?? step.preserve;
-
-							return commandEncoder.beginRenderPass({
-								colorAttachments: [
-									{
-										view: passOptions?.view ?? output.view,
-										clearValue: toClearValue(clearColor),
-										loadOp: clear ? 'clear' : 'load',
-										storeOp: preserve ? 'store' : 'discard'
-									}
-								]
-							});
-						}
-					});
-
-					if (step.needsSwap) {
-						const previousSource = slots.source;
-						slots.source = slots.target;
-						slots.target = previousSource;
-					}
+			executePostSceneRenderGraph({
+				device,
+				commandEncoder,
+				graphPlan,
+				slots,
+				sceneOutput,
+				canvasSurface,
+				runtimeTargets,
+				time,
+				delta,
+				width,
+				height,
+				clearColor,
+				presentationRequired,
+				present: (sourceView, canvasView, applyFinalTransform) => {
+					present(commandEncoder, sourceView, canvasView, clearColor, applyFinalTransform);
 				}
-
-				finalPresentationSurface = resolveStepSurface(graphPlan.finalOutput);
-				if (!presentationRequired) {
-					presentToCanvas(
-						commandEncoder,
-						finalPresentationSurface.view,
-						canvasSurface.view,
-						clearColor,
-						false
-					);
-				}
-			}
-
-			if (presentationRequired) {
-				presentToCanvas(
-					commandEncoder,
-					finalPresentationSurface.view,
-					canvasSurface.view,
-					clearColor,
-					true
-				);
-			}
+			});
 
 			device.queue.submit([commandEncoder.finish()]);
 		};
 
 		acceptInitializationCleanups = false;
 		initializationCleanups.length = 0;
+		if (options.graphUpdater) {
+			graphUpdaterOwners.set(options.graphUpdater as object, graphUpdaterOwner);
+			options.graphUpdater.reset();
+		}
 		return {
 			render,
 			flushStorageWrites,
@@ -3690,6 +2743,7 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 				pingPongShaderTexturePairs.clear();
 				computePipelineCache.clear();
+				computeResourceResolutionCache.clear();
 				externalTextureViewCache = new WeakMap();
 				pingPongShaderPipelineCache.clear();
 				destroyRenderTexture(sourceSlotTarget);
@@ -3700,8 +2754,14 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				}
 				runtimeRenderTargets.clear();
 				for (const pass of activePasses) {
-					pass.dispose?.();
+					releasePassLifecycle(pass);
 				}
+				for (const pass of preparedFullscreenPasses) {
+					releasePreparedFullscreenPass(pass, device, fullscreenPassOwner);
+				}
+				preparedFullscreenPasses.clear();
+				pendingDynamicFullscreenPasses.clear();
+				failedDynamicFullscreenPasses.clear();
 				activePasses.length = 0;
 				lifecyclePassesRef = null;
 				for (const binding of textureBindings) {
@@ -3712,6 +2772,10 @@ export async function createRenderer(options: RendererOptions): Promise<Renderer
 				presentationBindGroupByView = new WeakMap();
 				cachedGraphPlan = null;
 				cachedGraphPasses.length = 0;
+				if (ownsGraphUpdater()) {
+					options.graphUpdater?.reset();
+					graphUpdaterOwners.delete(options.graphUpdater as object);
+				}
 				renderTargetSnapshot = {};
 				renderTargetKeys = [];
 				destroyDevice();

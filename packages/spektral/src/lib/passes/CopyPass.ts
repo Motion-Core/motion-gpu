@@ -12,15 +12,27 @@ import {
 } from '../core/format-capabilities.js';
 import {
 	builtInRenderPassBrand,
-	type BuiltInRenderPassFormatContract
+	isFullscreenPassPrepared,
+	preparedFullscreenPassBrand,
+	prepareFullscreenPass,
+	releaseFullscreenPass,
+	type BuiltInRenderPassFormatContract,
+	type FullscreenPassPreparation
 } from '../core/pass-brand.js';
 
 export interface CopyPassOptions extends RenderPassFlags {
+	label?: string;
 	enabled?: boolean;
 	needsSwap?: boolean;
 	input?: RenderPassInputSlot;
 	output?: RenderPassOutputSlot;
 	filter?: GPUFilterMode;
+}
+
+class CopyFallbackBlitPass extends BlitPass {
+	protected override getDiagnosticPassKind(): string {
+		return 'CopyPass';
+	}
 }
 
 /**
@@ -32,6 +44,8 @@ export class CopyPass implements RenderPass {
 		input: 'float-sampled',
 		output: 'float-renderable'
 	});
+	readonly [preparedFullscreenPassBrand] = true as const;
+	readonly label?: string;
 	enabled: boolean;
 	needsSwap: boolean;
 	input: RenderPassInputSlot;
@@ -42,6 +56,7 @@ export class CopyPass implements RenderPass {
 	private readonly fallbackBlit: BlitPass;
 
 	constructor(options: CopyPassOptions = {}) {
+		if (options.label !== undefined) this.label = options.label;
 		this.enabled = options.enabled ?? true;
 		this.needsSwap = options.needsSwap ?? true;
 		this.input = options.input ?? 'source';
@@ -49,7 +64,8 @@ export class CopyPass implements RenderPass {
 		this.clear = options.clear ?? false;
 		this.clearColor = options.clearColor ?? [0, 0, 0, 1];
 		this.preserve = options.preserve ?? true;
-		this.fallbackBlit = new BlitPass({
+		this.fallbackBlit = new CopyFallbackBlitPass({
+			...(options.label !== undefined ? { label: options.label } : {}),
 			enabled: true,
 			needsSwap: false,
 			input: this.input,
@@ -60,6 +76,22 @@ export class CopyPass implements RenderPass {
 
 	setSize(width: number, height: number): void {
 		this.fallbackBlit.setSize(width, height);
+	}
+
+	[prepareFullscreenPass](input: FullscreenPassPreparation): Promise<void> {
+		return this.fallbackBlit[prepareFullscreenPass](input);
+	}
+
+	[releaseFullscreenPass](device: GPUDevice, owner: object): void {
+		this.fallbackBlit[releaseFullscreenPass](device, owner);
+	}
+
+	[isFullscreenPassPrepared](
+		device: GPUDevice,
+		inputFormat: GPUTextureFormat,
+		outputFormat: GPUTextureFormat
+	): boolean {
+		return this.fallbackBlit[isFullscreenPassPrepared](device, inputFormat, outputFormat);
 	}
 
 	render(context: RenderPassContext): void {

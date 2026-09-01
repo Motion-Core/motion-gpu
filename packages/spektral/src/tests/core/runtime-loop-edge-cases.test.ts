@@ -15,6 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createCurrentWritable } from '../../lib/core/current-value';
+import { attachShaderCompilationDiagnostics } from '../../lib/core/error-diagnostics';
 import { createFrameRegistry } from '../../lib/core/frame-registry';
 import { defineMaterial } from '../../lib/core/material';
 
@@ -573,6 +574,67 @@ describe('runtime-loop edge cases', () => {
 		// Verify error was detected (history callback was invoked) and its throw swallowed.
 		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
 
+		loop.destroy();
+	});
+
+	it('routes recoverable async shader failures through frozen error, history and onError channels', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		const reportErrorHistory = vi.fn();
+		const onError = vi.fn((report) => {
+			expect(Object.isFrozen(report)).toBe(true);
+			expect(Object.isFrozen(report.shader)).toBe(true);
+			expect(Object.isFrozen(report.source)).toBe(true);
+			expect(Object.isFrozen(report.source?.snippet)).toBe(true);
+			expect(Reflect.set(report, 'title', 'mutated')).toBe(false);
+			expect(Reflect.set(report.shader as object, 'line', 999)).toBe(false);
+		});
+		createRendererMock.mockResolvedValue(createRenderer());
+		const loop = createSpektralRuntimeLoop(
+			baseOptions(registry, undefined, {
+				reportError,
+				reportErrorHistory,
+				getErrorHistoryLimit: () => 2,
+				getOnError: () => onError
+			})
+		);
+		await flushFrame(16);
+		await flushFrame(32);
+		const reportAsyncError = createRendererMock.mock.calls[0]?.[0]?.reportAsyncError as
+			| ((error: Error) => void)
+			| undefined;
+		expect(reportAsyncError).toBeTypeOf('function');
+		const error = attachShaderCompilationDiagnostics(new Error('WGSL compilation failed'), {
+			kind: 'shader-compilation',
+			shaderStage: 'fragment',
+			diagnostics: [
+				{
+					generatedLine: 40,
+					message: 'unknown value',
+					linePos: 9,
+					sourceLocation: { kind: 'fragment', line: 2 }
+				}
+			],
+			fragmentSource: 'fn shade() -> vec4f {\n\treturn missing;\n}',
+			includeSources: {},
+			materialSource: null,
+			pipeline: {
+				passKind: 'ShaderPass',
+				passLabel: 'Editable',
+				inputFormat: 'rgba8unorm',
+				outputFormat: 'rgba8unorm'
+			}
+		});
+		reportAsyncError?.(error);
+
+		expect(reportError).toHaveBeenLastCalledWith(
+			expect.objectContaining({ recoverable: true, phase: 'render' })
+		);
+		expect(onError).toHaveBeenCalledTimes(1);
+		expect(reportErrorHistory).toHaveBeenCalledTimes(1);
+		const history = reportErrorHistory.mock.calls[0]?.[0];
+		expect(Object.isFrozen(history)).toBe(true);
+		expect(history?.[0]).toBe(reportError.mock.calls.at(-1)?.[0]);
 		loop.destroy();
 	});
 

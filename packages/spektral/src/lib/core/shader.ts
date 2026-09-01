@@ -8,6 +8,11 @@ type ComputeShaderSourceLocation = {
 	line: number;
 };
 
+export interface WrapperShaderSourceLocation {
+	readonly kind: 'wrapper';
+	readonly line: number;
+}
+
 /**
  * Fallback uniform field used when no custom uniforms are provided.
  */
@@ -189,7 +194,9 @@ function buildFragmentOutput(
 /**
  * 1-based map from generated WGSL lines to original material source lines.
  */
-export type ShaderLineMap = Array<(MaterialSourceLocation | ComputeShaderSourceLocation) | null>;
+export type ShaderLineMap = Array<
+	MaterialSourceLocation | ComputeShaderSourceLocation | WrapperShaderSourceLocation | null
+>;
 
 /**
  * Result of shader source generation with line mapping metadata.
@@ -459,7 +466,11 @@ export function buildPingPongShaderSourceWithMap(
  * Converts source location metadata to user-facing diagnostics label.
  */
 export function formatShaderSourceLocation(
-	location: (MaterialSourceLocation | ComputeShaderSourceLocation) | null
+	location:
+		| MaterialSourceLocation
+		| ComputeShaderSourceLocation
+		| WrapperShaderSourceLocation
+		| null
 ): string | null {
 	if (!location) {
 		return null;
@@ -475,6 +486,10 @@ export function formatShaderSourceLocation(
 
 	if (location.kind === 'compute') {
 		return `compute line ${location.line}`;
+	}
+
+	if (location.kind === 'wrapper') {
+		return `library wrapper line ${location.line}`;
 	}
 
 	return `define "${location.define}" line ${location.line}`;

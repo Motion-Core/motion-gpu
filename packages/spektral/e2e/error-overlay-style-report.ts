@@ -45,5 +45,12 @@ export const errorOverlayStyleReport: SpektralErrorReport = {
 	context: {
 		materialSignature: 'error-overlay-style-proof',
 		activeRenderTargets: ['canvas']
+	},
+	shader: {
+		passKind: 'Material',
+		stage: 'fragment',
+		sourceKind: 'user',
+		line: 12,
+		column: 2
 	}
 };

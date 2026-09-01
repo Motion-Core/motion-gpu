@@ -2,7 +2,9 @@ import { createSpektralError } from './error-report.js';
 import {
 	builtInRenderPassBrand,
 	managedPassBrand,
-	type BuiltInRenderPassFormatContract
+	preparedFullscreenPassBrand,
+	type BuiltInRenderPassFormatContract,
+	type PreparedFullscreenPassContract
 } from './pass-brand.js';
 import type { AnyPass, ComputePassLike, PingPongShaderPassLike, RenderPass } from './types.js';
 
@@ -33,6 +35,16 @@ export function isBuiltInRenderPass(
 		typeof contract.passName === 'string' &&
 		contract.input === 'float-sampled' &&
 		contract.output === 'float-renderable'
+	);
+}
+
+/** Reports whether a built-in render pass participates in internal async preparation. */
+export function isPreparedFullscreenPass(
+	value: unknown
+): value is RenderPass & PreparedFullscreenPassContract {
+	return (
+		isBuiltInRenderPass(value) &&
+		(value as unknown as PreparedFullscreenPassContract)[preparedFullscreenPassBrand] === true
 	);
 }
 

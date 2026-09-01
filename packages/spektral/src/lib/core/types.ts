@@ -912,6 +912,12 @@ export interface PendingStorageWrite {
 	offset: number;
 }
 
+/** Minimal renderer-facing graph publication sink. @internal */
+export interface RendererGraphUpdater {
+	setSnapshot(snapshot: object): void;
+	reset(): void;
+}
+
 export interface RendererOptions {
 	/**
 	 * Target canvas.
@@ -1012,13 +1018,20 @@ export interface RendererOptions {
 	 */
 	deviceDescriptor?: GPUDeviceDescriptor | undefined;
 	/**
-	 * Optional callback the renderer invokes when an asynchronously detected
-	 * compute shader compilation result becomes available. Hosts should treat
-	 * this as a hint to schedule another render pass so that the next call to
-	 * `Renderer.render` can surface a freshly cached compilation error or use
-	 * a freshly validated compute pipeline.
+	 * Optional callback the renderer invokes when asynchronous pipeline work
+	 * changes what the next frame can render. This includes compute validation,
+	 * dynamically prepared fullscreen passes, and successful ShaderPass recovery.
+	 * Hosts should treat it as a hint to schedule another render pass.
 	 */
 	requestRender?: (() => void) | undefined;
+	/**
+	 * Internal runtime channel for recoverable errors discovered after renderer initialization.
+	 *
+	 * @internal
+	 */
+	reportAsyncError?: ((error: Error) => void) | undefined;
+	/** Renderer-facing graph snapshot bridge. @internal */
+	graphUpdater?: RendererGraphUpdater | undefined;
 	/**
 	 * Internal test hook invoked when an initialization cleanup is registered.
 	 *

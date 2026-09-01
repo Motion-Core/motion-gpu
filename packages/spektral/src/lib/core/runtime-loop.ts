@@ -20,7 +20,8 @@ import type {
 	TextureMap,
 	TextureValue,
 	UniformType,
-	UniformValue
+	UniformValue,
+	RendererGraphUpdater
 } from './types.js';
 
 export interface SpektralRuntimeLoopOptions {
@@ -41,6 +42,8 @@ export interface SpektralRuntimeLoopOptions {
 	getErrorHistoryLimit?: () => number | undefined;
 	getOnErrorHistory?: () => ((history: readonly SpektralErrorReport[]) => void) | undefined;
 	reportErrorHistory?: (history: readonly SpektralErrorReport[]) => void;
+	/** Renderer-facing graph snapshot bridge. @internal */
+	graphUpdater?: RendererGraphUpdater;
 }
 
 export interface SpektralRuntimeLoop {
@@ -219,10 +222,20 @@ export function createSpektralRuntimeLoop(
 		const report = toSpektralErrorReport(error, phase);
 		errorClearReadyAtMs = resolveNowMs(nowMs) + ERROR_CLEAR_GRACE_MS;
 		const reportKey = JSON.stringify({
+			code: report.code,
 			phase: report.phase,
 			title: report.title,
 			message: report.message,
-			rawMessage: report.rawMessage
+			rawMessage: report.rawMessage,
+			shader: report.shader,
+			source: report.source
+				? {
+						component: report.source.component,
+						location: report.source.location,
+						line: report.source.line,
+						column: report.source.column
+					}
+				: null
 		});
 		if (activeErrorKey === reportKey) {
 			return;
@@ -299,6 +312,11 @@ export function createSpektralRuntimeLoop(
 	};
 
 	const requestFrame = (): void => {
+		scheduleFrame();
+	};
+
+	const requestRendererFrame = (): void => {
+		registry.advance();
 		scheduleFrame();
 	};
 
@@ -543,6 +561,7 @@ export function createSpektralRuntimeLoop(
 			}
 
 			if (!rendererRebuildPromise) {
+				options.graphUpdater?.reset();
 				rendererRebuildPromise = (async () => {
 					let retryDelayMs: number | null = null;
 					try {
@@ -568,7 +587,9 @@ export function createSpektralRuntimeLoop(
 							getDpr: () => options.dpr.current,
 							adapterOptions,
 							deviceDescriptor,
-							requestRender: scheduleFrame
+							requestRender: requestRendererFrame,
+							reportAsyncError: (error) => setError(error, 'render'),
+							...(options.graphUpdater !== undefined ? { graphUpdater: options.graphUpdater } : {})
 						});
 
 						if (isDisposed) {

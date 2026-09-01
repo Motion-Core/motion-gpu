@@ -27,6 +27,8 @@ export interface ComputeDispatchContext {
  * Options for constructing a `ComputePass`.
  */
 export interface ComputePassOptions {
+	/** Optional human-readable label exposed by render-graph diagnostics. */
+	label?: string;
 	/**
 	 * Compute shader WGSL source code.
 	 * Must declare `@compute @workgroup_size(...) fn compute(@builtin(global_invocation_id) ...)`.
@@ -69,6 +71,7 @@ export class ComputePass {
 	/** Internal nominal marker for renderer-managed compute passes. */
 	readonly [managedPassBrand] = 'compute' as const;
 	readonly [computePassStaticTopology]: ComputePassStaticTopology;
+	readonly label?: string;
 
 	/**
 	 * Enables/disables this pass without removing it from graph.
@@ -88,6 +91,7 @@ export class ComputePass {
 		assertComputeContract(options.compute, options.workgroupSize);
 		const workgroupSize = resolveWorkgroupSize(options.compute, options.workgroupSize);
 		this.compute = options.compute;
+		if (options.label !== undefined) this.label = options.label;
 		this[computePassStaticTopology] = createComputePassStaticTopology('compute', options.resources);
 		this.workgroupSize = workgroupSize;
 		this.dispatch = options.dispatch ?? 'auto';

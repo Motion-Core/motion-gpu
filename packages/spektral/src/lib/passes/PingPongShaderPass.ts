@@ -12,6 +12,8 @@ export interface PingPongShaderPassOptions<
 	TDefineKey extends string = string,
 	TIncludeKey extends string = string
 > {
+	/** Optional human-readable label exposed by render-graph diagnostics. */
+	label?: string;
 	/**
 	 * Fragment WGSL source containing `fn frag(uv: vec2f) -> vec4f`.
 	 *
@@ -173,6 +175,7 @@ function resolveDimension(
 export class PingPongShaderPass {
 	/** Internal nominal marker for renderer-managed feedback passes. */
 	readonly [managedPassBrand] = 'feedback' as const;
+	readonly label?: string;
 
 	/**
 	 * Enables/disables this pass without removing it from graph.
@@ -208,6 +211,7 @@ export class PingPongShaderPass {
 		});
 		assertFragmentContract(preprocessed.fragment);
 		this.fragment = preprocessed.fragment;
+		if (options.label !== undefined) this.label = options.label;
 		this.fragmentLineMap = preprocessed.lineMap;
 		this.target = options.target;
 		this.width = options.width;

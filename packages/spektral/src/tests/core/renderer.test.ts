@@ -5,6 +5,7 @@ import { defineMaterial } from '../../lib/core/material';
 import { createRenderer } from '../../lib/core/renderer';
 import { BlitPass } from '../../lib/passes';
 import { resolveUniformLayout } from '../../lib/core/uniforms';
+import { createSpektralGraphBridge } from '../../lib/core/render-graph-reader';
 import type { RenderPass, RenderTargetDefinitionMap } from '../../lib/core/types';
 
 type MockTexture = {
@@ -33,6 +34,7 @@ interface MockWebGpuRuntime {
 		createBindGroupLayout: ReturnType<typeof vi.fn>;
 		createPipelineLayout: ReturnType<typeof vi.fn>;
 		createRenderPipeline: ReturnType<typeof vi.fn>;
+		createRenderPipelineAsync: ReturnType<typeof vi.fn>;
 		createComputePipeline: ReturnType<typeof vi.fn>;
 		createBuffer: ReturnType<typeof vi.fn>;
 		createBindGroup: ReturnType<typeof vi.fn>;
@@ -127,6 +129,9 @@ function createWebGpuRuntime(): MockWebGpuRuntime {
 					descriptor
 				}) as unknown as GPURenderPipeline
 		),
+		createRenderPipelineAsync: vi.fn(async (descriptor: GPURenderPipelineDescriptor) => {
+			return { descriptor } as unknown as GPURenderPipeline;
+		}),
 		createBuffer: vi.fn((descriptor: GPUBufferDescriptor) => {
 			const buffer = { destroy: vi.fn(), descriptor };
 			buffers.push(buffer);
@@ -273,6 +278,16 @@ function getPipelineShaderCode(pipeline: GPURenderPipeline | undefined): string 
 	return module?.code ?? '';
 }
 
+function renderFrame(renderer: Awaited<ReturnType<typeof createRenderer>>): void {
+	renderer.render({
+		time: 0,
+		delta: 0.016,
+		renderMode: 'always',
+		uniforms: {},
+		textures: {}
+	});
+}
+
 describe('createRenderer', () => {
 	afterEach(() => {
 		Reflect.deleteProperty(navigator, 'gpu');
@@ -288,6 +303,204 @@ describe('createRenderer', () => {
 		Reflect.deleteProperty(navigator, 'gpu');
 
 		await expect(createRenderer(baseOptions(runtime))).rejects.toThrow(/WebGPU is not available/);
+	});
+
+	it('waits for every active built-in fullscreen pipeline before initialization resolves', async () => {
+		const runtime = createWebGpuRuntime();
+		const pending: Array<{
+			descriptor: GPURenderPipelineDescriptor;
+			resolve: (pipeline: GPURenderPipeline) => void;
+		}> = [];
+		runtime.device.createRenderPipelineAsync.mockImplementation(
+			(descriptor: GPURenderPipelineDescriptor) =>
+				new Promise<GPURenderPipeline>((resolve) => pending.push({ descriptor, resolve }))
+		);
+		let initialized = false;
+		const rendererPromise = createRenderer({
+			...baseOptions(runtime),
+			passes: [new BlitPass(), new BlitPass()]
+		}).then((renderer) => {
+			initialized = true;
+			return renderer;
+		});
+
+		await vi.waitFor(() => expect(pending).toHaveLength(2));
+		expect(initialized).toBe(false);
+		pending[0]?.resolve({ descriptor: pending[0].descriptor } as unknown as GPURenderPipeline);
+		await Promise.resolve();
+		expect(initialized).toBe(false);
+		pending[1]?.resolve({ descriptor: pending[1].descriptor } as unknown as GPURenderPipeline);
+		const renderer = await rendererPromise;
+		expect(initialized).toBe(true);
+		renderer.destroy();
+	});
+
+	it('does not compile built-in fullscreen pipelines while rendering', async () => {
+		const runtime = createWebGpuRuntime();
+		const pass = new BlitPass();
+		const renderer = await createRenderer({ ...baseOptions(runtime), passes: [pass] });
+		const moduleCount = runtime.device.createShaderModule.mock.calls.length;
+		const pipelineCount = runtime.device.createRenderPipelineAsync.mock.calls.length;
+
+		renderFrame(renderer);
+		renderFrame(renderer);
+
+		expect(runtime.device.createShaderModule).toHaveBeenCalledTimes(moduleCount);
+		expect(runtime.device.createRenderPipelineAsync).toHaveBeenCalledTimes(pipelineCount);
+		renderer.destroy();
+	});
+
+	it('rejects renderer initialization when the first fullscreen preparation fails', async () => {
+		const runtime = createWebGpuRuntime();
+		const reportAsyncError = vi.fn();
+		runtime.device.createRenderPipelineAsync.mockRejectedValueOnce(
+			new Error('initial fullscreen pipeline failed')
+		);
+
+		await expect(
+			createRenderer({
+				...baseOptions(runtime),
+				passes: [new BlitPass({ label: 'Initial copy' })],
+				reportAsyncError
+			})
+		).rejects.toThrow('initial fullscreen pipeline failed');
+		expect(reportAsyncError).not.toHaveBeenCalled();
+		expect(runtime.device.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('prepares newly active built-ins outside render and releases them on removal', async () => {
+		const runtime = createWebGpuRuntime();
+		const requestRender = vi.fn();
+		const pass = new BlitPass();
+		const passRender = vi.spyOn(pass, 'render');
+		let passes: RenderPass[] = [];
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getPasses: () => passes,
+			requestRender
+		});
+
+		passes = [pass];
+		renderFrame(renderer);
+		expect(passRender).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(1);
+
+		passes = [];
+		renderFrame(renderer);
+		passes = [pass];
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(2));
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(2);
+		renderer.destroy();
+	});
+
+	it('keeps prepared and custom passes active while only a newly added built-in waits', async () => {
+		const runtime = createWebGpuRuntime();
+		const requestRender = vi.fn();
+		let deferNextPipeline = false;
+		let resolveNextPipeline: ((pipeline: GPURenderPipeline) => void) | undefined;
+		runtime.device.createRenderPipelineAsync.mockImplementation(
+			(descriptor: GPURenderPipelineDescriptor) => {
+				if (!deferNextPipeline) {
+					return Promise.resolve({ descriptor } as unknown as GPURenderPipeline);
+				}
+				return new Promise<GPURenderPipeline>((resolve) => {
+					resolveNextPipeline = resolve;
+				});
+			}
+		);
+		const prepared = new BlitPass({ needsSwap: false, output: 'source' });
+		const pending = new BlitPass({ needsSwap: false, output: 'source' });
+		const preparedRender = vi.spyOn(prepared, 'render');
+		const pendingRender = vi.spyOn(pending, 'render');
+		const customRender = vi.fn();
+		const custom: RenderPass = {
+			needsSwap: false,
+			input: 'source',
+			output: 'source',
+			render: customRender
+		};
+		let passes: RenderPass[] = [prepared, custom];
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			getPasses: () => passes,
+			requestRender
+		});
+
+		deferNextPipeline = true;
+		passes = [prepared, pending, custom];
+		renderFrame(renderer);
+		expect(preparedRender).toHaveBeenCalledTimes(1);
+		expect(customRender).toHaveBeenCalledTimes(1);
+		expect(pendingRender).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(resolveNextPipeline).toBeTypeOf('function'));
+		deferNextPipeline = false;
+		resolveNextPipeline?.({ id: 'dynamic' } as unknown as GPURenderPipeline);
+		await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
+
+		renderFrame(renderer);
+		expect(preparedRender).toHaveBeenCalledTimes(2);
+		expect(customRender).toHaveBeenCalledTimes(2);
+		expect(pendingRender).toHaveBeenCalledTimes(1);
+		renderer.destroy();
+	});
+
+	it('prepares a pass when it changes from disabled to enabled', async () => {
+		const runtime = createWebGpuRuntime();
+		const requestRender = vi.fn();
+		const pass = new BlitPass({ enabled: false });
+		const passRender = vi.spyOn(pass, 'render');
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass],
+			requestRender
+		});
+
+		pass.enabled = true;
+		renderFrame(renderer);
+		expect(passRender).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(1);
+		renderer.destroy();
+	});
+
+	it('prepares a new pipeline key when a dynamic named target format changes', async () => {
+		const runtime = createWebGpuRuntime();
+		const requestRender = vi.fn();
+		const pass = new BlitPass({ needsSwap: false, output: 'fx' });
+		const passRender = vi.spyOn(pass, 'render');
+		let format: GPUTextureFormat = 'rgba8unorm';
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			passes: [pass],
+			getRenderTargets: () => ({ fx: { width: 8, height: 8, format } }),
+			requestRender
+		});
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(1);
+		const initialPipelineCount = runtime.device.createRenderPipelineAsync.mock.calls.length;
+
+		format = 'rgba16float';
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
+		expect(runtime.device.createRenderPipelineAsync).toHaveBeenCalledTimes(
+			initialPipelineCount + 1
+		);
+		renderFrame(renderer);
+		expect(passRender).toHaveBeenCalledTimes(2);
+		const states = (
+			pass as unknown as {
+				deviceStates: Map<GPUDevice, { preparedPipelines: Map<string, unknown> }>;
+			}
+		).deviceStates;
+		expect(states.get(runtime.device as unknown as GPUDevice)?.preparedPipelines.size).toBe(1);
+		renderer.destroy();
 	});
 
 	it('throws when canvas cannot provide webgpu context', async () => {
@@ -2358,6 +2571,91 @@ describe('createRenderer', () => {
 		renderer.destroy();
 	});
 
+	it('resets graph state on renderer replacement without allowing old teardown to clear new state', async () => {
+		const runtime = createWebGpuRuntime();
+		const graphBridge = createSpektralGraphBridge();
+		const first = await createRenderer({
+			...baseOptions(runtime),
+			graphUpdater: graphBridge.updater
+		});
+		first.render({
+			time: 0,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+		expect(graphBridge.graph.getSnapshot().nodes.map((node) => node.kind)).toEqual(['base-scene']);
+
+		const replacement = await createRenderer({
+			...baseOptions(runtime),
+			graphUpdater: graphBridge.updater
+		});
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
+		first.destroy();
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
+		replacement.render({
+			time: 0.016,
+			delta: 0.016,
+			renderMode: 'always',
+			uniforms: {},
+			textures: {}
+		});
+		expect(graphBridge.graph.getSnapshot().nodes.map((node) => node.kind)).toEqual(['base-scene']);
+		replacement.destroy();
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
+	});
+
+	it('publishes only valid graph snapshots and preserves the last valid snapshot on WAW', async () => {
+		const runtime = createWebGpuRuntime();
+		const graphBridge = createSpektralGraphBridge();
+		const { ComputePass } = await import('../../lib/passes/ComputePass');
+		const makePass = (label: string) =>
+			new ComputePass({
+				label,
+				compute:
+					'@compute @workgroup_size(1) fn compute(@builtin(global_invocation_id) id: vec3u) { _ = id; }',
+				resources: { data: { buffer: 'data', access: 'storage-read-write' } },
+				dispatch: [1, 1, 1]
+			});
+		const firstPass = makePass('First writer');
+		const secondPass = makePass('Second writer');
+		let passes = [firstPass as unknown as RenderPass];
+		const renderer = await createRenderer({
+			...baseOptions(runtime),
+			storageBufferKeys: ['data'],
+			storageBufferDefinitions: { data: { size: 256, type: 'array<f32>' } },
+			getPasses: () => passes,
+			graphUpdater: graphBridge.updater
+		});
+		const render = (time: number) =>
+			renderer.render({
+				time,
+				delta: 0.016,
+				renderMode: 'always',
+				uniforms: {},
+				textures: {}
+			});
+
+		render(0);
+		const valid = graphBridge.graph.getSnapshot();
+		expect(valid.nodes.some((node) => node.label === 'First writer')).toBe(true);
+		expect(
+			valid.edges.flatMap((edge) => edge.reasons).some((reason) => reason.hazard === 'WAW')
+		).toBe(false);
+
+		passes = [firstPass as unknown as RenderPass, secondPass as unknown as RenderPass];
+		expect(() => render(0.016)).toThrow(/multiple writers/);
+		expect(graphBridge.graph.getSnapshot()).toBe(valid);
+
+		passes = [];
+		render(0.032);
+		expect(graphBridge.graph.getSnapshot()).not.toBe(valid);
+		expect(graphBridge.graph.getSnapshot().nodes.map((node) => node.kind)).toEqual(['base-scene']);
+		renderer.destroy();
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
+	});
+
 	it('schedules explicit texture resources through compute A, compute B, then scene', async () => {
 		const runtime = createWebGpuRuntime();
 		const { ComputePass } = await import('../../lib/passes/ComputePass');
@@ -2799,6 +3097,7 @@ describe('createRenderer', () => {
 
 	it('snapshots raw texture and sampler resources and refreshes only their bind group', async () => {
 		const runtime = createWebGpuRuntime();
+		const graphBridge = createSpektralGraphBridge();
 		const { ComputePass } = await import('../../lib/passes/ComputePass');
 		const createExternalTexture = (label: string) => {
 			const view = { label: `${label}-view` } as unknown as GPUTextureView;
@@ -2848,8 +3147,10 @@ describe('createRenderer', () => {
 		});
 		const renderer = await createRenderer({
 			...baseOptions(runtime),
-			passes: [pass as unknown as RenderPass]
+			passes: [pass as unknown as RenderPass],
+			graphUpdater: graphBridge.updater
 		});
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
 
 		const render = (time: number) =>
 			renderer.render({
@@ -2860,13 +3161,23 @@ describe('createRenderer', () => {
 				textures: {}
 			});
 		render(0);
+		const firstSnapshot = graphBridge.graph.getSnapshot();
+		const firstSnapshotJson = JSON.stringify(firstSnapshot);
+		expect(firstSnapshot.nodes.map((node) => node.kind)).toEqual(['compute', 'base-scene']);
+		expect(firstSnapshot.finalOutput).toBe('canvas');
+		expect(Object.isFrozen(firstSnapshot)).toBe(true);
 		expect(textureProvider).toHaveBeenCalledTimes(1);
 		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
 		expect(externalA.texture.createView).toHaveBeenCalledTimes(1);
 
 		currentTexture = externalB.texture;
 		render(0.016);
-		expect(textureProvider).toHaveBeenCalledTimes(2);
+		const swappedSnapshot = graphBridge.graph.getSnapshot();
+		expect(swappedSnapshot).not.toBe(firstSnapshot);
+		expect(JSON.stringify(firstSnapshot)).toBe(firstSnapshotJson);
+		render(0.032);
+		expect(graphBridge.graph.getSnapshot()).toBe(swappedSnapshot);
+		expect(textureProvider).toHaveBeenCalledTimes(3);
 		expect(runtime.device.createComputePipeline).toHaveBeenCalledTimes(1);
 		expect(externalA.texture.createView).toHaveBeenCalledTimes(1);
 		expect(externalB.texture.createView).toHaveBeenCalledTimes(1);
@@ -2881,6 +3192,7 @@ describe('createRenderer', () => {
 		expect(rawGroups).toHaveLength(2);
 
 		renderer.destroy();
+		expect(graphBridge.graph.getSnapshot().nodes).toEqual([]);
 		expect(
 			(externalA.texture as unknown as { destroy: ReturnType<typeof vi.fn> }).destroy
 		).not.toHaveBeenCalled();

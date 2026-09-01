@@ -1,5 +1,10 @@
 import { SPEKTRAL_FRAGMENT_CONTEXT_WGSL } from '../core/fragment-context.js';
-import { FullscreenPass, type FullscreenPassOptions } from './FullscreenPass.js';
+import type { ShaderLineMap } from '../core/shader.js';
+import {
+	FullscreenPass,
+	type FullscreenPassOptions,
+	type FullscreenShaderProgram
+} from './FullscreenPass.js';
 
 const SHADER_PASS_CONTRACT =
 	/\bfn\s+shade\s*\(\s*inputColor\s*:\s*vec4f\s*,\s*uv\s*:\s*vec2f\s*\)\s*->\s*vec4f/;
@@ -8,14 +13,23 @@ export interface ShaderPassOptions extends FullscreenPassOptions {
 	fragment: string;
 }
 
-function buildShaderPassProgram(fragment: string): string {
+function countLines(source: string, end = source.length): number {
+	let count = 1;
+	for (let index = 0; index < end; index += 1) {
+		if (source.charCodeAt(index) === 10) count += 1;
+	}
+	return count;
+}
+
+/** Builds ShaderPass WGSL plus a generated-line map that never confuses wrapper code with user code. */
+export function buildShaderPassProgram(fragment: string): FullscreenShaderProgram {
 	if (!SHADER_PASS_CONTRACT.test(fragment)) {
 		throw new Error(
 			'ShaderPass fragment must declare `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`.'
 		);
 	}
 
-	return `
+	const prefix = `
 struct SpektralVertexOut {
 	@builtin(position) position: vec4f,
 	@location(0) uv: vec2f,
@@ -40,8 +54,8 @@ fn spektralShaderPassVertex(@builtin(vertex_index) index: u32) -> SpektralVertex
 	return out;
 }
 
-${fragment}
-
+`;
+	const suffix = `
 @fragment
 fn spektralShaderPassFragment(in: SpektralVertexOut) -> @location(0) vec4f {
 	spektralFragment.uv = in.uv;
@@ -49,6 +63,18 @@ fn spektralShaderPassFragment(in: SpektralVertexOut) -> @location(0) vec4f {
 	return shade(inputColor, in.uv);
 }
 `;
+	const code = `${prefix}${fragment}${suffix}`;
+	const lineCount = countLines(code);
+	const lineMap: ShaderLineMap = new Array(lineCount + 1);
+	for (let line = 1; line <= lineCount; line += 1) {
+		lineMap[line] = { kind: 'wrapper', line };
+	}
+	const fragmentStartLine = countLines(prefix);
+	const fragmentLineCount = countLines(fragment);
+	for (let line = 0; line < fragmentLineCount; line += 1) {
+		lineMap[fragmentStartLine + line] = { kind: 'fragment', line: line + 1 };
+	}
+	return { code, lineMap, fragmentSource: fragment };
 }
 
 /**
@@ -56,7 +82,7 @@ fn spektralShaderPassFragment(in: SpektralVertexOut) -> @location(0) vec4f {
  */
 export class ShaderPass extends FullscreenPass {
 	private fragment: string;
-	private program: string;
+	private program: FullscreenShaderProgram;
 
 	constructor(options: ShaderPassOptions) {
 		super('ShaderPass', options);
@@ -78,7 +104,7 @@ export class ShaderPass extends FullscreenPass {
 		return this.fragment;
 	}
 
-	protected getProgram(): string {
+	protected getProgram(): FullscreenShaderProgram {
 		return this.program;
 	}
 

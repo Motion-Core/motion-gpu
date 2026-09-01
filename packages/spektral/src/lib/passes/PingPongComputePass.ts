@@ -21,6 +21,8 @@ import type { ComputePassOptions, ComputeDispatchContext } from './ComputePass.j
  * Options for constructing a `PingPongComputePass`.
  */
 export interface PingPongComputePassOptions {
+	/** Optional human-readable label exposed by render-graph diagnostics. */
+	label?: string;
 	/**
 	 * Compute shader WGSL source code.
 	 */
@@ -58,6 +60,7 @@ export class PingPongComputePass {
 	/** Internal nominal marker for renderer-managed compute passes. */
 	readonly [managedPassBrand] = 'compute' as const;
 	readonly [computePassStaticTopology]: ComputePassStaticTopology;
+	readonly label?: string;
 
 	/**
 	 * Enables/disables this pass without removing it from graph.
@@ -98,6 +101,7 @@ export class PingPongComputePass {
 			);
 		}
 		this.compute = options.compute;
+		if (options.label !== undefined) this.label = options.label;
 		this.iterations = PingPongComputePass.assertIterations(options.iterations ?? 1);
 		this.dispatch = options.dispatch ?? 'auto';
 		this.enabled = options.enabled ?? true;

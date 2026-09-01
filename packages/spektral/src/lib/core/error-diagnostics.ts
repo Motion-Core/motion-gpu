@@ -6,7 +6,23 @@ export interface ComputeSourceLocation {
 	readonly line: number;
 }
 
-export type ShaderSourceLocation = MaterialSourceLocation | ComputeSourceLocation;
+export interface WrapperSourceLocation {
+	readonly kind: 'wrapper';
+	readonly line: number;
+}
+
+export type ShaderSourceLocation =
+	| MaterialSourceLocation
+	| ComputeSourceLocation
+	| WrapperSourceLocation;
+
+/** Pipeline/pass metadata captured at the point where WebGPU validates a shader. */
+export interface ShaderPipelineDiagnosticsMetadata {
+	readonly passKind: string;
+	readonly passLabel?: string;
+	readonly inputFormat: GPUTextureFormat;
+	readonly outputFormat: GPUTextureFormat;
+}
 
 /**
  * One WGSL compiler diagnostic enriched with source-location metadata.
@@ -46,6 +62,7 @@ export interface ShaderCompilationDiagnosticsPayload {
 	readonly defineBlockSource?: string;
 	readonly materialSource: MaterialSourceMetadata | null;
 	readonly runtimeContext?: ShaderCompilationRuntimeContext;
+	readonly pipeline?: ShaderPipelineDiagnosticsMetadata;
 }
 
 type SpektralErrorWithDiagnostics = Error & {
@@ -88,7 +105,13 @@ function isShaderSourceLocation(value: unknown): value is ShaderSourceLocation |
 
 	const record = value as Record<string, unknown>;
 	const kind = record.kind;
-	if (kind !== 'fragment' && kind !== 'include' && kind !== 'define' && kind !== 'compute') {
+	if (
+		kind !== 'fragment' &&
+		kind !== 'include' &&
+		kind !== 'define' &&
+		kind !== 'compute' &&
+		kind !== 'wrapper'
+	) {
 		return false;
 	}
 
@@ -158,6 +181,19 @@ function isShaderCompilationRuntimeContext(
 	}
 
 	return true;
+}
+
+function isShaderPipelineDiagnosticsMetadata(
+	value: unknown
+): value is ShaderPipelineDiagnosticsMetadata {
+	if (value === null || typeof value !== 'object') return false;
+	const record = value as Record<string, unknown>;
+	return (
+		typeof record.passKind === 'string' &&
+		(record.passLabel === undefined || typeof record.passLabel === 'string') &&
+		typeof record.inputFormat === 'string' &&
+		typeof record.outputFormat === 'string'
+	);
 }
 
 function freezeShaderSourceLocation(
@@ -240,6 +276,18 @@ function freezeDiagnosticsPayload(
 		materialSource: freezeMaterialSource(payload.materialSource),
 		...(payload.runtimeContext !== undefined
 			? { runtimeContext: freezeRuntimeContext(payload.runtimeContext) }
+			: {}),
+		...(payload.pipeline !== undefined
+			? {
+					pipeline: Object.freeze({
+						passKind: payload.pipeline.passKind,
+						...(payload.pipeline.passLabel !== undefined
+							? { passLabel: payload.pipeline.passLabel }
+							: {}),
+						inputFormat: payload.pipeline.inputFormat,
+						outputFormat: payload.pipeline.outputFormat
+					})
+				}
 			: {})
 	});
 }
@@ -312,6 +360,9 @@ export function getShaderCompilationDiagnostics(
 	) {
 		return null;
 	}
+	if (record.pipeline !== undefined && !isShaderPipelineDiagnosticsMetadata(record.pipeline)) {
+		return null;
+	}
 
 	return freezeDiagnosticsPayload({
 		kind: 'shader-compilation',
@@ -330,6 +381,9 @@ export function getShaderCompilationDiagnostics(
 		materialSource: (record.materialSource ?? null) as MaterialSourceMetadata | null,
 		...(record.runtimeContext !== undefined
 			? { runtimeContext: record.runtimeContext as ShaderCompilationRuntimeContext }
+			: {}),
+		...(record.pipeline !== undefined
+			? { pipeline: record.pipeline as ShaderPipelineDiagnosticsMetadata }
 			: {})
 	});
 }

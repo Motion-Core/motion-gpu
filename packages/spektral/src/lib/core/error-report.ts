@@ -73,6 +73,20 @@ export interface SpektralErrorSource {
 	readonly snippet: readonly SpektralErrorSourceLine[];
 }
 
+export type SpektralShaderErrorSourceKind = 'user' | 'wrapper';
+
+/** Compact shader/pass metadata suitable for framework-neutral diagnostics UIs. */
+export interface SpektralShaderErrorMetadata {
+	readonly passKind?: string;
+	readonly passLabel?: string;
+	readonly stage: 'fragment' | 'compute';
+	readonly inputFormat?: GPUTextureFormat;
+	readonly outputFormat?: GPUTextureFormat;
+	readonly sourceKind: SpektralShaderErrorSourceKind;
+	readonly line?: number;
+	readonly column?: number;
+}
+
 /**
  * Optional runtime context captured with diagnostics payload.
  */
@@ -139,6 +153,8 @@ export interface SpektralErrorReport {
 	 * Optional runtime context snapshot (material/pass graph/render targets).
 	 */
 	readonly context: SpektralErrorContext | null;
+	/** Optional shader/pass metadata without generated wrapper source disclosure. */
+	readonly shader: SpektralShaderErrorMetadata | null;
 }
 
 type SpektralClassifiedError = Error & {
@@ -310,6 +326,9 @@ function buildSourceFromDiagnostics(error: unknown): SpektralErrorSource | null 
 
 	const location = primary.sourceLocation;
 	const column = primary.linePos && primary.linePos > 0 ? primary.linePos : undefined;
+	if (location.kind === 'wrapper') {
+		return null;
+	}
 
 	if (location.kind === 'fragment') {
 		const component =
@@ -365,6 +384,42 @@ function buildSourceFromDiagnostics(error: unknown): SpektralErrorSource | null 
 		line: defineLine,
 		...(column !== undefined ? { column } : {}),
 		snippet: toSnippet(diagnostics.defineBlockSource ?? '', defineLine, 2)
+	};
+}
+
+function buildShaderMetadata(error: unknown): SpektralShaderErrorMetadata | null {
+	const diagnostics = getShaderCompilationDiagnostics(error);
+	const primary =
+		diagnostics?.diagnostics.find((entry) => entry.sourceLocation !== null) ??
+		diagnostics?.diagnostics[0];
+	if (!diagnostics || !primary) return null;
+	const location = primary.sourceLocation;
+	const sourceKind: SpektralShaderErrorSourceKind =
+		location === null || location.kind === 'wrapper' ? 'wrapper' : 'user';
+	const line =
+		sourceKind === 'user'
+			? location?.line
+			: primary.generatedLine > 0
+				? primary.generatedLine
+				: undefined;
+	const column = primary.linePos && primary.linePos > 0 ? primary.linePos : undefined;
+	return {
+		...(diagnostics.pipeline?.passKind !== undefined
+			? { passKind: diagnostics.pipeline.passKind }
+			: {}),
+		...(diagnostics.pipeline?.passLabel !== undefined
+			? { passLabel: diagnostics.pipeline.passLabel }
+			: {}),
+		stage: diagnostics.shaderStage ?? (location?.kind === 'compute' ? 'compute' : 'fragment'),
+		...(diagnostics.pipeline?.inputFormat !== undefined
+			? { inputFormat: diagnostics.pipeline.inputFormat }
+			: {}),
+		...(diagnostics.pipeline?.outputFormat !== undefined
+			? { outputFormat: diagnostics.pipeline.outputFormat }
+			: {}),
+		sourceKind,
+		...(line !== undefined ? { line } : {}),
+		...(column !== undefined ? { column } : {})
 	};
 }
 
@@ -706,6 +761,22 @@ function cloneAndFreezeContext(context: SpektralErrorContext | null): SpektralEr
 	});
 }
 
+function cloneAndFreezeShader(
+	shader: SpektralShaderErrorMetadata | null
+): SpektralShaderErrorMetadata | null {
+	if (!shader) return null;
+	return Object.freeze({
+		...(shader.passKind !== undefined ? { passKind: shader.passKind } : {}),
+		...(shader.passLabel !== undefined ? { passLabel: shader.passLabel } : {}),
+		stage: shader.stage,
+		...(shader.inputFormat !== undefined ? { inputFormat: shader.inputFormat } : {}),
+		...(shader.outputFormat !== undefined ? { outputFormat: shader.outputFormat } : {}),
+		sourceKind: shader.sourceKind,
+		...(shader.line !== undefined ? { line: shader.line } : {}),
+		...(shader.column !== undefined ? { column: shader.column } : {})
+	});
+}
+
 /**
  * Converts unknown errors to a consistent, display-ready error report.
  *
@@ -728,6 +799,7 @@ export function toSpektralErrorReport(
 	const defaultMessage = rawLines[0] ?? rawMessage;
 	const defaultDetails = rawLines.slice(1);
 	const source = buildSourceFromDiagnostics(error);
+	const shader = buildShaderMetadata(error);
 	const classifiedError = error instanceof Error ? (error as SpektralClassifiedError) : null;
 	const context = classifiedError?.spektralContext ?? shaderDiagnostics?.runtimeContext ?? null;
 	const message =
@@ -771,6 +843,7 @@ export function toSpektralErrorReport(
 		rawMessage,
 		phase,
 		source: cloneAndFreezeSource(source),
-		context: cloneAndFreezeContext(context)
+		context: cloneAndFreezeContext(context),
+		shader: cloneAndFreezeShader(shader)
 	});
 }

@@ -8,6 +8,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlitPass } from '../../lib/passes';
 import { toSpektralErrorReport } from '../../lib/core/error-report';
+import {
+	prepareFullscreenPass,
+	type PreparedFullscreenPassContract
+} from '../../lib/core/pass-brand';
 import type { RenderPassContext, RenderTarget } from '../../lib/core/types';
 
 // ---------------------------------------------------------------------------
@@ -31,13 +35,37 @@ function createFakeDevice() {
 		createBindGroupLayout: vi.fn(
 			() => ({ type: 'bind-group-layout' }) as unknown as GPUBindGroupLayout
 		),
-		createShaderModule: vi.fn(() => ({ type: 'shader-module' }) as unknown as GPUShaderModule),
+		createShaderModule: vi.fn(
+			() =>
+				({
+					type: 'shader-module',
+					getCompilationInfo: vi.fn(async () => ({ messages: [] }))
+				}) as unknown as GPUShaderModule
+		),
 		createPipelineLayout: vi.fn(
 			() => ({ type: 'pipeline-layout' }) as unknown as GPUPipelineLayout
 		),
 		createRenderPipeline: vi.fn(() => ({ type: 'pipeline' }) as unknown as GPURenderPipeline),
+		createRenderPipelineAsync: vi.fn(
+			async () => ({ type: 'pipeline' }) as unknown as GPURenderPipeline
+		),
+		pushErrorScope: vi.fn(),
+		popErrorScope: vi.fn(async () => null),
 		createBindGroup: vi.fn(() => ({ type: 'bind-group' }) as unknown as GPUBindGroup)
 	} satisfies Partial<GPUDevice>;
+}
+
+async function preparePass(
+	pass: PreparedFullscreenPassContract,
+	context: RenderPassContext,
+	owner: object = pass
+): Promise<void> {
+	await pass[prepareFullscreenPass]({
+		device: context.device,
+		owner,
+		inputFormat: context.input.format,
+		outputFormat: context.output.format
+	});
 }
 
 type FakeDevice = ReturnType<typeof createFakeDevice>;
@@ -94,11 +122,12 @@ describe('FullscreenPass resource caching', () => {
 
 	// --- Bind group WeakMap caching -----------------------------------------
 
-	it('reuses bind group for the same input view across multiple renders', () => {
+	it('reuses bind group for the same input view across multiple renders', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 		pass.render(context);
 		pass.render(context);
@@ -107,7 +136,7 @@ describe('FullscreenPass resource caching', () => {
 		expect(device.createBindGroup).toHaveBeenCalledTimes(1);
 	});
 
-	it('allocates a new bind group for each distinct input view', () => {
+	it('allocates a new bind group for each distinct input view', async () => {
 		const pass = new BlitPass();
 		const sharedDevice = createFakeDevice() as unknown as GPUDevice;
 		const deviceMock = sharedDevice as unknown as FakeDevice;
@@ -122,6 +151,7 @@ describe('FullscreenPass resource caching', () => {
 				input: { ...createTarget('src'), view }
 			});
 
+		await preparePass(pass, makeCtx(viewA));
 		pass.render(makeCtx(viewA));
 		pass.render(makeCtx(viewB));
 		pass.render(makeCtx(viewC));
@@ -136,7 +166,7 @@ describe('FullscreenPass resource caching', () => {
 
 	// --- Pipeline per output format -----------------------------------------
 
-	it('creates a separate pipeline for each distinct output format', () => {
+	it('creates a separate pipeline for each distinct output format', async () => {
 		const pass = new BlitPass();
 		const sharedDevice = createFakeDevice() as unknown as GPUDevice;
 		const deviceMock = sharedDevice as unknown as FakeDevice;
@@ -150,25 +180,27 @@ describe('FullscreenPass resource caching', () => {
 			output: createTarget('out-rgba16', 'rgba16float')
 		});
 
+		await Promise.all([preparePass(pass, ctxRgba8), preparePass(pass, ctxRgba16)]);
 		pass.render(ctxRgba8);
 		pass.render(ctxRgba16);
 
 		// Two formats → two pipelines.
-		expect(deviceMock.createRenderPipeline).toHaveBeenCalledTimes(2);
+		expect(deviceMock.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
 
 		// Second render for each format → still two (cached).
 		pass.render(ctxRgba8);
 		pass.render(ctxRgba16);
-		expect(deviceMock.createRenderPipeline).toHaveBeenCalledTimes(2);
+		expect(deviceMock.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
 	});
 
 	// --- Sampler creation with filter options --------------------------------
 
-	it('creates sampler with linear filter by default', () => {
+	it('creates sampler with linear filter by default', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(device.createSampler).toHaveBeenCalledWith(
@@ -176,11 +208,12 @@ describe('FullscreenPass resource caching', () => {
 		);
 	});
 
-	it('creates sampler with nearest filter when filter option is "nearest"', () => {
+	it('creates sampler with nearest filter when filter option is "nearest"', async () => {
 		const pass = new BlitPass({ filter: 'nearest' });
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(device.createSampler).toHaveBeenCalledWith(
@@ -188,13 +221,14 @@ describe('FullscreenPass resource caching', () => {
 		);
 	});
 
-	it('uses non-filtering layout for unfilterable float32 input textures', () => {
+	it('uses non-filtering layout for unfilterable float32 input textures', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext({
 			input: createTarget('source-r32', 'r32float')
 		});
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(device.createSampler).toHaveBeenCalledWith(
@@ -210,7 +244,7 @@ describe('FullscreenPass resource caching', () => {
 		});
 	});
 
-	it('uses filtering layout for float32 input when float32-filterable is enabled', () => {
+	it('uses filtering layout for float32 input when float32-filterable is enabled', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext({
 			input: createTarget('source-rgba32', 'rgba32float')
@@ -218,6 +252,7 @@ describe('FullscreenPass resource caching', () => {
 		const device = context.device as unknown as FakeDevice;
 		(device.features as unknown as Set<string>).add('float32-filterable');
 
+		await preparePass(pass, context);
 		pass.render(context);
 
 		expect(device.createSampler).toHaveBeenCalledWith(
@@ -233,19 +268,19 @@ describe('FullscreenPass resource caching', () => {
 
 	it.each(['rgba8uint', 'rgba8sint', 'depth24plus'] as const)(
 		'rejects %s input before creating a render pipeline',
-		(format) => {
+		async (format) => {
 			const pass = new BlitPass({ input: 'fxInput' });
 			const context = createPassContext({ input: createTarget('fx-input', format) });
 			const device = context.device as unknown as FakeDevice;
 			let thrown: unknown;
 
 			try {
-				pass.render(context);
+				await preparePass(pass, context);
 			} catch (error) {
 				thrown = error;
 			}
 
-			expect(device.createRenderPipeline).not.toHaveBeenCalled();
+			expect(device.createRenderPipelineAsync).not.toHaveBeenCalled();
 			const report = toSpektralErrorReport(thrown, 'render');
 			expect(report.code).toBe('FORMAT_CAPABILITY_MISSING');
 			expect(report.message).toContain('target "fxInput"');
@@ -254,16 +289,16 @@ describe('FullscreenPass resource caching', () => {
 		}
 	);
 
-	it('rejects an integer output before creating a render pipeline', () => {
+	it('rejects an integer output before creating a render pipeline', async () => {
 		const pass = new BlitPass({ output: 'fxOutput' });
 		const context = createPassContext({ output: createTarget('fx-output', 'rgba8uint') });
 		const device = context.device as unknown as FakeDevice;
 
-		expect(() => pass.render(context)).toThrow(/float color render attachment/);
-		expect(device.createRenderPipeline).not.toHaveBeenCalled();
+		await expect(preparePass(pass, context)).rejects.toThrow(/float color render attachment/);
+		expect(device.createRenderPipelineAsync).not.toHaveBeenCalled();
 	});
 
-	it('caches separate bind group layouts for different input sampling layouts', () => {
+	it('caches separate bind group layouts for different input sampling layouts', async () => {
 		const pass = new BlitPass();
 		const sharedDevice = createFakeDevice() as unknown as GPUDevice;
 		const deviceMock = sharedDevice as unknown as FakeDevice;
@@ -276,6 +311,7 @@ describe('FullscreenPass resource caching', () => {
 			input: createTarget('source-r32', 'r32float')
 		});
 
+		await Promise.all([preparePass(pass, ctxRgba8), preparePass(pass, ctxR32)]);
 		pass.render(ctxRgba8);
 		pass.render(ctxR32);
 		pass.render(ctxRgba8);
@@ -286,11 +322,12 @@ describe('FullscreenPass resource caching', () => {
 
 	// --- Sampler / bindGroupLayout / shaderModule reuse ----------------------
 
-	it('reuses sampler, bindGroupLayout, and shaderModule within the same device', () => {
+	it('reuses sampler, bindGroupLayout, and shaderModule within the same device', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		for (let i = 0; i < 5; i++) {
 			pass.render(context);
 		}
@@ -302,14 +339,16 @@ describe('FullscreenPass resource caching', () => {
 
 	// --- Device switch invalidates all caches --------------------------------
 
-	it('resets sampler, bindGroupLayout and shader module when device changes', () => {
+	it('resets sampler, bindGroupLayout and shader module when device changes', async () => {
 		const pass = new BlitPass();
 		const ctx1 = createPassContext();
 		const ctx2 = createPassContext(); // fresh device object
 		const dev1 = ctx1.device as unknown as FakeDevice;
 		const dev2 = ctx2.device as unknown as FakeDevice;
 
+		await preparePass(pass, ctx1);
 		pass.render(ctx1);
+		await preparePass(pass, ctx2);
 		pass.render(ctx2);
 
 		expect(dev1.createSampler).toHaveBeenCalledTimes(1);
@@ -324,39 +363,43 @@ describe('FullscreenPass resource caching', () => {
 
 	// --- dispose() resets all state -----------------------------------------
 
-	it('re-creates all GPU resources after dispose()', () => {
+	it('re-creates all GPU resources after dispose()', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 		expect(device.createSampler).toHaveBeenCalledTimes(1);
 		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(1);
 		expect(device.createShaderModule).toHaveBeenCalledTimes(1);
-		expect(device.createRenderPipeline).toHaveBeenCalledTimes(1);
+		expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(1);
 		expect(device.createBindGroup).toHaveBeenCalledTimes(1);
 
 		pass.dispose();
 
 		// After dispose, all caches are cleared – re-render must allocate fresh.
+		await preparePass(pass, context);
 		pass.render(context);
 		expect(device.createSampler).toHaveBeenCalledTimes(2);
 		expect(device.createBindGroupLayout).toHaveBeenCalledTimes(2);
 		expect(device.createShaderModule).toHaveBeenCalledTimes(2);
-		expect(device.createRenderPipeline).toHaveBeenCalledTimes(2);
+		expect(device.createRenderPipelineAsync).toHaveBeenCalledTimes(2);
 		expect(device.createBindGroup).toHaveBeenCalledTimes(2);
 	});
 
-	it('dispose() followed by multiple renders allocates resources only once per new resource', () => {
+	it('dispose() followed by multiple renders allocates resources only once per new resource', async () => {
 		const pass = new BlitPass();
 		const context = createPassContext();
 		const device = context.device as unknown as FakeDevice;
 
+		await preparePass(pass, context);
 		pass.render(context);
 		pass.dispose();
 
 		// Three renders after dispose – sampler/layout/module/pipeline created once,
 		// bind group created once (same view object).
+		await preparePass(pass, context);
 		pass.render(context);
 		pass.render(context);
 		pass.render(context);

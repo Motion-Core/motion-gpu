@@ -3,7 +3,12 @@ import {
 	resolveWorkgroupSize,
 	type ComputeWorkgroupSize
 } from '../core/compute-shader.js';
-import { copyComputeResourceMap, normalizeComputeResourceMap } from '../core/compute-resources.js';
+import {
+	computePassStaticTopology,
+	createComputePassStaticTopology,
+	type ComputePassStaticTopology
+} from '../core/compute-pass-static-topology.js';
+import { copyComputeResourceMap } from '../core/compute-resources.js';
 import { managedPassBrand } from '../core/pass-brand.js';
 import type { ComputeResourceMap } from '../core/types.js';
 
@@ -63,6 +68,7 @@ export interface ComputePassOptions {
 export class ComputePass {
 	/** Internal nominal marker for renderer-managed compute passes. */
 	readonly [managedPassBrand] = 'compute' as const;
+	readonly [computePassStaticTopology]: ComputePassStaticTopology;
 
 	/**
 	 * Enables/disables this pass without removing it from graph.
@@ -75,7 +81,6 @@ export class ComputePass {
 	readonly isCompute = true as const;
 
 	private compute: string;
-	private readonly resources: ComputeResourceMap;
 	private workgroupSize: [number, number, number];
 	private dispatch: ComputePassOptions['dispatch'];
 
@@ -83,7 +88,7 @@ export class ComputePass {
 		assertComputeContract(options.compute, options.workgroupSize);
 		const workgroupSize = resolveWorkgroupSize(options.compute, options.workgroupSize);
 		this.compute = options.compute;
-		this.resources = normalizeComputeResourceMap(options.resources);
+		this[computePassStaticTopology] = createComputePassStaticTopology('compute', options.resources);
 		this.workgroupSize = workgroupSize;
 		this.dispatch = options.dispatch ?? 'auto';
 		this.enabled = options.enabled ?? true;
@@ -120,7 +125,7 @@ export class ComputePass {
 	 * Returns a defensive copy of the immutable pass resource topology.
 	 */
 	getResources(): ComputeResourceMap {
-		return copyComputeResourceMap(this.resources);
+		return copyComputeResourceMap(this[computePassStaticTopology].resources);
 	}
 
 	/**

@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+	getComputePassStaticTopology,
+	observeComputePassStaticTopologyForTests,
+	type ComputePassStaticTopologyEvent
+} from '../../lib/core/compute-pass-static-topology';
 import { toSpektralErrorReport } from '../../lib/core/error-report';
 import type { ComputeResourceMap } from '../../lib/core/types';
 import { PingPongComputePass } from '../../lib/passes/PingPongComputePass';
@@ -35,6 +40,59 @@ function createPass(
 }
 
 describe('PingPongComputePass', () => {
+	it('allocates one deeply immutable topology that survives all shader state changes', () => {
+		const events: ComputePassStaticTopologyEvent[] = [];
+		const stopObserving = observeComputePassStaticTopologyForTests((event) => events.push(event));
+		try {
+			const pass = createPass();
+			const topology = getComputePassStaticTopology(pass);
+			const publicResources = pass.getResources();
+
+			expect(events.map((event) => event.type)).toEqual(['normalized', 'allocated']);
+			expect(events[1]?.topology).toBe(topology);
+			expect(topology.kind).toBe('ping-pong-compute');
+			expect(Object.isFrozen(topology)).toBe(true);
+			expect(Object.isFrozen(topology.resources)).toBe(true);
+			expect(Object.isFrozen(topology.resources.uPrevious)).toBe(true);
+			expect(Object.isFrozen(topology.resources.uNext)).toBe(true);
+			expect(publicResources).not.toBe(topology.resources);
+			expect(publicResources.uPrevious).not.toBe(topology.resources.uPrevious);
+
+			pass.setCompute(validCompute1D);
+			pass.setDispatch([8]);
+			pass.setIterations(4);
+			expect(getComputePassStaticTopology(pass)).toBe(topology);
+			expect(events.map((event) => event.type)).toEqual(['normalized', 'allocated']);
+
+			const mutableCopy = publicResources as Record<string, ComputeResourceMap[string]>;
+			delete mutableCopy.uPrevious;
+			expect(topology.resources.uPrevious).toBeDefined();
+		} finally {
+			stopObserving();
+		}
+	});
+
+	it('rejects an invalid pair after normalization and before topology allocation', () => {
+		const events: ComputePassStaticTopologyEvent[] = [];
+		const stopObserving = observeComputePassStaticTopologyForTests((event) => events.push(event));
+		try {
+			expect(() =>
+				createPass({
+					resources: {
+						uPrevious: {
+							texture: 'simulation',
+							access: 'sampled',
+							pingPong: 'read'
+						}
+					}
+				})
+			).toThrow(/exactly one pingPong read texture and one pingPong write texture/);
+			expect(events.map((event) => event.type)).toEqual(['normalized']);
+		} finally {
+			stopObserving();
+		}
+	});
+
 	it('creates with one explicit read/write resource pair', () => {
 		const pass = createPass();
 		expect(pass.enabled).toBe(true);

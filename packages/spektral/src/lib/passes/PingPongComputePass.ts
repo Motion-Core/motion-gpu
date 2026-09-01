@@ -5,9 +5,13 @@ import {
 } from '../core/compute-shader.js';
 import {
 	copyComputeResourceMap,
-	normalizeComputeResourceMap,
 	resolveComputePingPongResourcePair
 } from '../core/compute-resources.js';
+import {
+	computePassStaticTopology,
+	createComputePassStaticTopology,
+	type ComputePassStaticTopology
+} from '../core/compute-pass-static-topology.js';
 import { createSpektralError } from '../core/error-report.js';
 import { managedPassBrand } from '../core/pass-brand.js';
 import type { ComputeResourceMap } from '../core/types.js';
@@ -53,6 +57,7 @@ export interface PingPongComputePassOptions {
 export class PingPongComputePass {
 	/** Internal nominal marker for renderer-managed compute passes. */
 	readonly [managedPassBrand] = 'compute' as const;
+	readonly [computePassStaticTopology]: ComputePassStaticTopology;
 
 	/**
 	 * Enables/disables this pass without removing it from graph.
@@ -70,7 +75,6 @@ export class PingPongComputePass {
 	readonly isPingPong = true as const;
 
 	private compute: string;
-	private readonly resources: ComputeResourceMap;
 	private iterations: number;
 	private dispatch: ComputePassOptions['dispatch'];
 	private workgroupSize: [number, number, number];
@@ -78,9 +82,12 @@ export class PingPongComputePass {
 	constructor(options: PingPongComputePassOptions) {
 		assertComputeContract(options.compute, options.workgroupSize);
 		const workgroupSize = resolveWorkgroupSize(options.compute, options.workgroupSize);
-		const resources = normalizeComputeResourceMap(options.resources);
 		try {
-			resolveComputePingPongResourcePair(resources);
+			this[computePassStaticTopology] = createComputePassStaticTopology(
+				'ping-pong-compute',
+				options.resources,
+				resolveComputePingPongResourcePair
+			);
 		} catch (error) {
 			throw createSpektralError(
 				'PINGPONG_CONFIGURATION_INVALID',
@@ -91,7 +98,6 @@ export class PingPongComputePass {
 			);
 		}
 		this.compute = options.compute;
-		this.resources = resources;
 		this.iterations = PingPongComputePass.assertIterations(options.iterations ?? 1);
 		this.dispatch = options.dispatch ?? 'auto';
 		this.enabled = options.enabled ?? true;
@@ -152,7 +158,7 @@ export class PingPongComputePass {
 	 * Returns a defensive copy of the immutable pass resource topology.
 	 */
 	getResources(): ComputeResourceMap {
-		return copyComputeResourceMap(this.resources);
+		return copyComputeResourceMap(this[computePassStaticTopology].resources);
 	}
 
 	/**

@@ -1,4 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+	getComputePassStaticTopology,
+	observeComputePassStaticTopologyForTests,
+	type ComputePassStaticTopologyEvent
+} from '../../lib/core/compute-pass-static-topology';
 import type { ComputeResourceMap } from '../../lib/core/types';
 import { ComputePass } from '../../lib/passes/ComputePass';
 
@@ -18,6 +23,66 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 `;
 
 describe('ComputePass', () => {
+	it('allocates one deeply immutable topology that remains stable across shader state changes', () => {
+		const events: ComputePassStaticTopologyEvent[] = [];
+		const stopObserving = observeComputePassStaticTopologyForTests((event) => events.push(event));
+		try {
+			const pass = new ComputePass({
+				compute: validCompute,
+				resources: {
+					uInput: {
+						texture: 'camera',
+						access: 'sampled',
+						view: { baseMipLevel: 1 }
+					}
+				}
+			});
+			const topology = getComputePassStaticTopology(pass);
+			const publicResources = pass.getResources();
+
+			expect(events.map((event) => event.type)).toEqual(['normalized', 'allocated']);
+			expect(events[1]?.topology).toBe(topology);
+			expect(topology.kind).toBe('compute');
+			expect(Object.isFrozen(topology)).toBe(true);
+			expect(Object.isFrozen(topology.resources)).toBe(true);
+			expect(Object.isFrozen(topology.resources.uInput)).toBe(true);
+			const input = topology.resources.uInput;
+			expect(input && 'texture' in input && Object.isFrozen(input.view)).toBe(true);
+			expect(publicResources).not.toBe(topology.resources);
+			expect(publicResources.uInput).not.toBe(topology.resources.uInput);
+
+			pass.setCompute(validCompute2D);
+			pass.setDispatch([4, 2]);
+			expect(getComputePassStaticTopology(pass)).toBe(topology);
+			expect(events.map((event) => event.type)).toEqual(['normalized', 'allocated']);
+
+			const mutableCopy = publicResources as Record<string, ComputeResourceMap[string]>;
+			delete mutableCopy.uInput;
+			expect(topology.resources.uInput).toBeDefined();
+		} finally {
+			stopObserving();
+		}
+	});
+
+	it('rejects invalid resources before allocating a topology descriptor', () => {
+		const events: ComputePassStaticTopologyEvent[] = [];
+		const stopObserving = observeComputePassStaticTopologyForTests((event) => events.push(event));
+		try {
+			expect(
+				() =>
+					new ComputePass({
+						compute: validCompute,
+						resources: {
+							uInput: { texture: 'camera', access: 'invalid' }
+						} as unknown as ComputeResourceMap
+					})
+			).toThrow(/texture access/);
+			expect(events).toEqual([]);
+		} finally {
+			stopObserving();
+		}
+	});
+
 	it('creates with valid compute shader', () => {
 		const pass = new ComputePass({ compute: validCompute });
 		expect(pass.enabled).toBe(true);

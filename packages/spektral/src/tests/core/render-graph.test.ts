@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { planRenderGraph } from '../../lib/core/render-graph';
+import {
+	hasSameRenderGraphPhysicalAccessSignature,
+	planRenderGraph
+} from '../../lib/core/render-graph';
 import type {
 	ResolvedComputePassResources,
 	ResolvedTextureSubresourceRange
@@ -16,6 +19,10 @@ function createPass(input?: Partial<RenderPass>): RenderPass {
 		render: () => {},
 		...input
 	};
+}
+
+function mipRange(baseMipLevel: number): ResolvedTextureSubresourceRange {
+	return { baseMipLevel, mipLevelCount: 1, baseArrayLayer: 0, arrayLayerCount: 1 };
 }
 
 /**
@@ -646,5 +653,29 @@ fn compute(@builtin(global_invocation_id) id: vec3u) { _ = id; }
 		const plan = planRenderGraph([createPass({ clear: true })], [0.5, 0.6, 0.7, 1]);
 
 		expect(plan.steps[0]?.clearColor).toEqual([0.5, 0.6, 0.7, 1]);
+	});
+
+	it('reuses duplicate pass occurrences only while their full physical signature is unchanged', () => {
+		const pass = createManagedComputePass();
+		const physicalA = {};
+		const physicalB = {};
+		const initial = computeResources({
+			reads: [{ logicalId: 'state', physicalId: physicalA, subresource: mipRange(0) }]
+		});
+		const plan = planRenderGraph([pass, pass], [0, 0, 0, 1], undefined, {
+			getResolvedResources: () => initial
+		});
+
+		expect(hasSameRenderGraphPhysicalAccessSignature(plan, new Map([[pass, initial]]))).toBe(true);
+		const swapped = computeResources({
+			reads: [{ logicalId: 'state', physicalId: physicalB, subresource: mipRange(0) }]
+		});
+		expect(hasSameRenderGraphPhysicalAccessSignature(plan, new Map([[pass, swapped]]))).toBe(false);
+		const differentMip = computeResources({
+			reads: [{ logicalId: 'state', physicalId: physicalA, subresource: mipRange(1) }]
+		});
+		expect(hasSameRenderGraphPhysicalAccessSignature(plan, new Map([[pass, differentMip]]))).toBe(
+			false
+		);
 	});
 });

@@ -2,6 +2,11 @@ import type { AnyPass, RenderPass, RenderPassInputSlot, RenderPassOutputSlot } f
 import type { ResolvedComputeAccess, ResolvedComputePassResources } from './compute-resources.js';
 import { createSpektralError } from './error-report.js';
 import {
+	analyzeComputeDependencies,
+	ComputeDependencyAnalysisError,
+	type ComputeDependencyEdge
+} from './render-graph-dependencies.js';
+import {
 	assertSpektralPass,
 	isManagedComputePass,
 	isManagedFeedbackPass
@@ -11,6 +16,8 @@ import {
  * Resolved render-pass step with defaults applied.
  */
 export interface RenderGraphStep {
+	/** Position of this pass in the user declaration. */
+	declarationIndex: number;
 	/**
 	 * Step kind. 'render' for post-scene render passes, 'compute' for pre-scene
 	 * compute passes, 'feedback' for pre-scene fragment ping-pong passes.
@@ -80,6 +87,83 @@ export interface RenderGraphPlan {
 	 * Remains 'canvas' when there are no render steps.
 	 */
 	finalOutput: RenderPassOutputSlot;
+	/** Physical compute hazards used to derive pre-scene execution order. */
+	dependencyEdges: readonly ComputeDependencyEdge<RenderGraphStep>[];
+}
+
+function subresourceEqual(
+	left: ResolvedComputeAccess['subresource'],
+	right: ResolvedComputeAccess['subresource']
+): boolean {
+	if (left === right) return true;
+	return (
+		left !== undefined &&
+		right !== undefined &&
+		left.baseMipLevel === right.baseMipLevel &&
+		left.mipLevelCount === right.mipLevelCount &&
+		left.baseArrayLayer === right.baseArrayLayer &&
+		left.arrayLayerCount === right.arrayLayerCount
+	);
+}
+
+function accessEqual(left: ResolvedComputeAccess, right: ResolvedComputeAccess): boolean {
+	return (
+		left.alias === right.alias &&
+		left.resourceKind === right.resourceKind &&
+		Object.is(left.logicalId, right.logicalId) &&
+		Object.is(left.physicalId, right.physicalId) &&
+		left.source === right.source &&
+		left.mode === right.mode &&
+		left.version === right.version &&
+		subresourceEqual(left.subresource, right.subresource)
+	);
+}
+
+function accessListEqual(
+	left: readonly ResolvedComputeAccess[],
+	right: readonly ResolvedComputeAccess[]
+): boolean {
+	if (left === right) return true;
+	if (left.length !== right.length) return false;
+	for (let index = 0; index < left.length; index += 1) {
+		const leftAccess = left[index];
+		const rightAccess = right[index];
+		if (!leftAccess || !rightAccess || !accessEqual(leftAccess, rightAccess)) return false;
+	}
+	return true;
+}
+
+/**
+ * Compares the complete physical-access signature used by dependency analysis.
+ * No strings or descriptor arrays are allocated on the steady-state path.
+ */
+export function hasSameRenderGraphPhysicalAccessSignature(
+	plan: RenderGraphPlan,
+	resolvedByPass: ReadonlyMap<AnyPass, ResolvedComputePassResources>
+): boolean {
+	let uniquePassCount = 0;
+	for (let index = 0; index < plan.computeSteps.length; index += 1) {
+		const step = plan.computeSteps[index]!;
+		let seenEarlier = false;
+		for (let previousIndex = 0; previousIndex < index; previousIndex += 1) {
+			if (plan.computeSteps[previousIndex]?.pass === step.pass) {
+				seenEarlier = true;
+				break;
+			}
+		}
+		if (!seenEarlier) uniquePassCount += 1;
+		const previous = step.resolvedResources;
+		const current = resolvedByPass.get(step.pass);
+		if (
+			!previous ||
+			!current ||
+			!accessListEqual(previous.reads, current.reads) ||
+			!accessListEqual(previous.writes, current.writes)
+		) {
+			return false;
+		}
+	}
+	return uniquePassCount === resolvedByPass.size;
 }
 
 /**
@@ -89,46 +173,6 @@ function cloneClearColor(
 	color: [number, number, number, number]
 ): [number, number, number, number] {
 	return [color[0], color[1], color[2], color[3]];
-}
-
-interface ComputeDependencyEdge {
-	from: number;
-	to: number;
-	access: ResolvedComputeAccess;
-}
-
-/**
- * Returns the concrete resource identity used to relate logical aliases.
- */
-function physicalResourceMapKey(access: ResolvedComputeAccess): object | string | symbol {
-	return access.physicalId;
-}
-
-/**
- * Reports whether two accesses may touch the same texture subresource.
- * Non-texture and unspecified ranges overlap conservatively.
- */
-function textureSubresourcesOverlap(
-	left: ResolvedComputeAccess,
-	right: ResolvedComputeAccess
-): boolean {
-	if (left.resourceKind !== 'texture' || right.resourceKind !== 'texture') {
-		return true;
-	}
-	if (!left.subresource || !right.subresource) {
-		return true;
-	}
-
-	const leftMipEnd = left.subresource.baseMipLevel + left.subresource.mipLevelCount;
-	const rightMipEnd = right.subresource.baseMipLevel + right.subresource.mipLevelCount;
-	const leftLayerEnd = left.subresource.baseArrayLayer + left.subresource.arrayLayerCount;
-	const rightLayerEnd = right.subresource.baseArrayLayer + right.subresource.arrayLayerCount;
-	return (
-		left.subresource.baseMipLevel < rightMipEnd &&
-		right.subresource.baseMipLevel < leftMipEnd &&
-		left.subresource.baseArrayLayer < rightLayerEnd &&
-		right.subresource.baseArrayLayer < leftLayerEnd
-	);
 }
 
 /**
@@ -145,113 +189,56 @@ function formatLogicalResource(access: ResolvedComputeAccess): string {
 /**
  * Orders a compute segment by physical hazards while preserving stable source order.
  */
-function stableTopologicalComputeSegment(segment: RenderGraphStep[]): RenderGraphStep[] {
-	if (segment.length < 2) return segment;
-	type Writer = { index: number; access: ResolvedComputeAccess };
-	const textureWriters = new Map<object | string | symbol, Writer[]>();
-	const bufferWriters = new Map<object | string | symbol, Writer[]>();
-
-	for (let index = 0; index < segment.length; index += 1) {
-		const step = segment[index];
-		if (!step?.resolvedResources) continue;
-		for (const access of step.resolvedResources.writes) {
-			const writers = access.resourceKind === 'texture' ? textureWriters : bufferWriters;
-			const physicalId = physicalResourceMapKey(access);
-			const resourceWriters = writers.get(physicalId) ?? [];
-			const previous = resourceWriters.find(
-				(writer) => writer.index !== index && textureSubresourcesOverlap(writer.access, access)
+function stableTopologicalComputeSegment(segment: RenderGraphStep[]): {
+	ordered: readonly RenderGraphStep[];
+	edges: readonly ComputeDependencyEdge<RenderGraphStep>[];
+} {
+	try {
+		const analysis = analyzeComputeDependencies(
+			segment.map((step, index) => ({
+				value: step,
+				label: step.computeLabel ?? `compute pass #${index}`,
+				...(step.resolvedResources ? { resources: step.resolvedResources } : {})
+			}))
+		);
+		return { ordered: analysis.orderedNodes, edges: analysis.edges };
+	} catch (error) {
+		if (!(error instanceof ComputeDependencyAnalysisError)) throw error;
+		const diagnostic = error.diagnostic;
+		if (diagnostic.kind === 'multiple-writers') {
+			throw createSpektralError(
+				'COMPUTE_GRAPH_MULTIPLE_WRITERS',
+				`Compute graph has multiple writers for ${formatLogicalResource(diagnostic.secondAccess)}: ${diagnostic.firstLabel} and ${diagnostic.secondLabel} (alias "${diagnostic.secondAccess.alias}").`
 			);
-			if (previous) {
-				const previousStep = segment[previous.index];
-				throw createSpektralError(
-					'COMPUTE_GRAPH_MULTIPLE_WRITERS',
-					`Compute graph has multiple writers for ${formatLogicalResource(access)}: ${previousStep?.computeLabel ?? `compute pass #${previous.index}`} and ${step.computeLabel ?? `compute pass #${index}`} (alias "${access.alias}").`
-				);
-			}
-			resourceWriters.push({ index, access });
-			writers.set(physicalId, resourceWriters);
 		}
-	}
-
-	const edges: ComputeDependencyEdge[] = [];
-	const edgeKeys = new Set<string>();
-	const addEdge = (from: number, to: number, access: ResolvedComputeAccess): void => {
-		if (from === to) return;
-		const key = `${from}:${to}`;
-		if (edgeKeys.has(key)) return;
-		edgeKeys.add(key);
-		edges.push({ from, to, access });
-	};
-
-	for (let readerIndex = 0; readerIndex < segment.length; readerIndex += 1) {
-		const resources = segment[readerIndex]?.resolvedResources;
-		if (!resources) continue;
-		for (const access of resources.reads) {
-			const writers = access.resourceKind === 'texture' ? textureWriters : bufferWriters;
-			const resourceWriters = writers.get(physicalResourceMapKey(access)) ?? [];
-			for (const writer of resourceWriters) {
-				if (!textureSubresourcesOverlap(writer.access, access)) continue;
-				if (access.version === 'initial') {
-					addEdge(readerIndex, writer.index, access);
-				} else {
-					addEdge(writer.index, readerIndex, access);
-				}
-			}
-		}
-	}
-
-	const outgoing = Array.from({ length: segment.length }, () => [] as ComputeDependencyEdge[]);
-	const indegree = new Array<number>(segment.length).fill(0);
-	for (const edge of edges) {
-		outgoing[edge.from]?.push(edge);
-		indegree[edge.to] = (indegree[edge.to] ?? 0) + 1;
-	}
-
-	const ready: number[] = [];
-	for (let index = 0; index < segment.length; index += 1) {
-		if (indegree[index] === 0) ready.push(index);
-	}
-	const ordered: RenderGraphStep[] = [];
-	while (ready.length > 0) {
-		ready.sort((left, right) => left - right);
-		const index = ready.shift();
-		if (index === undefined) break;
-		const step = segment[index];
-		if (step) ordered.push(step);
-		for (const edge of outgoing[index] ?? []) {
-			indegree[edge.to] = (indegree[edge.to] ?? 0) - 1;
-			if (indegree[edge.to] === 0) ready.push(edge.to);
-		}
-	}
-
-	if (ordered.length !== segment.length) {
-		const blocked = indegree
-			.map((count, index) => ({ count, index }))
-			.filter(({ count }) => count > 0)
-			.map(({ index }) => segment[index]?.computeLabel ?? `compute pass #${index}`);
-		const cycleEdges = edges
-			.filter((edge) => (indegree[edge.from] ?? 0) > 0 && (indegree[edge.to] ?? 0) > 0)
-			.map(
-				(edge) =>
-					`${segment[edge.from]?.computeLabel ?? `compute pass #${edge.from}`} -> ${segment[edge.to]?.computeLabel ?? `compute pass #${edge.to}`} via ${formatLogicalResource(edge.access)} (alias "${edge.access.alias}")`
-			);
+		const cycleEdges = diagnostic.edges.flatMap((edge) =>
+			edge.reasons.map(
+				(reason) =>
+					`${edge.from.computeLabel ?? `compute pass #${segment.indexOf(edge.from)}`} -> ${edge.to.computeLabel ?? `compute pass #${segment.indexOf(edge.to)}`} via ${formatLogicalResource(reason.reader)} (alias "${reason.reader.alias}")`
+			)
+		);
 		throw createSpektralError(
 			'COMPUTE_GRAPH_CYCLE',
-			`Compute dependency cycle detected among ${blocked.join(', ')}: ${cycleEdges.join('; ')}.`
+			`Compute dependency cycle detected among ${diagnostic.blockedLabels.join(', ')}: ${cycleEdges.join('; ')}.`
 		);
 	}
-	return ordered;
 }
 
 /**
  * Reorders only contiguous compute blocks, leaving render-pass boundaries fixed.
  */
-function planComputeSegments(preSceneSteps: RenderGraphStep[]): RenderGraphStep[] {
+function planComputeSegments(preSceneSteps: RenderGraphStep[]): {
+	steps: RenderGraphStep[];
+	edges: ComputeDependencyEdge<RenderGraphStep>[];
+} {
 	const ordered: RenderGraphStep[] = [];
+	const edges: ComputeDependencyEdge<RenderGraphStep>[] = [];
 	let segment: RenderGraphStep[] = [];
 	const flush = (): void => {
 		if (segment.length === 0) return;
-		ordered.push(...stableTopologicalComputeSegment(segment));
+		const analysis = stableTopologicalComputeSegment(segment);
+		ordered.push(...analysis.ordered);
+		edges.push(...analysis.edges);
 		segment = [];
 	};
 
@@ -264,7 +251,7 @@ function planComputeSegments(preSceneSteps: RenderGraphStep[]): RenderGraphStep[
 		}
 	}
 	flush();
-	return ordered;
+	return { steps: ordered, edges };
 }
 
 /**
@@ -289,7 +276,7 @@ export function planRenderGraph(
 	let finalOutput: RenderPassOutputSlot = 'canvas';
 	let enabledIndex = 0;
 
-	for (const pass of passes ?? []) {
+	for (const [declarationIndex, pass] of (passes ?? []).entries()) {
 		assertSpektralPass(pass);
 		if (pass.enabled === false) {
 			continue;
@@ -299,6 +286,7 @@ export function planRenderGraph(
 		if (isManagedComputePass(pass)) {
 			const resolvedResources = computeOptions?.getResolvedResources(pass);
 			const step: RenderGraphStep = {
+				declarationIndex,
 				kind: 'compute',
 				pass,
 				input: 'source',
@@ -318,6 +306,7 @@ export function planRenderGraph(
 
 		if (isManagedFeedbackPass(pass)) {
 			const step: RenderGraphStep = {
+				declarationIndex,
 				kind: 'feedback',
 				pass,
 				input: 'source',
@@ -367,6 +356,7 @@ export function planRenderGraph(
 		const preserve = rp.preserve ?? true;
 
 		const step: RenderGraphStep = {
+			declarationIndex,
 			kind: 'render',
 			pass,
 			input,
@@ -393,7 +383,10 @@ export function planRenderGraph(
 		enabledIndex += 1;
 	}
 
-	const orderedPreSceneSteps = computeOptions ? planComputeSegments(preSceneSteps) : preSceneSteps;
+	const computePlan = computeOptions
+		? planComputeSegments(preSceneSteps)
+		: { steps: preSceneSteps, edges: [] };
+	const orderedPreSceneSteps = computePlan.steps;
 	const orderedComputeSteps = orderedPreSceneSteps.filter((step) => step.kind === 'compute');
 
 	return {
@@ -401,6 +394,7 @@ export function planRenderGraph(
 		preSceneSteps: orderedPreSceneSteps,
 		computeSteps: computeOptions ? orderedComputeSteps : computeSteps,
 		renderSteps,
-		finalOutput
+		finalOutput,
+		dependencyEdges: computePlan.edges
 	};
 }

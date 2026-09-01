@@ -134,6 +134,11 @@ export function analyzeImportBoundaries({ libraryFiles, consumerFiles = new Map(
 			) {
 				violations.push(`${file}: ${importerLayer} cannot import sibling adapter ${target}`);
 			}
+			if (file.startsWith('core/renderer/') && target === 'core/renderer.ts') {
+				violations.push(
+					`${file}: renderer internals cannot import the renderer lifecycle orchestrator ${target}`
+				);
+			}
 		}
 	}
 

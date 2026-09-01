@@ -45,6 +45,40 @@ test('rejects core-to-adapter and sibling-adapter imports', () => {
 	assert.match(result.violations.join('\n'), /react cannot import sibling adapter/);
 });
 
+test('keeps renderer internals below the renderer lifecycle orchestrator', () => {
+	const result = analyzeImportBoundaries({
+		libraryFiles: new Map([
+			[
+				'core/renderer.ts',
+				`import { execute } from './renderer/render-graph-execution.js'; export { execute };`
+			],
+			[
+				'core/renderer/render-graph-execution.ts',
+				`import { createRenderer } from '../renderer.js'; export const execute = createRenderer;`
+			]
+		])
+	});
+
+	assert.match(
+		result.violations.join('\n'),
+		/renderer internals cannot import the renderer lifecycle orchestrator/
+	);
+});
+
+test('allows renderer internals to depend on lower-level core modules', () => {
+	const result = analyzeImportBoundaries({
+		libraryFiles: new Map([
+			['core/types.ts', `export interface RenderTarget { width: number }`],
+			[
+				'core/renderer/render-graph-execution.ts',
+				`import type { RenderTarget } from '../types.js'; export type Target = RenderTarget;`
+			]
+		])
+	});
+
+	assert.deepEqual(result.violations, []);
+});
+
 test('rejects application imports from source or distribution internals', () => {
 	const result = analyzeImportBoundaries({
 		libraryFiles: new Map(),

@@ -43,6 +43,7 @@ import {
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toSpektralErrorReport } from '../core/error-report.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
+import { createSpektralGraphBridge } from '../core/render-graph-reader.js';
 import { createSpektralUserContextStore } from '../core/spektral-context.js';
 import { createSpektralRuntimeLoop } from '../core/runtime-loop.js';
 import { provideFrameRegistry } from './frame-context.js';
@@ -146,6 +147,7 @@ const autoRenderState = currentWritable<boolean>(true, (value) => {
 	requestFrame();
 });
 const userState = createSpektralUserContextStore();
+const graphBridge = createSpektralGraphBridge();
 
 provideSpektralContext({
 	get canvas() {
@@ -157,6 +159,7 @@ provideSpektralContext({
 	renderMode: renderModeState,
 	autoRender: autoRenderState,
 	user: userState,
+	graph: graphBridge.graph,
 	invalidate: invalidateFrame,
 	advance: advanceFrame,
 	scheduler: {
@@ -240,6 +243,7 @@ onMounted(() => {
 	const runtimeLoop = createSpektralRuntimeLoop({
 		canvas,
 		registry,
+		graphUpdater: graphBridge.updater,
 		size,
 		dpr: dprState,
 		maxDelta: maxDeltaState,
@@ -265,6 +269,7 @@ onBeforeUnmount(() => {
 	requestFrameSignal = null;
 	runtimeLoopHandle?.destroy();
 	runtimeLoopHandle = null;
+	graphBridge.updater.reset();
 	registry.clear();
 });
 </script>

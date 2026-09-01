@@ -3,6 +3,7 @@ import { useEffect, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { createCurrentWritable } from '../lib/core/current-value';
 import { createFrameRegistry } from '../lib/core/frame-registry';
+import { createSpektralGraphBridge } from '../lib/core/render-graph-reader';
 import type { SpektralContext } from '../lib/react/spektral-context';
 import { SpektralReactContext, useSpektral } from '../lib/react/spektral-context';
 import {
@@ -23,6 +24,7 @@ function createRuntimeHarness() {
 	const renderMode = createCurrentWritable<'always' | 'manual' | 'on-demand'>('always');
 	const autoRender = createCurrentWritable(true);
 	const user = createCurrentWritable<Record<string | symbol, unknown>>({});
+	const graphBridge = createSpektralGraphBridge();
 
 	const context: SpektralContext = {
 		canvas: undefined,
@@ -32,6 +34,7 @@ function createRuntimeHarness() {
 		renderMode,
 		autoRender,
 		user,
+		graph: graphBridge.graph,
 		invalidate: () => {
 			registry.invalidate();
 		},

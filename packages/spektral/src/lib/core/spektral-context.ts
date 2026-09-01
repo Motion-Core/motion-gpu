@@ -9,10 +9,12 @@ import type {
 	FrameScheduleSnapshot
 } from './frame-registry.js';
 import type { SpektralScheduler as CoreSpektralScheduler } from './scheduler-helpers.js';
+import type { SpektralGraph } from './render-graph-reader.js';
 import type { RenderMode } from './types.js';
 
 export type SpektralScheduler = CoreSpektralScheduler;
 export type { FrameProfilingSnapshot, FrameRunTimings, FrameScheduleSnapshot };
+export type { SpektralGraph };
 
 /**
  * Namespace identifier for user-owned context entries.
@@ -58,6 +60,12 @@ export interface SpektralContext {
 	 * Namespaced user context store shared within the canvas subtree.
 	 */
 	user: SpektralUserContext;
+	/**
+	 * Read-only render graph diagnostics.
+	 *
+	 * @experimental This API may evolve before Spektral 1.0.
+	 */
+	readonly graph: SpektralGraph;
 	/**
 	 * Marks current frame as invalidated.
 	 */

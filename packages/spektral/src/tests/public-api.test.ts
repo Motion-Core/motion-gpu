@@ -3,27 +3,42 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import * as advanced from '../lib/advanced';
+import type { RenderGraphSnapshot as RootAdvancedRenderGraphSnapshot } from '../lib/advanced';
 import * as core from '../lib/core/index';
-import type { ComputeResourceMap as CoreComputeResourceMap } from '../lib/core/index';
+import type {
+	ComputeResourceMap as CoreComputeResourceMap,
+	RenderGraphSnapshot as CoreRenderGraphSnapshot
+} from '../lib/core/index';
 import * as coreAdvanced from '../lib/core/advanced';
+import type { RenderGraphSnapshot as CoreAdvancedRenderGraphSnapshot } from '../lib/core/advanced';
 import * as api from '../lib/index';
 import type {
 	ComputeResourceMap as RootComputeResourceMap,
-	PingPongComputePassOptions
+	PingPongComputePassOptions,
+	RenderGraphSnapshot as RootRenderGraphSnapshot,
+	SpektralGraph as RootSpektralGraph
 } from '../lib/index';
 import * as react from '../lib/react/index';
 import * as reactAdvanced from '../lib/react/advanced';
-import type { ComputeResourceMap as ReactComputeResourceMap } from '../lib/react/index';
+import type { RenderGraphSnapshot as ReactAdvancedRenderGraphSnapshot } from '../lib/react/advanced';
+import type {
+	ComputeResourceMap as ReactComputeResourceMap,
+	RenderGraphSnapshot as ReactRenderGraphSnapshot
+} from '../lib/react/index';
 import * as svelte from '../lib/svelte/index';
 import * as svelteAdvanced from '../lib/svelte/advanced';
+import type { RenderGraphSnapshot as SvelteAdvancedRenderGraphSnapshot } from '../lib/svelte/advanced';
 import type {
 	ComputeResourceMap as SvelteComputeResourceMap,
+	RenderGraphSnapshot as SvelteRenderGraphSnapshot,
 	TextureOptionsInput as SvelteTextureOptionsInput
 } from '../lib/svelte/index';
 import * as vue from '../lib/vue/index';
 import * as vueAdvanced from '../lib/vue/advanced';
+import type { RenderGraphSnapshot as VueAdvancedRenderGraphSnapshot } from '../lib/vue/advanced';
 import type {
 	ComputeResourceMap as VueComputeResourceMap,
+	RenderGraphSnapshot as VueRenderGraphSnapshot,
 	TextureOptionsInput as VueTextureOptionsInput
 } from '../lib/vue/index';
 import { publicApiManifest } from '../../scripts/consumers/public-api-manifest.mjs';
@@ -57,6 +72,32 @@ function acceptRootComputeResourceMap(resources: RootComputeResourceMap): RootCo
 	return resources;
 }
 
+function acceptGraphSnapshotParity(
+	root: RootRenderGraphSnapshot,
+	rootAdvanced: RootAdvancedRenderGraphSnapshot,
+	core: CoreRenderGraphSnapshot,
+	coreAdvanced: CoreAdvancedRenderGraphSnapshot,
+	svelte: SvelteRenderGraphSnapshot,
+	svelteAdvanced: SvelteAdvancedRenderGraphSnapshot,
+	react: ReactRenderGraphSnapshot,
+	reactAdvanced: ReactAdvancedRenderGraphSnapshot,
+	vue: VueRenderGraphSnapshot,
+	vueAdvanced: VueAdvancedRenderGraphSnapshot
+): readonly RootRenderGraphSnapshot[] {
+	return [
+		root,
+		rootAdvanced,
+		core,
+		coreAdvanced,
+		svelte,
+		svelteAdvanced,
+		react,
+		reactAdvanced,
+		vue,
+		vueAdvanced
+	];
+}
+
 function readPackageJson(): {
 	exports: Record<string, { types: string; default: string; svelte?: string }>;
 } {
@@ -83,6 +124,35 @@ function sourceEntryForDistPath(distPath: string): string {
 }
 
 describe('public api contract', () => {
+	it('exports the experimental graph reader and snapshot schema from every entrypoint', () => {
+		const snapshot = {
+			schemaVersion: 1,
+			nodes: [],
+			resources: [],
+			edges: [],
+			finalOutput: 'canvas'
+		} as const satisfies RootRenderGraphSnapshot;
+		const graph = {
+			getSnapshot: () => snapshot
+		} satisfies RootSpektralGraph;
+
+		expect(
+			acceptGraphSnapshotParity(
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot,
+				snapshot
+			)
+		).toHaveLength(10);
+		expect(graph.getSnapshot()).toBe(snapshot);
+	});
+
 	it('exports one compute resource descriptor contract from every entrypoint', () => {
 		const resources = {
 			uCamera: { texture: 'camera', access: 'sampled', version: 'current' },

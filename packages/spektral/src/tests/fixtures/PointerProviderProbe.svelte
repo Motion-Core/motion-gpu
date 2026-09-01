@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { createCurrentWritable } from '../../lib/core/current-value';
 	import { createFrameRegistry } from '../../lib/core/frame-registry';
+	import { createSpektralGraphBridge } from '../../lib/core/render-graph-reader';
 	import type { RenderMode } from '../../lib/core/types';
 	import { provideSpektralContext, type SpektralContext } from '../../lib/svelte/spektral-context';
 	import {
@@ -40,6 +41,7 @@
 	const renderModeState = createCurrentWritable<RenderMode>('always');
 	const autoRender = createCurrentWritable(true);
 	const user = createCurrentWritable<Record<string | symbol, unknown>>({});
+	const graphBridge = createSpektralGraphBridge();
 
 	const context: SpektralContext = {
 		get canvas() {
@@ -51,6 +53,7 @@
 		renderMode: renderModeState,
 		autoRender,
 		user,
+		graph: graphBridge.graph,
 		invalidate: () => {
 			invalidateSpy();
 			registry.invalidate();

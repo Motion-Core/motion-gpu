@@ -119,7 +119,7 @@ describe('vue useSpektral', () => {
 
 	it('provides runtime context inside <FragCanvas>', async () => {
 		const onProbe = vi.fn();
-		render(SpektralHarness, {
+		const view = render(SpektralHarness, {
 			props: {
 				onProbe
 			}
@@ -131,9 +131,14 @@ describe('vue useSpektral', () => {
 		});
 
 		const context = onProbe.mock.calls[0]?.[0] as SpektralContext;
+		const graphSnapshot = context.graph.getSnapshot();
 		expect(context.canvas).toBeInstanceOf(HTMLCanvasElement);
 		expect(context.size.current.width).toBeGreaterThanOrEqual(0);
 		expect(context.size.current.height).toBeGreaterThanOrEqual(0);
+		expect(context.graph.getSnapshot()).toBe(graphSnapshot);
+		expect(graphSnapshot.schemaVersion).toBe(1);
+		expect(Object.isFrozen(graphSnapshot)).toBe(true);
+		expect(Object.isFrozen(graphSnapshot.nodes)).toBe(true);
 
 		expect(context.renderMode.current).toBe('always');
 		context.renderMode.set('manual');
@@ -173,5 +178,8 @@ describe('vue useSpektral', () => {
 		expect(context.scheduler.getProfilingWindow()).toBe(4);
 		expect(context.scheduler.getProfilingSnapshot()).not.toBeNull();
 		context.scheduler.resetProfiling();
+
+		view.unmount();
+		expect(context.graph.getSnapshot()).toBe(graphSnapshot);
 	});
 });

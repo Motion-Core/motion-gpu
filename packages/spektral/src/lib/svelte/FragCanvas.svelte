@@ -5,6 +5,7 @@
 	import type { FragMaterial } from '../core/material';
 	import { createCurrentWritable as currentWritable } from '../core/current-value';
 	import { toSpektralErrorReport, type SpektralErrorReport } from '../core/error-report';
+	import { createSpektralGraphBridge } from '../core/render-graph-reader';
 	import { createSpektralUserContextStore } from '../core/spektral-context';
 	import SpektralErrorOverlay from './SpektralErrorOverlay.svelte';
 	import { createSpektralRuntimeLoop } from '../core/runtime-loop';
@@ -129,6 +130,7 @@
 		requestFrame();
 	});
 	const userState = createSpektralUserContextStore();
+	const graphBridge = createSpektralGraphBridge();
 
 	provideSpektralContext({
 		get canvas() {
@@ -140,6 +142,7 @@
 		renderMode: renderModeState,
 		autoRender: autoRenderState,
 		user: userState,
+		graph: graphBridge.graph,
 		invalidate: () => invalidateFrame(),
 		advance: advanceFrame,
 		scheduler: {
@@ -187,12 +190,16 @@
 			);
 			errorReport = report;
 			onError?.(report);
-			return () => registry.clear();
+			return () => {
+				graphBridge.updater.reset();
+				registry.clear();
+			};
 		}
 
 		const runtimeLoop = createSpektralRuntimeLoop({
 			canvas,
 			registry,
+			graphUpdater: graphBridge.updater,
 			size,
 			dpr: dprState,
 			maxDelta: maxDeltaState,
@@ -215,6 +222,7 @@
 		return () => {
 			requestFrameSignal = null;
 			runtimeLoop.destroy();
+			graphBridge.updater.reset();
 		};
 	});
 </script>

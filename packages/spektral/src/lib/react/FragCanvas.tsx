@@ -1,6 +1,7 @@
 import { createCurrentWritable as currentWritable } from '../core/current-value.js';
 import { toSpektralErrorReport, type SpektralErrorReport } from '../core/error-report.js';
 import type { FragMaterial } from '../core/material.js';
+import { createSpektralGraphBridge } from '../core/render-graph-reader.js';
 import { createSpektralUserContextStore } from '../core/spektral-context.js';
 import { createFrameRegistry } from '../core/frame-registry.js';
 import { createSpektralRuntimeLoop } from '../core/runtime-loop.js';
@@ -79,6 +80,7 @@ interface FragCanvasRuntimeState {
 	maxDeltaState: ReturnType<typeof currentWritable<number>>;
 	renderModeState: ReturnType<typeof currentWritable<RenderMode>>;
 	autoRenderState: ReturnType<typeof currentWritable<boolean>>;
+	graphBridge: ReturnType<typeof createSpektralGraphBridge>;
 	requestFrameSignalRef: { current: (() => void) | null };
 	requestFrame: () => void;
 	invalidateFrame: () => void;
@@ -124,6 +126,7 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		requestFrame();
 	});
 	const userState = createSpektralUserContextStore();
+	const graphBridge = createSpektralGraphBridge();
 
 	const context: SpektralContext = {
 		get canvas() {
@@ -135,6 +138,7 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		renderMode: renderModeState,
 		autoRender: autoRenderState,
 		user: userState,
+		graph: graphBridge.graph,
 		invalidate: invalidateFrame,
 		advance: advanceFrame,
 		scheduler: {
@@ -162,6 +166,7 @@ function createRuntimeState(initialDpr: number): FragCanvasRuntimeState {
 		maxDeltaState,
 		renderModeState,
 		autoRenderState,
+		graphBridge,
 		requestFrameSignalRef,
 		requestFrame,
 		invalidateFrame,
@@ -279,6 +284,7 @@ export function FragCanvas({
 			setErrorReport(report);
 			runtimePropsRef.current.onError?.(report);
 			return () => {
+				runtime.graphBridge.updater.reset();
 				runtime.registry.clear();
 			};
 		}
@@ -286,6 +292,7 @@ export function FragCanvas({
 		const runtimeLoop = createSpektralRuntimeLoop({
 			canvas,
 			registry: runtime.registry,
+			graphUpdater: runtime.graphBridge.updater,
 			size: runtime.size,
 			dpr: runtime.dprState,
 			maxDelta: runtime.maxDeltaState,
@@ -308,6 +315,7 @@ export function FragCanvas({
 		return () => {
 			runtime.requestFrameSignalRef.current = null;
 			runtimeLoop.destroy();
+			runtime.graphBridge.updater.reset();
 		};
 	}, [runtime]);
 

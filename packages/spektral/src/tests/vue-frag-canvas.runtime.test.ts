@@ -302,6 +302,12 @@ describe('Vue FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(createRendererMock).toHaveBeenCalledTimes(1);
 		});
+		expect(createRendererMock.mock.calls[0]?.[0]).toMatchObject({
+			graphUpdater: {
+				reset: expect.any(Function),
+				setSnapshot: expect.any(Function)
+			}
+		});
 
 		await flushFrame(32);
 		await waitFor(() => {
@@ -317,6 +323,9 @@ describe('Vue FragCanvas runtime', () => {
 		await waitFor(() => {
 			expect(createRendererMock).toHaveBeenCalledTimes(2);
 		});
+		expect(createRendererMock.mock.calls[1]?.[0].graphUpdater).toBe(
+			createRendererMock.mock.calls[0]?.[0].graphUpdater
+		);
 
 		expect(created[1]?.options.color).toEqual({ outputEncoding: 'linear' });
 		expect(created[0]?.renderer.destroy).toHaveBeenCalledTimes(1);

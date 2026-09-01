@@ -3,6 +3,7 @@ import { defineComponent, h, onMounted, type PropType } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import { createCurrentWritable } from '../lib/core/current-value.js';
 import { createFrameRegistry } from '../lib/core/frame-registry.js';
+import { createSpektralGraphBridge } from '../lib/core/render-graph-reader.js';
 import type { SpektralContext } from '../lib/vue/spektral-context.js';
 import { provideSpektralContext, useSpektral } from '../lib/vue/spektral-context.js';
 import { provideFrameRegistry, useFrame, type UseFrameResult } from '../lib/vue/frame-context.js';
@@ -19,6 +20,7 @@ function createRuntimeHarness() {
 	const renderMode = createCurrentWritable<'always' | 'manual' | 'on-demand'>('always');
 	const autoRender = createCurrentWritable(true);
 	const user = createCurrentWritable<Record<string | symbol, unknown>>({});
+	const graphBridge = createSpektralGraphBridge();
 
 	const context: SpektralContext = {
 		canvas: undefined,
@@ -28,6 +30,7 @@ function createRuntimeHarness() {
 		renderMode,
 		autoRender,
 		user,
+		graph: graphBridge.graph,
 		invalidate: () => {
 			registry.invalidate();
 		},

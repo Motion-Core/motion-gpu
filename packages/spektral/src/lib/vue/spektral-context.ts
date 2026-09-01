@@ -5,6 +5,7 @@ export type {
 	FrameRunTimings,
 	FrameScheduleSnapshot,
 	SpektralContext,
+	SpektralGraph,
 	SpektralScheduler,
 	SpektralUserContext,
 	SpektralUserNamespace

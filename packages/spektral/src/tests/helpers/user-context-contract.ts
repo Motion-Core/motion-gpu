@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CurrentReadable } from '../../lib/core/current-value.js';
 import { createCurrentWritable } from '../../lib/core/current-value.js';
 import { createFrameRegistry } from '../../lib/core/frame-registry.js';
+import { createSpektralGraphBridge } from '../../lib/core/render-graph-reader.js';
 import {
 	createSpektralUserContextStore,
 	type SpektralContext,
@@ -90,6 +91,7 @@ export interface UserContextContractDriver {
 
 export function createUserContextRuntimeHarness(): { context: SpektralContext } {
 	const registry = createFrameRegistry();
+	const graphBridge = createSpektralGraphBridge();
 	return {
 		context: {
 			canvas: undefined,
@@ -99,6 +101,7 @@ export function createUserContextRuntimeHarness(): { context: SpektralContext } 
 			renderMode: createCurrentWritable<'always' | 'manual' | 'on-demand'>('always'),
 			autoRender: createCurrentWritable(true),
 			user: createSpektralUserContextStore(),
+			graph: graphBridge.graph,
 			invalidate: registry.invalidate,
 			advance: registry.advance,
 			scheduler: {

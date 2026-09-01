@@ -49,6 +49,20 @@ export type {
 	UniformValue
 } from '../core/types.js';
 export type {
+	RenderGraphSnapshot,
+	RenderGraphSnapshotEdge,
+	RenderGraphSnapshotEdgeReason,
+	RenderGraphSnapshotNode,
+	RenderGraphSnapshotPhaseFlowReason,
+	RenderGraphSnapshotPingPongReason,
+	RenderGraphSnapshotReadWriteReason,
+	RenderGraphSnapshotResource,
+	RenderGraphSnapshotResourceAccess,
+	RenderGraphSnapshotSlotFlowReason,
+	RenderGraphSnapshotSubresource,
+	RenderGraphSnapshotWriteConflictReason
+} from '../core/render-graph-snapshot.js';
+export type {
 	LoadedTexture,
 	TextureDecodeOptions,
 	TextureLoadOptions
@@ -73,7 +87,7 @@ export type {
 	SpektralErrorSource,
 	SpektralErrorSourceLine
 } from '../core/error-report.js';
-export type { SpektralContext } from './spektral-context.js';
+export type { SpektralContext, SpektralGraph } from './spektral-context.js';
 export type { UseFrameOptions, UseFrameResult } from './frame-context.js';
 export type {
 	PointerClick,

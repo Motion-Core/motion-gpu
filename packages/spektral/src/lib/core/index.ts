@@ -18,6 +18,21 @@ export {
 	PingPongShaderPass
 } from '../passes/index.js';
 export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
+export type { SpektralGraph } from './render-graph-reader.js';
+export type {
+	RenderGraphSnapshot,
+	RenderGraphSnapshotEdge,
+	RenderGraphSnapshotEdgeReason,
+	RenderGraphSnapshotNode,
+	RenderGraphSnapshotPhaseFlowReason,
+	RenderGraphSnapshotPingPongReason,
+	RenderGraphSnapshotReadWriteReason,
+	RenderGraphSnapshotResource,
+	RenderGraphSnapshotResourceAccess,
+	RenderGraphSnapshotSlotFlowReason,
+	RenderGraphSnapshotSubresource,
+	RenderGraphSnapshotWriteConflictReason
+} from './render-graph-snapshot.js';
 export type {
 	SpektralErrorCode,
 	SpektralErrorContext,

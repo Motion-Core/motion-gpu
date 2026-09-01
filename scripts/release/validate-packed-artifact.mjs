@@ -1,6 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { assertPackedArtifactMetadata, parseCanonicalReleaseTag } from './release-contract.mjs';
+import {
+	assertPackedArtifactContents,
+	assertPackedArtifactMetadata,
+	parseCanonicalReleaseTag,
+	readNpmTarballFiles
+} from './release-contract.mjs';
 
 const [metadataPath, artifactDirectory, version] = process.argv.slice(2);
 if (!metadataPath || !artifactDirectory || !version) {
@@ -23,5 +28,7 @@ if (!tarballStat.isFile() || tarballStat.size !== artifact.size) {
 		`Packed tarball size ${tarballStat.size} does not match npm pack metadata size ${artifact.size}.`
 	);
 }
+const archiveFiles = await readNpmTarballFiles(tarballPath);
+assertPackedArtifactContents({ archiveFiles, metadataFiles: artifact.files });
 
 process.stdout.write(`tarball=${tarballPath}\nmetadata=${path.resolve(metadataPath)}\n`);

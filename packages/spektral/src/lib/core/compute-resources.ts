@@ -130,6 +130,8 @@ export interface ResolvedComputeAccess {
 	resourceKind: 'texture' | 'buffer';
 	logicalId: string | symbol;
 	physicalId: object | string | symbol;
+	/** Distinguishes same-named material and borrowed external resources. */
+	source?: ResolvedComputeResourceSource;
 	mode: 'read' | 'write';
 	version: ComputeResourceVersion;
 	subresource?: ResolvedTextureSubresourceRange;
@@ -1043,7 +1045,7 @@ function resolveTextureReferenceForAccess(
 		return {
 			reference: {
 				logicalId: reference.resourceId,
-				physicalId: reference.resourceId,
+				physicalId: texture,
 				source: 'external',
 				format: reference.format,
 				usage: reference.usage,
@@ -1091,7 +1093,7 @@ function resolveTextureReferenceForAccess(
 	return {
 		reference: {
 			logicalId: reference.resourceId,
-			physicalId: reference.resourceId,
+			physicalId: view,
 			source: 'external',
 			format: reference.format,
 			usage: reference.usage,
@@ -1157,7 +1159,7 @@ function resolveBufferReferenceForAccess(
 	}
 	return {
 		logicalId: reference.resourceId,
-		physicalId: reference.resourceId,
+		physicalId: buffer,
 		source: 'external',
 		buffer,
 		size: reference.size,
@@ -1204,7 +1206,7 @@ function resolveSamplerReferenceForBinding(
 	);
 	return {
 		logicalId: reference.resourceId,
-		physicalId: reference.resourceId,
+		physicalId: sampler,
 		source: 'external',
 		sampler,
 		type: reference.type,
@@ -1251,7 +1253,17 @@ function validateResolvedResourceHazards(
 		if (!left) continue;
 		for (let rightIndex = leftIndex + 1; rightIndex < entries.length; rightIndex += 1) {
 			const right = entries[rightIndex];
-			if (!right || !Object.is(left.physicalId, right.physicalId)) continue;
+			if (
+				!right ||
+				(!Object.is(left.physicalId, right.physicalId) &&
+					!(
+						left.source === 'external' &&
+						right.source === 'external' &&
+						Object.is(left.logicalId, right.logicalId)
+					))
+			) {
+				continue;
+			}
 
 			if (
 				(left.kind === 'sampled-texture' || left.kind === 'storage-texture') &&
@@ -1349,6 +1361,7 @@ function toTextureAccess(
 		resourceKind: 'texture',
 		logicalId: entry.logicalId,
 		physicalId: entry.physicalId,
+		source: entry.source,
 		mode,
 		version,
 		subresource: entry.subresource
@@ -1365,6 +1378,7 @@ function toBufferAccess(
 		resourceKind: 'buffer',
 		logicalId: entry.logicalId,
 		physicalId: entry.physicalId,
+		source: entry.source,
 		mode,
 		version
 	};
@@ -1379,9 +1393,24 @@ export function resolveComputePassResources(
 	context: ComputeResourceResolverContext
 ): ResolvedComputePassResources {
 	const normalized = normalizeComputeResourceMap(resources);
-	const pingPongPair = context.pingPong ? resolveComputePingPongResourcePair(normalized) : null;
+	return resolveTrustedComputePassResources(normalized, Object.keys(normalized), context);
+}
+
+/**
+ * Resolves a pass-owned, already-normalized topology without re-entering the
+ * public validation/copy boundary.
+ *
+ * @internal Renderer cache only.
+ */
+export function resolveTrustedComputePassResources(
+	resources: ComputeResourceMap,
+	aliases: readonly string[],
+	context: ComputeResourceResolverContext
+): ResolvedComputePassResources {
+	const pingPongPair = context.pingPong ? resolveComputePingPongResourcePair(resources) : null;
 	if (!context.pingPong) {
-		for (const [alias, descriptor] of Object.entries(normalized)) {
+		for (const alias of aliases) {
+			const descriptor = resources[alias]!;
 			if ('texture' in descriptor && descriptor.pingPong !== undefined) {
 				throw resourceError(context, alias, 'declares a pingPong role on a normal ComputePass.');
 			}
@@ -1393,7 +1422,8 @@ export function resolveComputePassResources(
 	const reads: ResolvedComputeAccess[] = [];
 	const writes: ResolvedComputeAccess[] = [];
 
-	for (const [alias, descriptor] of Object.entries(normalized)) {
+	for (const alias of aliases) {
+		const descriptor = resources[alias]!;
 		const binding = entries.length;
 		if ('texture' in descriptor) {
 			const resolved = resolveTextureReferenceForAccess(

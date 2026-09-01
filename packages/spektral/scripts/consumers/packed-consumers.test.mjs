@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
 	applyExactVersions,
+	assertSharedNodeTypesAligned,
 	assertBundledSourceNavigation,
 	assertPublicApiSymbols,
 	assertPublicExportMap,
@@ -284,6 +285,23 @@ test('pins only declared fixture dependencies without mutating the template', ()
 	assert.throws(
 		() => applyExactVersions(template, { 'react-dom': '19.0.0' }),
 		/Cannot pin undeclared fixture dependency react-dom/
+	);
+});
+
+test('keeps global Node declarations aligned inside each shared fixture workspace', () => {
+	assert.doesNotThrow(() =>
+		assertSharedNodeTypesAligned({
+			next: { '@types/node': '22.15.3' },
+			vue: { '@types/node': '22.15.3' }
+		})
+	);
+	assert.throws(
+		() =>
+			assertSharedNodeTypesAligned({
+				next: { '@types/node': '22.15.3' },
+				vue: { '@types/node': '25.8.0' }
+			}),
+		/one @types\/node version per profile/
 	);
 });
 

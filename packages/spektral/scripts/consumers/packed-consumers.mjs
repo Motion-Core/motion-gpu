@@ -89,6 +89,7 @@ const currentVersions = {
 		typescript: '5.9.3'
 	},
 	vue: {
+		'@types/node': '25.8.0',
 		'@vitejs/plugin-vue': '6.0.8',
 		typescript: '5.9.3',
 		vite: '8.2.1',
@@ -127,8 +128,24 @@ const minimumVersions = {
 		react: '19.0.0',
 		'react-dom': '19.0.0'
 	},
-	vue: { ...currentVersions.vue, vue: '3.5.2' }
+	vue: { ...currentVersions.vue, '@types/node': '22.15.3', vue: '3.5.2' }
 };
+
+export function assertSharedNodeTypesAligned(versionsByFixture) {
+	const versions = new Set(
+		Object.values(versionsByFixture)
+			.map((fixtureVersions) => fixtureVersions['@types/node'])
+			.filter((version) => version !== undefined)
+	);
+	assert.equal(
+		versions.size,
+		1,
+		`Packed consumer fixtures must use one @types/node version per profile; found ${[...versions].join(', ')}.`
+	);
+}
+
+assertSharedNodeTypesAligned(currentVersions);
+assertSharedNodeTypesAligned(minimumVersions);
 
 function normalizePath(file) {
 	return file.split(path.sep).join('/');

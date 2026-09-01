@@ -1,15 +1,15 @@
 ---
-name: motion-gpu-adapters-wgsl
-description: Build and edit MotionGPU code across framework-agnostic core and Svelte/React/Vue adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, fragment-local motiongpuFragment context, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or MotionGPU error handling and diagnostics.
+name: spektral-adapters-wgsl
+description: Build and edit Spektral code across framework-agnostic core and Svelte/React/Vue adapters. Use when implementing or refactoring FragCanvas-based components, defineMaterial shaders, fragment-local spektralFragment context, useFrame runtime logic, textures/useTexture workflows, render passes/targets, compute shaders/storage buffers, render-mode scheduling, or Spektral error handling and diagnostics.
 ---
 
-# MotionGPU Core + Adapters Skill
+# Spektral Core + Adapters Skill
 
-Use this skill to produce production-grade MotionGPU code across:
-- framework-agnostic core (`@motion-core/motion-gpu`, `@motion-core/motion-gpu/core`),
-- Svelte adapter (`@motion-core/motion-gpu/svelte`),
-- React adapter (`@motion-core/motion-gpu/react`),
-- Vue adapter (`@motion-core/motion-gpu/vue`).
+Use this skill to produce production-grade Spektral code across:
+- framework-agnostic core (`spektral`, `spektral/core`),
+- Svelte adapter (`spektral/svelte`),
+- React adapter (`spektral/react`),
+- Vue adapter (`spektral/vue`).
 
 Treat Svelte, React, and Vue as first-class adapters. Do not assume Svelte-only APIs.
 
@@ -19,30 +19,30 @@ Treat public package entrypoints as authoritative:
 
 | Entrypoint | Layer | What it exposes |
 | --- | --- | --- |
-| `@motion-core/motion-gpu` | Core | Framework-agnostic runtime primitives (`defineMaterial`, `resolveMaterial`, scheduler/runtime builders, passes, texture loader, error normalization) |
-| `@motion-core/motion-gpu/advanced` | Core | Core + scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
-| `@motion-core/motion-gpu/core` | Core | Same core API surface as root, explicit core path |
-| `@motion-core/motion-gpu/core/advanced` | Core | Same advanced core helper surface |
-| `@motion-core/motion-gpu/svelte` | Adapter | Svelte `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
-| `@motion-core/motion-gpu/svelte/advanced` | Adapter | Svelte adapter + user context APIs + scheduler helpers |
-| `@motion-core/motion-gpu/react` | Adapter | React `FragCanvas`, hooks (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
-| `@motion-core/motion-gpu/react/advanced` | Adapter | React adapter + user context APIs + scheduler helpers |
-| `@motion-core/motion-gpu/vue` | Adapter | Vue `FragCanvas`, composables (`useMotionGPU`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
-| `@motion-core/motion-gpu/vue/advanced` | Adapter | Vue adapter + user context APIs + scheduler helpers |
+| `spektral` | Core | Framework-agnostic runtime primitives (`defineMaterial`, `resolveMaterial`, scheduler/runtime builders, passes, texture loader, error normalization) |
+| `spektral/advanced` | Core | Core + scheduler helpers (`applySchedulerPreset`, `captureSchedulerDebugSnapshot`) |
+| `spektral/core` | Core | Same core API surface as root, explicit core path |
+| `spektral/core/advanced` | Core | Same advanced core helper surface |
+| `spektral/svelte` | Adapter | Svelte `FragCanvas`, hooks (`useSpektral`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
+| `spektral/svelte/advanced` | Adapter | Svelte adapter + user context APIs + scheduler helpers |
+| `spektral/react` | Adapter | React `FragCanvas`, hooks (`useSpektral`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
+| `spektral/react/advanced` | Adapter | React adapter + user context APIs + scheduler helpers |
+| `spektral/vue` | Adapter | Vue `FragCanvas`, composables (`useSpektral`, `useFrame`, `usePointer`, `useTexture`), passes, material helpers |
+| `spektral/vue/advanced` | Adapter | Vue adapter + user context APIs + scheduler helpers |
 
 Advanced adapter exports:
 - Svelte, React, and Vue advanced entrypoints export:
-  - `useMotionGPUUserContext`
-  - `setMotionGPUUserContext`
+  - `useSpektralUserContext`
+  - `setSpektralUserContext`
   - `applySchedulerPreset`
   - `captureSchedulerDebugSnapshot`
 - React advanced additionally exports:
-  - `useSetMotionGPUUserContext`
+  - `useSetSpektralUserContext`
 
 Import only from public entrypoints above. Never import from internal package paths (`/src`, `/lib/core`, etc.).
 
 Documentation sources:
-- LLM docs index: `http://motion-gpu.dev/llms.txt`
+- LLM docs index: `http://spektral.dev/llms.txt`
 - Docs source lives under `apps/web/src/lib/content/docs`
 
 If examples conflict with exported runtime behavior, prefer exported API contracts from entrypoints.
@@ -61,12 +61,12 @@ Adapter-specific differences:
   - `class?: string`
   - `style?: string`
   - `children?: Snippet`
-  - `errorRenderer?: Snippet<[MotionGPUErrorReport]>`
+  - `errorRenderer?: Snippet<[SpektralErrorReport]>`
 - React:
   - `className?: string`
   - `style?: React.CSSProperties`
   - `children?: ReactNode`
-  - `errorRenderer?: (report: MotionGPUErrorReport) => ReactNode`
+  - `errorRenderer?: (report: SpektralErrorReport) => ReactNode`
 - Vue:
   - native canvas attributes, including `class`, `style`, `data-*`, `aria-*`, and event listeners, are forwarded through `$attrs`
   - `width` and `height` attributes are ignored because backing-store dimensions come from measured layout and `dpr`
@@ -75,9 +75,9 @@ Adapter-specific differences:
 
 ### User context writes
 
-- All adapters support `setMotionGPUUserContext(namespace, valueOrFactory, options?)`.
-- React additionally supports `useSetMotionGPUUserContext()` and should prefer it for effect/event-handler writes.
-- `SetMotionGPUUserContextOptions` supports:
+- All adapters support `setSpektralUserContext(namespace, valueOrFactory, options?)`.
+- React additionally supports `useSetSpektralUserContext()` and should prefer it for effect/event-handler writes.
+- `SetSpektralUserContextOptions` supports:
   - `existing?: 'skip' | 'replace' | 'merge'`
   - `functionValue?: 'factory' | 'value'`
 
@@ -113,10 +113,10 @@ Enforce these constraints without exceptions:
 `fn shade(inputColor: vec4f, uv: vec2f) -> vec4f`
 3. `PingPongShaderPass` shader entrypoint must be exactly:
 `fn frag(uv: vec2f) -> vec4f`
-4. Material, `ShaderPass`, and `PingPongShaderPass` helpers may read the current Y-up coordinates from `motiongpuFragment.uv`. Keep the explicit `uv` entrypoint parameter; do not replace the required signatures with `frag()` or `shade(inputColor)`.
-5. `motiongpuFragment` is fragment-only. In compute shaders, derive coordinates from `global_invocation_id` and an explicitly chosen domain size.
+4. Material, `ShaderPass`, and `PingPongShaderPass` helpers may read the current Y-up coordinates from `spektralFragment.uv`. Keep the explicit `uv` entrypoint parameter; do not replace the required signatures with `frag()` or `shade(inputColor)`.
+5. `spektralFragment` is fragment-only. In compute shaders, derive coordinates from `global_invocation_id` and an explicitly chosen domain size.
 6. `ComputePass` shader must contain `@compute`, `@workgroup_size(...)`, and a `fn compute(...)` entrypoint. Provide `workgroupSize` when the WGSL attribute uses an override or non-literal expression.
-7. Call `useFrame()`, `useMotionGPU()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
+7. Call `useFrame()`, `useSpektral()`, and `usePointer()` only inside the `<FragCanvas>` subtree.
 8. Declare all runtime-updated uniforms/textures in `defineMaterial(...)` first.
 9. Use WGSL-safe identifiers for uniforms/textures/defines/includes/storage buffers:
 `[A-Za-z_][A-Za-z0-9_]*`
@@ -145,7 +145,7 @@ Default to host + runtime split in all adapters.
 
 2. Runtime child component:
 - Call `useFrame(...)` for per-frame updates.
-- Call `useMotionGPU()` for canvas/scheduler/render controls.
+- Call `useSpektral()` for canvas/scheduler/render controls.
 - Call `usePointer(...)` for normalized mouse/touch/pen input and click snapshots.
 - Use `useTexture(...)` for URL texture IO.
 
@@ -167,7 +167,7 @@ Pick one main mode:
 ### 2. Pick layer and adapter
 
 - If building framework runtime usage, pick adapter entrypoint (`/svelte`, `/react`, or `/vue`).
-- If building framework-independent tooling, adapter internals, or low-level integrations, use core entrypoints (`@motion-core/motion-gpu` or `/core`).
+- If building framework-independent tooling, adapter internals, or low-level integrations, use core entrypoints (`spektral` or `/core`).
 - If adapter is not explicitly stated:
   - follow existing imports/files in the target codebase,
   - preserve current adapter,
@@ -177,7 +177,7 @@ Pick one main mode:
 
 Put in material:
 - Fragment WGSL source.
-- Fragment helper functions. They can read `motiongpuFragment.uv` when threading the entrypoint `uv` parameter through every helper would obscure generated or reusable WGSL.
+- Fragment helper functions. They can read `spektralFragment.uv` when threading the entrypoint `uv` parameter through every helper would obscure generated or reusable WGSL.
 - Uniform declarations and initial values.
 - Texture declarations and sampler/upload defaults.
 - Storage buffer declarations (`storageBuffers`) with size, type, access mode, and optional `initialData`.
@@ -224,7 +224,7 @@ pnpm run test
 pnpm run lint
 ```
 
-If working from the monorepo root, prefer scoped commands such as `pnpm --dir packages/motion-gpu run test` or `pnpm --dir apps/web run check`.
+If working from the monorepo root, prefer scoped commands such as `pnpm --dir packages/spektral run test` or `pnpm --dir apps/web run check`.
 If repository scripts use other package manager commands, run equivalents (`npm`/`yarn`/`bun`).
 If a script is missing, run closest available static/type/test checks and report what was not run.
 
@@ -238,21 +238,21 @@ npx @sveltejs/mcp svelte-autofixer <path-to-file>
 
 ### WGSL
 
-- Use `motiongpuFrame.time`, `motiongpuFrame.delta`, `motiongpuFrame.resolution` for frame data.
-- Use `motiongpuFragment.uv` for the current Y-up coordinates inside material, `ShaderPass`, or `PingPongShaderPass` helper functions. The value equals the required entrypoint `uv` parameter when the entrypoint begins.
-- Do not declare `motiongpuFragment`. MotionGPU injects this fragment-local WGSL declaration and initializes it immediately before calling `frag(...)` or `shade(...)`:
+- Use `spektralFrame.time`, `spektralFrame.delta`, `spektralFrame.resolution` for frame data.
+- Use `spektralFragment.uv` for the current Y-up coordinates inside material, `ShaderPass`, or `PingPongShaderPass` helper functions. The value equals the required entrypoint `uv` parameter when the entrypoint begins.
+- Do not declare `spektralFragment`. Spektral injects this fragment-local WGSL declaration and initializes it immediately before calling `frag(...)` or `shade(...)`:
 
 ```wgsl
-struct MotionGPUFragment {
+struct SpektralFragment {
 	uv: vec2f,
 };
 
-var<private> motiongpuFragment: MotionGPUFragment;
+var<private> spektralFragment: SpektralFragment;
 ```
 
-- Treat `motiongpuFragment` as read-only. WGSL permits assignment to `var<private>`, but a user write would change later reads only within that fragment invocation and would no longer represent the entrypoint coordinates.
-- `motiongpuFragment` adds no uniform, buffer, bind group, or per-frame CPU upload.
-- Read user uniforms through `motiongpuUniforms.<name>`.
+- Treat `spektralFragment` as read-only. WGSL permits assignment to `var<private>`, but a user write would change later reads only within that fragment invocation and would no longer represent the entrypoint coordinates.
+- `spektralFragment` adds no uniform, buffer, bind group, or per-frame CPU upload.
+- Read user uniforms through `spektralUniforms.<name>`.
 - Sample textures with generated pairs: `uTex` and `uTexSampler`.
 - `usePointer().state.current.uv` already provides Y-up UV; flip Y manually only for custom DOM event wiring.
 
@@ -260,7 +260,7 @@ Use the fragment context when a nested helper needs coordinates:
 
 ```wgsl
 fn vignette() -> f32 {
-	let centered = motiongpuFragment.uv - vec2f(0.5);
+	let centered = spektralFragment.uv - vec2f(0.5);
 	return 1.0 - smoothstep(0.2, 0.7, length(centered));
 }
 
@@ -315,10 +315,10 @@ fn frag(uv: vec2f) -> vec4f {
 - Use `applySchedulerPreset(...)` when selecting `performance`, `balanced`, or `debug` behavior.
 - Keep `diagnosticsEnabled` and `profilingEnabled` equal when overriding preset options.
 - Keep `profilingWindow` finite and `> 0`.
-- Use `setMotionGPUUserContext(namespace, value)` for shared canvas-subtree state.
+- Use `setSpektralUserContext(namespace, value)` for shared canvas-subtree state.
 - Default conflict behavior is `existing: 'skip'`; pass `existing: 'replace'` or `existing: 'merge'` intentionally.
-- In React, prefer `useSetMotionGPUUserContext()` for writes in effects and event handlers.
-- Use `useMotionGPUUserContext(namespace?)` as read API.
+- In React, prefer `useSetSpektralUserContext()` for writes in effects and event handlers.
+- Use `useSpektralUserContext(namespace?)` as read API.
 
 ### Passes and Targets
 
@@ -331,7 +331,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 - Declare storage buffers in `defineMaterial({ storageBuffers: { name: { size, type, access? } } })`.
 - Use `ComputePass` for single-dispatch GPU compute; `PingPongComputePass` for iterative simulations.
-- Do not use `motiongpuFragment.uv` in compute shaders. Compute has no rasterized fragment, interpolated UV, required render target, or single canonical domain size.
+- Do not use `spektralFragment.uv` in compute shaders. Compute has no rasterized fragment, interpolated UV, required render target, or single canonical domain size.
 - Derive normalized coordinates explicitly from `global_invocation_id` and the domain being processed. Include the pixel-center offset, orientation, bounds checks, and domain size intentionally. For a two-dimensional texture domain, a typical mapping is:
 
 ```wgsl
@@ -358,13 +358,13 @@ let uv = (vec2f(globalId.xy) + vec2f(0.5)) / vec2f(domainSize);
 
 ```svelte
 <script lang="ts">
-  import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
+  import { FragCanvas, defineMaterial } from 'spektral/svelte';
   import Runtime from './Runtime.svelte';
 
   const material = defineMaterial({
     fragment: `
 fn frag(uv: vec2f) -> vec4f {
-  let t = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
+  let t = 0.5 + 0.5 * sin(spektralUniforms.uTime + uv.x * 8.0);
   return vec4f(vec3f(t), 1.0);
 }
 `,
@@ -379,7 +379,7 @@ fn frag(uv: vec2f) -> vec4f {
 
 ```svelte
 <script lang="ts">
-  import { useFrame } from '@motion-core/motion-gpu/svelte';
+  import { useFrame } from 'spektral/svelte';
 
   useFrame((state) => {
     state.setUniform('uTime', state.time);
@@ -390,12 +390,12 @@ fn frag(uv: vec2f) -> vec4f {
 ### React minimal animated component
 
 ```tsx
-import { FragCanvas, defineMaterial, useFrame } from '@motion-core/motion-gpu/react';
+import { FragCanvas, defineMaterial, useFrame } from 'spektral/react';
 
 const material = defineMaterial({
   fragment: `
 fn frag(uv: vec2f) -> vec4f {
-  let t = 0.5 + 0.5 * sin(motiongpuUniforms.uTime + uv.x * 8.0);
+  let t = 0.5 + 0.5 * sin(spektralUniforms.uTime + uv.x * 8.0);
   return vec4f(vec3f(t), 1.0);
 }
 `,
@@ -422,10 +422,10 @@ export function App() {
 ### React advanced user-context write
 
 ```tsx
-import { useSetMotionGPUUserContext } from '@motion-core/motion-gpu/react/advanced';
+import { useSetSpektralUserContext } from 'spektral/react/advanced';
 
 export function QualityButton() {
-  const setUserContext = useSetMotionGPUUserContext();
+  const setUserContext = useSetSpektralUserContext();
 
   return (
     <button
@@ -450,7 +450,7 @@ Follow this order:
 3. WGSL compile errors:
 - Read normalized report from `onError`.
 - Map error to fragment/include/define line.
-- If `motiongpuFragment` is unknown, verify that the source belongs to a material, `ShaderPass`, or `PingPongShaderPass`, not a compute shader.
+- If `spektralFragment` is unknown, verify that the source belongs to a material, `ShaderPass`, or `PingPongShaderPass`, not a compute shader.
 4. Pass graph errors:
 - Verify `needsSwap`, input/output slots, and target declarations.
 5. No redraw in `on-demand`:
@@ -470,12 +470,12 @@ Follow this order:
 Ship only when all checks pass:
 
 1. Keep shader contracts valid (`frag`/`shade`/`compute` signatures).
-2. Keep `motiongpuFragment.uv` limited to fragment helpers and preserve explicit `uv` entrypoint parameters.
+2. Keep `spektralFragment.uv` limited to fragment helpers and preserve explicit `uv` entrypoint parameters.
 3. Keep all runtime-updated keys predeclared in material.
 4. Keep render mode and invalidation strategy intentional and documented.
 5. Keep error handling present (`onError` at minimum).
 6. Keep passes/targets routing valid.
 7. Keep imports on public entrypoints only.
 8. Keep storage buffer names declared before `writeStorageBuffer`/`readStorageBuffer` usage.
-9. Keep adapter-specific API differences correct (`class` vs `className`, `errorRenderer`, `children`, `useSetMotionGPUUserContext`).
+9. Keep adapter-specific API differences correct (`class` vs `className`, `errorRenderer`, `children`, `useSetSpektralUserContext`).
 10. Keep checks/tests executed or report what was not run.

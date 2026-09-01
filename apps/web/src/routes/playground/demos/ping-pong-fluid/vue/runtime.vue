@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-	PingPongShaderPass,
-	useFrame,
-	useMotionGPU,
-	usePointer,
-	useTexture
-} from '@motion-core/motion-gpu/vue';
+import { PingPongShaderPass, useFrame, useSpektral, usePointer, useTexture } from 'spektral/vue';
 import { onUnmounted } from 'vue';
 
 const props = defineProps<{ simulateFluid: PingPongShaderPass }>();
@@ -27,9 +21,9 @@ function constrainResolution(w: number, h: number, max: number): [number, number
 	return [Math.round(w * ratio), Math.round(h * ratio)];
 }
 
-const motiongpu = useMotionGPU();
+const spektral = useSpektral();
 
-const unsubscribeSize = motiongpu.size.subscribe(({ width, height }) => {
+const unsubscribeSize = spektral.size.subscribe(({ width, height }) => {
 	if (!width || !height) return;
 
 	const [w, h] = constrainResolution(width, height, 512);

@@ -1,9 +1,9 @@
 import path from 'node:path';
 
-export const EXPECTED_PACKAGE_NAME = '@motion-core/motion-gpu';
-export const EXPECTED_GITHUB_REPOSITORY = 'kaltwrk/motion-gpu';
+export const EXPECTED_PACKAGE_NAME = 'spektral';
+export const EXPECTED_GITHUB_REPOSITORY = 'kaltwrk/spektral';
 export const EXPECTED_REPOSITORY_URL = `https://github.com/${EXPECTED_GITHUB_REPOSITORY}`;
-export const EXPECTED_REPOSITORY_DIRECTORY = 'packages/motion-gpu';
+export const EXPECTED_REPOSITORY_DIRECTORY = 'packages/spektral';
 export const NPM_REGISTRY_URL = 'https://registry.npmjs.org';
 
 const stableVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -98,7 +98,7 @@ export function assertPackedArtifactMetadata({ manifest, metadata, version }) {
 	}
 
 	const artifact = metadata[0];
-	const expectedFilename = `motion-core-motion-gpu-${version}.tgz`;
+	const expectedFilename = `spektral-${version}.tgz`;
 	if (
 		artifact.id !== `${EXPECTED_PACKAGE_NAME}@${version}` ||
 		artifact.name !== EXPECTED_PACKAGE_NAME ||
@@ -142,7 +142,7 @@ export function assertPackedArtifactMetadata({ manifest, metadata, version }) {
 		'LICENSE',
 		'README.md',
 		'package.json',
-		'dist/motion-gpu.css',
+		'dist/spektral.css',
 		'dist/svelte/FragCanvas.svelte',
 		manifest.types?.replace(/^\.\//, '')
 	]);

@@ -40,9 +40,9 @@ useFrame(key, callback, options?): UseFrameResult
 
 Storage writes require a four-byte-aligned offset and byte length and must fit in the declared buffer. The runtime copies the bytes immediately. Reading a buffer flushes its queued writes in call order before readback.
 
-## `useMotionGPU`
+## `useSpektral`
 
-Returns `MotionGPUContext`:
+Returns `SpektralContext`:
 
 | Member | Type |
 | --- | --- |
@@ -53,7 +53,7 @@ Returns `MotionGPUContext`:
 | `autoRender` | `CurrentWritable<boolean>` |
 | `user` | `CurrentWritable<Record<string &#124; symbol, unknown>>` |
 | `invalidate`, `advance` | `() => void` |
-| `scheduler` | `MotionGPUScheduler` |
+| `scheduler` | `SpektralScheduler` |
 
 The scheduler exposes `createStage`, `getStage`, schedule inspection, diagnostics/profiling setters and getters, reset, last-run timings, and rolling snapshots.
 
@@ -86,7 +86,7 @@ React applies a new options object on each render. In Svelte and Vue, pass `() =
 | `textures` | `CurrentReadable<LoadedTexture[] &#124; null>` |
 | `loading` | `CurrentReadable<boolean>` |
 | `error` | `CurrentReadable<Error &#124; null>` |
-| `errorReport` | `CurrentReadable<MotionGPUErrorReport &#124; null>` |
+| `errorReport` | `CurrentReadable<SpektralErrorReport &#124; null>` |
 | `reload` | `() => Promise<void>` |
 
 `TextureLoadOptions` contains `colorSpace`, `requestInit`, `decode`, `signal`, `update`, `flipY`, `premultipliedAlpha`, and `generateMipmaps`.
@@ -94,12 +94,12 @@ React applies a new options object on each render. In Svelte and Vue, pass `() =
 ## Advanced user context
 
 ```ts
-useMotionGPUUserContext(): CurrentReadable<Record<string | symbol, unknown>>
-useMotionGPUUserContext<T>(namespace): CurrentReadable<T | undefined>
-setMotionGPUUserContext(namespace, valueOrFactory, options?): T | undefined
+useSpektralUserContext(): CurrentReadable<Record<string | symbol, unknown>>
+useSpektralUserContext<T>(namespace): CurrentReadable<T | undefined>
+setSpektralUserContext(namespace, valueOrFactory, options?): T | undefined
 ```
 
-React also provides a context-bound `useSetMotionGPUUserContext()` setter.
+React also provides a context-bound `useSetSpektralUserContext()` setter.
 
 | Option | Values | Default |
 | --- | --- | --- |

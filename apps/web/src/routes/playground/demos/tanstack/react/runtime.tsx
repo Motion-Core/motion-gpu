@@ -1,4 +1,4 @@
-import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
+import { useFrame, usePointer } from 'spektral/react';
 
 const START_TIME = 0;
 const END_TIME = 24;

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
+import { useFrame, usePointer } from 'spektral/react';
 import { RESONANCE_MEDIUM_SIZE, paintResonanceMedium } from './resonance-medium';
 
 export default function Runtime() {

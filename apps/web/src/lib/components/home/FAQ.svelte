@@ -12,9 +12,9 @@
 
 	const faqItems: FaqItem[] = [
 		{
-			question: 'What is Motion GPU?',
+			question: 'What is Spektral?',
 			answer:
-				'Motion GPU is a minimalist WebGPU framework for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
+				'Spektral is a minimalist WebGPU framework for building fast fullscreen shader visuals. It gives you a clean path from a single effect to a complete GPU-driven visual layer in your app.'
 		},
 		{
 			question: 'Who is it for?',
@@ -24,7 +24,7 @@
 		{
 			question: 'Do I need WebGPU knowledge to use it?',
 			answer:
-				'No. You can start with a minimal shader and iterate quickly. As your project grows, MotionGPU still gives you full control over uniforms, textures, render flow, and post-processing.'
+				'No. You can start with a minimal shader and iterate quickly. As your project grows, Spektral still gives you full control over uniforms, textures, render flow, and post-processing.'
 		},
 		{
 			question: 'How quickly can I ship something with it?',
@@ -34,12 +34,12 @@
 		{
 			question: 'Is it production-friendly?',
 			answer:
-				'Yes. Motion GPU is designed for predictable behavior, explicit runtime control, and clear diagnostics so teams can move from prototype to production with confidence.'
+				'Yes. Spektral is designed for predictable behavior, explicit runtime control, and clear diagnostics so teams can move from prototype to production with confidence.'
 		},
 		{
 			question: 'Is this a general 3D engine?',
 			answer:
-				'No. Motion GPU focuses on fullscreen fragment workflows and post-processing pipelines. If you need full scene graphs and 3D tooling, pair it with a dedicated 3D engine.'
+				'No. Spektral focuses on fullscreen fragment workflows and post-processing pipelines. If you need full scene graphs and 3D tooling, pair it with a dedicated 3D engine.'
 		},
 		{
 			question: 'Where should I start first?',
@@ -72,7 +72,7 @@
 	<p
 		class="text-center text-base font-normal tracking-normal text-pretty text-foreground-muted sm:w-1/2"
 	>
-		A quick introduction to what Motion GPU is, who it is for, and how to begin.
+		A quick introduction to what Spektral is, who it is for, and how to begin.
 	</p>
 
 	<InsetShadowContainer class="mt-8">

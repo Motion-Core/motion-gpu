@@ -1,0 +1,1192 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createCurrentWritable } from '../../lib/core/current-value';
+import { createFrameRegistry } from '../../lib/core/frame-registry';
+import { defineMaterial } from '../../lib/core/material';
+
+const { createRendererMock } = vi.hoisted(() => ({
+	createRendererMock: vi.fn()
+}));
+
+vi.mock('../../lib/core/renderer', () => ({
+	createRenderer: createRendererMock
+}));
+
+import { createSpektralRuntimeLoop } from '../../lib/core/runtime-loop';
+
+interface MockRenderer {
+	render: ReturnType<typeof vi.fn>;
+	destroy: ReturnType<typeof vi.fn>;
+	getStorageBuffer?: ReturnType<typeof vi.fn>;
+	getDevice?: ReturnType<typeof vi.fn>;
+	flushStorageWrites?: ReturnType<typeof vi.fn>;
+}
+
+let rafQueue: FrameRequestCallback[] = [];
+
+async function flushFrame(timestamp: number): Promise<void> {
+	const callback = rafQueue.shift();
+	if (!callback) {
+		throw new Error('No queued animation frame callback');
+	}
+	callback(timestamp);
+	await Promise.resolve();
+	await Promise.resolve();
+}
+
+function createCanvas(): HTMLCanvasElement {
+	return {
+		width: 0,
+		height: 0,
+		getBoundingClientRect: () => ({ width: 16, height: 9 }),
+		getContext: () => null
+	} as unknown as HTMLCanvasElement;
+}
+
+describe('runtime-loop', () => {
+	beforeEach(() => {
+		rafQueue = [];
+		createRendererMock.mockReset();
+		vi.stubGlobal(
+			'requestAnimationFrame',
+			vi.fn((callback: FrameRequestCallback) => {
+				rafQueue.push(callback);
+				return rafQueue.length;
+			})
+		);
+		vi.stubGlobal('cancelAnimationFrame', vi.fn());
+		vi.stubGlobal('GPUBufferUsage', {
+			MAP_READ: 0x1,
+			COPY_DST: 0x2
+		});
+		vi.stubGlobal('GPUMapMode', {
+			READ: 0x1
+		});
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	it('reads storage buffer data through staging copy/map pipeline', async () => {
+		const registry = createFrameRegistry();
+		let readPromise: Promise<ArrayBuffer> | null = null;
+		registry.register('reader', (state) => {
+			if (!readPromise) {
+				readPromise = state.readStorageBuffer('particles');
+			}
+		});
+
+		const gpuBuffer = {} as GPUBuffer;
+		const mapped = new Uint8Array([1, 2, 3, 4]).buffer;
+		const stagingBuffer = {
+			mapAsync: vi.fn(async () => undefined),
+			getMappedRange: vi.fn(() => mapped),
+			unmap: vi.fn(),
+			destroy: vi.fn()
+		};
+		const commandEncoder = {
+			copyBufferToBuffer: vi.fn(),
+			finish: vi.fn(() => ({}))
+		};
+		const device = {
+			createBuffer: vi.fn(() => stagingBuffer),
+			createCommandEncoder: vi.fn(() => commandEncoder),
+			queue: { submit: vi.fn() }
+		};
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => gpuBuffer),
+			getDevice: vi.fn(() => device)
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const pendingRead = readPromise as Promise<ArrayBuffer> | null;
+		expect(pendingRead).not.toBeNull();
+		if (!pendingRead) {
+			throw new Error('Missing read promise');
+		}
+		const result = await pendingRead;
+		expect(result).toBeInstanceOf(ArrayBuffer);
+		expect(Array.from(new Uint8Array(result))).toEqual([1, 2, 3, 4]);
+		expect(commandEncoder.copyBufferToBuffer).toHaveBeenCalledWith(
+			gpuBuffer,
+			0,
+			stagingBuffer,
+			0,
+			4
+		);
+		expect(stagingBuffer.mapAsync).toHaveBeenCalledWith(0x1);
+		expect(stagingBuffer.unmap).toHaveBeenCalledTimes(1);
+		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);
+		loop.destroy();
+	});
+
+	it('copies queued bytes and flushes same-buffer writes in order before readback', async () => {
+		const registry = createFrameRegistry();
+		let readPromise: Promise<ArrayBuffer> | null = null;
+		const firstWrite = new Uint32Array([10]);
+		registry.register('writer-reader', (state) => {
+			if (readPromise) {
+				return;
+			}
+
+			state.writeStorageBuffer('particles', firstWrite, { offset: 4 });
+			firstWrite[0] = 99;
+			state.writeStorageBuffer('particles', new Uint32Array([20]), { offset: 8 });
+			readPromise = state.readStorageBuffer('particles');
+		});
+
+		const gpuData = new Uint32Array([1, 2, 3, 4]);
+		const stagingBuffer = {
+			mapAsync: vi.fn(async () => undefined),
+			getMappedRange: vi.fn(() => gpuData.buffer),
+			unmap: vi.fn(),
+			destroy: vi.fn()
+		};
+		const commandEncoder = {
+			copyBufferToBuffer: vi.fn(),
+			finish: vi.fn(() => ({}))
+		};
+		const events: string[] = [];
+		const device = {
+			createBuffer: vi.fn(() => stagingBuffer),
+			createCommandEncoder: vi.fn(() => commandEncoder),
+			queue: {
+				submit: vi.fn(() => {
+					events.push('submit');
+				})
+			}
+		};
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => ({}) as GPUBuffer),
+			getDevice: vi.fn(() => device),
+			flushStorageWrites: vi.fn((writes: Array<{ data: ArrayBufferView; offset: number }>) => {
+				const gpuBytes = new Uint8Array(gpuData.buffer);
+				for (const write of writes) {
+					events.push(`flush:${write.offset}`);
+					gpuBytes.set(
+						new Uint8Array(write.data.buffer, write.data.byteOffset, write.data.byteLength),
+						write.offset
+					);
+				}
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 16, type: 'array<u32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		const pendingRead = readPromise as Promise<ArrayBuffer> | null;
+		expect(pendingRead).not.toBeNull();
+		if (!pendingRead) {
+			throw new Error('Missing read promise');
+		}
+		const result = await pendingRead;
+		expect(Array.from(new Uint32Array(result))).toEqual([1, 10, 20, 4]);
+		expect(events).toEqual(['flush:4', 'flush:8', 'submit']);
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+
+		loop.destroy();
+	});
+
+	it('rejects readStorageBuffer when storage buffer is not allocated on GPU', async () => {
+		const registry = createFrameRegistry();
+		let readError: unknown = null;
+		registry.register('reader', (state) => {
+			void state.readStorageBuffer('particles').catch((error) => {
+				readError = error;
+			});
+		});
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => ({ queue: { submit: vi.fn() } }))
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await Promise.resolve();
+
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('not allocated on GPU');
+		loop.destroy();
+	});
+
+	it('preserves queued writes for the frame flush when read prerequisites are unavailable', async () => {
+		const registry = createFrameRegistry();
+		let readError: unknown = null;
+		let attempted = false;
+		registry.register('writer-reader', (state) => {
+			if (attempted) {
+				return;
+			}
+			attempted = true;
+			state.writeStorageBuffer('particles', new Float32Array([7]));
+			void state.readStorageBuffer('particles').catch((error) => {
+				readError = error;
+			});
+		});
+		let flushedWrites: Array<{ name: string; offset: number }> = [];
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => ({ queue: { submit: vi.fn() } })),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string; offset: number }>) => {
+				flushedWrites = writes.map(({ name, offset }) => ({ name, offset }));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await Promise.resolve();
+
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('not allocated on GPU');
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+		expect(flushedWrites).toEqual([{ name: 'particles', offset: 0 }]);
+		loop.destroy();
+	});
+
+	it('rejects readStorageBuffer when renderer has no device accessor', async () => {
+		const registry = createFrameRegistry();
+		let readError: unknown = null;
+		registry.register('reader', (state) => {
+			void state.readStorageBuffer('particles').catch((error) => {
+				readError = error;
+			});
+		});
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => ({}) as unknown as GPUBuffer),
+			getDevice: vi.fn(() => undefined)
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await Promise.resolve();
+
+		expect(readError).toBeInstanceOf(Error);
+		expect((readError as Error).message).toContain('GPU device unavailable');
+		loop.destroy();
+	});
+
+	it('destroys staging buffer when mapAsync rejects during readStorageBuffer', async () => {
+		const registry = createFrameRegistry();
+		let readPromise: Promise<ArrayBuffer> | null = null;
+		registry.register('reader', (state) => {
+			if (!readPromise) {
+				state.writeStorageBuffer('particles', new Uint32Array([7]));
+				readPromise = state.readStorageBuffer('particles');
+			}
+		});
+
+		const stagingBuffer = {
+			mapAsync: vi.fn(() => Promise.reject(new Error('device lost'))),
+			getMappedRange: vi.fn(),
+			unmap: vi.fn(),
+			destroy: vi.fn()
+		};
+		const commandEncoder = {
+			copyBufferToBuffer: vi.fn(),
+			finish: vi.fn(() => ({}))
+		};
+		const device = {
+			createBuffer: vi.fn(() => stagingBuffer),
+			createCommandEncoder: vi.fn(() => commandEncoder),
+			queue: { submit: vi.fn() }
+		};
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => ({}) as unknown as GPUBuffer),
+			getDevice: vi.fn(() => device),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }',
+			storageBuffers: {
+				particles: { size: 4, type: 'array<f32>' }
+			}
+		});
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		expect(readPromise).not.toBeNull();
+		if (!readPromise) {
+			throw new Error('Missing read promise');
+		}
+		await expect(readPromise).rejects.toThrow(/device lost/);
+		loop.invalidate();
+		await flushFrame(48);
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+		expect(stagingBuffer.destroy).toHaveBeenCalledTimes(1);
+		expect(stagingBuffer.unmap).not.toHaveBeenCalled();
+		loop.destroy();
+	});
+
+	it('destroys late-created renderer when loop is disposed during async rebuild', async () => {
+		const registry = createFrameRegistry();
+		let resolveRenderer: ((renderer: MockRenderer) => void) | null = null;
+		createRendererMock.mockImplementation(
+			() =>
+				new Promise<MockRenderer>((resolve) => {
+					resolveRenderer = resolve;
+				})
+		);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () =>
+				defineMaterial({
+					fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+				}),
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		expect(createRendererMock).toHaveBeenCalledTimes(1);
+		expect(rafQueue).toHaveLength(0);
+
+		const lateRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn()
+		};
+		loop.destroy();
+		const resolveRendererNow = resolveRenderer as ((renderer: MockRenderer) => void) | null;
+		expect(resolveRendererNow).toBeTypeOf('function');
+		resolveRendererNow?.(lateRenderer);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		expect(lateRenderer.destroy).toHaveBeenCalledTimes(1);
+	});
+
+	it('rebuilds renderer when adapterOptions or deviceDescriptor change', async () => {
+		const registry = createFrameRegistry();
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }'
+		});
+		const firstRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		const secondRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValueOnce(firstRenderer).mockResolvedValueOnce(secondRenderer);
+		let adapterOptions: GPURequestAdapterOptions = { powerPreference: 'low-power' };
+		let deviceDescriptor: GPUDeviceDescriptor = { label: 'device-a' };
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => adapterOptions,
+			getDeviceDescriptor: () => deviceDescriptor,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		adapterOptions = { powerPreference: 'high-performance' };
+		deviceDescriptor = { label: 'device-b' };
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+		expect(firstRenderer.destroy).toHaveBeenCalledTimes(1);
+		expect(createRendererMock.mock.calls[0]?.[0]).toMatchObject({
+			adapterOptions: { powerPreference: 'low-power' },
+			deviceDescriptor: { label: 'device-a' }
+		});
+		expect(createRendererMock.mock.calls[1]?.[0]).toMatchObject({
+			adapterOptions: { powerPreference: 'high-performance' },
+			deviceDescriptor: { label: 'device-b' }
+		});
+
+		loop.destroy();
+	});
+
+	it('rebuilds renderer when storage buffer initialData changes with the same layout', async () => {
+		const registry = createFrameRegistry();
+		const firstRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		const secondRenderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValueOnce(firstRenderer).mockResolvedValueOnce(secondRenderer);
+		const fragment = 'fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }';
+		const materialA = defineMaterial({
+			fragment,
+			storageBuffers: {
+				particles: { size: 16, type: 'array<f32>', initialData: new Float32Array([1, 0, 0, 0]) }
+			}
+		});
+		const materialB = defineMaterial({
+			fragment,
+			storageBuffers: {
+				particles: { size: 16, type: 'array<f32>', initialData: new Float32Array([2, 0, 0, 0]) }
+			}
+		});
+		let material = materialA;
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		material = materialB;
+		loop.invalidate();
+		await flushFrame(32);
+
+		expect(createRendererMock).toHaveBeenCalledTimes(2);
+		expect(firstRenderer.destroy).toHaveBeenCalledTimes(1);
+		expect(createRendererMock.mock.calls[1]?.[0]).toMatchObject({
+			storageBufferDefinitions: {
+				particles: expect.objectContaining({
+					initialData: expect.any(Float32Array)
+				})
+			}
+		});
+
+		loop.destroy();
+	});
+
+	// -------------------------------------------------------------------------
+	// pendingStorageWrites flush correctness (Fix A scope)
+	// -------------------------------------------------------------------------
+
+	it('flushes queued storage writes before render and does not re-send them next frame', async () => {
+		const registry = createFrameRegistry();
+		let writeSent = false;
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+
+		// Only queue the write on the first task invocation.
+		registry.register('writer', (state) => {
+			if (!writeSent) {
+				state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+				writeSent = true;
+			}
+		});
+
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16); // renderer init
+		await flushFrame(32); // first render — write must be flushed before render
+
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+
+		// Kick a second frame — no new write was queued, so no second flush happens.
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+		expect(renderer.render).toHaveBeenCalledTimes(2);
+
+		loop.destroy();
+	});
+
+	it('does not flush storage writes when no writes are queued', async () => {
+		const registry = createFrameRegistry();
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { buf: { size: 4, type: 'array<f32>' } }
+		});
+
+		// No write queued — task does nothing.
+		registry.register('noop', () => undefined);
+
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn()
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+		expect(renderer.flushStorageWrites).not.toHaveBeenCalled();
+
+		loop.destroy();
+	});
+
+	it('does not replay queued storage writes after renderer.render throws', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		let queued = false;
+		registry.register('writer', (state) => {
+			if (!queued) {
+				state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+				queued = true;
+			}
+		});
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+		const renderer: MockRenderer = {
+			render: vi.fn(() => {
+				throw new Error('render failed');
+			}),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }]]);
+
+		loop.destroy();
+	});
+
+	it('does not replay queued storage writes after renderer.flushStorageWrites throws', async () => {
+		const registry = createFrameRegistry();
+		const reportError = vi.fn();
+		let queued = false;
+		registry.register('writer', (state) => {
+			if (!queued) {
+				state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+				queued = true;
+			}
+		});
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn(() => {
+				throw new Error('flush failed');
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		loop.invalidate();
+		await flushFrame(48);
+
+		expect(reportError).toHaveBeenCalledWith(expect.objectContaining({ phase: 'render' }));
+		expect(renderer.flushStorageWrites).toHaveBeenCalledTimes(1);
+
+		loop.destroy();
+	});
+
+	it('flushes storage writes without rasterizing when autoRender is disabled', async () => {
+		const registry = createFrameRegistry({ autoRender: false });
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+
+		registry.register('writer', (state) => {
+			state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+		});
+
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await flushFrame(48);
+
+		expect(renderer.render).not.toHaveBeenCalled();
+		expect(flushedWritesPerFrame).toEqual([[{ name: 'particles' }], [{ name: 'particles' }]]);
+
+		loop.destroy();
+	});
+
+	it('does not replay storage writes accumulated while autoRender was disabled', async () => {
+		const registry = createFrameRegistry({ autoRender: false });
+		const flushedWritesPerFrame: Array<Array<{ name: string }>> = [];
+
+		const material = defineMaterial({
+			fragment: 'fn frag(uv: vec2f) -> vec4f { return vec4f(1.0); }',
+			storageBuffers: { particles: { size: 16, type: 'array<f32>' } }
+		});
+
+		registry.register('writer', (state) => {
+			state.writeStorageBuffer('particles', new Float32Array([1, 2, 3, 4]));
+		});
+
+		const renderer: MockRenderer = {
+			render: vi.fn(),
+			destroy: vi.fn(),
+			getStorageBuffer: vi.fn(() => undefined),
+			getDevice: vi.fn(() => undefined),
+			flushStorageWrites: vi.fn((writes: Array<{ name: string }>) => {
+				flushedWritesPerFrame.push(writes.map(({ name }) => ({ name })));
+			})
+		};
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas: createCanvas(),
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame(16);
+		await flushFrame(32);
+		await flushFrame(48);
+		registry.setAutoRender(true);
+		await flushFrame(64);
+
+		expect(flushedWritesPerFrame).toEqual([
+			[{ name: 'particles' }],
+			[{ name: 'particles' }],
+			[{ name: 'particles' }]
+		]);
+		expect(renderer.render).toHaveBeenCalledTimes(1);
+
+		loop.destroy();
+	});
+});
+
+describe('runtime-loop resize behavior', () => {
+	type ROCallback = (entries: ResizeObserverEntry[]) => void;
+
+	interface MockRO {
+		callback: ROCallback;
+		observe: ReturnType<typeof vi.fn>;
+		disconnect: ReturnType<typeof vi.fn>;
+	}
+
+	let mockROInstances: MockRO[] = [];
+	let rafQueue2: FrameRequestCallback[] = [];
+
+	function fireMockRO(instance: MockRO, inlineSize: number, blockSize: number): void {
+		instance.callback([
+			{
+				contentBoxSize: [{ inlineSize, blockSize }]
+			} as unknown as ResizeObserverEntry
+		]);
+	}
+
+	const material = defineMaterial({
+		fragment: `fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }`
+	});
+
+	beforeEach(() => {
+		mockROInstances = [];
+		rafQueue2 = [];
+
+		// Must use `function` (not arrow) so the implementation can act as a
+		// constructor — vi.fn with an arrow function body throws when called with
+		// `new`, preventing the instance from being pushed to mockROInstances.
+		const MockResizeObserver = vi.fn(function MockRO(this: unknown, cb: ROCallback) {
+			const instance: MockRO = {
+				callback: cb,
+				observe: vi.fn(),
+				disconnect: vi.fn()
+			};
+			mockROInstances.push(instance);
+			return instance;
+		});
+
+		vi.stubGlobal('ResizeObserver', MockResizeObserver);
+		vi.stubGlobal(
+			'requestAnimationFrame',
+			vi.fn((callback: FrameRequestCallback) => {
+				rafQueue2.push(callback);
+				return rafQueue2.length;
+			})
+		);
+		vi.stubGlobal('cancelAnimationFrame', vi.fn());
+		vi.stubGlobal('GPUBufferUsage', { MAP_READ: 0x1, COPY_DST: 0x2 });
+		vi.stubGlobal('GPUMapMode', { READ: 0x1 });
+		createRendererMock.mockReset();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	async function flushFrame2(timestamp: number): Promise<void> {
+		const callback = rafQueue2.shift();
+		if (!callback) return;
+		callback(timestamp);
+		await Promise.resolve();
+		await Promise.resolve();
+	}
+
+	it('observes the canvas element on creation and disconnects on destroy', () => {
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: vi.fn(() => ({ width: 0, height: 0 })),
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas,
+			registry,
+			size: createCurrentWritable({ width: 0, height: 0 }),
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		expect(mockROInstances).toHaveLength(1);
+		expect(mockROInstances[0]!.observe).toHaveBeenCalledWith(canvas);
+
+		loop.destroy();
+		expect(mockROInstances[0]!.disconnect).toHaveBeenCalledTimes(1);
+	});
+
+	it('uses ResizeObserver dimensions instead of getBoundingClientRect when available', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 99, height: 99 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		// Fire ResizeObserver with explicit dimensions
+		fireMockRO(mockROInstances[0]!, 320, 240);
+
+		// Flush the frame scheduled by the ResizeObserver callback
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		// getBoundingClientRect must NOT be called during normal frame rendering
+		// when ResizeObserver has already provided dimensions.
+		expect(getBoundingClientRectSpy).not.toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 320, height: 240 });
+
+		loop.destroy();
+	});
+
+	it('uses ResizeObserver contentRect dimensions when contentBoxSize is unavailable', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 99, height: 99 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		const loop = createSpektralRuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		mockROInstances[0]?.callback([
+			{
+				contentRect: { width: 256.9, height: 128.4 }
+			} as unknown as ResizeObserverEntry
+		]);
+
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		expect(getBoundingClientRectSpy).not.toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 256, height: 128 });
+
+		loop.destroy();
+	});
+
+	it('falls back to getBoundingClientRect when ResizeObserver has not yet fired', async () => {
+		const getBoundingClientRectSpy = vi.fn(() => ({ width: 64, height: 48 }));
+		const canvas = {
+			width: 0,
+			height: 0,
+			getBoundingClientRect: getBoundingClientRectSpy,
+			getContext: () => null
+		} as unknown as HTMLCanvasElement;
+
+		const size = createCurrentWritable({ width: 0, height: 0 });
+		const registry = createFrameRegistry();
+		const renderer = { render: vi.fn(), destroy: vi.fn() };
+		createRendererMock.mockResolvedValue(renderer);
+
+		// Do NOT fire the ResizeObserver before the frame — simulate no observation yet.
+		const loop = createSpektralRuntimeLoop({
+			canvas,
+			registry,
+			size,
+			dpr: { current: 1, subscribe: () => () => undefined },
+			maxDelta: { current: 1, subscribe: () => () => undefined },
+			getMaterial: () => material,
+			getRenderTargets: () => ({}),
+			getPasses: () => [],
+			getClearColor: () => [0, 0, 0, 1],
+			getAdapterOptions: () => undefined,
+			getDeviceDescriptor: () => undefined,
+			getOnError: () => undefined,
+			reportError: () => undefined
+		});
+
+		await flushFrame2(16);
+		await flushFrame2(32);
+
+		// When ResizeObserver hasn't fired, getBoundingClientRect is the fallback.
+		expect(getBoundingClientRectSpy).toHaveBeenCalled();
+		expect(size.current).toEqual({ width: 64, height: 48 });
+
+		loop.destroy();
+	});
+});

@@ -33,7 +33,7 @@ fn fold_ring(p: vec3f, phase: f32) -> vec3f {
 }
 
 fn orient_gem(p: vec3f) -> vec3f {
-	let orbit = motiongpuUniforms.uOrbit;
+	let orbit = spektralUniforms.uOrbit;
 	let pitch = orbit.y;
 	let yaw = orbit.x;
 	return rotate_y(rotate_x(p, pitch), yaw);
@@ -165,7 +165,7 @@ fn camera_basis(eye: vec3f, look_at: vec3f) -> mat3x3f {
 }
 
 fn frag(uv: vec2f) -> vec4f {
-	let resolution = motiongpuFrame.resolution;
+	let resolution = spektralFrame.resolution;
 	let screen = (2.0 * uv * resolution - resolution) / resolution.y;
 	let ray_camera = normalize(vec3f(screen, 2.0));
 
@@ -186,8 +186,8 @@ fn frag(uv: vec2f) -> vec4f {
 	color.g = refract_channel(front_hit.position, ray_world, normal, color.g, vec3f(0.0, 1.0, 0.0), front_hit.travel);
 	color.b = refract_channel(front_hit.position, ray_world, normal, color.b, vec3f(0.0, 0.0, 1.0), front_hit.travel);
 
-	let rim = pow(1.0 - max(dot(normal, -ray_world), 0.0), max(0.001, motiongpuUniforms.uEdgePower)) * motiongpuUniforms.uEdgeGain;
-	color += motiongpuUniforms.uEdgeColor * rim;
+	let rim = pow(1.0 - max(dot(normal, -ray_world), 0.0), max(0.001, spektralUniforms.uEdgePower)) * spektralUniforms.uEdgeGain;
+	color += spektralUniforms.uEdgeColor * rim;
 
 	return vec4f(max(color, vec3f(0.0)), 1.0);
 }

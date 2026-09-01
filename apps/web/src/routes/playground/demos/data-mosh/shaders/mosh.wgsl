@@ -24,10 +24,10 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     let frameDifference = smoothstep(0.025, 0.19, flow.a);
     let activity = clamp(max(flow.z, frameDifference * 0.72), 0.0, 1.0);
     let row = f32(flowCoord.y);
-    let timeSlice = floor(motiongpuFrame.time * 5.0);
+    let timeSlice = floor(spektralFrame.time * 5.0);
     let tearNoise = hash12(vec2f(row, timeSlice));
     let tear = smoothstep(0.82, 0.99, tearNoise)
-        * sin(row * 0.71 + motiongpuFrame.time * 2.3)
+        * sin(row * 0.71 + spektralFrame.time * 2.3)
         * activity;
     var displacement = flow.xy * (1.35 + activity * 2.8);
     displacement.x += tear * (5.0 + activity * 13.0);
@@ -55,7 +55,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     var color = mix(current, historyColor * 0.994, historyWeight);
     color += max(current - vec3f(0.58), vec3f(0.0)) * (0.04 + activity * 100.08);
 
-    if motiongpuUniforms.uReset > 0.5 || previousCenter.a < 0.5 {
+    if spektralUniforms.uReset > 0.5 || previousCenter.a < 0.5 {
         color = current;
     }
 

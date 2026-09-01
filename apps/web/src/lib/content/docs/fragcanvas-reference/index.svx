@@ -1,6 +1,6 @@
 ---
 title: FragCanvas reference
-description: Props and adapter behavior for the Motion GPU host component.
+description: Props and adapter behavior for the Spektral host component.
 ---
 
 <script lang="ts">
@@ -12,9 +12,9 @@ description: Props and adapter behavior for the Motion GPU host component.
 ## Import
 
 <FrameworkBlock
-svelteCode={`import { FragCanvas } from '@motion-core/motion-gpu/svelte';`}
-reactCode={`import { FragCanvas } from '@motion-core/motion-gpu/react';`}
-vueCode={`import { FragCanvas } from '@motion-core/motion-gpu/vue';`}
+svelteCode={`import { FragCanvas } from 'spektral/svelte';`}
+reactCode={`import { FragCanvas } from 'spektral/react';`}
+vueCode={`import { FragCanvas } from 'spektral/vue';`}
 svelteLang="ts"
 reactLang="ts"
 vueLang="ts"
@@ -88,13 +88,13 @@ See [Error Handling](/docs/error-handling) for report codes, source mapping, his
 
 ## Canvas, attributes, and children
 
-Native canvas attributes are forwarded to the internal `<canvas>`, except `width`, `height`, `color`, and Motion GPU prop names. Use `class` in Svelte/Vue, `className` in React, and each framework's native `style` form.
+Native canvas attributes are forwarded to the internal `<canvas>`, except `width`, `height`, `color`, and Spektral prop names. Use `class` in Svelte/Vue, `className` in React, and each framework's native `style` form.
 
-Motion GPU controls backing-store `width` and `height` from measured CSS size and DPR. The canvas fills its private wrapper; wrap `FragCanvas` when container-level layout is required.
+Spektral controls backing-store `width` and `height` from measured CSS size and DPR. The canvas fills its private wrapper; wrap `FragCanvas` when container-level layout is required.
 
 Access the canvas with Svelte `bind:canvas`, the React 19 `ref` prop, or a Vue component ref exposing `canvas` and `getCanvas()`.
 
-Children render inside the Motion GPU context. Use a Svelte snippet, React children, or Vue default slot for components calling runtime hooks.
+Children render inside the Spektral context. Use a Svelte snippet, React children, or Vue default slot for components calling runtime hooks.
 
 ## Lifecycle
 

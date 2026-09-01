@@ -42,7 +42,7 @@ const packedFiles = [
 	'LICENSE',
 	'README.md',
 	'package.json',
-	'dist/motion-gpu.css',
+	'dist/spektral.css',
 	'dist/index.d.ts',
 	'dist/index.js',
 	'dist/svelte/FragCanvas.svelte',
@@ -53,11 +53,11 @@ const packedFiles = [
 const packMetadata = [
 	{
 		entryCount: packedFiles.length,
-		filename: 'motion-core-motion-gpu-0.16.0.tgz',
+		filename: 'spektral-0.16.0.tgz',
 		files: packedFiles,
-		id: '@motion-core/motion-gpu@0.16.0',
+		id: 'spektral@0.16.0',
 		integrity: 'sha512-exact',
-		name: '@motion-core/motion-gpu',
+		name: 'spektral',
 		shasum: '1234567890abcdef1234567890abcdef12345678',
 		size: 100,
 		unpackedSize: 200,
@@ -100,11 +100,11 @@ test('requires exact package and GitHub repository identity', () => {
 	assert.throws(
 		() =>
 			assertReleaseIdentity({
-				githubRepository: 'fork/motion-gpu',
+				githubRepository: 'fork/spektral',
 				manifest: packageManifest,
 				version: '0.16.0'
 			}),
-		/kaltwrk\/motion-gpu/
+		/kaltwrk\/spektral/
 	);
 	assert.throws(
 		() =>
@@ -143,8 +143,8 @@ test('distinguishes an absent npm version from network and registry failures', (
 
 test('selects one exact packed tarball and rejects ambiguous directories', () => {
 	assert.equal(
-		resolveSinglePackedTarball('/tmp/artifacts', ['notes.txt', 'motion-gpu-0.16.0.tgz']),
-		'/tmp/artifacts/motion-gpu-0.16.0.tgz'
+		resolveSinglePackedTarball('/tmp/artifacts', ['notes.txt', 'spektral-0.16.0.tgz']),
+		'/tmp/artifacts/spektral-0.16.0.tgz'
 	);
 	assert.throws(() => resolveSinglePackedTarball('/tmp/artifacts', []), /found 0/);
 	assert.throws(
@@ -160,7 +160,7 @@ test('accepts only exact, complete npm pack metadata', () => {
 			metadata: packMetadata,
 			version: '0.16.0'
 		}).filename,
-		'motion-core-motion-gpu-0.16.0.tgz'
+		'spektral-0.16.0.tgz'
 	);
 	assert.throws(
 		() =>

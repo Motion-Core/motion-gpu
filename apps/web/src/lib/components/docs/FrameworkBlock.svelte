@@ -134,7 +134,7 @@
 		pendingIndicatorFrame = window.requestAnimationFrame(() => {
 			pendingIndicatorFrame = null;
 			updateActiveIndicator();
-			document.documentElement.dataset.motiongpuFrameworkReady = 'true';
+			document.documentElement.dataset.spektralFrameworkReady = 'true';
 		});
 	}
 
@@ -310,29 +310,29 @@
 		opacity: 0;
 	}
 
-	:global(html[data-motiongpu-framework]:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework]:not([data-spektral-framework-ready]))
 		.framework-active-line {
 		opacity: 0;
 	}
 
-	:global(html[data-motiongpu-framework]:not([data-motiongpu-framework-ready])) .framework-tab {
+	:global(html[data-spektral-framework]:not([data-spektral-framework-ready])) .framework-tab {
 		color: var(--color-foreground-muted);
 	}
 
-	:global(html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='svelte']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='svelte'],
-	:global(html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='react']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='react'],
-	:global(html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='vue']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='vue'] {
 		color: var(--color-accent);
 	}
 
-	:global(html[data-motiongpu-framework='svelte']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='svelte']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='svelte']::after,
-	:global(html[data-motiongpu-framework='react']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='react']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='react']::after,
-	:global(html[data-motiongpu-framework='vue']:not([data-motiongpu-framework-ready]))
+	:global(html[data-spektral-framework='vue']:not([data-spektral-framework-ready]))
 		.framework-tab[data-framework='vue']::after {
 		opacity: 1;
 	}
@@ -345,15 +345,15 @@
 		display: block;
 	}
 
-	:global(html[data-motiongpu-framework='svelte']) .framework-code[data-framework='svelte'],
-	:global(html[data-motiongpu-framework='react']) .framework-code[data-framework='react'],
-	:global(html[data-motiongpu-framework='vue']) .framework-code[data-framework='vue'] {
+	:global(html[data-spektral-framework='svelte']) .framework-code[data-framework='svelte'],
+	:global(html[data-spektral-framework='react']) .framework-code[data-framework='react'],
+	:global(html[data-spektral-framework='vue']) .framework-code[data-framework='vue'] {
 		display: block;
 	}
 
-	:global(html[data-motiongpu-framework='react'])
+	:global(html[data-spektral-framework='react'])
 		.framework-code[data-active='true']:not([data-framework='react']),
-	:global(html[data-motiongpu-framework='vue'])
+	:global(html[data-spektral-framework='vue'])
 		.framework-code[data-active='true']:not([data-framework='vue']) {
 		display: none;
 	}

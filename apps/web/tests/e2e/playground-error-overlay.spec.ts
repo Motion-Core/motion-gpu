@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
 
-test('preserves MotionGPU overlay styles after an incremental playground build', async ({
+test('preserves Spektral overlay styles after an incremental playground build', async ({
 	page
 }) => {
-	await page.goto('/playground?demo=motion-gpu-logo&framework=react');
+	await page.goto('/playground?demo=spektral-logo&framework=react');
 	await expect(page.getByText('Preview ready', { exact: true })).toBeVisible();
 
 	const iframeHandle = await page.locator('iframe[title="Playground preview"]').elementHandle();
@@ -26,11 +26,9 @@ test('preserves MotionGPU overlay styles after an incremental playground build',
 	};
 
 	await replaceShader('0.0');
-	const overlay = previewFrame.locator('.motiongpu-error-overlay');
+	const overlay = previewFrame.locator('.spektral-error-overlay');
 	await expect(overlay).toHaveCount(1);
-	await expect(previewFrame.locator('.motiongpu-error-title')).toHaveText(
-		'WGSL compilation failed'
-	);
+	await expect(previewFrame.locator('.spektral-error-title')).toHaveText('WGSL compilation failed');
 	await overlay.evaluate((element) => {
 		element.setAttribute('data-before-incremental-build', '');
 	});

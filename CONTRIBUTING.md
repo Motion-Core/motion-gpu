@@ -2,12 +2,12 @@
 
 ## Local setup
 
-Motion GPU uses the pnpm version declared in `package.json`.
+Spektral uses the pnpm version declared in `package.json`.
 
 ```sh
 corepack enable
 pnpm install
-pnpm --dir packages/motion-gpu exec playwright install chromium
+pnpm --dir packages/spektral exec playwright install chromium
 ```
 
 `pnpm install` configures the tracked pre-commit hook for this checkout. The hook runs the full local gate:
@@ -27,11 +27,11 @@ WebGPU end-to-end tests require a real, compatible graphics environment. Standar
 Performance checks are kept separate from the required PR gate. Their baselines depend on the CPU, browser version, and power mode, so compare them on the same class of machine:
 
 ```sh
-pnpm run perf:motion-gpu:core:check
-pnpm run perf:motion-gpu:check
-pnpm run perf:motion-gpu:gpu:check
+pnpm run perf:spektral:core:check
+pnpm run perf:spektral:check
+pnpm run perf:spektral:gpu:check
 ```
 
 The GPU check requires a hardware WebGPU adapter with timestamp queries and a baseline generated on
 the same GPU, driver, OS, and Chromium major version. Create it with
-`pnpm run perf:motion-gpu:gpu:baseline`. The command rejects SwiftShader and other software adapters.
+`pnpm run perf:spektral:gpu:baseline`. The command rejects SwiftShader and other software adapters.

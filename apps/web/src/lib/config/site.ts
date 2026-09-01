@@ -4,11 +4,11 @@
  */
 export const siteConfig = {
 	/** Primary site name used in titles and Open Graph site fields. */
-	name: 'Motion GPU',
+	name: 'Spektral',
 	/** Compact site name for environments with strict length limits. */
-	shortName: 'Motion GPU Docs',
+	shortName: 'Spektral Docs',
 	/** Public canonical URL used to build absolute links. */
-	url: 'https://motion-gpu.dev',
+	url: 'https://spektral.dev',
 	/** Default SEO description for the homepage and fallback metadata. */
 	description:
 		'A minimalist WebGPU framework for Svelte 5, React 19, and Vue 3. Build high-performance, GPU-accelerated visualizations with a declarative API, strict runtime contracts, and type-safe WGSL shaders.',
@@ -27,7 +27,7 @@ export const siteConfig = {
 		'gpu',
 		'visualization',
 		'creative coding',
-		'motion-gpu'
+		'spektral'
 	],
 	/** Default social preview image endpoint. */
 	ogImage: '/og',
@@ -38,12 +38,12 @@ export const siteConfig = {
 	},
 	/** External profile links used by docs actions and metadata. */
 	links: {
-		github: 'https://github.com/motion-core/motion-gpu',
+		github: 'https://github.com/kaltwrk/spektral',
 		twitter: 'https://x.com/madebyhex'
 	},
 	/** Package metadata used in installation snippets and docs helpers. */
 	package: {
-		name: '@motion-core/motion-gpu'
+		name: 'spektral'
 	}
 };
 

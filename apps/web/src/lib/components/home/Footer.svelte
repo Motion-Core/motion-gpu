@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import Logo from '$lib/assets/motiongpu-logo.svg?raw';
+	import Logo from '$lib/assets/spektral-logo.svg?raw';
 
 	const menu = [
 		{ label: 'Home', route: '/' },
@@ -10,10 +10,10 @@
 	const isPlaygroundRoute = (route: (typeof menu)[number]['route']) => route === '/playground';
 
 	const follow = [
-		{ label: 'GitHub', href: 'https://github.com/motion-core/motion-gpu' },
+		{ label: 'GitHub', href: 'https://github.com/kaltwrk/spektral' },
 		{
 			label: 'npm',
-			href: 'https://www.npmjs.com/package/@motion-core/motion-gpu'
+			href: 'https://www.npmjs.com/package/spektral'
 		}
 	] as const;
 
@@ -32,7 +32,7 @@
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 					{@html Logo}
 				</span>
-				<p class="pt-0.5 text-xl font-medium tracking-tight text-foreground">Motion GPU</p>
+				<p class="pt-0.5 text-xl font-medium tracking-tight text-foreground">Spektral</p>
 			</div>
 		</div>
 	</div>
@@ -73,13 +73,13 @@
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
 			<h3 class="text-xs font-medium tracking-wide text-foreground uppercase">Contact</h3>
 			<a
-				href="https://github.com/motion-core/motion-gpu/issues"
+				href="https://github.com/kaltwrk/spektral/issues"
 				target="_blank"
 				rel="noreferrer"
 				class={footerLinkClass}>Issues</a
 			>
 			<a
-				href="https://github.com/motion-core/motion-gpu/discussions"
+				href="https://github.com/kaltwrk/spektral/discussions"
 				target="_blank"
 				rel="noreferrer"
 				class={footerLinkClass}>Discussions</a
@@ -89,7 +89,7 @@
 		<div class="mt-6 flex flex-col gap-2 sm:mt-0">
 			<h3 class="text-xs font-medium tracking-wide text-foreground uppercase">Project</h3>
 			<a
-				href="https://github.com/motion-core/motion-gpu/blob/master/LICENSE"
+				href="https://github.com/kaltwrk/spektral/blob/master/LICENSE"
 				target="_blank"
 				rel="noreferrer"
 				class={footerLinkClass}>&#8627; License</a

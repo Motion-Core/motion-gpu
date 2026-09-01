@@ -3,7 +3,7 @@ title: Testing & internals
 description: Maintainer-facing test coverage, lifecycle invariants, and validation commands.
 ---
 
-This page is for Motion GPU maintainers. Public consumers should rely on the domain guides and API reference.
+This page is for Spektral maintainers. Public consumers should rely on the domain guides and API reference.
 
 ## Coverage map
 
@@ -46,7 +46,7 @@ Duplicate task keys replace the current registration atomically: cleanup from th
 
 ## Validation commands
 
-From `packages/motion-gpu`:
+From `packages/spektral`:
 
 ```bash
 pnpm run build

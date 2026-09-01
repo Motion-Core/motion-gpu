@@ -43,7 +43,7 @@ describe('sandboxed preview proxy', () => {
 		const { contentWindow, proxy } = createProxy();
 		proxy.handle_event({
 			source: contentWindow,
-			origin: 'https://preview.motion-gpu.dev',
+			origin: 'https://preview.spektral.dev',
 			data: {
 				channel: PLAYGROUND_PREVIEW_CHANNEL,
 				session_id: 'preview-session',

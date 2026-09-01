@@ -21,7 +21,7 @@ The URL input is a `string[]` or lazy `() => string[]`. Svelte and Vue also acce
 | `textures` | `CurrentReadable<LoadedTexture[] &#124; null>` |
 | `loading` | `CurrentReadable<boolean>` |
 | `error` | `CurrentReadable<Error &#124; null>` |
-| `errorReport` | `CurrentReadable<MotionGPUErrorReport &#124; null>` |
+| `errorReport` | `CurrentReadable<SpektralErrorReport &#124; null>` |
 | `reload()` | `Promise<void>` |
 
 Read `.current` in frame callbacks and subscribe when UI must react.

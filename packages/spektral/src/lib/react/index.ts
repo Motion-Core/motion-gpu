@@ -1,0 +1,115 @@
+/**
+ * React adapter entrypoint for Spektral.
+ */
+export { FragCanvas } from './FragCanvas.js';
+export { defineMaterial } from '../core/material.js';
+export {
+	BlitPass,
+	CopyPass,
+	ShaderPass,
+	ComputePass,
+	PingPongComputePass,
+	PingPongShaderPass
+} from '../passes/index.js';
+export { useSpektral } from './spektral-context.js';
+export { useFrame } from './frame-context.js';
+export { usePointer } from './use-pointer.js';
+export { useTexture } from './use-texture.js';
+export type {
+	FrameInvalidationToken,
+	FrameState,
+	OutputEncoding,
+	ToneMapping,
+	OutputDynamicRange,
+	CanvasColorSpace,
+	ColorPipelineOptions,
+	AnyPass,
+	ComputePassLike,
+	PingPongShaderPassLike,
+	RenderPass,
+	RenderPassContext,
+	RenderPassFlags,
+	RenderPassInputSlot,
+	RenderPassOutputSlot,
+	RenderMode,
+	RenderTarget,
+	RenderTargetDefinition,
+	RenderTargetDefinitionMap,
+	TextureData,
+	TextureDefinition,
+	TextureDefinitionMap,
+	TextureUpdateMode,
+	TextureMap,
+	TextureSource,
+	TextureValue,
+	TypedUniform,
+	UniformMat4Value,
+	UniformMap,
+	UniformType,
+	UniformValue
+} from '../core/types.js';
+export type {
+	LoadedTexture,
+	TextureDecodeOptions,
+	TextureLoadOptions
+} from '../core/texture-loader.js';
+export type {
+	FragMaterial,
+	FragMaterialInput,
+	MaterialIncludes,
+	MaterialDefineVectorType,
+	MaterialDefineVectorValue,
+	MaterialDefineValue,
+	MaterialDefines,
+	TypedMaterialDefineValue,
+	TypedMaterialVectorDefineValue
+} from '../core/material.js';
+export type {
+	SpektralErrorCode,
+	SpektralErrorContext,
+	SpektralErrorPhase,
+	SpektralErrorReport,
+	SpektralErrorSeverity,
+	SpektralErrorSource,
+	SpektralErrorSourceLine
+} from '../core/error-report.js';
+export type { SpektralContext } from './spektral-context.js';
+export type { UseFrameOptions, UseFrameResult } from './frame-context.js';
+export type {
+	PointerClick,
+	PointerFrameRequestMode,
+	PointerKind,
+	PointerPoint,
+	PointerState,
+	UsePointerOptions,
+	UsePointerResult
+} from './use-pointer.js';
+export type { TextureUrlInput, UseTextureResult } from './use-texture.js';
+export type {
+	ComputeBufferReference,
+	ComputeExternalBufferReference,
+	ComputeExternalProvider,
+	ComputeExternalResourceContext,
+	ComputeExternalSamplerReference,
+	ComputeExternalTextureReference,
+	ComputeExternalTextureViewReference,
+	ComputeResourceDescriptor,
+	ComputeResourceMap,
+	ComputeResourceVersion,
+	ComputeSampledTextureResource,
+	ComputeSamplerReference,
+	ComputeSamplerResource,
+	ComputeStorageBufferReadResource,
+	ComputeStorageBufferReadWriteResource,
+	ComputeStorageTextureResource,
+	ComputeTextureReference,
+	ComputeTextureViewDescriptor,
+	StorageBufferAccess,
+	StorageBufferDefinition,
+	StorageBufferDefinitionMap,
+	StorageBufferType,
+	ComputePassContext
+} from '../core/types.js';
+export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
+export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';
+export type { PingPongShaderPassOptions } from '../passes/PingPongShaderPass.js';

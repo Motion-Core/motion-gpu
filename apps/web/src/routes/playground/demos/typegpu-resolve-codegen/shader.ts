@@ -1,11 +1,7 @@
 import tgpu, { d } from 'typegpu';
 
-const resolution = tgpu['~unstable'].rawCodeSnippet(
-	'motiongpuFrame.resolution',
-	d.vec2u,
-	'uniform'
-);
-const time = tgpu['~unstable'].rawCodeSnippet('motiongpuFrame.time', d.f32, 'uniform');
+const resolution = tgpu['~unstable'].rawCodeSnippet('spektralFrame.resolution', d.vec2u, 'uniform');
+const time = tgpu['~unstable'].rawCodeSnippet('spektralFrame.time', d.f32, 'uniform');
 
 const frag = tgpu
 	.fn(

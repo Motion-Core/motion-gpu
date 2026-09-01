@@ -16,7 +16,7 @@ description: Control frame submission and scheduler diagnostics.
 Set the initial mode on `FragCanvas` or update it from context:
 
 ```ts
-const gpu = useMotionGPU();
+const gpu = useSpektral();
 gpu.renderMode.set('on-demand');
 gpu.invalidate();
 ```
@@ -67,7 +67,7 @@ The profiling window must be a safe integer from 1 through 10,000 frames. Schedu
 Diagnostics and profiling currently share one internal toggle, so advanced preset overrides must give them the same value. Available presets are `'performance'`, `'balanced'`, and `'debug'`:
 
 ```ts
-import { applySchedulerPreset } from '@motion-core/motion-gpu/advanced';
+import { applySchedulerPreset } from 'spektral/advanced';
 
 applySchedulerPreset(gpu.scheduler, 'balanced');
 ```

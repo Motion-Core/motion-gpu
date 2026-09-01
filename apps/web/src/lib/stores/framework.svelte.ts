@@ -4,8 +4,8 @@ export type Framework = 'svelte' | 'react' | 'vue';
 
 export const frameworks: Framework[] = ['svelte', 'react', 'vue'];
 
-const STORAGE_KEY = 'motiongpuFramework';
-const DATASET_KEY = 'motiongpuFramework';
+const STORAGE_KEY = 'spektralFramework';
+const DATASET_KEY = 'spektralFramework';
 
 function isFramework(value: string | null): value is Framework {
 	return value === 'svelte' || value === 'react' || value === 'vue';

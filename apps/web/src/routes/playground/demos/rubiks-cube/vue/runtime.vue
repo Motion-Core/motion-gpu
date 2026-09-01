@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, useSpektral, usePointer } from 'spektral/vue';
 
 type Axis = 'x' | 'y' | 'z';
 type Layer = -1 | 0 | 1;
@@ -19,7 +19,7 @@ type Cubelet = {
 	quaternion: Quat;
 };
 
-const motion = useMotionGPU();
+const motion = useSpektral();
 
 const CUBE_COUNT = 27;
 const ENTRY_STRIDE = 4;

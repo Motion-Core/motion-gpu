@@ -10,7 +10,7 @@ test('the web sentinel rejects an unconfigured production-like extension', async
 		assertConfiguredFile(
 			eslint,
 			{
-				file: 'src/lib/unconfigured.motiongpu',
+				file: 'src/lib/unconfigured.spektral',
 				parser: 'typescript-eslint/parser',
 				rules: ['no-debugger']
 			},

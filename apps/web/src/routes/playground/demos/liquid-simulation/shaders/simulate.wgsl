@@ -15,7 +15,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     let p = vec2i(id.xy);
     let maxCoord = vec2i(size) - 1;
     let uv = (vec2f(id.xy) + 0.5) / vec2f(size);
-    let viewport = max(motiongpuFrame.resolution, vec2f(1.0));
+    let viewport = max(spektralFrame.resolution, vec2f(1.0));
     let simulationScale = vec2f(min(viewport.x, viewport.y)) / viewport;
     let state = textureLoad(uWavePrevious, p, 0).xy;
     let left = textureLoad(uWavePrevious, max(p - vec2i(1, 0), vec2i(0)), 0).x;
@@ -32,16 +32,16 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     var velocity = (state.y + laplacian * propagation) * mix(0.986, 0.992, medium);
 
     let scaledUv = uv / simulationScale;
-    let pointerEnd = motiongpuUniforms.uPointer.xy / simulationScale;
-    let pointerStart = motiongpuUniforms.uPointer.zw / simulationScale;
+    let pointerEnd = spektralUniforms.uPointer.xy / simulationScale;
+    let pointerStart = spektralUniforms.uPointer.zw / simulationScale;
     let pointerTravel = length(pointerEnd - pointerStart);
     let pointerDistance = distanceToSegment(scaledUv, pointerStart, pointerEnd);
     let sweepNormalization = min(1.0, sqrt(3.14159265 / POINTER_FALLOFF)
         / max(pointerTravel, 0.000001));
     let pointerPulse = exp(-pointerDistance * pointerDistance * POINTER_FALLOFF)
         * sweepNormalization
-        * sin(motiongpuFrame.time * 1.0)
-        * motiongpuUniforms.uPointerEnergy
+        * sin(spektralFrame.time * 1.0)
+        * spektralUniforms.uPointerEnergy
         * 0.012;
 
     velocity += pointerPulse;

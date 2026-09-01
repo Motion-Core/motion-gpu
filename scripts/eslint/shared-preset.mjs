@@ -87,6 +87,6 @@ export const sharedPresetContract = Object.freeze({
 	files: Object.freeze([...svelteFiles]),
 	intentionalTypeScriptDeviation: Object.freeze({
 		'apps/web': 'strictTypeChecked + stylisticTypeChecked',
-		'packages/motion-gpu': 'recommended + production promise-safety rules'
+		'packages/spektral': 'recommended + production promise-safety rules'
 	})
 });

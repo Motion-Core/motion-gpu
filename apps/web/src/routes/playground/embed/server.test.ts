@@ -3,7 +3,7 @@ import { GET } from './+server';
 
 vi.mock('$env/dynamic/private', () => ({
 	env: {
-		PLAYGROUND_PREVIEW_PARENT_ORIGINS: 'https://motion-gpu.dev,https://www.motion-gpu.dev'
+		PLAYGROUND_PREVIEW_PARENT_ORIGINS: 'https://spektral.dev,https://www.spektral.dev'
 	}
 }));
 
@@ -12,13 +12,13 @@ vi.mock('$env/dynamic/private', () => ({
  */
 const request = (query: string) =>
 	GET({
-		url: new URL(`https://preview.motion-gpu.dev/playground/embed?${query}`)
+		url: new URL(`https://preview.spektral.dev/playground/embed?${query}`)
 	} as Parameters<typeof GET>[0]);
 
 describe('playground preview endpoint', () => {
 	it('returns an isolated preview document with nonce-bound security headers', async () => {
 		const response = await request(
-			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fmotion-gpu.dev&theme=dark'
+			'session=9ecf96ad-81fb-4507-8f69-79bc28ca731d&parent_origin=https%3A%2F%2Fspektral.dev&theme=dark'
 		);
 		const html = await response.text();
 		const nonce = html.match(/<script nonce="([a-f0-9]+)">/)?.[1];
@@ -29,7 +29,7 @@ describe('playground preview endpoint', () => {
 			`script-src 'nonce-${nonce}' 'unsafe-eval'`
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
-			'frame-ancestors https://motion-gpu.dev'
+			'frame-ancestors https://spektral.dev'
 		);
 		expect(response.headers.get('content-security-policy')).toContain(
 			'sandbox allow-scripts allow-popups'
@@ -45,20 +45,20 @@ describe('playground preview endpoint', () => {
 
 	it('keeps same-origin preview available without an allowlist entry', async () => {
 		const response = await request(
-			'session=same-origin-preview&parent_origin=https%3A%2F%2Fpreview.motion-gpu.dev'
+			'session=same-origin-preview&parent_origin=https%3A%2F%2Fpreview.spektral.dev'
 		);
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('content-security-policy')).toContain(
-			'frame-ancestors https://preview.motion-gpu.dev'
+			'frame-ancestors https://preview.spektral.dev'
 		);
 	});
 
 	it.each([
-		['missing session', 'parent_origin=https%3A%2F%2Fmotion-gpu.dev'],
+		['missing session', 'parent_origin=https%3A%2F%2Fspektral.dev'],
 		[
 			'injectable session',
-			'session=%3C%2Fscript%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E&parent_origin=https%3A%2F%2Fmotion-gpu.dev'
+			'session=%3C%2Fscript%3E%3Cscript%3Ealert(1)%3C%2Fscript%3E&parent_origin=https%3A%2F%2Fspektral.dev'
 		],
 		['missing parent', 'session=valid-session'],
 		['non-HTTP parent', 'session=valid-session&parent_origin=javascript%3Aalert(1)'],

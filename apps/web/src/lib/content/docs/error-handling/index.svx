@@ -3,17 +3,17 @@ title: Error handling
 description: Normalize WebGPU, shader, resource, and runtime failures into stable reports.
 ---
 
-All adapters route initialization and render failures through `toMotionGPUErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
+All adapters route initialization and render failures through `toSpektralErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
 
-Import `MotionGPUErrorReport` and the related error types from the same Svelte, React, or Vue
+Import `SpektralErrorReport` and the related error types from the same Svelte, React, or Vue
 entrypoint as your adapter. The framework-neutral root and `/core` entrypoints export the same type
 family.
 
 ## Report
 
 ```ts
-interface MotionGPUErrorReport {
-	code: MotionGPUErrorCode;
+interface SpektralErrorReport {
+	code: SpektralErrorCode;
 	severity: 'error' | 'fatal';
 	recoverable: boolean;
 	title: string;
@@ -23,8 +23,8 @@ interface MotionGPUErrorReport {
 	stack: string[];
 	rawMessage: string;
 	phase: 'initialization' | 'render';
-	source: MotionGPUErrorSource | null;
-	context: MotionGPUErrorContext | null;
+	source: SpektralErrorSource | null;
+	context: SpektralErrorContext | null;
 }
 ```
 
@@ -43,7 +43,7 @@ interface MotionGPUErrorReport {
 | External compute resources | `COMPUTE_EXTERNAL_RESOURCE_INVALID` |
 | Render graph and fragment ping-pong | `RENDER_GRAPH_INVALID`, `PINGPONG_CONFIGURATION_INVALID` |
 | Textures | `TEXTURE_USAGE_INVALID`, `TEXTURE_REQUEST_FAILED`, `TEXTURE_DECODE_UNAVAILABLE`, `TEXTURE_REQUEST_ABORTED` |
-| Fallback | `MOTIONGPU_RUNTIME_ERROR` |
+| Fallback | `SPEKTRAL_RUNTIME_ERROR` |
 
 WebGPU, adapter, device-loss, and missing bitmap-decode classifications are fatal and non-recoverable where defined by the normalizer. Other known classifications and the fallback are currently reported as recoverable errors.
 

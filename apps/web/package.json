@@ -1,5 +1,5 @@
 {
-	"name": "@motion-core/web",
+	"name": "spektral-web",
 	"version": "0.1.1",
 	"devDependencies": {
 		"@eslint/js": "catalog:",
@@ -72,7 +72,7 @@
 		"@codemirror/view": "^6.39.15",
 		"@iizukak/codemirror-lang-wgsl": "^0.3.0",
 		"@lezer/highlight": "^1.2.3",
-		"@motion-core/motion-gpu": "workspace:*",
+		"spektral": "workspace:*",
 		"@replit/codemirror-lang-svelte": "^6.0.0",
 		"@rollup/browser": "^4.59.0",
 		"@sveltejs/acorn-typescript": "^1.0.9",

@@ -40,4 +40,4 @@ export {
 	type ContentSectionId
 } from './content/sections';
 
-export { default as brandLogoRaw } from './assets/motiongpu-logo.svg?raw';
+export { default as brandLogoRaw } from './assets/spektral-logo.svg?raw';

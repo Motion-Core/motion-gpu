@@ -8,7 +8,7 @@
 	 * You are free to share and adapt this work under the terms of the license.
 	 * https://creativecommons.org/licenses/by-nc-sa/4.0/
 	 */
-	import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
+	import { FragCanvas, defineMaterial } from 'spektral/svelte';
 	import fragmentShader from './shaders/fragment.wgsl?raw';
 
 	const material = defineMaterial({

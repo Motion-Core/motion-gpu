@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, useSpektral, usePointer } from 'spektral/vue';
 
 const MAX_IMPACTS = 8;
 const REFERENCE_SHORT_EDGE = 860;
@@ -8,7 +8,7 @@ const MAX_FIT = 1.36;
 
 type ImpactState = [number, number, number, number];
 
-const motiongpu = useMotionGPU();
+const spektral = useSpektral();
 const impacts: ImpactState[] = Array.from({ length: MAX_IMPACTS }, () => [0, 0, 1, -100]);
 
 let frameTime = 0;
@@ -17,14 +17,14 @@ let impactCursor = 0;
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 const calcLens = (): number => {
-	const canvas = motiongpu.canvas;
+	const canvas = spektral.canvas;
 	if (canvas) {
 		const shortEdge = Math.max(320, Math.min(canvas.clientWidth, canvas.clientHeight));
 		const fit = clamp(shortEdge / REFERENCE_SHORT_EDGE, MIN_FIT, MAX_FIT);
 		return 1.08 / fit;
 	}
 
-	const { width, height } = motiongpu.size.current;
+	const { width, height } = spektral.size.current;
 	if (width <= 0 || height <= 0) {
 		return 1;
 	}
@@ -53,7 +53,7 @@ const worldToMoon = (v: [number, number, number], time: number): [number, number
 };
 
 const intersectMoon = (uv: [number, number]): [number, number, number] | null => {
-	const { width, height } = motiongpu.size.current;
+	const { width, height } = spektral.size.current;
 	if (width <= 0 || height <= 0) {
 		return null;
 	}

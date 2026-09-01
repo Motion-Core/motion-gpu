@@ -12,7 +12,7 @@ parseCanonicalReleaseTag(`v${version}`);
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 const manifest = JSON.parse(
-	await readFile(path.join(repositoryRoot, 'packages/motion-gpu/package.json'), 'utf8')
+	await readFile(path.join(repositoryRoot, 'packages/spektral/package.json'), 'utf8')
 );
 const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
 const artifact = assertPackedArtifactMetadata({ manifest, metadata, version });

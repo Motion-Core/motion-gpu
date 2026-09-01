@@ -1,9 +1,9 @@
-import { FragCanvas, defineMaterial } from '@motion-core/motion-gpu/react';
+import { FragCanvas, defineMaterial } from 'spektral/react';
 
 const material = defineMaterial({
 	fragment: `
 fn frag(uv: vec2f) -> vec4f {
-	let r = motiongpuFrame.resolution;
+	let r = spektralFrame.resolution;
 	let p = vec2f(uv.x * r.x + 0.5, uv.y * r.y + 0.5);
 
 	var h = vec3f(0.0);
@@ -13,7 +13,7 @@ fn frag(uv: vec2f) -> vec4f {
 	var a = 0.0;
 
 	for (var i = 0.6; i > 0.1; i -= 0.1) {
-		a = (motiongpuFrame.time + i) * 4.0;
+		a = (spektralFrame.time + i) * 4.0;
 		a -= sin(a);
 		a -= sin(a);
 

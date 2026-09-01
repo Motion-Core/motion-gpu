@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Logo from '$lib/assets/motiongpu-logo.svg?raw';
+	import Logo from '$lib/assets/spektral-logo.svg?raw';
 	import { resolve } from '$app/paths';
 	import { AppBookIcon, AppSpace3dIcon } from '$lib/components/icons';
 	import GradientGlassPane from '$lib/GradientGlassPane.svelte';

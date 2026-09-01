@@ -7,7 +7,7 @@
  * You are free to share and adapt this work under the terms of the license.
  * https://creativecommons.org/licenses/by-nc-sa/4.0/
  */
-import { FragCanvas, PingPongShaderPass, defineMaterial } from '@motion-core/motion-gpu/react';
+import { FragCanvas, PingPongShaderPass, defineMaterial } from 'spektral/react';
 import Runtime from './runtime';
 import fluidShader from './shaders/fluid.wgsl?raw';
 import fragmentShader from './shaders/fragment.wgsl?raw';

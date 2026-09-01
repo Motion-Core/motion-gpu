@@ -68,7 +68,7 @@ async function main() {
 	const effectiveDescription =
 		description.length > 0
 			? description
-			: 'Motion GPU release notes generated from the repository changelog.';
+			: 'Spektral release notes generated from the repository changelog.';
 
 	const output = [
 		'---',

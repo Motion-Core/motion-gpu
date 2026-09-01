@@ -1,0 +1,193 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildShaderSource > can inject linear to srgb conversion for output color 1`] = `
+"
+struct SpektralFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct SpektralUniforms {
+	uMix: f32,
+};
+
+@group(0) @binding(0) var<uniform> spektralFrame: SpektralFrame;
+@group(0) @binding(1) var<uniform> spektralUniforms: SpektralUniforms;
+
+
+
+fn spektralLinearToSrgb(linearColor: vec3f) -> vec3f {
+	let cutoff = vec3f(0.0031308);
+	let lower = linearColor * 12.92;
+	let higher = vec3f(1.055) * pow(linearColor, vec3f(1.0 / 2.4)) - vec3f(0.055);
+	return select(lower, higher, linearColor > cutoff);
+}
+
+
+struct SpektralFragment {
+	uv: vec2f,
+};
+
+var<private> spektralFragment: SpektralFragment;
+
+
+struct SpektralVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn spektralVertex(@builtin(vertex_index) index: u32) -> SpektralVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: SpektralVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+
+@fragment
+fn spektralFragmentMain(in: SpektralVertexOut) -> @location(0) vec4f {
+	spektralFragment.uv = in.uv;
+	
+	let fragColor = frag(in.uv);
+	let spektralKeepAlive = spektralUniforms.uMix;
+	let spektralLinear = vec4f(fragColor.rgb + spektralKeepAlive * 0.0, fragColor.a);
+	let spektralSrgb = spektralLinearToSrgb(max(spektralLinear.rgb, vec3f(0.0)));
+	return vec4f(spektralSrgb, spektralLinear.a);
+
+}
+"
+`;
+
+exports[`buildShaderSource > injects user uniforms and frag wrapper 1`] = `
+"
+struct SpektralFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct SpektralUniforms {
+	intensity: vec4f,
+	tint: vec4f,
+};
+
+@group(0) @binding(0) var<uniform> spektralFrame: SpektralFrame;
+@group(0) @binding(1) var<uniform> spektralUniforms: SpektralUniforms;
+@group(0) @binding(2) var uTexture1Sampler: sampler;
+@group(0) @binding(3) var uTexture1: texture_2d<f32>;
+
+
+
+struct SpektralFragment {
+	uv: vec2f,
+};
+
+var<private> spektralFragment: SpektralFragment;
+
+
+struct SpektralVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn spektralVertex(@builtin(vertex_index) index: u32) -> SpektralVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: SpektralVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn getUv() -> vec2f { return spektralFragment.uv; }
+fn frag(uv: vec2f) -> vec4f { return vec4f(getUv(), 0.0, 1.0); }
+
+@fragment
+fn spektralFragmentMain(in: SpektralVertexOut) -> @location(0) vec4f {
+	spektralFragment.uv = in.uv;
+	
+	let fragColor = frag(in.uv);
+	let spektralKeepAlive = spektralUniforms.intensity.x;
+	return vec4f(fragColor.rgb + spektralKeepAlive * 0.0, fragColor.a);
+
+}
+"
+`;
+
+exports[`buildShaderSource > snapshot: fragment shader with storage buffers 1`] = `
+"
+struct SpektralFrame {
+	time: f32,
+	delta: f32,
+	resolution: vec2f,
+};
+
+struct SpektralUniforms {
+	uMix: f32,
+};
+
+@group(0) @binding(0) var<uniform> spektralFrame: SpektralFrame;
+@group(0) @binding(1) var<uniform> spektralUniforms: SpektralUniforms;
+@group(0) @binding(2) var uTextureSampler: sampler;
+@group(0) @binding(3) var uTexture: texture_2d<f32>;
+
+@group(1) @binding(0) var<storage, read> positions: array<vec4f>;
+@group(1) @binding(1) var<storage, read> colors: array<vec4f>;
+
+
+struct SpektralFragment {
+	uv: vec2f,
+};
+
+var<private> spektralFragment: SpektralFragment;
+
+
+struct SpektralVertexOut {
+	@builtin(position) position: vec4f,
+	@location(0) uv: vec2f,
+};
+
+@vertex
+fn spektralVertex(@builtin(vertex_index) index: u32) -> SpektralVertexOut {
+	var positions = array<vec2f, 3>(
+		vec2f(-1.0, -3.0),
+		vec2f(-1.0, 1.0),
+		vec2f(3.0, 1.0)
+	);
+
+	let position = positions[index];
+	var out: SpektralVertexOut;
+	out.position = vec4f(position, 0.0, 1.0);
+	out.uv = (position + vec2f(1.0, 1.0)) * 0.5;
+	return out;
+}
+
+fn frag(uv: vec2f) -> vec4f { return vec4f(uv, 0.0, 1.0); }
+
+@fragment
+fn spektralFragmentMain(in: SpektralVertexOut) -> @location(0) vec4f {
+	spektralFragment.uv = in.uv;
+	
+	let fragColor = frag(in.uv);
+	let spektralKeepAlive = spektralUniforms.uMix;
+	return vec4f(fragColor.rgb + spektralKeepAlive * 0.0, fragColor.a);
+
+}
+"
+`;

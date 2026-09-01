@@ -89,7 +89,7 @@ test('keeps WebGPU E2E off GitHub-hosted runners', () => {
 	assert.doesNotMatch(ciWorkflow, /playwright install|test:e2e|pnpm run ci\n/);
 	assert.doesNotMatch(rootManifest.scripts['ci:quality'], /consumers:browser|test:e2e/);
 	assert.match(rootManifest.scripts.ci, /pnpm run ci:quality && pnpm run ci:e2e/);
-	assert.match(rootManifest.scripts['ci:e2e'], /check:motion-gpu:consumers:browser/);
+	assert.match(rootManifest.scripts['ci:e2e'], /check:spektral:consumers:browser/);
 });
 
 test('tests, dry-runs, and publishes the same exact tarball in order', () => {
@@ -104,7 +104,7 @@ test('tests, dry-runs, and publishes the same exact tarball in order', () => {
 	);
 	assert.match(
 		workflow,
-		/npm pack --json --ignore-scripts --pack-destination "\$PACK_DIRECTORY" --workspace @motion-core\/motion-gpu > "\$PACK_METADATA"/
+		/npm pack --json --ignore-scripts --pack-destination "\$PACK_DIRECTORY" --workspace spektral > "\$PACK_METADATA"/
 	);
 	assert.match(workflow, /validate-packed-artifact\.mjs/);
 	assert.match(
@@ -127,10 +127,7 @@ test('tests, dry-runs, and publishes the same exact tarball in order', () => {
 });
 
 test('verifies provenance and exact registry consumers after publication', () => {
-	assert.match(
-		workflow,
-		/npm install --ignore-scripts --save-exact "@motion-core\/motion-gpu@\$PACKAGE_VERSION"/
-	);
+	assert.match(workflow, /npm install --ignore-scripts --save-exact "spektral@\$PACKAGE_VERSION"/);
 	assert.match(workflow, /npm audit signatures/);
 	assert.match(
 		workflow,

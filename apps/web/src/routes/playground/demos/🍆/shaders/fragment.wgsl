@@ -96,20 +96,20 @@ fn stemSdf(p_world: vec3f) -> f32 {
 
 fn worldToModel(p_world: vec3f) -> vec3f {
 	let pivot = vec3f(0.02, -0.08, 0.0);
-	let modelOffset = vec3f(motiongpuUniforms.uTranslateX, motiongpuUniforms.uTranslateY, 0.0);
+	let modelOffset = vec3f(spektralUniforms.uTranslateX, spektralUniforms.uTranslateY, 0.0);
 	let p = p_world - pivot - modelOffset;
-	var rel = rotateY(rotateX(p, -motiongpuUniforms.uRotateX), -motiongpuUniforms.uRotateY);
+	var rel = rotateY(rotateX(p, -spektralUniforms.uRotateX), -spektralUniforms.uRotateY);
 
-	let amp = motiongpuUniforms.uJellyAmp;
+	let amp = spektralUniforms.uJellyAmp;
 	if (amp > 0.0001) {
-		let dirRaw = vec2f(motiongpuUniforms.uJellyDirX, motiongpuUniforms.uJellyDirY);
+		let dirRaw = vec2f(spektralUniforms.uJellyDirX, spektralUniforms.uJellyDirY);
 		var dir = vec2f(1.0, 0.0);
 		let dirLen = length(dirRaw);
 		if (dirLen > 0.0001) {
 			dir = dirRaw / dirLen;
 		}
 		let perp = vec2f(-dir.y, dir.x);
-		let phase = motiongpuUniforms.uJellyTime * 11.2;
+		let phase = spektralUniforms.uJellyTime * 11.2;
 
 		let along = dot(rel.xy, dir);
 		let across = dot(rel.xy, perp);
@@ -238,7 +238,7 @@ fn shadeStem(pos: vec3f, n: vec3f, v: vec3f, key: vec3f, fill: vec3f, back: vec3
 
 
 fn frag(uv: vec2f) -> vec4f {
-	let resolution = motiongpuFrame.resolution;
+	let resolution = spektralFrame.resolution;
 	let aspect = resolution.x / max(resolution.y, 1.0);
 	let screen = vec2f((uv.x - 0.5) * aspect, uv.y - 0.5);
 	let edgeBottom = vec3f(0.030, 0.006, 0.088);

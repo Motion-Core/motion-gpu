@@ -7,26 +7,26 @@
 #include <atmosphere>
 
 fn frag(uv: vec2f) -> vec4f {
-  let resolution = max(motiongpuFrame.resolution, vec2f(1.0));
+  let resolution = max(spektralFrame.resolution, vec2f(1.0));
   let aspect = resolution.x / resolution.y;
   let sceneUv = vec2f(uv.x, 1.0 - uv.y);
 
   let p0 = vec4f(
-    motiongpuFrame.time,
-    motiongpuUniforms.uTimeOfDay,
-    motiongpuUniforms.uHorizonHaze,
-    motiongpuUniforms.uExposure
+    spektralFrame.time,
+    spektralUniforms.uTimeOfDay,
+    spektralUniforms.uHorizonHaze,
+    spektralUniforms.uExposure
   );
   let p1 = vec4f(
-    motiongpuUniforms.uWaveSpeed,
-    motiongpuUniforms.uCloudCoverage,
-    motiongpuUniforms.uCloudSpeed,
-    motiongpuUniforms.uStarDensity
+    spektralUniforms.uWaveSpeed,
+    spektralUniforms.uCloudCoverage,
+    spektralUniforms.uCloudSpeed,
+    spektralUniforms.uStarDensity
   );
   let p2 = vec4f(
-    motiongpuUniforms.uStarSize,
-    motiongpuUniforms.uStarBrightness,
-    motiongpuUniforms.uSeabedLevel,
+    spektralUniforms.uStarSize,
+    spektralUniforms.uStarBrightness,
+    spektralUniforms.uSeabedLevel,
     0.0
   );
 

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, useSpektral, usePointer } from 'spektral/svelte';
 
 	type Axis = 'x' | 'y' | 'z';
 	type Layer = -1 | 0 | 1;
@@ -19,7 +19,7 @@
 		quaternion: Quat;
 	};
 
-	const motion = useMotionGPU();
+	const motion = useSpektral();
 
 	const CUBE_COUNT = 27;
 	const ENTRY_STRIDE = 4;

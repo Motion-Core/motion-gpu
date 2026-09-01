@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useFrame } from '@motion-core/motion-gpu/vue';
+import { useFrame } from 'spektral/vue';
 import { createOriginCleanVideo, type OriginCleanVideo } from './video-source';
 
 let videoHandle: OriginCleanVideo | null = null;

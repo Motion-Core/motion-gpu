@@ -1,9 +1,9 @@
 ---
 title: TypeGPU integration
-description: Generate Motion GPU fragment WGSL from TypeScript with TypeGPU.
+description: Generate Spektral fragment WGSL from TypeScript with TypeGPU.
 ---
 
-TypeGPU can author shader logic in TypeScript while Motion GPU continues to own rendering, scheduling, resources, passes, and adapter integration.
+TypeGPU can author shader logic in TypeScript while Spektral continues to own rendering, scheduling, resources, passes, and adapter integration.
 
 ## Boundary
 
@@ -12,7 +12,7 @@ TypeGPU can author shader logic in TypeScript while Motion GPU continues to own 
 3. The resolved module must expose `fn frag(uv: vec2f) -> vec4f`.
 4. Pass the string to `defineMaterial({ fragment })`.
 
-Motion GPU does not bypass its material validation for generated WGSL.
+Spektral does not bypass its material validation for generated WGSL.
 
 ## Build setup
 
@@ -27,19 +27,19 @@ export default defineConfig({
 
 If shader transformation runs inside a worker bundler, configure the matching TypeGPU integration in that bundler as well.
 
-## Access Motion GPU bindings
+## Access Spektral bindings
 
-Expose generated Motion GPU identifiers to TypeGPU with raw snippets:
+Expose generated Spektral identifiers to TypeGPU with raw snippets:
 
 ```ts
 const time = tgpu['~unstable'].rawCodeSnippet(
-	'motiongpuFrame.time',
+	'spektralFrame.time',
 	d.f32,
 	'uniform'
 );
 ```
 
-Available frame fields are `motiongpuFrame.time`, `.delta`, and `.resolution`. User fields use `motiongpuUniforms.<name>` and must also be declared in `defineMaterial({ uniforms })`.
+Available frame fields are `spektralFrame.time`, `.delta`, and `.resolution`. User fields use `spektralUniforms.<name>` and must also be declared in `defineMaterial({ uniforms })`.
 
 Keep shader resolution in a `shader.ts` module and runtime orchestration in the adapter component. This isolates transformer-dependent code from `FragCanvas`, `useFrame`, and `usePointer`.
 
@@ -50,6 +50,6 @@ Keep shader resolution in a `shader.ts` module and runtime orchestration in the 
 | Missing TypeGPU metadata | Transformer is installed in the pipeline compiling the shader module |
 | Browser bundle references `createRequire` | A browser-safe plugin entry is used by the worker bundler |
 | Missing `frag` contract | Resolved function is named `frag` and has the required signature |
-| Unknown `motiongpuUniforms` field | Matching uniform exists in the material |
+| Unknown `spektralUniforms` field | Matching uniform exists in the material |
 
 Open the complete [TypeGPU Resolve Codegen demo](/playground?demo=typegpu-resolve-codegen&framework=svelte) to inspect generated WGSL and adapter variants.

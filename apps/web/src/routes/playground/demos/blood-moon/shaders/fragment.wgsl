@@ -212,10 +212,10 @@ fn skyColor(rd: vec3f) -> vec3f {
 }
 
 fn frag(uv: vec2f) -> vec4f {
-	let time = motiongpuFrame.time;
-	let resolution = motiongpuFrame.resolution;
+	let time = spektralFrame.time;
+	let resolution = spektralFrame.resolution;
 	let fragCoord = uv * resolution;
-	let rayScale = 3.0 * motiongpuUniforms.uLens;
+	let rayScale = 3.0 * spektralUniforms.uLens;
 	let src = vec3f(rayScale * (fragCoord - 0.5 * resolution) / resolution.y, 2.0);
 	let dirAtm = vec3f(0.0, 0.0, -1.0);
 	let rdSky = normalize(vec3f(src.xy, -2.0));
@@ -289,14 +289,14 @@ fn frag(uv: vec2f) -> vec4f {
 		let ambient = 0.012 + (1.0 - cavity) * 0.03;
 		var moonColor = albedo * (ambient + diffuse * 0.57 + backscatter * 0.045);
 
-		let impact0 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact0, time);
-		let impact1 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact1, time);
-		let impact2 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact2, time);
-		let impact3 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact3, time);
-		let impact4 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact4, time);
-		let impact5 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact5, time);
-		let impact6 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact6, time);
-		let impact7 = impactBurst(moonNormal, shadedNormal, viewDir, motiongpuUniforms.uImpact7, time);
+		let impact0 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact0, time);
+		let impact1 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact1, time);
+		let impact2 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact2, time);
+		let impact3 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact3, time);
+		let impact4 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact4, time);
+		let impact5 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact5, time);
+		let impact6 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact6, time);
+		let impact7 = impactBurst(moonNormal, shadedNormal, viewDir, spektralUniforms.uImpact7, time);
 		let blast = impact0 + impact1 + impact2 + impact3 + impact4 + impact5 + impact6 + impact7;
 		let blastEnergy = clamp(blast.w, 0.0, 8.0);
 		atmosImpactEnergy = blastEnergy;

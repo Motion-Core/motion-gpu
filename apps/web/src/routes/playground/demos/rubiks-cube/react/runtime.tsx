@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/react';
+import { useFrame, useSpektral, usePointer } from 'spektral/react';
 
 export default function Runtime() {
 	type Axis = 'x' | 'y' | 'z';
@@ -19,7 +19,7 @@ export default function Runtime() {
 		quaternion: Quat;
 	};
 
-	const motion = useMotionGPU();
+	const motion = useSpektral();
 
 	const CUBE_COUNT = 27;
 	const ENTRY_STRIDE = 4;

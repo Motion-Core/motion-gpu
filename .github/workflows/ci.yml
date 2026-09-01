@@ -57,11 +57,11 @@ jobs:
       - name: Run quality gate
         run: pnpm run ci:quality
 
-      - name: Upload MotionGPU coverage report
+      - name: Upload Spektral coverage report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: motion-gpu-coverage
-          path: packages/motion-gpu/coverage
+          name: spektral-coverage
+          path: packages/spektral/coverage
           if-no-files-found: ignore
           retention-days: 14

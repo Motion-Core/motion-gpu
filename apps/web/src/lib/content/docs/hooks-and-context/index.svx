@@ -3,11 +3,11 @@ title: Hooks & Context
 description: Read runtime state and control rendering from the FragCanvas subtree.
 ---
 
-Adapter hooks connect descendant components to one `FragCanvas` runtime. Calling `useMotionGPU`, `useFrame`, `usePointer`, or advanced user-context hooks outside that subtree throws.
+Adapter hooks connect descendant components to one `FragCanvas` runtime. Calling `useSpektral`, `useFrame`, `usePointer`, or advanced user-context hooks outside that subtree throws.
 
 ## Runtime context
 
-`useMotionGPU()` returns:
+`useSpektral()` returns:
 
 | Member | Purpose |
 | --- | --- |
@@ -26,7 +26,7 @@ Adapter hooks connect descendant components to one `FragCanvas` runtime. Calling
 Use `.current` in frame callbacks and other imperative code:
 
 ```ts
-const gpu = useMotionGPU();
+const gpu = useSpektral();
 
 useFrame(() => {
 	const { width, height } = gpu.size.current;

@@ -1,4 +1,4 @@
-export const PLAYGROUND_PREVIEW_CHANNEL = 'motiongpu-playground-preview-v1';
+export const PLAYGROUND_PREVIEW_CHANNEL = 'spektral-playground-preview-v1';
 
 /**
  * The preview iframe intentionally has an opaque origin because its sandbox does

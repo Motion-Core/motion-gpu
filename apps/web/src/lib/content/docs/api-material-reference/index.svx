@@ -26,7 +26,7 @@ To change a declaration, call `defineMaterial(...)` with a new value and pass th
 
 `fragment` must contain `fn frag(uv: vec2f) -> vec4f` in the main source. Material and pass colors use straight alpha until final canvas presentation.
 
-Material helper functions can read the current fragment coordinates from `motiongpuFragment.uv`. Motion GPU initializes the fragment-local field before calling `frag(uv)`, so both values are equal at entry. See [Writing Shaders](/docs/writing-shaders) for the generated WGSL declaration and its scope.
+Material helper functions can read the current fragment coordinates from `spektralFragment.uv`. Spektral initializes the fragment-local field before calling `frag(uv)`, so both values are equal at entry. See [Writing Shaders](/docs/writing-shaders) for the generated WGSL declaration and its scope.
 
 ## `resolveMaterial(material)`
 
@@ -41,6 +41,6 @@ Returns cached renderer input for a validated material:
 
 Use this low-level function for adapters, validation, or tooling. Applications normally pass the `FragMaterial` directly to `FragCanvas`.
 
-Motion GPU-owned cache structures are deeply frozen: line-map entries, uniform layout entries and lookup tables, source metadata, and key lists cannot be mutated. Repeated calls for the same material return the same protected snapshot. Caller-owned `TextureSource` values retained as direct sources, including `data.source`, remain direct references and are not frozen. Copy an array before making local tooling edits.
+Spektral-owned cache structures are deeply frozen: line-map entries, uniform layout entries and lookup tables, source metadata, and key lists cannot be mutated. Repeated calls for the same material return the same protected snapshot. Caller-owned `TextureSource` values retained as direct sources, including `data.source`, remain direct references and are not frozen. Copy an array before making local tooling edits.
 
 See [Defining Materials](/docs/defining-materials) for the declaration/runtime boundary.

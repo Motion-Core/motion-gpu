@@ -3,6 +3,33 @@
 All notable changes to Spektral will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - Unreleased
+
+### Breaking
+
+- Renamed the project and npm package from Motion GPU (`@motion-core/motion-gpu`) to Spektral (`spektral`) while preserving the existing version history. This is a complete pre-1.0 cut: old package paths, `MotionGPU*` and `useMotionGPU*` APIs, and internal compatibility aliases are not included.
+- Renamed the public runtime, context, error, and hook APIs from `MotionGPU` to `Spektral`, including `createSpektralRuntimeLoop`, `SpektralContext`, `SpektralError*`, `useSpektral`, and the Spektral user-context hooks.
+- Renamed injected WGSL bindings from `motiongpu*` to `spektral*`, including `spektralFrame`, `spektralFragment`, and `spektralUniforms`. Renamed library-owned CSS selectors, custom properties, DOM attributes, storage keys, and diagnostics to the same identity.
+
+### Added
+
+- Added asynchronous preparation for built-in fullscreen passes. Initial rendering waits for active pipelines, while shader edits keep the last known good pipeline until the newest compilation succeeds.
+- Added source-mapped `ShaderPass` compilation diagnostics with pass, shader stage, target-format, and user-versus-wrapper source metadata in the Svelte, React, and Vue error overlays.
+- Added optional pass labels to the public render, compute, and feedback contracts for diagnostics and render-graph inspection.
+- Added a deeply frozen public render-graph snapshot through `useSpektral().graph.getSnapshot()`, with stable node and resource IDs, execution order, dependency reasons, subresources, and final-output metadata.
+- Added strict local performance gates for cold process/device startup, warmed pipelines, steady-state GPU work, and real-renderer runs on the reference Apple M4 Pro device.
+
+### Changed
+
+- Compute passes now retain one immutable normalized topology descriptor and resolve only dynamic physical bindings per frame. Graph dependency analysis is invalidated when the physical-access signature changes.
+- The published package no longer contains `src/lib`. JavaScript source maps retain embedded source content, CSS is declared as a side effect, and packed consumers cover SvelteKit/Vite, React/Vite, Next, and Vue/Vite across current and minimum peer versions.
+- Renamed the repository, documentation identity, package artifacts, and active examples to Spektral without changing the visual design.
+
+### Performance
+
+- Removed repeated compute-topology normalization and descriptor allocation from the frame loop, with a release gate requiring at least a 2x improvement for the 32-pass benchmark and no regression in smaller cases.
+- Added minified and gzip budgets for all ten public entrypoints, the stylesheet, and the playground worker, including framework-isolation checks.
+
 ## [0.16.0] - 2026-08-29
 
 ### Breaking

@@ -41,6 +41,7 @@
 		"perf:spektral:core": "pnpm --dir packages/spektral run perf:core",
 		"perf:spektral:core:check": "pnpm --dir packages/spektral run perf:core:check",
 		"perf:spektral:core:baseline": "pnpm --dir packages/spektral run perf:core:baseline",
+		"perf:spektral:compute-topology:paired": "pnpm --dir packages/spektral run perf:compute-topology:paired",
 		"perf:spektral": "pnpm --dir packages/spektral run perf:runtime",
 		"perf:spektral:check": "pnpm --dir packages/spektral run perf:runtime:check",
 		"perf:spektral:baseline": "pnpm --dir packages/spektral run perf:runtime:baseline",

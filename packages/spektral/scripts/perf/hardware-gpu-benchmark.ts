@@ -1,21 +1,37 @@
 import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { arch, cpus, platform, release } from 'node:os';
 import process from 'node:process';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { defineMaterial, resolveMaterial } from '../../src/lib/core/material';
 import { buildShaderSource } from '../../src/lib/core/shader';
 import { buildComputeShaderSource } from '../../src/lib/core/compute-shader';
 import { resolveUniformLayout } from '../../src/lib/core/uniforms';
+import { compareBenchmarkMetrics, type BenchmarkMetricRule } from './benchmark-regression';
+import {
+	BENCHMARK_SCHEMA_VERSION,
+	collectBenchmarkEnvironment,
+	compareHardwareBenchmarkEnvironments,
+	hardwareBenchmarkIdentity,
+	type AdapterIdentity,
+	type BenchmarkEnvironment
+} from './benchmark-schema';
+import {
+	computeIndependentRunStats,
+	computeRobustStats,
+	type IndependentRunStats,
+	type RobustStats
+} from './statistics';
 
 const SCRIPT_DIR = import.meta.dirname;
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '../..');
+const REPOSITORY_ROOT = resolve(PACKAGE_ROOT, '../..');
 const BROWSER_RUNNER_PATH = resolve(SCRIPT_DIR, 'browser/hardware-benchmark.js');
 const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/gpu-latest.json');
 const BASELINE_DIRECTORY = resolve(PACKAGE_ROOT, 'benchmarks/baselines');
-const HARDWARE_SUITE_VERSION = 1;
+const HARDWARE_SUITE_VERSION = 2;
+const MINIMUM_GATE_RUNS = 5;
 
 const HARDWARE_LAUNCH_ARGS = [
 	'--enable-unsafe-webgpu',
@@ -28,9 +44,7 @@ const HARDWARE_LAUNCH_ARGS = [
 	'--disable-renderer-backgrounding'
 ];
 
-interface MetricRule {
-	direction: 'higher' | 'lower';
-	maxRegressionPct: number;
+interface MetricRule extends BenchmarkMetricRule {
 	maxRegressionAbsolute: number;
 }
 
@@ -45,7 +59,21 @@ const COMPILE_RULE: MetricRule = {
 	maxRegressionAbsolute: 1
 };
 
+const COLD_PROCESS_RULE: MetricRule = {
+	direction: 'lower',
+	maxRegressionPct: 35,
+	maxRegressionAbsolute: 15
+};
+
+const COLD_DEVICE_RULE: MetricRule = {
+	direction: 'lower',
+	maxRegressionPct: 35,
+	maxRegressionAbsolute: 5
+};
+
 const METRIC_RULES: Record<string, MetricRule> = {
+	cold_browser_process_ms: COLD_PROCESS_RULE,
+	cold_webgpu_device_ms: COLD_DEVICE_RULE,
 	fragment_baseline_gpu_ns: gpuRule(20_000),
 	fragment_baseline_compile_cold_ms: COMPILE_RULE,
 	fragment_baseline_compile_warm_ms: COMPILE_RULE,
@@ -76,6 +104,7 @@ interface BenchmarkArgs {
 	strict: boolean;
 	headed: boolean;
 	channel: string;
+	runs: number;
 }
 
 interface RenderWorkload {
@@ -145,15 +174,11 @@ interface ComputeWorkloadResult {
 type WorkloadResult = RenderWorkloadResult | ComputeWorkloadResult;
 
 interface BrowserBenchmarkResult {
-	adapter: {
-		vendor: string;
-		architecture: string;
-		device: string;
-		description: string;
-		backend: string;
-		type: string;
-		driver: string;
-		isFallbackAdapter: boolean;
+	adapter: AdapterIdentity;
+	deviceTimingMs: {
+		adapterRequest: number;
+		deviceRequest: number;
+		total: number;
 	};
 	features: string[];
 	limits: {
@@ -164,24 +189,38 @@ interface BrowserBenchmarkResult {
 	workloads: WorkloadResult[];
 }
 
+interface HardwareRun {
+	index: number;
+	processTimingMs: {
+		browserLaunch: number;
+		pageReady: number;
+	};
+	deviceTimingMs: BrowserBenchmarkResult['deviceTimingMs'];
+	adapter: AdapterIdentity;
+	features: string[];
+	limits: BrowserBenchmarkResult['limits'];
+	workloads: WorkloadResult[];
+}
+
+interface AggregatedHardwareWorkload {
+	kind: WorkloadResult['kind'];
+	name: string;
+	compileColdProcessMs: RobustStats;
+	compileWarmPipelineMs: IndependentRunStats;
+	steadyGpuNs: IndependentRunStats;
+	submitToReadbackMs: RobustStats;
+}
+
 interface HardwareBenchmarkDocument {
-	schemaVersion: 1;
+	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	generatedAt: string;
 	fingerprint: string;
-	environment: {
-		node: string;
-		platform: NodeJS.Platform;
-		arch: string;
-		osRelease: string;
-		cpu: string;
-		browserChannel: string;
-		browserVersion: string;
-		adapter: BrowserBenchmarkResult['adapter'];
-		features: string[];
-		limits: BrowserBenchmarkResult['limits'];
-	};
+	environment: BenchmarkEnvironment;
+	features: string[];
+	limits: BrowserBenchmarkResult['limits'];
 	config: {
-		suiteVersion: 1;
+		suiteVersion: number;
+		browserRuns: number;
 		renderResolutions: [number, number][];
 		hardwareOnly: true;
 		timestampQueries: true;
@@ -198,33 +237,32 @@ interface HardwareBenchmarkDocument {
 		mostExpensiveGpuWorkload: string;
 		mostVariableGpuWorkload: string;
 	};
-	workloads: WorkloadResult[];
+	cold: {
+		browserProcessMs: RobustStats;
+		pageReadyMs: RobustStats;
+		adapterRequestMs: RobustStats;
+		deviceRequestMs: RobustStats;
+		webgpuDeviceMs: RobustStats;
+	};
+	workloads: AggregatedHardwareWorkload[];
+	runs: HardwareRun[];
 }
 
-interface HardwareBaselineDocument {
-	schemaVersion: 1;
-	updatedAt: string;
-	fingerprint: string;
-	environment: HardwareBenchmarkDocument['environment'];
-	metrics: Record<string, number>;
-}
-
-interface ComparisonRow {
-	metric: string;
-	current: number;
-	baseline: number | null;
-	deltaPct: number | null;
-	regression: boolean;
-	rule: (typeof METRIC_RULES)[string];
-}
+type HardwareBaselineDocument = HardwareBenchmarkDocument;
 
 function parseArgs(argv: string[]): BenchmarkArgs {
 	const flags = new Set(argv);
 	const channelFlag = argv.find((value) => value.startsWith('--channel='));
+	const runsFlag = argv.find((value) => value.startsWith('--runs='));
+	const runs = Number(runsFlag?.slice('--runs='.length) ?? MINIMUM_GATE_RUNS);
+	if (!Number.isInteger(runs) || runs < 1) {
+		throw new Error(`--runs must be a positive integer, received ${String(runs)}`);
+	}
 	return {
 		updateBaseline: flags.has('--update-baseline'),
 		strict: flags.has('--strict'),
 		headed: flags.has('--headed'),
+		runs,
 		channel:
 			channelFlag?.slice('--channel='.length) ||
 			process.env['SPEKTRAL_PERF_BROWSER_CHANNEL'] ||
@@ -509,23 +547,10 @@ async function runBrowserBenchmark(
 	}, payload);
 }
 
-function browserMajor(version: string): string {
-	return version.split('.')[0] ?? version;
-}
-
-function createFingerprint(input: {
-	browserChannel: string;
-	browserVersion: string;
-	adapter: BrowserBenchmarkResult['adapter'];
-}): string {
+function createFingerprint(environment: BenchmarkEnvironment): string {
 	const identity = JSON.stringify({
 		suiteVersion: HARDWARE_SUITE_VERSION,
-		platform: platform(),
-		arch: arch(),
-		osRelease: release(),
-		browserChannel: input.browserChannel,
-		browserMajor: browserMajor(input.browserVersion),
-		adapter: input.adapter
+		...hardwareBenchmarkIdentity(environment)
 	});
 	return createHash('sha256').update(identity).digest('hex').slice(0, 16);
 }
@@ -539,23 +564,67 @@ function slugify(value: string): string {
 }
 
 function baselinePathFor(result: HardwareBenchmarkDocument): string {
-	const adapterSlug = slugify(result.environment.adapter.description) || 'gpu';
+	const adapterSlug = slugify(result.environment.adapter?.description ?? '') || 'gpu';
 	return resolve(BASELINE_DIRECTORY, `${adapterSlug}-${result.fingerprint}.json`);
 }
 
-function extractMetrics(workloads: WorkloadResult[]): Record<string, number> {
-	const metrics: Record<string, number> = {};
-	for (const workload of workloads) {
-		metrics[`${workload.name}_gpu_ns`] = workload.gpuStatsNs.median;
-		metrics[`${workload.name}_compile_cold_ms`] = workload.compileStatsMs.samples[0] ?? 0;
-		const warmSamples = workload.compileStatsMs.samples.slice(1).sort((a, b) => a - b);
-		metrics[`${workload.name}_compile_warm_ms`] =
-			warmSamples[Math.floor((warmSamples.length - 1) * 0.5)] ?? 0;
+function aggregateWorkloads(runs: readonly HardwareRun[]): AggregatedHardwareWorkload[] {
+	const first = runs[0];
+	if (!first) {
+		throw new Error('At least one hardware run is required');
+	}
+	return first.workloads.map((workload, workloadIndex) => {
+		const matches = runs.map((run) => run.workloads[workloadIndex]);
+		if (
+			matches.some(
+				(match) => !match || match.name !== workload.name || match.kind !== workload.kind
+			)
+		) {
+			throw new Error(`Hardware runs disagreed on workload contract: ${workload.name}`);
+		}
+		const completeMatches = matches as WorkloadResult[];
+		return {
+			kind: workload.kind,
+			name: workload.name,
+			compileColdProcessMs: computeRobustStats(
+				completeMatches.map((match) => {
+					const cold = match.compileStatsMs.samples[0];
+					if (cold === undefined) {
+						throw new Error(`Workload ${workload.name} did not record a cold compile sample`);
+					}
+					return cold;
+				})
+			),
+			compileWarmPipelineMs: computeIndependentRunStats(
+				completeMatches.map((match) => match.compileStatsMs.samples.slice(1))
+			),
+			steadyGpuNs: computeIndependentRunStats(
+				completeMatches.map((match) => match.gpuStatsNs.samples)
+			),
+			submitToReadbackMs: computeRobustStats(
+				completeMatches.map((match) => match.submitToReadbackMs)
+			)
+		};
+	});
+}
+
+function extractMetrics(result: HardwareBenchmarkDocument): Record<string, number> {
+	const metrics: Record<string, number> = {
+		cold_browser_process_ms: result.cold.browserProcessMs.median,
+		cold_webgpu_device_ms: result.cold.webgpuDeviceMs.median
+	};
+	for (const workload of result.workloads) {
+		metrics[`${workload.name}_gpu_ns`] = workload.steadyGpuNs.runMedians.median;
+		metrics[`${workload.name}_compile_cold_ms`] = workload.compileColdProcessMs.median;
+		metrics[`${workload.name}_compile_warm_ms`] = workload.compileWarmPipelineMs.runMedians.median;
 	}
 	return metrics;
 }
 
-function workloadByName(workloads: WorkloadResult[], name: string): WorkloadResult {
+function workloadByName(
+	workloads: AggregatedHardwareWorkload[],
+	name: string
+): AggregatedHardwareWorkload {
 	const workload = workloads.find((entry) => entry.name === name);
 	if (!workload) {
 		throw new Error(`Missing workload result: ${name}`);
@@ -563,17 +632,24 @@ function workloadByName(workloads: WorkloadResult[], name: string): WorkloadResu
 	return workload;
 }
 
-function analyzeWorkloads(workloads: WorkloadResult[]): HardwareBenchmarkDocument['analysis'] {
-	const baseline = workloadByName(workloads, 'fragment_baseline').gpuStatsNs.median;
-	const srgb = workloadByName(workloads, 'fragment_srgb_encode').gpuStatsNs.median;
-	const hdr = workloadByName(workloads, 'fragment_hdr_target').gpuStatsNs.median;
-	const texture = workloadByName(workloads, 'fragment_texture_9tap').gpuStatsNs.median;
-	const alu = workloadByName(workloads, 'fragment_alu_96').gpuStatsNs.median;
-	const alu512 = workloadByName(workloads, 'fragment_alu_96_512').gpuStatsNs.median;
-	const alu2048 = workloadByName(workloads, 'fragment_alu_96_2048').gpuStatsNs.median;
-	const mostExpensive = [...workloads].sort((a, b) => b.gpuStatsNs.median - a.gpuStatsNs.median)[0];
+function analyzeWorkloads(
+	workloads: AggregatedHardwareWorkload[]
+): HardwareBenchmarkDocument['analysis'] {
+	const gpuMedian = (name: string) => workloadByName(workloads, name).steadyGpuNs.runMedians.median;
+	const baseline = gpuMedian('fragment_baseline');
+	const srgb = gpuMedian('fragment_srgb_encode');
+	const hdr = gpuMedian('fragment_hdr_target');
+	const texture = gpuMedian('fragment_texture_9tap');
+	const alu = gpuMedian('fragment_alu_96');
+	const alu512 = gpuMedian('fragment_alu_96_512');
+	const alu2048 = gpuMedian('fragment_alu_96_2048');
+	const mostExpensive = [...workloads].sort(
+		(a, b) => b.steadyGpuNs.runMedians.median - a.steadyGpuNs.runMedians.median
+	)[0];
 	const mostVariable = [...workloads].sort(
-		(a, b) => b.gpuStatsNs.coefficientOfVariationPct - a.gpuStatsNs.coefficientOfVariationPct
+		(a, b) =>
+			b.steadyGpuNs.runMedians.coefficientOfVariationPct -
+			a.steadyGpuNs.runMedians.coefficientOfVariationPct
 	)[0];
 	return {
 		fragmentAluNetNs: Math.max(0, alu - baseline),
@@ -590,46 +666,13 @@ function analyzeWorkloads(workloads: WorkloadResult[]): HardwareBenchmarkDocumen
 function compareAgainstBaseline(
 	current: Record<string, number>,
 	baseline: Record<string, number>
-): { rows: ComparisonRow[]; regressions: ComparisonRow[] } {
-	const rows: ComparisonRow[] = [];
-	for (const [metric, rule] of Object.entries(METRIC_RULES)) {
-		const currentValue = current[metric];
-		if (currentValue === undefined) {
+): ReturnType<typeof compareBenchmarkMetrics<string, MetricRule>> {
+	for (const metric of Object.keys(METRIC_RULES)) {
+		if (current[metric] === undefined) {
 			throw new Error(`Current hardware benchmark is missing metric ${metric}`);
 		}
-		const baselineValue = baseline[metric];
-		if (baselineValue === undefined) {
-			rows.push({
-				metric,
-				current: currentValue,
-				baseline: null,
-				deltaPct: null,
-				regression: false,
-				rule
-			});
-			continue;
-		}
-		const deltaPct =
-			baselineValue === 0
-				? currentValue === 0
-					? 0
-					: Number.POSITIVE_INFINITY
-				: ((currentValue - baselineValue) / baselineValue) * 100;
-		const regressionPct = rule.direction === 'lower' ? deltaPct : -deltaPct;
-		const regressionAbsolute =
-			rule.direction === 'lower' ? currentValue - baselineValue : baselineValue - currentValue;
-		const regression =
-			regressionPct > rule.maxRegressionPct && regressionAbsolute > rule.maxRegressionAbsolute;
-		rows.push({
-			metric,
-			current: currentValue,
-			baseline: baselineValue,
-			deltaPct,
-			regression,
-			rule
-		});
 	}
-	return { rows, regressions: rows.filter((row) => row.regression) };
+	return compareBenchmarkMetrics(current, baseline, METRIC_RULES);
 }
 
 async function maybeReadBaseline(path: string): Promise<HardwareBaselineDocument | null> {
@@ -639,6 +682,18 @@ async function maybeReadBaseline(path: string): Promise<HardwareBaselineDocument
 		const candidate = error as NodeJS.ErrnoException;
 		if (candidate.code === 'ENOENT') {
 			return null;
+		}
+		throw error;
+	}
+}
+
+async function pathExists(path: string): Promise<boolean> {
+	try {
+		await stat(path);
+		return true;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return false;
 		}
 		throw error;
 	}
@@ -657,47 +712,83 @@ function formatMetric(metric: string, value: number): string {
 
 async function runHardwareBenchmark(args: BenchmarkArgs): Promise<HardwareBenchmarkDocument> {
 	const origin = await startSecureOriginServer();
-	let browser: Browser | null = null;
 	try {
-		browser = await chromium.launch({
-			channel: args.channel,
-			headless: !args.headed,
-			args: HARDWARE_LAUNCH_ARGS
-		});
-		const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-		const page = await context.newPage();
-		await page.goto(origin.url);
-		const browserResult = await runBrowserBenchmark(page, createWorkloads());
-		const browserVersion = browser.version();
-		const fingerprint = createFingerprint({
-			browserChannel: args.channel,
-			browserVersion,
-			adapter: browserResult.adapter
-		});
-		const metrics = extractMetrics(browserResult.workloads);
-		for (const metric of Object.keys(METRIC_RULES)) {
-			if (metrics[metric] === undefined) {
-				throw new Error(`Hardware benchmark did not produce required metric ${metric}`);
+		const workloads = createWorkloads();
+		const runs: HardwareRun[] = [];
+		let browserVersion = '';
+		for (let index = 0; index < args.runs; index += 1) {
+			let browser: Browser | null = null;
+			try {
+				const launchStarted = performance.now();
+				browser = await chromium.launch({
+					channel: args.channel,
+					headless: !args.headed,
+					args: HARDWARE_LAUNCH_ARGS
+				});
+				const browserLaunch = performance.now() - launchStarted;
+				browserVersion ||= browser.version();
+				if (browser.version() !== browserVersion) {
+					throw new Error(
+						`Browser version changed within benchmark: ${browserVersion} -> ${browser.version()}`
+					);
+				}
+				const pageStarted = performance.now();
+				const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+				const page = await context.newPage();
+				await page.goto(origin.url);
+				const pageReady = performance.now() - pageStarted;
+				const browserResult = await runBrowserBenchmark(page, workloads);
+				runs.push({
+					index,
+					processTimingMs: { browserLaunch, pageReady },
+					deviceTimingMs: browserResult.deviceTimingMs,
+					adapter: browserResult.adapter,
+					features: browserResult.features,
+					limits: browserResult.limits,
+					workloads: browserResult.workloads
+				});
+			} finally {
+				await browser?.close();
 			}
 		}
-		return {
-			schemaVersion: 1,
+		const first = runs[0];
+		if (!first) {
+			throw new Error('Hardware benchmark completed no browser runs');
+		}
+		for (const run of runs.slice(1)) {
+			if (
+				JSON.stringify(run.adapter) !== JSON.stringify(first.adapter) ||
+				JSON.stringify(run.features) !== JSON.stringify(first.features) ||
+				JSON.stringify(run.limits) !== JSON.stringify(first.limits)
+			) {
+				throw new Error('GPU adapter identity, features, or limits changed between browser runs');
+			}
+		}
+		const environment = await collectBenchmarkEnvironment({
+			repositoryRoot: REPOSITORY_ROOT,
+			suiteFiles: [
+				import.meta.filename,
+				BROWSER_RUNNER_PATH,
+				resolve(SCRIPT_DIR, 'benchmark-regression.ts'),
+				resolve(SCRIPT_DIR, 'benchmark-schema.ts'),
+				resolve(SCRIPT_DIR, 'statistics.ts')
+			],
+			overrides: {
+				browser: { channel: args.channel, version: browserVersion, engine: 'Chromium' },
+				adapter: first.adapter
+			}
+		});
+		const aggregatedWorkloads = aggregateWorkloads(runs);
+		const result: HardwareBenchmarkDocument = {
+			schemaVersion: BENCHMARK_SCHEMA_VERSION,
 			generatedAt: new Date().toISOString(),
-			fingerprint,
-			environment: {
-				node: process.version,
-				platform: platform(),
-				arch: arch(),
-				osRelease: release(),
-				cpu: cpus()[0]?.model ?? 'unknown',
-				browserChannel: args.channel,
-				browserVersion,
-				adapter: browserResult.adapter,
-				features: browserResult.features,
-				limits: browserResult.limits
-			},
+			fingerprint: createFingerprint(environment),
+			environment,
+			features: first.features,
+			limits: first.limits,
 			config: {
 				suiteVersion: HARDWARE_SUITE_VERSION,
+				browserRuns: args.runs,
 				renderResolutions: [
 					[512, 512],
 					[1024, 1024],
@@ -707,12 +798,26 @@ async function runHardwareBenchmark(args: BenchmarkArgs): Promise<HardwareBenchm
 				timestampQueries: true,
 				renderTimestampStartMarker: '1x1-render-pass-end'
 			},
-			metrics,
-			analysis: analyzeWorkloads(browserResult.workloads),
-			workloads: browserResult.workloads
+			metrics: {},
+			analysis: analyzeWorkloads(aggregatedWorkloads),
+			cold: {
+				browserProcessMs: computeRobustStats(runs.map((run) => run.processTimingMs.browserLaunch)),
+				pageReadyMs: computeRobustStats(runs.map((run) => run.processTimingMs.pageReady)),
+				adapterRequestMs: computeRobustStats(runs.map((run) => run.deviceTimingMs.adapterRequest)),
+				deviceRequestMs: computeRobustStats(runs.map((run) => run.deviceTimingMs.deviceRequest)),
+				webgpuDeviceMs: computeRobustStats(runs.map((run) => run.deviceTimingMs.total))
+			},
+			workloads: aggregatedWorkloads,
+			runs
 		};
+		result.metrics = extractMetrics(result);
+		for (const metric of Object.keys(METRIC_RULES)) {
+			if (result.metrics[metric] === undefined) {
+				throw new Error(`Hardware benchmark did not produce required metric ${metric}`);
+			}
+		}
+		return result;
 	} finally {
-		await browser?.close();
 		await stopServer(origin.server);
 	}
 }
@@ -724,10 +829,10 @@ async function main(): Promise<void> {
 
 	console.log(`Hardware GPU benchmark saved: ${LATEST_PATH}`);
 	console.log(
-		`Adapter: ${result.environment.adapter.description} (${result.environment.adapter.backend}, ${result.environment.adapter.type})`
+		`Adapter: ${result.environment.adapter?.description ?? 'unknown'} (${result.environment.adapter?.backend ?? 'unknown'}, ${result.environment.adapter?.type ?? 'unknown'})`
 	);
 	console.log(
-		`Driver: ${result.environment.adapter.driver}; browser=${result.environment.browserVersion}; fingerprint=${result.fingerprint}`
+		`Driver: ${result.environment.adapter?.driver ?? 'unknown'}; browser=${result.environment.browser?.version ?? 'unknown'}; runs=${result.config.browserRuns}; fingerprint=${result.fingerprint}`
 	);
 	for (const [metric, value] of Object.entries(result.metrics)) {
 		console.log(`${metric}: ${formatMetric(metric, value)}`);
@@ -738,34 +843,80 @@ async function main(): Promise<void> {
 
 	const baselinePath = baselinePathFor(result);
 	if (args.updateBaseline) {
-		const baseline: HardwareBaselineDocument = {
-			schemaVersion: 1,
-			updatedAt: new Date().toISOString(),
-			fingerprint: result.fingerprint,
-			environment: result.environment,
-			metrics: result.metrics
-		};
-		await writeJsonFile(baselinePath, baseline);
-		console.log(`Hardware baseline updated: ${baselinePath}`);
+		if (args.strict) {
+			throw new Error('--strict and --update-baseline cannot be used together');
+		}
+		if (result.config.browserRuns < MINIMUM_GATE_RUNS) {
+			throw new Error(
+				`Refusing baseline creation with browserRuns=${result.config.browserRuns}; use at least ${MINIMUM_GATE_RUNS} fresh browser processes`
+			);
+		}
+		if (result.environment.dirty) {
+			throw new Error('Refusing to create a hardware baseline from a dirty worktree');
+		}
+		if (result.environment.powerMode !== 'ac-high-power') {
+			throw new Error(
+				`Refusing baseline creation with powerMode=${result.environment.powerMode}; set SPEKTRAL_PERF_POWER_MODE=ac-high-power on the controlled host`
+			);
+		}
+		if (await pathExists(baselinePath)) {
+			throw new Error(`Refusing to overwrite existing hardware baseline: ${baselinePath}`);
+		}
+		await writeJsonFile(baselinePath, result);
+		console.log(`Hardware baseline created: ${baselinePath}`);
 		return;
+	}
+	if (args.strict && result.config.browserRuns < MINIMUM_GATE_RUNS) {
+		throw new Error(
+			`Strict hardware comparison requires at least ${MINIMUM_GATE_RUNS} fresh browser processes; received ${result.config.browserRuns}`
+		);
 	}
 
 	const baseline = await maybeReadBaseline(baselinePath);
 	if (!baseline) {
 		console.log(`Hardware baseline not found for this adapter/browser: ${baselinePath}`);
-		console.log('Run perf:gpu:baseline on this exact machine to create it.');
+		console.log('Create a controlled baseline explicitly on this exact machine before gating.');
 		if (args.strict) {
 			process.exitCode = 1;
 		}
 		return;
 	}
+	if (baseline.schemaVersion !== BENCHMARK_SCHEMA_VERSION) {
+		console.error(
+			`Hardware baseline schema mismatch: current=${BENCHMARK_SCHEMA_VERSION}, baseline=${String(baseline.schemaVersion)}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	if (baseline.config.browserRuns < MINIMUM_GATE_RUNS) {
+		console.error(
+			`Hardware baseline is not gate-compatible: browserRuns=${baseline.config.browserRuns}, required>=${MINIMUM_GATE_RUNS}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	const environmentComparison = compareHardwareBenchmarkEnvironments(
+		result.environment,
+		baseline.environment
+	);
+	if (!environmentComparison.compatible) {
+		console.error('Hardware baseline environment mismatch:');
+		for (const difference of environmentComparison.differences) {
+			console.error(`- ${difference}`);
+		}
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
 	if (baseline.fingerprint !== result.fingerprint) {
-		throw new Error(
+		console.error(
 			`Hardware baseline fingerprint mismatch: current=${result.fingerprint}, baseline=${baseline.fingerprint}`
 		);
+		if (args.strict) process.exitCode = 1;
+		return;
 	}
 
 	const { rows, regressions } = compareAgainstBaseline(result.metrics, baseline.metrics);
+	const missingMetrics = rows.filter((row) => row.baseline === null);
 	console.log('Comparison to hardware baseline:');
 	for (const row of rows) {
 		if (row.baseline === null || row.deltaPct === null) {
@@ -785,6 +936,13 @@ async function main(): Promise<void> {
 			process.exitCode = 1;
 		}
 	}
+	if (missingMetrics.length > 0 && args.strict) {
+		console.error(`Baseline is missing ${missingMetrics.length} required hardware metric(s).`);
+		process.exitCode = 1;
+	}
 }
 
-void main();
+void main().catch((error: unknown) => {
+	console.error(error instanceof Error ? error.message : error);
+	process.exitCode = 1;
+});

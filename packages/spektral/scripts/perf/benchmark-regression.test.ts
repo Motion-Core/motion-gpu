@@ -45,3 +45,17 @@ test('zero baselines preserve metric direction', () => {
 		2
 	);
 });
+
+test('absolute noise floors must also be crossed', () => {
+	const noisyRules = {
+		latency: { direction: 'lower', maxRegressionPct: 10, maxRegressionAbsolute: 5 }
+	} as const;
+	assert.equal(
+		compareBenchmarkMetrics({ latency: 112 }, { latency: 100 }, noisyRules).regressions.length,
+		1
+	);
+	assert.equal(
+		compareBenchmarkMetrics({ latency: 104 }, { latency: 100 }, noisyRules).regressions.length,
+		0
+	);
+});

@@ -53,6 +53,21 @@ export interface EnvironmentCompatibility {
 	differences: string[];
 }
 
+export interface HardwareBenchmarkIdentity {
+	platform: NodeJS.Platform;
+	arch: string;
+	osRelease: string;
+	cpu: string;
+	powerMode: string;
+	browser: {
+		channel: string;
+		engine: string;
+		majorVersion: string;
+	} | null;
+	adapter: AdapterIdentity | null;
+	suiteHash: string;
+}
+
 export function gitSubprocessEnvironment(): NodeJS.ProcessEnv {
 	const environment = { ...process.env };
 	for (const name of Object.keys(environment)) {
@@ -142,6 +157,50 @@ export async function collectBenchmarkEnvironment(input: {
 
 function stableIdentity(value: unknown): string {
 	return JSON.stringify(value);
+}
+
+export function browserMajorVersion(version: string): string {
+	return version.split('.')[0] ?? version;
+}
+
+export function hardwareBenchmarkIdentity(
+	environment: BenchmarkEnvironment
+): HardwareBenchmarkIdentity {
+	return {
+		platform: environment.platform,
+		arch: environment.arch,
+		osRelease: environment.osRelease,
+		cpu: environment.cpu,
+		powerMode: environment.powerMode,
+		browser: environment.browser
+			? {
+					channel: environment.browser.channel,
+					engine: environment.browser.engine,
+					majorVersion: browserMajorVersion(environment.browser.version)
+				}
+			: null,
+		adapter: environment.adapter,
+		suiteHash: environment.suiteHash
+	};
+}
+
+/** Hardware results may span Chromium patch releases, but not a major or driver change. */
+export function compareHardwareBenchmarkEnvironments(
+	current: BenchmarkEnvironment,
+	baseline: BenchmarkEnvironment
+): EnvironmentCompatibility {
+	const currentIdentity = hardwareBenchmarkIdentity(current);
+	const baselineIdentity = hardwareBenchmarkIdentity(baseline);
+	const identityFields = Object.keys(currentIdentity) as (keyof HardwareBenchmarkIdentity)[];
+	const differences = identityFields
+		.filter(
+			(field) => stableIdentity(currentIdentity[field]) !== stableIdentity(baselineIdentity[field])
+		)
+		.map(
+			(field) =>
+				`${field}: current=${stableIdentity(currentIdentity[field])} baseline=${stableIdentity(baselineIdentity[field])}`
+		);
+	return { compatible: differences.length === 0, differences };
 }
 
 export function compareBenchmarkEnvironments(

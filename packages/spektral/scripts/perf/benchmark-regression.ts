@@ -1,6 +1,7 @@
 export interface BenchmarkMetricRule {
 	readonly direction: 'higher' | 'lower';
 	readonly maxRegressionPct: number;
+	readonly maxRegressionAbsolute?: number;
 }
 
 export interface BenchmarkComparisonRow<TMetric extends string, TRule extends BenchmarkMetricRule> {
@@ -47,10 +48,12 @@ export function compareBenchmarkMetrics<TMetric extends string, TRule extends Be
 						? Number.POSITIVE_INFINITY
 						: Number.NEGATIVE_INFINITY
 				: ((currentValue - baselineValue) / baselineValue) * 100;
+		const regressionPct = rule.direction === 'higher' ? -deltaPct : deltaPct;
+		const regressionAbsolute =
+			rule.direction === 'higher' ? baselineValue - currentValue : currentValue - baselineValue;
 		const regression =
-			rule.direction === 'higher'
-				? deltaPct < -rule.maxRegressionPct
-				: deltaPct > rule.maxRegressionPct;
+			regressionPct > rule.maxRegressionPct &&
+			regressionAbsolute > (rule.maxRegressionAbsolute ?? 0);
 
 		rows.push({
 			metric,

@@ -38,6 +38,11 @@ import {
 	type BenchmarkEnvironment
 } from './benchmark-schema';
 import { compareBenchmarkMetrics } from './benchmark-regression';
+import {
+	compareCoreBenchmarkConfigs,
+	DEFAULT_CORE_BENCHMARK_SEED,
+	type CoreBenchmarkConfig
+} from './core-benchmark-contract';
 import { computeRobustStats, type RobustStats } from './statistics';
 
 const SCRIPT_DIR = import.meta.dirname;
@@ -95,13 +100,7 @@ interface CoreBenchmarkDocument {
 	schemaVersion: typeof BENCHMARK_SCHEMA_VERSION;
 	generatedAt: string;
 	environment: BenchmarkEnvironment;
-	config: {
-		processCount: number;
-		sampleCount: number;
-		warmupMs: number;
-		seed: number;
-		caseOrder: 'seeded-per-process';
-	};
+	config: CoreBenchmarkConfig;
 	metrics: MetricMap;
 	stats: Record<
 		MetricKey,
@@ -160,7 +159,7 @@ function parseArgs(argv: string[]): BenchmarkArgs {
 		processCount: numericArg(argv, 'processes', DEFAULT_PROCESS_COUNT),
 		sampleCount: numericArg(argv, 'samples', DEFAULT_SAMPLE_COUNT),
 		warmupMs: numericArg(argv, 'warmup-ms', DEFAULT_WARMUP_MS),
-		seed: numericArg(argv, 'seed', Date.now() & 0x7fff_ffff)
+		seed: numericArg(argv, 'seed', DEFAULT_CORE_BENCHMARK_SEED)
 	};
 }
 
@@ -852,6 +851,7 @@ async function runCoreBenchmark(args: BenchmarkArgs): Promise<CoreBenchmarkDocum
 		suiteFiles: [
 			import.meta.filename,
 			resolve(SCRIPT_DIR, 'benchmark-schema.ts'),
+			resolve(SCRIPT_DIR, 'core-benchmark-contract.ts'),
 			resolve(SCRIPT_DIR, 'statistics.ts')
 		]
 	});
@@ -880,13 +880,7 @@ function baselineIncompatibilities(
 		result.environment,
 		baseline.environment
 	).differences;
-	for (const field of ['processCount', 'sampleCount', 'warmupMs', 'caseOrder'] as const) {
-		if (result.config[field] !== baseline.config[field]) {
-			differences.push(
-				`config.${field}: current=${String(result.config[field])} baseline=${String(baseline.config[field])}`
-			);
-		}
-	}
+	differences.push(...compareCoreBenchmarkConfigs(result.config, baseline.config));
 	return differences;
 }
 

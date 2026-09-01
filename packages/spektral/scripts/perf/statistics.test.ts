@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
 	bootstrapMedianConfidenceInterval,
 	bootstrapMedianRelativeChangeConfidenceInterval,
+	computeIndependentRunStats,
 	computeRobustStats,
 	median,
 	quantile
@@ -56,4 +57,22 @@ test('invalid samples fail explicitly', () => {
 	assert.throws(() => computeRobustStats([]), /at least one finite sample/u);
 	assert.throws(() => median([Number.NaN]), /at least one finite sample/u);
 	assert.throws(() => bootstrapMedianRelativeChangeConfidenceInterval([0], [1]));
+});
+
+test('independent-run stats retain raw samples and summarize run medians', () => {
+	const stats = computeIndependentRunStats([
+		[1, 3],
+		[10, 20]
+	]);
+	assert.deepEqual(stats.rawSamples, [
+		[1, 3],
+		[10, 20]
+	]);
+	assert.equal(stats.pooled.median, 6.5);
+	assert.equal(stats.runMedians.median, 8.5);
+});
+
+test('independent-run stats reject missing and empty runs', () => {
+	assert.throws(() => computeIndependentRunStats([]), /at least one run/u);
+	assert.throws(() => computeIndependentRunStats([[1], []]), /at least one finite sample/u);
 });

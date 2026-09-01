@@ -5,7 +5,13 @@ import type {
 	ScenarioResult,
 	Stats
 } from './browser/real-renderer-benchmark';
-import { aggregateScenarios, aggregateStats } from './real-renderer-results';
+import {
+	aggregateScenarios,
+	aggregateStats,
+	compareScenarioContracts,
+	extractRealRendererMetrics,
+	realRendererMetricRules
+} from './real-renderer-results';
 
 function stats(samples: number[], median: number): Stats {
 	return {
@@ -89,4 +95,30 @@ test('rejects browser runs with different output checksums', () => {
 		() => aggregateScenarios([browserResult(scenario(123, 0)), browserResult(scenario(456, 10))]),
 		/browser runs disagreed/iu
 	);
+});
+
+test('strict comparison uses independent run medians and absolute noise floors', () => {
+	const [aggregate] = aggregateScenarios([
+		browserResult(scenario(123, 0)),
+		browserResult(scenario(123, 10))
+	]);
+	assert.ok(aggregate);
+	assert.deepEqual(extractRealRendererMetrics([aggregate]), {
+		'sixteen-pass_cpu_submit_ms': 6.5,
+		'sixteen-pass_queue_completion_ms': 8.5,
+		'sixteen-pass_gpu_frame_ns': 10.5
+	});
+	assert.equal(
+		realRendererMetricRules([aggregate])['sixteen-pass_gpu_frame_ns']?.maxRegressionAbsolute,
+		100_000
+	);
+});
+
+test('scenario contract mismatches are explicit', () => {
+	const [current] = aggregateScenarios([browserResult(scenario(123, 0))]);
+	const [baseline] = aggregateScenarios([browserResult(scenario(456, 0))]);
+	assert.ok(current && baseline);
+	assert.deepEqual(compareScenarioContracts([current], [baseline]), [
+		'sixteen-pass: correctness contract differs from baseline'
+	]);
 });

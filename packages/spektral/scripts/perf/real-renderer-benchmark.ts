@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
@@ -8,11 +8,20 @@ import { build, preview, type PreviewServer } from 'vite';
 import {
 	BENCHMARK_SCHEMA_VERSION,
 	collectBenchmarkEnvironment,
+	compareHardwareBenchmarkEnvironments,
+	hardwareBenchmarkIdentity,
 	type AdapterIdentity,
 	type BenchmarkEnvironment
 } from './benchmark-schema';
+import { compareBenchmarkMetrics } from './benchmark-regression';
 import type { RealRendererBrowserResult, ScenarioResult } from './browser/real-renderer-benchmark';
-import { aggregateScenarios, type AggregatedScenario } from './real-renderer-results';
+import {
+	aggregateScenarios,
+	compareScenarioContracts,
+	extractRealRendererMetrics,
+	realRendererMetricRules,
+	type AggregatedScenario
+} from './real-renderer-results';
 
 const SCRIPT_DIR = import.meta.dirname;
 const PACKAGE_ROOT = resolve(SCRIPT_DIR, '../..');
@@ -23,6 +32,7 @@ const HTML_PATH = resolve(BROWSER_ROOT, 'real-renderer.html');
 const LATEST_PATH = resolve(PACKAGE_ROOT, 'benchmarks/results/real-renderer-latest.json');
 const BASELINE_DIRECTORY = resolve(PACKAGE_ROOT, 'benchmarks/baselines');
 const SUITE_VERSION = 1;
+const MINIMUM_GATE_RUNS = 5;
 
 const HARDWARE_LAUNCH_ARGS = [
 	'--enable-unsafe-webgpu',
@@ -40,6 +50,7 @@ interface Args {
 	headed: boolean;
 	runs: number;
 	updateBaseline: boolean;
+	strict: boolean;
 }
 
 interface RealRendererDocument {
@@ -79,7 +90,8 @@ function parseArgs(argv: string[]): Args {
 			'chromium',
 		headed: flags.has('--headed'),
 		runs,
-		updateBaseline: flags.has('--update-baseline')
+		updateBaseline: flags.has('--update-baseline'),
+		strict: flags.has('--strict')
 	};
 }
 
@@ -91,20 +103,10 @@ function slugify(value: string): string {
 		.slice(0, 48);
 }
 
-function fingerprint(input: {
-	environment: BenchmarkEnvironment;
-	channel: string;
-	browserVersion: string;
-}): string {
+function fingerprint(environment: BenchmarkEnvironment): string {
 	const identity = {
 		suiteVersion: SUITE_VERSION,
-		platform: input.environment.platform,
-		arch: input.environment.arch,
-		osRelease: input.environment.osRelease,
-		channel: input.channel,
-		browserMajor: input.browserVersion.split('.')[0] ?? input.browserVersion,
-		adapter: input.environment.adapter,
-		suiteHash: input.environment.suiteHash
+		...hardwareBenchmarkIdentity(environment)
 	};
 	return createHash('sha256').update(JSON.stringify(identity)).digest('hex').slice(0, 16);
 }
@@ -178,6 +180,26 @@ async function pathExists(path: string): Promise<boolean> {
 	}
 }
 
+async function readBaseline(path: string): Promise<RealRendererDocument | null> {
+	try {
+		return JSON.parse(await readFile(path, 'utf8')) as RealRendererDocument;
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return null;
+		}
+		throw error;
+	}
+}
+
+function baselinePath(result: RealRendererDocument): string {
+	const adapterSlug = slugify(result.environment.adapter?.description ?? '') || 'gpu';
+	return resolve(BASELINE_DIRECTORY, `${adapterSlug}-real-renderer-${result.fingerprint}.json`);
+}
+
+function formatMetric(metric: string, value: number): string {
+	return metric.endsWith('_ns') ? `${(value / 1_000_000).toFixed(4)} ms` : `${value.toFixed(3)} ms`;
+}
+
 async function run(args: Args): Promise<RealRendererDocument> {
 	const { server, url, outDir } = await startServer();
 	try {
@@ -223,6 +245,7 @@ async function run(args: Args): Promise<RealRendererDocument> {
 				ENTRY_PATH,
 				HTML_PATH,
 				resolve(SCRIPT_DIR, 'benchmark-schema.ts'),
+				resolve(SCRIPT_DIR, 'benchmark-regression.ts'),
 				resolve(SCRIPT_DIR, 'real-renderer-results.ts'),
 				resolve(SCRIPT_DIR, 'statistics.ts')
 			],
@@ -234,7 +257,7 @@ async function run(args: Args): Promise<RealRendererDocument> {
 		return {
 			schemaVersion: BENCHMARK_SCHEMA_VERSION,
 			generatedAt: new Date().toISOString(),
-			fingerprint: fingerprint({ environment, channel: args.channel, browserVersion }),
+			fingerprint: fingerprint(environment),
 			environment,
 			config: {
 				suiteVersion: SUITE_VERSION,
@@ -273,9 +296,12 @@ async function main(): Promise<void> {
 		);
 	}
 	if (args.updateBaseline) {
-		if (result.config.browserRuns < 5) {
+		if (args.strict) {
+			throw new Error('--strict and --update-baseline cannot be used together');
+		}
+		if (result.config.browserRuns < MINIMUM_GATE_RUNS) {
 			throw new Error(
-				`Refusing baseline update with browserRuns=${result.config.browserRuns}; use at least 5 independent browser sessions`
+				`Refusing baseline creation with browserRuns=${result.config.browserRuns}; use at least ${MINIMUM_GATE_RUNS} independent browser sessions`
 			);
 		}
 		if (result.environment.dirty) {
@@ -286,16 +312,97 @@ async function main(): Promise<void> {
 				`Refusing baseline update with powerMode=${result.environment.powerMode}; control the host and set SPEKTRAL_PERF_POWER_MODE=ac-high-power`
 			);
 		}
-		const adapterSlug = slugify(result.environment.adapter?.description ?? '') || 'gpu';
-		const path = resolve(
-			BASELINE_DIRECTORY,
-			`${adapterSlug}-real-renderer-${result.fingerprint}.json`
-		);
+		const path = baselinePath(result);
 		if (await pathExists(path)) {
 			throw new Error(`Refusing to overwrite existing real-renderer baseline: ${path}`);
 		}
 		await writeJson(path, result);
 		console.log(`Real-renderer baseline created: ${path}`);
+		return;
+	}
+
+	if (args.strict && result.config.browserRuns < MINIMUM_GATE_RUNS) {
+		throw new Error(
+			`Strict real-renderer comparison requires at least ${MINIMUM_GATE_RUNS} fresh browser processes; received ${result.config.browserRuns}`
+		);
+	}
+	const path = baselinePath(result);
+	const baseline = await readBaseline(path);
+	if (!baseline) {
+		console.error(
+			`No compatible real-renderer baseline for the current hardware environment: ${path}`
+		);
+		console.error(
+			`Current hardware identity: ${JSON.stringify(hardwareBenchmarkIdentity(result.environment))}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	if (baseline.schemaVersion !== BENCHMARK_SCHEMA_VERSION) {
+		console.error(
+			`Real-renderer baseline schema mismatch: current=${BENCHMARK_SCHEMA_VERSION}, baseline=${String(baseline.schemaVersion)}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	if (baseline.config.browserRuns < MINIMUM_GATE_RUNS) {
+		console.error(
+			`Real-renderer baseline is not gate-compatible: browserRuns=${baseline.config.browserRuns}, required>=${MINIMUM_GATE_RUNS}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	const environmentComparison = compareHardwareBenchmarkEnvironments(
+		result.environment,
+		baseline.environment
+	);
+	if (!environmentComparison.compatible) {
+		console.error('Real-renderer baseline environment mismatch:');
+		for (const difference of environmentComparison.differences) {
+			console.error(`- ${difference}`);
+		}
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	if (baseline.fingerprint !== result.fingerprint) {
+		console.error(
+			`Real-renderer baseline fingerprint mismatch: current=${result.fingerprint}, baseline=${baseline.fingerprint}`
+		);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	const contractDifferences = compareScenarioContracts(result.scenarios, baseline.scenarios);
+	if (contractDifferences.length > 0) {
+		console.error('Real-renderer scenario contract mismatch:');
+		for (const difference of contractDifferences) console.error(`- ${difference}`);
+		if (args.strict) process.exitCode = 1;
+		return;
+	}
+	const currentMetrics = extractRealRendererMetrics(result.scenarios);
+	const baselineMetrics = extractRealRendererMetrics(baseline.scenarios);
+	const rules = realRendererMetricRules(result.scenarios);
+	const comparison = compareBenchmarkMetrics(currentMetrics, baselineMetrics, rules);
+	const missingMetrics = comparison.rows.filter((row) => row.baseline === null);
+	console.log('Comparison to real-renderer baseline:');
+	for (const row of comparison.rows) {
+		if (row.baseline === null || row.deltaPct === null) {
+			console.log(
+				`${row.metric}: current=${formatMetric(row.metric, row.current)} baseline=missing`
+			);
+			continue;
+		}
+		const sign = row.deltaPct >= 0 ? '+' : '';
+		console.log(
+			`${row.metric}: current=${formatMetric(row.metric, row.current)} baseline=${formatMetric(row.metric, row.baseline)} delta=${sign}${row.deltaPct.toFixed(2)}% thresholds=${row.rule.maxRegressionPct}%+${formatMetric(row.metric, row.rule.maxRegressionAbsolute ?? 0)} ${row.regression ? 'REGRESSION' : 'ok'}`
+		);
+	}
+	if (comparison.regressions.length > 0) {
+		console.error(`Detected ${comparison.regressions.length} real-renderer regression(s).`);
+		if (args.strict) process.exitCode = 1;
+	}
+	if (missingMetrics.length > 0 && args.strict) {
+		console.error(`Baseline is missing ${missingMetrics.length} required real-renderer metric(s).`);
+		process.exitCode = 1;
 	}
 }
 

@@ -16,6 +16,12 @@ export interface RobustStats {
 	bootstrapMedianCi: ConfidenceInterval;
 }
 
+export interface IndependentRunStats {
+	rawSamples: number[][];
+	pooled: RobustStats;
+	runMedians: RobustStats;
+}
+
 function assertSamples(samples: readonly number[]): void {
 	if (samples.length === 0 || samples.some((sample) => !Number.isFinite(sample))) {
 		throw new Error('Statistics require at least one finite sample');
@@ -141,5 +147,23 @@ export function computeRobustStats(samples: readonly number[]): RobustStats {
 		min: sorted[0] ?? 0,
 		max: sorted[sorted.length - 1] ?? 0,
 		bootstrapMedianCi: bootstrapMedianConfidenceInterval(samples)
+	};
+}
+
+/** Keeps within-run samples separate while summarizing independent run medians. */
+export function computeIndependentRunStats(
+	runs: readonly (readonly number[])[]
+): IndependentRunStats {
+	if (runs.length === 0) {
+		throw new Error('Independent-run statistics require at least one run');
+	}
+	const rawSamples = runs.map((samples) => {
+		assertSamples(samples);
+		return [...samples];
+	});
+	return {
+		rawSamples,
+		pooled: computeRobustStats(rawSamples.flat()),
+		runMedians: computeRobustStats(rawSamples.map((samples) => median(samples)))
 	};
 }

@@ -49,6 +49,7 @@
 		"perf:spektral:gpu:baseline": "pnpm --dir packages/spektral run perf:gpu:baseline",
 		"perf:spektral:gpu:headed": "pnpm --dir packages/spektral run perf:gpu:headed",
 		"perf:spektral:renderer": "pnpm --dir packages/spektral run perf:renderer",
+		"perf:spektral:renderer:check": "pnpm --dir packages/spektral run perf:renderer:check",
 		"perf:spektral:renderer:baseline": "pnpm --dir packages/spektral run perf:renderer:baseline",
 		"perf:spektral:renderer:headed": "pnpm --dir packages/spektral run perf:renderer:headed",
 		"lint": "pnpm run lint:spektral && pnpm run lint:web",

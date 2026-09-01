@@ -8,10 +8,16 @@ import { promisify } from 'node:util';
 import {
 	collectBenchmarkEnvironment,
 	compareBenchmarkEnvironments,
+	compareHardwareBenchmarkEnvironments,
 	gitSubprocessEnvironment,
 	hashSuiteFiles,
 	type BenchmarkEnvironment
 } from './benchmark-schema';
+import {
+	compareCoreBenchmarkConfigs,
+	DEFAULT_CORE_BENCHMARK_SEED,
+	type CoreBenchmarkConfig
+} from './core-benchmark-contract';
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +36,22 @@ const environment: BenchmarkEnvironment = {
 	adapter: null,
 	suiteHash: 'suite'
 };
+
+test('core benchmark uses one deterministic case order for baseline and strict runs', () => {
+	assert.equal(DEFAULT_CORE_BENCHMARK_SEED, 0x53_50_45_4b);
+	const baseline: CoreBenchmarkConfig = {
+		processCount: 10,
+		sampleCount: 24,
+		warmupMs: 400,
+		seed: DEFAULT_CORE_BENCHMARK_SEED,
+		caseOrder: 'seeded-per-process'
+	};
+	assert.deepEqual(compareCoreBenchmarkConfigs(baseline, baseline), []);
+	assert.deepEqual(
+		compareCoreBenchmarkConfigs({ ...baseline, seed: baseline.seed + 1 }, baseline),
+		[`config.seed: current=${baseline.seed + 1} baseline=${baseline.seed}`]
+	);
+});
 
 test('suite hashes include paths and file contents in stable order', async () => {
 	const directory = await mkdtemp(join(tmpdir(), 'spektral-perf-schema-'));
@@ -112,5 +134,39 @@ test('runtime, hardware and suite differences reject comparisons', () => {
 	assert.deepEqual(
 		comparison.differences.map((entry) => entry.split(':')[0]),
 		['node', 'browser', 'suiteHash']
+	);
+});
+
+test('hardware compatibility uses Chromium major and the complete GPU fingerprint', () => {
+	const baseline: BenchmarkEnvironment = {
+		...environment,
+		browser: { channel: 'chromium', version: '151.0.1', engine: 'Chromium' },
+		adapter: {
+			vendor: 'apple',
+			architecture: 'metal-3',
+			device: '0x0000',
+			description: 'Apple M4 Pro',
+			backend: 'metal',
+			type: 'integrated GPU',
+			driver: 'Metal 1',
+			isFallbackAdapter: false
+		}
+	};
+	const patchRelease = {
+		...baseline,
+		browser: { ...baseline.browser!, version: '151.0.99' }
+	};
+	assert.equal(compareHardwareBenchmarkEnvironments(patchRelease, baseline).compatible, true);
+
+	const changed = {
+		...patchRelease,
+		browser: { ...patchRelease.browser!, version: '152.0.0' },
+		adapter: { ...patchRelease.adapter!, driver: 'Metal 2' }
+	};
+	assert.deepEqual(
+		compareHardwareBenchmarkEnvironments(changed, baseline).differences.map((entry) =>
+			entry.slice(0, entry.indexOf(':'))
+		),
+		['browser', 'adapter']
 	);
 });

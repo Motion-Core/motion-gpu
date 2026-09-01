@@ -628,7 +628,10 @@ fn fragmentMain() -> @location(0) vec4f {
 		if (!navigator.gpu) {
 			throw new Error('WebGPU is unavailable');
 		}
+		const deviceStart = performance.now();
+		const adapterStart = performance.now();
 		const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+		const adapterReady = performance.now();
 		if (!adapter) {
 			throw new Error('Unable to acquire a WebGPU adapter');
 		}
@@ -637,7 +640,9 @@ fn fragmentMain() -> @location(0) vec4f {
 		if (!adapter.features.has('timestamp-query')) {
 			throw new Error(`Adapter does not expose timestamp-query: ${JSON.stringify(info)}`);
 		}
+		const requestDeviceStart = performance.now();
 		const device = await adapter.requestDevice({ requiredFeatures: ['timestamp-query'] });
+		const deviceReady = performance.now();
 		let uncapturedError = null;
 		device.addEventListener('uncapturederror', (event) => {
 			uncapturedError = event.error?.message ?? String(event.error);
@@ -660,6 +665,11 @@ fn fragmentMain() -> @location(0) vec4f {
 			}
 			return {
 				adapter: info,
+				deviceTimingMs: {
+					adapterRequest: adapterReady - adapterStart,
+					deviceRequest: deviceReady - requestDeviceStart,
+					total: deviceReady - deviceStart
+				},
 				features: [...adapter.features].sort(),
 				limits: {
 					maxBufferSize: Number(device.limits.maxBufferSize),

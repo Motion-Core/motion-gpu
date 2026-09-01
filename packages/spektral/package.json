@@ -117,6 +117,7 @@
 		"perf:gpu:baseline": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --update-baseline",
 		"perf:gpu:headed": "tsx ./scripts/perf/hardware-gpu-benchmark.ts --headed",
 		"perf:renderer": "tsx ./scripts/perf/real-renderer-benchmark.ts",
+		"perf:renderer:check": "tsx ./scripts/perf/real-renderer-benchmark.ts --strict",
 		"perf:renderer:baseline": "tsx ./scripts/perf/real-renderer-benchmark.ts --update-baseline",
 		"perf:renderer:headed": "tsx ./scripts/perf/real-renderer-benchmark.ts --headed",
 		"lint": "pnpm run lint:oxlint && eslint . --max-warnings 0 && pnpm run lint:config && pnpm run lint:imports",

@@ -16,24 +16,12 @@
 	},
 	"routes": [
 		{
-			"pattern": "spektral.madebyhex.com/*",
-			"zone_name": "madebyhex.com"
+			"pattern": "spektral.madebyhex.com",
+			"custom_domain": true
 		},
 		{
-			"pattern": "preview.spektral.madebyhex.com/*",
-			"zone_name": "madebyhex.com"
-		},
-		{
-			"pattern": "motion-gpu.dev/*",
-			"zone_name": "motion-gpu.dev"
-		},
-		{
-			"pattern": "www.motion-gpu.dev/*",
-			"zone_name": "motion-gpu.dev"
-		},
-		{
-			"pattern": "preview.motion-gpu.dev/*",
-			"zone_name": "motion-gpu.dev"
+			"pattern": "preview.spektral.madebyhex.com",
+			"custom_domain": true
 		}
 	],
 	"rules": [

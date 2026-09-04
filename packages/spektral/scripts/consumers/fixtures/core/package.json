@@ -1,0 +1,20 @@
+{
+	"name": "@spektral-consumers/core",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"build": "vite build",
+		"check": "tsc --noEmit",
+		"test:custom-pass": "node src/custom-render-pass.ts"
+	},
+	"dependencies": {
+		"spektral": "file:__SPEKTRAL_TARBALL__"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3",
+		"vite": "^8.0.1"
+	}
+}

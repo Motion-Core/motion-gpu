@@ -1,0 +1,137 @@
+/**
+ * Framework-agnostic Spektral core entrypoint.
+ *
+ * This surface is intended for building framework adapters (Svelte/React/Vue).
+ */
+export { defineMaterial, resolveMaterial } from './material.js';
+export { toSpektralErrorReport } from './error-report.js';
+export { createCurrentWritable } from './current-value.js';
+export { createFrameRegistry } from './frame-registry.js';
+export { createSpektralRuntimeLoop } from './runtime-loop.js';
+export { loadTexturesFromUrls } from './texture-loader.js';
+export {
+	BlitPass,
+	CopyPass,
+	ShaderPass,
+	ComputePass,
+	PingPongComputePass,
+	PingPongShaderPass
+} from '../passes/index.js';
+export type { CurrentReadable, CurrentWritable, Subscribable } from './current-value.js';
+export type { SpektralGraph } from './render-graph-reader.js';
+export type {
+	RenderGraphSnapshot,
+	RenderGraphSnapshotEdge,
+	RenderGraphSnapshotEdgeReason,
+	RenderGraphSnapshotNode,
+	RenderGraphSnapshotPhaseFlowReason,
+	RenderGraphSnapshotPingPongReason,
+	RenderGraphSnapshotReadWriteReason,
+	RenderGraphSnapshotResource,
+	RenderGraphSnapshotResourceAccess,
+	RenderGraphSnapshotSlotFlowReason,
+	RenderGraphSnapshotSubresource,
+	RenderGraphSnapshotWriteConflictReason
+} from './render-graph-snapshot.js';
+export type {
+	SpektralErrorCode,
+	SpektralErrorContext,
+	SpektralErrorPhase,
+	SpektralErrorReport,
+	SpektralErrorSeverity,
+	SpektralErrorSource,
+	SpektralErrorSourceLine
+} from './error-report.js';
+export type {
+	FrameCallback,
+	FrameKey,
+	FrameProfilingSnapshot,
+	FrameRegistry,
+	FrameRunTimings,
+	FrameScheduleSnapshot,
+	FrameStage,
+	FrameStageCallback,
+	FrameTask,
+	FrameTaskInvalidation,
+	FrameTaskInvalidationToken,
+	FrameTimingStats,
+	UseFrameOptions,
+	UseFrameResult
+} from './frame-registry.js';
+export type {
+	FragMaterial,
+	FragMaterialInput,
+	MaterialDefineVectorType,
+	MaterialDefineVectorValue,
+	MaterialDefineValue,
+	MaterialDefines,
+	MaterialIncludes,
+	ResolvedMaterial,
+	TypedMaterialDefineValue,
+	TypedMaterialVectorDefineValue
+} from './material.js';
+export type { SpektralRuntimeLoop, SpektralRuntimeLoopOptions } from './runtime-loop.js';
+export type { LoadedTexture, TextureDecodeOptions, TextureLoadOptions } from './texture-loader.js';
+export type {
+	FrameInvalidationToken,
+	FrameState,
+	OutputEncoding,
+	ToneMapping,
+	OutputDynamicRange,
+	CanvasColorSpace,
+	ColorPipelineOptions,
+	AnyPass,
+	ComputePassLike,
+	PingPongShaderPassLike,
+	RenderPass,
+	RenderPassContext,
+	RenderPassFlags,
+	RenderPassInputSlot,
+	RenderPassOutputSlot,
+	RenderMode,
+	RenderTarget,
+	RenderTargetDefinition,
+	RenderTargetDefinitionMap,
+	TextureData,
+	TextureDefinition,
+	TextureDefinitionMap,
+	TextureMap,
+	TextureSource,
+	TextureUpdateMode,
+	TextureValue,
+	TypedUniform,
+	UniformLayout,
+	UniformLayoutEntry,
+	UniformMap,
+	UniformMat4Value,
+	UniformType,
+	UniformValue
+} from './types.js';
+export type {
+	ComputeBufferReference,
+	ComputeExternalBufferReference,
+	ComputeExternalProvider,
+	ComputeExternalResourceContext,
+	ComputeExternalSamplerReference,
+	ComputeExternalTextureReference,
+	ComputeExternalTextureViewReference,
+	ComputeResourceDescriptor,
+	ComputeResourceMap,
+	ComputeResourceVersion,
+	ComputeSampledTextureResource,
+	ComputeSamplerReference,
+	ComputeSamplerResource,
+	ComputeStorageBufferReadResource,
+	ComputeStorageBufferReadWriteResource,
+	ComputeStorageTextureResource,
+	ComputeTextureReference,
+	ComputeTextureViewDescriptor,
+	StorageBufferAccess,
+	StorageBufferDefinition,
+	StorageBufferDefinitionMap,
+	StorageBufferType,
+	ComputePassContext
+} from './types.js';
+export type { ComputePassOptions, ComputeDispatchContext } from '../passes/ComputePass.js';
+export type { PingPongComputePassOptions } from '../passes/PingPongComputePass.js';
+export type { PingPongShaderPassOptions } from '../passes/PingPongShaderPass.js';

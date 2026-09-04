@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useFrame, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, usePointer } from 'spektral/vue';
 import { RESONANCE_MEDIUM_SIZE, paintResonanceMedium } from './resonance-medium';
 
 const pointer = usePointer({ requestFrame: 'auto' });

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useFrame } from '@motion-core/motion-gpu/react';
+import { useFrame } from 'spektral/react';
 import { createOriginCleanVideo, type OriginCleanVideo } from './video-source';
 
 /**

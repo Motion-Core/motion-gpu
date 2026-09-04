@@ -1,11 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		useFrame,
-		useMotionGPU,
-		usePointer,
-		type ComputePass
-	} from '@motion-core/motion-gpu/svelte';
+	import { useFrame, useSpektral, usePointer, type ComputePass } from 'spektral/svelte';
 
 	interface Props {
 		clearDensity: ComputePass;
@@ -16,7 +11,7 @@
 
 	const FRAME_ID_LIMIT = 16_000_000;
 
-	const context = useMotionGPU();
+	const context = useSpektral();
 
 	let targetRotateY = 0;
 	let targetRotateX = 0;

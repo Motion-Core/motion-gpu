@@ -15,6 +15,12 @@ const publicationVerifier = await readFile(
 const rootManifest = JSON.parse(
 	await readFile(new URL('../../package.json', import.meta.url), 'utf8')
 );
+const packageManifest = JSON.parse(
+	await readFile(new URL('../../packages/spektral/package.json', import.meta.url), 'utf8')
+);
+const webManifest = JSON.parse(
+	await readFile(new URL('../../apps/web/package.json', import.meta.url), 'utf8')
+);
 
 function assertOrdered(stepNames) {
 	let previousIndex = -1;
@@ -54,6 +60,49 @@ test('uses the trusted-publishing runner, environment, and least privileges', ()
 	);
 });
 
+test('locks the 0.17.0 workspace identity to spektral and exactly 10 entrypoints', () => {
+	assert.equal(rootManifest.name, 'spektral-monorepo');
+	assert.equal(packageManifest.name, 'spektral');
+	assert.equal(packageManifest.version, '0.17.0');
+	assert.deepEqual(packageManifest.repository, {
+		type: 'git',
+		url: 'https://github.com/kaltwrk/spektral',
+		directory: 'packages/spektral'
+	});
+	assert.equal(packageManifest.homepage, 'https://spektral.madebyhex.com');
+	assert.deepEqual(packageManifest.bugs, {
+		url: 'https://github.com/kaltwrk/spektral/issues'
+	});
+	assert.deepEqual(packageManifest.files, ['dist', '!dist/**/*.test.*', '!dist/**/*.spec.*']);
+	assert.deepEqual(packageManifest.sideEffects, [
+		'**/*.css',
+		'./dist/react/index.js',
+		'./dist/svelte/index.js',
+		'./dist/vue/index.js'
+	]);
+	assert.deepEqual(Object.keys(packageManifest.exports).sort(), [
+		'.',
+		'./advanced',
+		'./core',
+		'./core/advanced',
+		'./react',
+		'./react/advanced',
+		'./svelte',
+		'./svelte/advanced',
+		'./vue',
+		'./vue/advanced'
+	]);
+	assert.equal(webManifest.name, 'spektral-web');
+	assert.equal(webManifest.dependencies.spektral, 'workspace:*');
+	assert.equal(webManifest.dependencies['@motion-core/motion-gpu'], undefined);
+	assert.equal(
+		Object.entries(rootManifest.scripts).some(
+			([name, command]) => name.includes('motion-gpu') || command.includes('packages/motion-gpu')
+		),
+		false
+	);
+});
+
 test('pins every third-party action to an immutable commit', () => {
 	const actions = [...workflow.matchAll(/uses:\s+([^\s#]+)/g)].map((match) => match[1]);
 	assert.ok(actions.length > 0, 'Release workflow must use pinned setup actions.');
@@ -81,6 +130,10 @@ test('guards package identity, master ancestry, and one-time versions before pac
 	assert.match(workflow, /run: pnpm run ci:quality/);
 	assert.doesNotMatch(workflow, /playwright install|test:e2e|run: pnpm run ci\n/);
 	assert.match(rootManifest.scripts['ci:quality'], /pnpm run test:release-tools/);
+	assert.match(
+		rootManifest.scripts['ci:quality'],
+		/pnpm run test:spektral:bundle-tools && pnpm run build && pnpm run bundle:spektral:check/
+	);
 });
 
 test('keeps WebGPU E2E off GitHub-hosted runners', () => {
@@ -89,7 +142,7 @@ test('keeps WebGPU E2E off GitHub-hosted runners', () => {
 	assert.doesNotMatch(ciWorkflow, /playwright install|test:e2e|pnpm run ci\n/);
 	assert.doesNotMatch(rootManifest.scripts['ci:quality'], /consumers:browser|test:e2e/);
 	assert.match(rootManifest.scripts.ci, /pnpm run ci:quality && pnpm run ci:e2e/);
-	assert.match(rootManifest.scripts['ci:e2e'], /check:motion-gpu:consumers:browser/);
+	assert.match(rootManifest.scripts['ci:e2e'], /check:spektral:consumers:browser/);
 });
 
 test('tests, dry-runs, and publishes the same exact tarball in order', () => {
@@ -104,7 +157,7 @@ test('tests, dry-runs, and publishes the same exact tarball in order', () => {
 	);
 	assert.match(
 		workflow,
-		/npm pack --json --ignore-scripts --pack-destination "\$PACK_DIRECTORY" --workspace @motion-core\/motion-gpu > "\$PACK_METADATA"/
+		/npm pack --json --ignore-scripts --pack-destination "\$PACK_DIRECTORY" --workspace spektral > "\$PACK_METADATA"/
 	);
 	assert.match(workflow, /validate-packed-artifact\.mjs/);
 	assert.match(
@@ -127,10 +180,7 @@ test('tests, dry-runs, and publishes the same exact tarball in order', () => {
 });
 
 test('verifies provenance and exact registry consumers after publication', () => {
-	assert.match(
-		workflow,
-		/npm install --ignore-scripts --save-exact "@motion-core\/motion-gpu@\$PACKAGE_VERSION"/
-	);
+	assert.match(workflow, /npm install --ignore-scripts --save-exact "spektral@\$PACKAGE_VERSION"/);
 	assert.match(workflow, /npm audit signatures/);
 	assert.match(
 		workflow,

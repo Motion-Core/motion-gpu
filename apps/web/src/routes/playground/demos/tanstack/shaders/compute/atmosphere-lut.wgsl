@@ -237,9 +237,9 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     );
     let direction = atmosphereDirection(uv);
     let rayOrigin = vec3f(0.0, PLANET_RADIUS + OBSERVER_ALTITUDE, 0.0);
-    let sunDirection = makeSunDirection(motiongpuUniforms.uTimeOfDay);
-    let moonDirection = makeMoonDirection(motiongpuUniforms.uTimeOfDay);
-    let aerosolDensity = clamp(motiongpuUniforms.uHorizonHaze, 0.0, 4.0);
+    let sunDirection = makeSunDirection(spektralUniforms.uTimeOfDay);
+    let moonDirection = makeMoonDirection(spektralUniforms.uTimeOfDay);
+    let aerosolDensity = clamp(spektralUniforms.uHorizonHaze, 0.0, 4.0);
     let betaRayleigh = vec3f(0.0058, 0.0135, 0.0331);
     let betaMieScatter = vec3f(0.003) * aerosolDensity;
     let betaMieExtinction = vec3f(0.00444) * aerosolDensity;

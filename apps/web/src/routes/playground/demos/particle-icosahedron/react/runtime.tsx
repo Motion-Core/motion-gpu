@@ -1,10 +1,5 @@
 import { useEffect, useRef } from 'react';
-import {
-	useFrame,
-	useMotionGPU,
-	usePointer,
-	type ComputePass
-} from '@motion-core/motion-gpu/react';
+import { useFrame, useSpektral, usePointer, type ComputePass } from 'spektral/react';
 
 const FRAME_ID_LIMIT = 16_000_000;
 
@@ -14,7 +9,7 @@ interface RuntimeProps {
 }
 
 export default function Runtime({ clearDensity, simulate }: RuntimeProps) {
-	const context = useMotionGPU();
+	const context = useSpektral();
 	const animationRef = useRef({
 		targetRotateY: 0,
 		targetRotateX: 0,

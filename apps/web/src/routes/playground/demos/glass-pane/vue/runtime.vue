@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useFrame, useTexture } from '@motion-core/motion-gpu/vue';
+import { useFrame, useTexture } from 'spektral/vue';
 
 const image = useTexture(['/playground-media/sample-image-21.jpg'], {
 	flipY: true,

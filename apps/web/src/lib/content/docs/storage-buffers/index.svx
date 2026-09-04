@@ -3,7 +3,7 @@ title: Storage buffers
 description: Declare GPU buffers for compute writes, fragment reads, and CPU transfer.
 ---
 
-Storage buffers connect CPU data, compute shaders, and fragment shaders. Declare them in the material so Motion GPU can generate bindings and allocate GPU buffers during renderer creation.
+Storage buffers connect CPU data, compute shaders, and fragment shaders. Declare them in the material so Spektral can generate bindings and allocate GPU buffers during renderer creation.
 
 ## Definition
 
@@ -52,7 +52,7 @@ state.writeStorageBuffer('particles', data, { offset: 0 });
 
 Offset and `data.byteLength` must be finite integer multiples of four, and the write must fit inside the buffer. Writes are queued and flushed before rendering or compute dispatch. An attempted batch is cleared even if the flush or render fails; it is not replayed automatically.
 
-Motion GPU copies the selected bytes when `writeStorageBuffer(...)` is called. Changing the source typed array afterward does not change the queued write.
+Spektral copies the selected bytes when `writeStorageBuffer(...)` is called. Changing the source typed array afterward does not change the queued write.
 
 Runtime writes do not rebuild the renderer. They update the initial value imported by compute for that frame.
 

@@ -132,7 +132,7 @@
 			<div class="hidden items-center gap-2 sm:flex">
 				<ThemeToggle tooltipSide="bottom" />
 				<Button
-					href="https://github.com/motion-core/motion-gpu"
+					href="https://github.com/kaltwrk/spektral"
 					target="_blank"
 					rel="noreferrer"
 					variant="secondary"
@@ -231,7 +231,7 @@
 
 	<div class="mt-1 grid grid-cols-1 gap-2">
 		<Button
-			href="https://github.com/motion-core/motion-gpu"
+			href="https://github.com/kaltwrk/spektral"
 			target="_blank"
 			rel="noreferrer"
 			onclick={handleMenuLinkSelect}

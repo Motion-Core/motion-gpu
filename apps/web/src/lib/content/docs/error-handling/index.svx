@@ -3,32 +3,38 @@ title: Error handling
 description: Normalize WebGPU, shader, resource, and runtime failures into stable reports.
 ---
 
-All adapters route initialization and render failures through `toMotionGPUErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
+All adapters route initialization and render failures through `toSpektralErrorReport(error, phase)`. The resulting payload is shared by callbacks, history, the default overlay, and custom error UI.
 
-Import `MotionGPUErrorReport` and the related error types from the same Svelte, React, or Vue
+Import `SpektralErrorReport` and the related error types from the same Svelte, React, or Vue
 entrypoint as your adapter. The framework-neutral root and `/core` entrypoints export the same type
 family.
 
 ## Report
 
 ```ts
-interface MotionGPUErrorReport {
-	code: MotionGPUErrorCode;
-	severity: 'error' | 'fatal';
-	recoverable: boolean;
-	title: string;
-	message: string;
-	hint: string;
-	details: string[];
-	stack: string[];
-	rawMessage: string;
-	phase: 'initialization' | 'render';
-	source: MotionGPUErrorSource | null;
-	context: MotionGPUErrorContext | null;
+interface SpektralErrorReport {
+	readonly code: SpektralErrorCode;
+	readonly severity: 'error' | 'fatal';
+	readonly recoverable: boolean;
+	readonly title: string;
+	readonly message: string;
+	readonly hint: string;
+	readonly details: readonly string[];
+	readonly stack: readonly string[];
+	readonly rawMessage: string;
+	readonly phase: 'initialization' | 'render';
+	readonly source: SpektralErrorSource | null;
+	readonly context: SpektralErrorContext | null;
+	readonly shader: SpektralShaderErrorMetadata | null;
 }
 ```
 
 `code` is the stable routing key. Text fields are display-oriented and may contain source-mapped compiler information. `context`, when present, can include a material signature, pass-graph summary, and active render targets.
+
+For shader failures, `shader` can identify the pass kind and label, shader stage, input and output
+formats, `user` or generated `wrapper` source, and the mapped line and column. Generated wrapper
+WGSL is not exposed. User-source snippets contain at most seven lines. The report and its nested
+metadata, source, context, and list values are immutable snapshots.
 
 ## Codes
 
@@ -43,7 +49,7 @@ interface MotionGPUErrorReport {
 | External compute resources | `COMPUTE_EXTERNAL_RESOURCE_INVALID` |
 | Render graph and fragment ping-pong | `RENDER_GRAPH_INVALID`, `PINGPONG_CONFIGURATION_INVALID` |
 | Textures | `TEXTURE_USAGE_INVALID`, `TEXTURE_REQUEST_FAILED`, `TEXTURE_DECODE_UNAVAILABLE`, `TEXTURE_REQUEST_ABORTED` |
-| Fallback | `MOTIONGPU_RUNTIME_ERROR` |
+| Fallback | `SPEKTRAL_RUNTIME_ERROR` |
 
 WebGPU, adapter, device-loss, and missing bitmap-decode classifications are fatal and non-recoverable where defined by the normalizer. Other known classifications and the fallback are currently reported as recoverable errors.
 
@@ -94,9 +100,17 @@ Compilation diagnostics retain both generated-line positions and original source
 - material fragment line;
 - include name and line;
 - define name and line;
-- compute source line.
+- compute source line;
+- `ShaderPass` user source line, or a generated-wrapper classification when no user line applies.
 
-The primary diagnostic becomes `message`, remaining diagnostics become `details`, and the first mapped location builds the highlighted `source` snippet. Compute payloads carry `shaderStage: 'compute'` and the original compute source.
+The primary diagnostic becomes `message`, remaining diagnostics become `details`, and the first mapped location builds the highlighted `source` snippet. `shader.stage` distinguishes fragment and compute failures. `ShaderPass` reports also carry the optional pass label and active input/output formats.
+
+Spektral awaits the first preparation of every active built-in fullscreen pipeline before rendering.
+After `ShaderPass.setFragment(...)`, preparation happens in the background: successful compilation
+replaces the pipeline and requests a frame, while failure reports a recoverable render error and
+keeps the last-known-good output. A first-preparation failure has no fallback output and blocks
+initial rendering, entering the standard initialization retry/backoff path. Edits are
+latest-request-wins, so stale success or failure cannot replace or report over a newer request.
 
 Compute pipeline validation is partly asynchronous. The renderer caches pending, ready, or failed pipeline state and schedules another frame when validation completes, allowing the normalized compute compilation error to replace derivative uncaptured-command noise.
 

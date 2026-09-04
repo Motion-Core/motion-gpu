@@ -76,16 +76,16 @@ jobs:
       - name: Pack the release artifact once
         id: pack
         env:
-          PACK_DIRECTORY: ${{ runner.temp }}/motion-gpu-release-artifact
+          PACK_DIRECTORY: ${{ runner.temp }}/spektral-release-artifact
         shell: bash
         run: |
           mkdir -p "$PACK_DIRECTORY"
           PACK_METADATA="$PACK_DIRECTORY/npm-pack.json"
-          npm pack --json --ignore-scripts --pack-destination "$PACK_DIRECTORY" --workspace @motion-core/motion-gpu > "$PACK_METADATA"
+          npm pack --json --ignore-scripts --pack-destination "$PACK_DIRECTORY" --workspace spektral > "$PACK_METADATA"
           node ./scripts/release/validate-packed-artifact.mjs "$PACK_METADATA" "$PACK_DIRECTORY" "${{ steps.release.outputs.version }}" >> "$GITHUB_OUTPUT"
 
       - name: Smoke test exact tarball with current and minimum peers
-        run: node ./packages/motion-gpu/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.pack.outputs.tarball }}"
+        run: node ./packages/spektral/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.pack.outputs.tarball }}"
 
       - name: Dry-run exact tarball publication
         run: npm publish "${{ steps.pack.outputs.tarball }}" --dry-run --access public --tag latest
@@ -101,14 +101,14 @@ jobs:
           PACKAGE_VERSION: ${{ steps.release.outputs.version }}
         shell: bash
         run: |
-          AUDIT_DIRECTORY="$(mktemp -d "${RUNNER_TEMP}/motion-gpu-registry-audit.XXXXXX")"
+          AUDIT_DIRECTORY="$(mktemp -d "${RUNNER_TEMP}/spektral-registry-audit.XXXXXX")"
           cd "$AUDIT_DIRECTORY"
           npm init --yes
-          npm install --ignore-scripts --save-exact "@motion-core/motion-gpu@$PACKAGE_VERSION"
+          npm install --ignore-scripts --save-exact "spektral@$PACKAGE_VERSION"
           npm audit signatures
 
       - name: Smoke test exact registry version with current and minimum peers
-        run: node ./packages/motion-gpu/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.release.outputs.version }}"
+        run: node ./packages/spektral/scripts/consumers/packed-consumers.mjs --peer-matrix --package-spec "${{ steps.release.outputs.version }}"
 
       - name: Preserve npm pack metadata
         if: ${{ !cancelled() && steps.pack.outcome == 'success' }}

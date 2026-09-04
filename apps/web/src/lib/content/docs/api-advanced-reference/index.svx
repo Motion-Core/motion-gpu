@@ -7,9 +7,9 @@ description: Scheduler helpers and namespaced user context exports.
 
 | Entrypoint | Additional exports |
 | --- | --- |
-| `@motion-core/motion-gpu/advanced` | Framework-neutral core plus scheduler helpers |
+| `spektral/advanced` | Framework-neutral core plus scheduler helpers |
 | `/svelte/advanced`, `/vue/advanced` | Adapter runtime, scheduler helpers, user-context read/write API |
-| `/react/advanced` | Same, plus `useSetMotionGPUUserContext` |
+| `/react/advanced` | Same, plus `useSetSpektralUserContext` |
 
 ## Scheduler helpers
 
@@ -33,6 +33,6 @@ Overrides may set `diagnosticsEnabled`, `profilingEnabled`, and `profilingWindow
 
 ## User context
 
-Advanced adapter entrypoints export `useMotionGPUUserContext`, `setMotionGPUUserContext`, their types, and scheduler helpers. React adds `useSetMotionGPUUserContext` for hook-bound writes.
+Advanced adapter entrypoints export `useSpektralUserContext`, `setSpektralUserContext`, their types, and scheduler helpers. React adds `useSetSpektralUserContext` for hook-bound writes.
 
 See [User Context](/docs/user-context) and [Hooks API](/docs/api-hooks-reference#advanced-user-context).

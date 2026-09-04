@@ -36,7 +36,7 @@ const finalPass = new BlitPass({
 });
 ```
 
-When a color pipeline is active, `canvas` is still the public final slot. Motion GPU maps it to an internal working surface and presents it to the physical canvas afterward.
+When a color pipeline is active, `canvas` is still the public final slot. Spektral maps it to an internal working surface and presents it to the physical canvas afterward.
 
 ## Validation
 
@@ -61,16 +61,32 @@ Disabled passes are omitted before validation. Pre-scene passes do not write gra
 
 All three share render flags and slot options. [Passes API](/docs/api-passes-reference) is the source of truth for constructors, defaults, and runtime methods.
 
+Spektral prepares built-in fullscreen pipelines asynchronously before their first use. Initial
+active passes are prepared together before the first frame, and the render path never creates
+shader modules or pipelines. A pass added later, enabled later, or routed to a new target format is
+skipped only until its matching pipeline is ready; prepared built-ins and synchronous custom passes
+continue to run.
+
+`ShaderPass.setFragment(...)` keeps the last-known-good pipeline visible during compilation. Edits
+are latest-request-wins: stale success or failure cannot replace or report over a newer edit. A
+current failure is recoverable, while a successful replacement requests another frame.
+
+## Inspecting the graph
+
+`useSpektral().graph.getSnapshot()` exposes the current pre-scene, base-scene, and post-scene plan without rebuilding it. Schema v1 records pass order, slot flow, logical and opaque physical resource IDs, subresources, and every edge reason. The experimental snapshot is cached and deeply frozen. It contains no GPU objects, WGSL, buffer data, callbacks, or timings.
+
+See [Hooks & Context](/docs/hooks-and-context) for identity and lifecycle details and [Hooks API](/docs/api-hooks-reference) for the public types.
+
 ## Lifecycle and custom passes
 
 The renderer tracks pass objects by identity. It calls optional `setSize(...)` when a pass first appears and when its effective size changes, and calls optional `dispose()` after removal or renderer teardown.
 
-A custom `RenderPass` implements `render(context)`. The context contains the device, shared command encoder, all public slot surfaces, resolved `input` and `output`, named targets, timing and size, resolved clear/preserve flags, and `beginRenderPass(...)`.
+A custom `RenderPass` implements the synchronous `render(context)` contract and does not need an asynchronous preparation method. The context contains the device, shared command encoder, all public slot surfaces, resolved `input` and `output`, named targets, timing and size, resolved clear/preserve flags, and `beginRenderPass(...)`.
 
 Use `context.output` or `context.beginRenderPass()` rather than addressing the physical swapchain directly. The logical `canvas` surface may be internal when final color presentation is enabled.
 
 Custom passes are supported only through the `RenderPass` contract. Compute and fragment-feedback
-passes are managed by Motion GPU because the renderer owns their resource and texture lifecycle.
+passes are managed by Spektral because the renderer owns their resource and texture lifecycle.
 Objects with only `isCompute: true` or `isPingPongShader: true` are rejected. Use `ComputePass`,
 `PingPongComputePass`, or `PingPongShaderPass` instead.
 

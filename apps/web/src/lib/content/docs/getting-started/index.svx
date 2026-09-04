@@ -1,6 +1,6 @@
 ---
 title: Getting started
-description: Install Motion GPU and mount a validated material in Svelte, React, or Vue.
+description: Install Spektral and mount a validated material in Svelte, React, or Vue.
 ---
 
 <script lang="ts">
@@ -30,7 +30,7 @@ Only the adapter you import needs its peer dependencies:
 Create the material outside the component render path and pass it to the adapter-specific `FragCanvas`:
 
 ```ts
-import { defineMaterial } from '@motion-core/motion-gpu';
+import { defineMaterial } from 'spektral';
 
 const material = defineMaterial({
 	fragment: `
@@ -42,19 +42,19 @@ fn frag(uv: vec2f) -> vec4f {
 ```
 
 <FrameworkBlock
-svelteCode={`<script lang="ts">\n  import { FragCanvas } from '@motion-core/motion-gpu/svelte';\n<\/script>\n\n<div class="canvas-host">\n  <FragCanvas {material} />\n</div>`}
-reactCode={`import { FragCanvas } from '@motion-core/motion-gpu/react';\n\nexport function App() {\n  return <div className="canvas-host"><FragCanvas material={material} /></div>;\n}`}
-vueCode={`<script setup lang="ts">\nimport { FragCanvas } from '@motion-core/motion-gpu/vue';\n<\/script>\n\n<template>\n  <div class="canvas-host"><FragCanvas :material="material" /></div>\n</template>`}
+svelteCode={`<script lang="ts">\n  import { FragCanvas } from 'spektral/svelte';\n<\/script>\n\n<div class="canvas-host">\n  <FragCanvas {material} />\n</div>`}
+reactCode={`import { FragCanvas } from 'spektral/react';\n\nexport function App() {\n  return <div className="canvas-host"><FragCanvas material={material} /></div>;\n}`}
+vueCode={`<script setup lang="ts">\nimport { FragCanvas } from 'spektral/vue';\n<\/script>\n\n<template>\n  <div class="canvas-host"><FragCanvas :material="material" /></div>\n</template>`}
 svelteLang="svelte"
 reactLang="tsx"
 vueLang="vue"
 />
 
-`FragCanvas` fills its container. CSS controls its visible size; Motion GPU sets the backing-store resolution from the measured size and `dpr`.
+`FragCanvas` fills its container. CSS controls its visible size; Spektral sets the backing-store resolution from the measured size and `dpr`.
 
 ## Add runtime updates
 
-Call `useFrame`, `useMotionGPU`, `usePointer`, and `useTexture` from a descendant of `FragCanvas`. Declare resource names in `defineMaterial(...)` before updating them at runtime.
+Call `useFrame`, `useSpektral`, `usePointer`, and `useTexture` from a descendant of `FragCanvas`. Declare resource names in `defineMaterial(...)` before updating them at runtime.
 
 ```ts
 useFrame((state) => {

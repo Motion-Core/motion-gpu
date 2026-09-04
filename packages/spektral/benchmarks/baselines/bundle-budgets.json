@@ -1,0 +1,57 @@
+{
+	"schemaVersion": 1,
+	"package": "spektral",
+	"version": "0.17.0",
+	"entrypoints": {
+		".": {
+			"minifiedBytes": 9946,
+			"gzipBytes": 3979
+		},
+		"./advanced": {
+			"minifiedBytes": 289,
+			"gzipBytes": 175
+		},
+		"./core": {
+			"minifiedBytes": 16344,
+			"gzipBytes": 4614
+		},
+		"./core/advanced": {
+			"minifiedBytes": 822,
+			"gzipBytes": 393
+		},
+		"./react": {
+			"minifiedBytes": 168603,
+			"gzipBytes": 50298
+		},
+		"./react/advanced": {
+			"minifiedBytes": 500,
+			"gzipBytes": 292
+		},
+		"./svelte": {
+			"minifiedBytes": 171244,
+			"gzipBytes": 51600
+		},
+		"./svelte/advanced": {
+			"minifiedBytes": 456,
+			"gzipBytes": 273
+		},
+		"./vue": {
+			"minifiedBytes": 168951,
+			"gzipBytes": 50776
+		},
+		"./vue/advanced": {
+			"minifiedBytes": 454,
+			"gzipBytes": 275
+		}
+	},
+	"assets": {
+		"css": {
+			"minifiedBytes": 15819,
+			"gzipBytes": 3002
+		},
+		"playgroundWorker": {
+			"minifiedBytes": 3759668,
+			"gzipBytes": 891467
+		}
+	}
+}

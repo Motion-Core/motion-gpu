@@ -25,8 +25,8 @@ import {
 	load_svelte,
 	parse_npm_url,
 	resolve_local,
-	resolve_local_motiongpu,
-	resolve_local_motiongpu_relative,
+	resolve_local_spektral,
+	resolve_local_spektral_relative,
 	resolve_subpath,
 	resolve_version,
 	type Package
@@ -182,10 +182,10 @@ async function get_bundle(
 
 				const resolved_url = new URL(importee, importer).href;
 
-				// Normalize local motion-gpu imports to include file extension,
+				// Normalize local spektral imports to include file extension,
 				// so that './foo' and './foo.js' resolve to the same module ID.
-				if (resolved_url.startsWith(`${location.origin}/motion-gpu/`)) {
-					return await resolve_local_motiongpu_relative(resolved_url);
+				if (resolved_url.startsWith(`${location.origin}/spektral/`)) {
+					return await resolve_local_spektral_relative(resolved_url);
 				}
 
 				return resolved_url;
@@ -236,12 +236,12 @@ async function get_bundle(
 			// Resolve local workspace package only in development.
 			// In deployed runtimes (e.g. Cloudflare Workers), local filesystem-backed
 			// package serving may be unavailable, so we fall back to npm resolution.
-			if (pkg_name === '@motion-core/motion-gpu' && DEV) {
+			if (pkg_name === 'spektral' && DEV) {
 				try {
-					return await resolve_local_motiongpu(importee);
+					return await resolve_local_spektral(importee);
 				} catch (error) {
 					console.warn(
-						`[bundler] Failed to resolve local @motion-core/motion-gpu for "${importee}", falling back to npm resolution`,
+						`[bundler] Failed to resolve local spektral for "${importee}", falling back to npm resolution`,
 						error
 					);
 				}

@@ -10,7 +10,7 @@ if (!eventPath || !githubRepository) {
 const repositoryRoot = path.resolve(import.meta.dirname, '../..');
 const event = JSON.parse(await readFile(eventPath, 'utf8'));
 const manifest = JSON.parse(
-	await readFile(path.join(repositoryRoot, 'packages/motion-gpu/package.json'), 'utf8')
+	await readFile(path.join(repositoryRoot, 'packages/spektral/package.json'), 'utf8')
 );
 const version = assertReleaseEvent(event);
 assertReleaseIdentity({ githubRepository, manifest, version });

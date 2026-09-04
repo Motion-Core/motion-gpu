@@ -56,14 +56,14 @@ fn refractedImage(uv: vec2f, chroma: vec2f, resolution: vec2f, textureSize: vec2
 }
 
 fn frag(uv: vec2f) -> vec4f {
-	let resolution = vec2f(motiongpuFrame.resolution);
+	let resolution = vec2f(spektralFrame.resolution);
 	let textureSize = vec2f(textureDimensions(uImage));
 	let aspect = resolution.x / max(resolution.y, 1.0);
 	let angle = 0.0;
 	let cosA = cos(angle);
 	let sinA = sin(angle);
 	let effectUv = transformUv(uv, aspect, radians(GLASS_ROTATION));
-	let animatedWave = GLASS_WAVE_AMPLITUDE * (0.75 + 0.25 * sin(motiongpuFrame.time * GLASS_SPEED * 0.22));
+	let animatedWave = GLASS_WAVE_AMPLITUDE * (0.75 + 0.25 * sin(spektralFrame.time * GLASS_SPEED * 0.22));
 	let optics = panelOptics(
 		effectUv,
 		resolution,

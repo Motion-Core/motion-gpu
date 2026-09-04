@@ -18,9 +18,9 @@
 		"/static/",
 		"**/.svelte-kit/",
 		"**/dist/",
-		"packages/motion-gpu/benchmarks/results/",
-		"packages/motion-gpu/coverage/",
-		"packages/motion-gpu/test-results/",
+		"packages/spektral/benchmarks/results/",
+		"packages/spektral/coverage/",
+		"packages/spektral/test-results/",
 		"apps/web/test-results/"
 	]
 }

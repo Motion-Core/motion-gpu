@@ -88,7 +88,7 @@ fn sample_scene(
 }
 
 fn frag(uv: vec2f) -> vec4f {
-  let aspect = motiongpuFrame.resolution.x / max(motiongpuFrame.resolution.y, 1.0);
+  let aspect = spektralFrame.resolution.x / max(spektralFrame.resolution.y, 1.0);
   let fit = select(vec2f(1.0, 1.0 / aspect), vec2f(aspect, 1.0), aspect > 1.0);
   let p = (uv * 2.0 - 1.0) * fit;
 
@@ -96,12 +96,12 @@ fn frag(uv: vec2f) -> vec4f {
   let rd = normalize(vec3f(p.x, p.y, -2.55));
 
   let bg = background(rd);
-  if (!ray_hits_scene_sphere(ro, rd, motiongpuUniforms.uSceneBound)) {
+  if (!ray_hits_scene_sphere(ro, rd, spektralUniforms.uSceneBound)) {
     return vec4f(bg, 1.0);
   }
 
-  let half_size = motiongpuUniforms.uCubeScale * 0.5;
-  let radius = min(motiongpuUniforms.uRoundRadius, half_size - 0.01);
+  let half_size = spektralUniforms.uCubeScale * 0.5;
+  let radius = min(spektralUniforms.uRoundRadius, half_size - 0.01);
   let hit_eps = 0.0025;
   let max_steps = 120;
   let max_dist = 20.0;
@@ -163,18 +163,18 @@ fn frag(uv: vec2f) -> vec4f {
 
   let fresnel = pow(
     1.0 - max(dot(normal, view_dir), 0.0),
-    max(0.001, motiongpuUniforms.uRimPower)
-  ) * motiongpuUniforms.uRimIntensity;
+    max(0.001, spektralUniforms.uRimPower)
+  ) * spektralUniforms.uRimIntensity;
 
 
   let variation = cubeGridPositions[selected_hit.cube_index].xyz * 0.5 + 0.5;
-  let body = motiongpuUniforms.uBodyColor + variation * 0.015;
+  let body = spektralUniforms.uBodyColor + variation * 0.015;
 
   let specular = pow(max(dot(reflect(-light_key, normal), view_dir), 0.0), 92.0) * 0.32;
 
   var lit = body * (0.11 + key * 1.02 + fill * 0.3 + back * 0.17);
   lit += vec3f(specular);
-  lit += motiongpuUniforms.uRimColor * (fresnel * 1.35);
+  lit += spektralUniforms.uRimColor * (fresnel * 1.35);
 
   let fog = exp(-local_t * 0.07);
   let color = mix(bg, lit, fog);

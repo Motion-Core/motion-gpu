@@ -15,7 +15,7 @@ Compute source must contain:
 - a function named `compute` with the `@compute` attribute;
 - `@builtin(global_invocation_id)` in that function's parameters.
 
-Literal workgroup dimensions are inferred automatically. When the attribute uses an override or another constant expression, pass the resolved dimensions through `workgroupSize` so Motion GPU can calculate auto-dispatch before WebGPU compiles the source:
+Literal workgroup dimensions are inferred automatically. When the attribute uses an override or another constant expression, pass the resolved dimensions through `workgroupSize` so Spektral can calculate auto-dispatch before WebGPU compiles the source:
 
 ```ts
 new ComputePass({
@@ -55,7 +55,7 @@ new ComputePass({
 | `{ buffer, access: 'storage-read-write' }` | `var<storage, read_write>` | Read and write |
 | `{ sampler }` | `sampler` or `sampler_comparison` | No data edge |
 
-A `ComputePass` without `resources` has only frame and material uniforms. Material textures and storage buffers are never injected automatically. Aliases must be valid WGSL identifiers and cannot use `motiongpuFrame` or `motiongpuUniforms`.
+A `ComputePass` without `resources` has only frame and material uniforms. Material textures and storage buffers are never injected automatically. Aliases must be valid WGSL identifiers and cannot use `spektralFrame` or `spektralUniforms`.
 
 Bindings are sorted by alias. Group 0 contains frame and material uniforms. A non-empty resource map becomes group 1. The same resolved list drives WGSL generation, bind-group layout, resource validation, and dependency scheduling.
 
@@ -70,7 +70,7 @@ Read-only texture and buffer descriptors accept `version: 'current' | 'initial'`
 
 ### Texture views and formats
 
-Texture descriptors accept `{ baseMipLevel?, mipLevelCount?, baseArrayLayer?, arrayLayerCount?: 1 }`. Sampled bindings default to the remaining mip range; storage writes expose one mip level. Motion GPU supports 2D color views in compute descriptors and rejects invalid ranges before dispatch.
+Texture descriptors accept `{ baseMipLevel?, mipLevelCount?, baseArrayLayer?, arrayLayerCount?: 1 }`. Sampled bindings default to the remaining mip range; storage writes expose one mip level. Spektral supports 2D color views in compute descriptors and rejects invalid ranges before dispatch.
 
 Sampled declarations follow the actual format class. Float, unsigned-integer, and signed-integer textures generate `texture_2d<f32>`, `texture_2d<u32>`, and `texture_2d<i32>` respectively. Storage declarations keep their exact storage format.
 
@@ -134,7 +134,7 @@ const pass = new ComputePass({
 });
 ```
 
-External texture, view, buffer, and sampler references are borrowed. Motion GPU never destroys them. Providers run once per pass per rendered frame and receive `{ device, width, height, time, delta }`; the returned object is captured for graph validation and binding. `resourceId` must remain the same for the same logical allocation, including aliases and views. A provider must return a resource created for the current device after device recovery.
+External texture, view, buffer, and sampler references are borrowed. Spektral never destroys them. Providers run once per pass per rendered frame and receive `{ device, width, height, time, delta }`; the returned object is captured for graph validation and binding. `resourceId` must remain the same for the same logical allocation, including aliases and views. A provider must return a resource created for the current device after device recovery.
 
 Metadata is part of the contract: textures declare format and usage, views add dimension and mip count, buffers add WGSL type and size, and samplers add binding type. Object changes refresh a bind group but do not rebuild a pipeline while topology and metadata remain unchanged.
 

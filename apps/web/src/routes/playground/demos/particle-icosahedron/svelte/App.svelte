@@ -8,7 +8,7 @@
 	 * You are free to share and adapt this work under the terms of the license.
 	 * https://creativecommons.org/licenses/by-nc-sa/4.0/
 	 */
-	import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/svelte';
+	import { ComputePass, FragCanvas, defineMaterial } from 'spektral/svelte';
 	import Runtime from './runtime.svelte';
 	import fragmentShader from './shaders/fragment.wgsl?raw';
 	import clearDensityShader from './shaders/compute/clear-density.wgsl?raw';

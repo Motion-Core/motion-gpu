@@ -56,4 +56,4 @@ Use a define when the value is part of compiled shader structure, such as a feat
 
 The line map labels compilation failures as fragment, include, or define locations. `PingPongShaderPass.setFragment(fragment, { defines, includes })` uses the same preprocessing and replaces its pipeline only after the new source passes contract validation.
 
-Open the [Diamond demo](/playground?demo=diamond&framework=svelte) or [Motion GPU Logo demo](/playground?demo=motion-gpu-logo&framework=svelte) to edit real define/include usage.
+Open the [Diamond demo](/playground?demo=diamond&framework=svelte) or [Spektral Logo demo](/playground?demo=spektral-logo&framework=svelte) to edit real define/include usage.

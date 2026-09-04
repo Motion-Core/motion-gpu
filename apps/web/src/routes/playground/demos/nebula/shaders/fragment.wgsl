@@ -1,6 +1,6 @@
 fn frag(uv: vec2f) -> vec4f {
-    let resolution = motiongpuFrame.resolution;
-    let time = motiongpuFrame.time * 0.1;
+    let resolution = spektralFrame.resolution;
+    let time = spektralFrame.time * 0.1;
 
     let pixel = vec2f(uv.x * resolution.x, uv.y * resolution.y);
     let u = (pixel - resolution * 0.5) / resolution.y;

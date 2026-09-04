@@ -14,7 +14,7 @@ fn bloomSample(uv: vec2f) -> vec3f {
 }
 
 fn frag(uv: vec2f) -> vec4f {
-    let resolution = max(motiongpuFrame.resolution, vec2f(1.0));
+    let resolution = max(spektralFrame.resolution, vec2f(1.0));
     let feedbackSize = vec2f(textureDimensions(feedback));
     let sourceUv = coverUv(uv, resolution, feedbackSize.x / feedbackSize.y);
     let texel = 1.0 / feedbackSize;
@@ -29,7 +29,7 @@ fn frag(uv: vec2f) -> vec4f {
     let p = uv * 2.0 - 1.0;
     let vignette = pow(clamp(1.0 - dot(p, p) * 0.24, 0.0, 1.0), 1.35);
     let grain = fract(
-        sin(dot(uv * resolution + floor(motiongpuFrame.time * 24.0), vec2f(12.9898, 78.233)))
+        sin(dot(uv * resolution + floor(spektralFrame.time * 24.0), vec2f(12.9898, 78.233)))
             * 43758.5453
     );
     var color = center + bloom * 0.075;

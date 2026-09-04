@@ -3,7 +3,7 @@ title: Concepts & Architecture
 description: Runtime lifecycle, frame order, and renderer rebuild boundaries.
 ---
 
-Motion GPU separates immutable pipeline declarations from mutable frame data. This boundary controls caching, renderer recreation, and the order in which work reaches the GPU.
+Spektral separates immutable pipeline declarations from mutable frame data. This boundary controls caching, renderer recreation, and the order in which work reaches the GPU.
 
 ## Declaration and runtime layers
 
@@ -24,6 +24,10 @@ When `FragCanvas` mounts, its adapter:
 3. resolves the material;
 4. requests the WebGPU adapter and device;
 5. creates buffers, textures, bind groups, and render or compute pipelines as needed.
+
+Before the first frame, the renderer asynchronously prepares every active built-in fullscreen
+pipeline for its resolved input and output formats. Shader hot edits prepare in the background and
+keep the last-known-good pipeline until the latest source succeeds.
 
 If initialization fails, the runtime reports the normalized error and retries with exponential backoff from 250 ms to an 8-second cap. A pipeline-signature change resets the backoff.
 
@@ -90,7 +94,7 @@ The base scene and post-processing graph use these slots:
 | `canvas` | Logical final output; output-only |
 | Render-target name | Declared off-screen surface |
 
-Without post-process passes or a final color pipeline, the base material renders directly to the canvas. A color pipeline can make `canvas` a logical internal target; Motion GPU then presents it to the physical swapchain after all render passes.
+Without post-process passes or a final color pipeline, the base material renders directly to the canvas. A color pipeline can make `canvas` a logical internal target; Spektral then presents it to the physical swapchain after all render passes.
 
 The planner rejects invalid swaps, reads from `canvas`, unknown named targets, and reads before the target has been written in the current frame. [Render Passes](/docs/render-passes) documents slot routing.
 

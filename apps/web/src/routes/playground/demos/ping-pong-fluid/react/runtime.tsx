@@ -1,10 +1,4 @@
-import {
-	PingPongShaderPass,
-	useFrame,
-	useMotionGPU,
-	usePointer,
-	useTexture
-} from '@motion-core/motion-gpu/react';
+import { PingPongShaderPass, useFrame, useSpektral, usePointer, useTexture } from 'spektral/react';
 import { useEffect } from 'react';
 
 export default function Runtime({ simulateFluid }: { simulateFluid: PingPongShaderPass }) {
@@ -25,16 +19,16 @@ export default function Runtime({ simulateFluid }: { simulateFluid: PingPongShad
 		return [Math.round(w * ratio), Math.round(h * ratio)];
 	}
 
-	const motiongpu = useMotionGPU();
+	const spektral = useSpektral();
 
 	useEffect(() => {
-		return motiongpu.size.subscribe(({ width, height }) => {
+		return spektral.size.subscribe(({ width, height }) => {
 			if (!width || !height) return;
 
 			const [w, h] = constrainResolution(width, height, 512);
 			simulateFluid.setDimensions(w, h);
 		});
-	}, [motiongpu, simulateFluid]);
+	}, [spektral, simulateFluid]);
 
 	useFrame((frame) => {
 		const texture = image.textures.current?.[0];

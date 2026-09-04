@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, usePointer } from 'spektral/svelte';
 
 	const START_TIME = 0;
 	const END_TIME = 24;

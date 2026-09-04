@@ -142,13 +142,13 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     f32(CLOUD_LUT_WIDTH),
     f32(CLOUD_LUT_HEIGHT)
   );
-  let resolution = max(motiongpuFrame.resolution, vec2f(1.0));
+  let resolution = max(spektralFrame.resolution, vec2f(1.0));
   let viewDirection = makeViewDirection(sceneUv, resolution.x / resolution.y);
   let cloud = proceduralClouds(
     viewDirection,
-    motiongpuFrame.time,
-    motiongpuUniforms.uCloudCoverage,
-    motiongpuUniforms.uCloudSpeed
+    spektralFrame.time,
+    spektralUniforms.uCloudCoverage,
+    spektralUniforms.uCloudSpeed
   );
   textureStore(cloudLut, vec2u(id.xy), vec4f(cloud, 0.0, 1.0));
 }

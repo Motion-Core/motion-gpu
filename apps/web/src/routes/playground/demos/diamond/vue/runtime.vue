@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useFrame, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, usePointer } from 'spektral/vue';
 
 const MAX_ORBIT_X = 0.8;
 const MAX_ORBIT_Y = 0.8;

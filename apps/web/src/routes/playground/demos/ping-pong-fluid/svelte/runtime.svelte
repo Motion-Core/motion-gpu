@@ -2,10 +2,10 @@
 	import {
 		PingPongShaderPass,
 		useFrame,
-		useMotionGPU,
+		useSpektral,
 		usePointer,
 		useTexture
-	} from '@motion-core/motion-gpu/svelte';
+	} from 'spektral/svelte';
 
 	let { simulateFluid }: { simulateFluid: PingPongShaderPass } = $props();
 
@@ -26,10 +26,10 @@
 		return [Math.round(w * ratio), Math.round(h * ratio)];
 	}
 
-	const motiongpu = useMotionGPU();
+	const spektral = useSpektral();
 
 	$effect(() => {
-		return motiongpu.size.subscribe(({ width, height }) => {
+		return spektral.size.subscribe(({ width, height }) => {
 			if (!width || !height) return;
 
 			const [w, h] = constrainResolution(width, height, 512);

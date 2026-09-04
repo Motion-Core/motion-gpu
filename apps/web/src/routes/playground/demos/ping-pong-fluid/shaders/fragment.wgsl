@@ -13,7 +13,7 @@ fn sampleImage(uv: vec2f) -> vec3f {
     let edgeClampedUv = clamp(uv, vec2f(0.0), vec2f(1.0));
     let rawDims = textureDimensions(uImage);
     let dims = vec2f(f32(rawDims.x), f32(rawDims.y));
-    let viewport = max(motiongpuFrame.resolution, vec2f(1.0));
+    let viewport = max(spektralFrame.resolution, vec2f(1.0));
     let coveredUv = coverUv(edgeClampedUv, dims, viewport);
     let inBounds = coveredUv.x >= 0.0 && coveredUv.x <= 1.0 && coveredUv.y >= 0.0 && coveredUv.y <= 1.0;
     let color = textureSample(uImage, uImageSampler, clamp(coveredUv, vec2f(0.0), vec2f(1.0))).rgb;

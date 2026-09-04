@@ -143,7 +143,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
     let edgeDistance = min(min(u, v), w);
     let edgeWeight = clamp(edgeDistance * 6.0, 0.0, 1.0);
 
-    let t = motiongpuFrame.time * (0.25 + speed * 0.65) + phase;
+    let t = spektralFrame.time * (0.25 + speed * 0.65) + phase;
 
     let tangentCandidate = cross(dir, vec3f(1.0, 0.0, 0.0)) + cross(dir, vec3f(0.0, 1.0, 0.0));
     let tangentFallback = cross(dir, vec3f(0.0, 0.0, 1.0));
@@ -169,14 +169,14 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
     var position = p0 + normal * sin(t * 1.9 + seed * 13.0) * MICRO_JITTER * (0.3 + (1.0 - edgeWeight));
 
-    let rotY = motiongpuUniforms.uRotateY;
+    let rotY = spektralUniforms.uRotateY;
     let cosY = cos(rotY);
     let sinY = sin(rotY);
     let xz = vec2f(position.x * cosY - position.z * sinY, position.x * sinY + position.z * cosY);
     position = vec3f(xz.x, position.y, xz.y);
     normal = vec3f(normal.x * cosY - normal.z * sinY, normal.y, normal.x * sinY + normal.z * cosY);
 
-    let rotX = motiongpuUniforms.uRotateX;
+    let rotX = spektralUniforms.uRotateX;
     let cosX = cos(rotX);
     let sinX = sin(rotX);
     let yz = vec2f(position.y * cosX - position.z * sinX, position.y * sinX + position.z * cosX);
@@ -213,6 +213,6 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
         let energy = (0.42 + n * 0.58 + ridge * 4.5) * clamp(perspective, 0.6, 1.7) * facing;
         let color = lit * energy * 0.045;
         textureStore(densityMap, vec2u(u32(tx), u32(ty)), vec4f(color, 1.0));
-        textureStore(densityFrame, vec2u(u32(tx), u32(ty)), vec4f(motiongpuUniforms.uFrameId, 0.0, 0.0, 0.0));
+        textureStore(densityFrame, vec2u(u32(tx), u32(ty)), vec4f(spektralUniforms.uFrameId, 0.0, 0.0, 0.0));
     }
 }

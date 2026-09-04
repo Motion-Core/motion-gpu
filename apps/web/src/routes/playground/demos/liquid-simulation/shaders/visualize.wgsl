@@ -5,7 +5,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
 
     let p = vec2i(id.xy);
     let maxCoord = vec2i(size) - 1;
-    let viewport = max(motiongpuFrame.resolution, vec2f(1.0));
+    let viewport = max(spektralFrame.resolution, vec2f(1.0));
     let gradientScale = vec2f(min(viewport.x, viewport.y)) / viewport;
     let center = textureLoad(uWave, p, 0);
     let smoothWeights = array<f32, 5>(1.0, 4.0, 6.0, 4.0, 1.0);

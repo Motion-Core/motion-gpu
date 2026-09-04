@@ -7,7 +7,7 @@
  * You are free to share and adapt this work under the terms of the license.
  * https://creativecommons.org/licenses/by-nc-sa/4.0/
  */
-import { ComputePass, FragCanvas, defineMaterial } from '@motion-core/motion-gpu/react';
+import { ComputePass, FragCanvas, defineMaterial } from 'spektral/react';
 import Runtime from './runtime';
 import common from './shaders/includes/common.wgsl?raw';
 import stars from './shaders/includes/stars.wgsl?raw';

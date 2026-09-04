@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame } from '@motion-core/motion-gpu/svelte';
+	import { useFrame } from 'spektral/svelte';
 	// @ts-expect-error The playground mounts shared demo files beside the virtual runtime entry.
 	import { createOriginCleanVideo, type OriginCleanVideo } from './video-source';
 

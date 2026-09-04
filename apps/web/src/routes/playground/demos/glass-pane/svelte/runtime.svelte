@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useFrame, useTexture } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, useTexture } from 'spektral/svelte';
 
 	const image = useTexture(['/playground-media/sample-image-21.jpg'], {
 		flipY: true,

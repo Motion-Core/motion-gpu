@@ -1,0 +1,599 @@
+.spektral-error-overlay {
+	--spektral-base-hue: var(--base-hue, 265);
+	--spektral-surface-gap: 0.375rem;
+	--spektral-color-background-inset: oklch(0.1913 0.0039 var(--spektral-base-hue));
+	--spektral-color-background: oklch(0.235 0.0056 var(--spektral-base-hue));
+	--spektral-color-background-muted: oklch(0.265 0.0073 var(--spektral-base-hue));
+	--spektral-color-foreground: oklch(0.9674 0.0013 var(--spektral-base-hue));
+	--spektral-color-foreground-muted: oklch(0.669 0.0107 var(--spektral-base-hue));
+	--spektral-color-accent: oklch(0.6996 0.181959 44.4414);
+	--spektral-color-accent-secondary: oklch(0.5096 0.131959 44.4414);
+	--spektral-color-warning: oklch(0.708 0.18 19.571);
+	--spektral-color-white-fixed: oklch(1 0 0);
+	--spektral-shadow-color: oklch(0 0.0013 var(--spektral-base-hue));
+	--spektral-shadow-highlight-color: oklch(1 0.013 var(--spektral-base-hue));
+	--spektral-guide-ink: oklch(from var(--spektral-shadow-highlight-color) l c h / 0.08);
+	--spektral-guide-duotone-ink: var(--spektral-shadow-color);
+	--spektral-guide-duotone-glint: oklch(from var(--spektral-shadow-highlight-color) l c h / 0.08);
+	--spektral-radius-base: var(--radius-base, 0.275rem);
+	--spektral-radius-xs: var(--radius-xs, calc(var(--spektral-radius-base) * 1));
+	--spektral-radius-sm: var(--radius-sm, calc(var(--spektral-radius-base) * 2));
+	--spektral-radius-md: var(--radius-md, calc(var(--spektral-radius-base) * 3));
+	--spektral-radius-lg: var(--radius-lg, calc(var(--spektral-radius-base) * 4));
+	--spektral-radius-xl: var(--radius-xl, calc(var(--spektral-radius-base) * 6));
+	--spektral-radius-dialog-inner: calc(var(--spektral-radius-xl) - var(--spektral-surface-gap));
+	--spektral-radius-surface-inner: calc(var(--spektral-radius-lg) - var(--spektral-surface-gap));
+	--spektral-shadow-inset:
+		0px 1px 3px 0px oklch(from var(--spektral-shadow-color) l c h / 0.051) inset,
+		0px 5px 5px -1px oklch(from var(--spektral-shadow-color) l c h / 0.051) inset,
+		0px 11px 6px -2px oklch(from var(--spektral-shadow-color) l c h / 0.031) inset,
+		0px 19px 8px -3px oklch(from var(--spektral-shadow-color) l c h / 0.012) inset,
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.051) inset,
+		0px -1px 0px 0px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.122) inset,
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-color) l c h / 0.071) inset,
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-color) l c h / 0.039) inset;
+	--spektral-shadow-highlight-inset:
+		0px 1px 3px 0px oklch(from var(--spektral-shadow-color) l c h / 0.051) inset,
+		0px 5px 5px -1px oklch(from var(--spektral-shadow-color) l c h / 0.051) inset,
+		0px 11px 6px -2px oklch(from var(--spektral-shadow-color) l c h / 0.031) inset,
+		0px 19px 8px -3px oklch(from var(--spektral-shadow-color) l c h / 0.012) inset,
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.051) inset,
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-color) l c h / 0.071) inset,
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-color) l c h / 0.039) inset;
+	--spektral-shadow-md:
+		0px 1px 3px 0px oklch(from var(--spektral-shadow-color) l c h / 0.051),
+		0px 5px 5px -1px oklch(from var(--spektral-shadow-color) l c h / 0.051),
+		0px 11px 6px -2px oklch(from var(--spektral-shadow-color) l c h / 0.031),
+		0px 19px 8px -3px oklch(from var(--spektral-shadow-color) l c h / 0.012),
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.051) inset,
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.122) inset,
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-color) l c h / 0.071),
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-color) l c h / 0.039);
+	--spektral-shadow-2xl:
+		0px 13px 29px 0px oklch(from var(--spektral-shadow-color) l c h / 0.071),
+		0px 53px 53px 0px oklch(from var(--spektral-shadow-color) l c h / 0.059),
+		0px 119px 71px 0px oklch(from var(--spektral-shadow-color) l c h / 0.031),
+		0px 211px 85px 0px oklch(from var(--spektral-shadow-color) l c h / 0.012),
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-color) l c h / 0.102),
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-color) l c h / 0.102),
+		0px 0px 0px 1px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.051) inset,
+		0px 1px 0px 0px oklch(from var(--spektral-shadow-highlight-color) l c h / 0.122) inset;
+	--spektral-font-sans: var(--font-sans, 'APK Galeria', ui-sans-serif, system-ui, sans-serif);
+	--spektral-font-mono: var(
+		--font-mono,
+		'Berkeley Mono',
+		ui-monospace,
+		'SFMono-Regular',
+		Menlo,
+		Consolas,
+		monospace
+	);
+
+	position: fixed;
+	inset: 0;
+	z-index: 2147483647;
+	display: grid;
+	place-items: center;
+	padding-block-start: max(clamp(0.75rem, 1.4vw, 1.5rem), env(safe-area-inset-top));
+	padding-block-end: max(clamp(0.75rem, 1.4vw, 1.5rem), env(safe-area-inset-bottom));
+	padding-inline-start: max(clamp(0.75rem, 1.4vw, 1.5rem), env(safe-area-inset-left));
+	padding-inline-end: max(clamp(0.75rem, 1.4vw, 1.5rem), env(safe-area-inset-right));
+	overscroll-behavior: contain;
+	background: oklch(0 0 0 / 0.8);
+	backdrop-filter: blur(10px);
+	color: var(--spektral-color-foreground);
+	color-scheme: dark;
+	font-family: var(--spektral-font-sans);
+	font-size: 0.875rem;
+	font-weight: 400;
+	line-height: 1.5;
+	text-align: start;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+.spektral-error-overlay,
+.spektral-error-overlay * {
+	box-sizing: border-box;
+}
+
+.spektral-error-overlay * {
+	font-family: inherit;
+}
+
+.spektral-error-overlay ::selection {
+	background: var(--spektral-color-accent);
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+.spektral-error-dialog-shell {
+	inline-size: min(52rem, 100%);
+	max-block-size: min(84dvh, 44rem);
+	padding: var(--spektral-surface-gap);
+	overflow: hidden;
+	isolation: isolate;
+	border-radius: var(--spektral-radius-xl);
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-highlight-inset), var(--spektral-shadow-2xl);
+}
+
+.spektral-error-dialog {
+	inline-size: 100%;
+	max-block-size: calc(min(84dvh, 44rem) - (2 * var(--spektral-surface-gap)));
+	padding: clamp(1rem, 2vw, 1.5rem);
+	overflow: auto;
+	overscroll-behavior: contain;
+	border-radius: var(--spektral-radius-dialog-inner);
+	outline: none;
+	background: var(--spektral-color-background);
+	color: var(--spektral-color-foreground);
+	box-shadow: var(--spektral-shadow-md);
+	scrollbar-color: var(--spektral-color-foreground-muted) transparent;
+	scrollbar-width: thin;
+}
+
+.spektral-error-header {
+	position: relative;
+	display: grid;
+	gap: 0.75rem;
+	padding-block-end: 1.5rem;
+}
+
+.spektral-error-header::after,
+.spektral-error-source-tabs::after,
+.spektral-error-details pre::before {
+	position: absolute;
+	inset-inline: 0;
+	block-size: 1px;
+	content: '';
+	background: var(--spektral-guide-duotone-ink);
+	box-shadow: 0 1px var(--spektral-guide-duotone-glint);
+}
+
+.spektral-error-header::after,
+.spektral-error-source-tabs::after {
+	inset-block-end: 0;
+}
+
+.spektral-error-header-top {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: start;
+	gap: 1rem;
+}
+
+.spektral-error-header-copy {
+	display: grid;
+	gap: 0.375rem;
+	min-inline-size: 0;
+}
+
+.spektral-error-badges {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	max-inline-size: 100%;
+}
+
+.spektral-error-badge-wrap {
+	display: inline-flex;
+	align-items: center;
+	inline-size: fit-content;
+	padding: 0.1875rem;
+	border-radius: 9999px;
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-inset);
+}
+
+.spektral-error-badge {
+	display: inline-flex;
+	align-items: center;
+	min-block-size: 1.5rem;
+	margin: 0;
+	padding-inline: 0.625rem;
+	border-radius: 9999px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	line-height: 1.3;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: var(--spektral-color-white-fixed);
+	box-shadow: var(--spektral-shadow-md);
+}
+
+.spektral-error-badge-phase {
+	background: linear-gradient(
+		180deg,
+		var(--spektral-color-accent),
+		var(--spektral-color-accent-secondary)
+	);
+}
+
+.spektral-error-badge-severity {
+	background: linear-gradient(
+		180deg,
+		var(--spektral-color-warning),
+		color-mix(in oklab, var(--spektral-color-warning) 70%, var(--spektral-color-background) 30%)
+	);
+}
+
+.spektral-error-title {
+	max-inline-size: 40ch;
+	margin: 0;
+	font-size: clamp(1.125rem, 1vw + 0.875rem, 1.25rem);
+	font-weight: 500;
+	line-height: 1.2;
+	letter-spacing: -0.02em;
+	text-wrap: balance;
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-error-recoverable {
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 400;
+	line-height: 1.3;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-recoverable span {
+	font-family: var(--spektral-font-mono);
+	font-variant-numeric: tabular-nums;
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-error-body {
+	display: grid;
+	gap: 0.75rem;
+	margin-block-start: 1.5rem;
+}
+
+.spektral-error-message,
+.spektral-error-hint {
+	margin: 0;
+	font-size: 0.875rem;
+	font-weight: 400;
+	line-height: 1.5;
+	text-wrap: pretty;
+	overflow-wrap: break-word;
+}
+
+.spektral-error-message {
+	inline-size: 100%;
+	padding: 0.75rem 1rem;
+	border-inline-start: 2px solid var(--spektral-color-warning);
+	border-radius: var(--spektral-radius-sm);
+	background: color-mix(in oklch, var(--spektral-color-warning) 10%, transparent);
+	color: var(--spektral-color-foreground);
+	box-shadow: var(--spektral-shadow-inset);
+}
+
+.spektral-error-hint {
+	max-inline-size: 70ch;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-metadata {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 1rem 0 0;
+	padding: 0;
+}
+
+.spektral-error-metadata-item {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.375rem;
+	min-inline-size: 0;
+	padding: 0.375rem 0.625rem;
+	border: 1px solid var(--spektral-guide-ink);
+	border-radius: var(--spektral-radius-sm);
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-inset);
+}
+
+.spektral-error-metadata-item dt,
+.spektral-error-metadata-item dd {
+	margin: 0;
+	font-size: 0.75rem;
+	line-height: 1.35;
+}
+
+.spektral-error-metadata-item dt {
+	font-weight: 500;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-metadata-item dd {
+	min-inline-size: 0;
+	font-family: var(--spektral-font-mono);
+	font-variant-numeric: tabular-nums;
+	overflow-wrap: anywhere;
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-error-source {
+	display: grid;
+	gap: 0.75rem;
+	margin-block-start: 1.5rem;
+}
+
+.spektral-error-source-title {
+	margin: 0;
+	font-size: 0.75rem;
+	font-weight: 500;
+	line-height: 1.4;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-source-frame {
+	margin: 0;
+	padding: var(--spektral-surface-gap);
+	overflow: hidden;
+	isolation: isolate;
+	border-radius: var(--spektral-radius-lg);
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-highlight-inset);
+}
+
+.spektral-error-source-tabs {
+	position: relative;
+	display: flex;
+	align-items: flex-end;
+	min-block-size: 2.5rem;
+	margin: 0;
+	border-start-start-radius: var(--spektral-radius-surface-inner);
+	border-start-end-radius: var(--spektral-radius-surface-inner);
+	background: var(--spektral-color-background);
+	box-shadow: var(--spektral-shadow-md);
+}
+
+.spektral-error-source-tab {
+	display: inline-flex;
+	align-items: center;
+	min-inline-size: 0;
+	padding: 0.625rem 0.75rem;
+	font-family: var(--spektral-font-mono);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	line-height: 1.4;
+	overflow-wrap: anywhere;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-source-tab-active {
+	position: relative;
+	z-index: 1;
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-error-source-tab-spacer {
+	flex: 1 1 auto;
+}
+
+.spektral-error-source-snippet {
+	display: grid;
+	padding-block: 0.5rem;
+	overflow: hidden;
+	border-end-start-radius: var(--spektral-radius-surface-inner);
+	border-end-end-radius: var(--spektral-radius-surface-inner);
+	background: var(--spektral-color-background-muted);
+	box-shadow: var(--spektral-shadow-md);
+}
+
+.spektral-error-source-row {
+	position: relative;
+	display: grid;
+	grid-template-columns: 2.5rem minmax(0, 1fr);
+	align-items: start;
+	gap: 0.75rem;
+	min-block-size: 1.75rem;
+	padding: 0.25rem 0.75rem;
+}
+
+.spektral-error-source-row-active {
+	background: color-mix(in oklch, var(--spektral-color-warning) 10%, transparent);
+}
+
+.spektral-error-source-row-active::before {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: 0;
+	inline-size: 2px;
+	content: '';
+	background: var(--spektral-color-warning);
+}
+
+.spektral-error-source-line,
+.spektral-error-source-code {
+	font-family: var(--spektral-font-mono);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	line-height: 1.5;
+}
+
+.spektral-error-source-line {
+	align-self: stretch;
+	padding-inline-end: 0.75rem;
+	border-inline-end: 1px solid var(--spektral-guide-duotone-ink);
+	box-shadow: 1px 0 var(--spektral-guide-duotone-glint);
+	font-variant-numeric: tabular-nums;
+	text-align: end;
+	color: var(--spektral-color-foreground-muted);
+}
+
+.spektral-error-source-code {
+	min-inline-size: 0;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	color: var(--spektral-color-foreground);
+}
+
+.spektral-error-sections {
+	display: grid;
+	gap: 0.75rem;
+	margin-block-start: 1.5rem;
+}
+
+.spektral-error-sections:empty {
+	display: none;
+}
+
+.spektral-error-details {
+	padding: var(--spektral-surface-gap);
+	overflow: hidden;
+	isolation: isolate;
+	border-radius: var(--spektral-radius-lg);
+	background: var(--spektral-color-background-inset);
+	box-shadow: var(--spektral-shadow-highlight-inset);
+}
+
+.spektral-error-details summary {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	min-block-size: 2.75rem;
+	padding: 0.75rem 1rem;
+	border-radius: var(--spektral-radius-surface-inner);
+	outline: none;
+	cursor: pointer;
+	list-style: none;
+	font-size: 0.8125rem;
+	font-weight: 500;
+	line-height: 1.4;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	color: var(--spektral-color-foreground);
+	background: var(--spektral-color-background);
+	box-shadow: var(--spektral-shadow-md);
+	touch-action: manipulation;
+}
+
+.spektral-error-details summary::-webkit-details-marker {
+	display: none;
+}
+
+.spektral-error-details-chevron {
+	inline-size: 0.875rem;
+	block-size: 0.875rem;
+	flex: 0 0 auto;
+	opacity: 0.72;
+	transform: rotate(-90deg);
+	transform-box: view-box;
+	transform-origin: 50% 50%;
+}
+
+.spektral-error-details summary:hover {
+	background: var(--spektral-color-background-muted);
+}
+
+.spektral-error-details summary:focus-visible {
+	box-shadow:
+		var(--spektral-shadow-md),
+		inset 0 0 0 2px var(--spektral-color-accent);
+}
+
+.spektral-error-details[open] summary {
+	border-end-start-radius: 0;
+	border-end-end-radius: 0;
+}
+
+.spektral-error-details[open] .spektral-error-details-chevron {
+	transform: rotate(0deg);
+}
+
+.spektral-error-details pre {
+	position: relative;
+	min-inline-size: 0;
+	margin: 0;
+	padding: 1rem;
+	border-end-start-radius: var(--spektral-radius-surface-inner);
+	border-end-end-radius: var(--spektral-radius-surface-inner);
+	white-space: pre-wrap;
+	overflow: auto;
+	overflow-wrap: anywhere;
+	background: var(--spektral-color-background-muted);
+	font-family: var(--spektral-font-mono);
+	font-size: 0.8125rem;
+	font-weight: 400;
+	line-height: 1.5;
+	color: var(--spektral-color-foreground);
+	scrollbar-color: var(--spektral-color-foreground-muted) transparent;
+	scrollbar-width: thin;
+}
+
+.spektral-error-details pre::before {
+	inset-block-start: 0;
+}
+
+@media (max-width: 42rem) {
+	.spektral-error-overlay {
+		place-items: stretch;
+		padding-block-start: max(0.625rem, env(safe-area-inset-top));
+		padding-block-end: max(0.625rem, env(safe-area-inset-bottom));
+		padding-inline-start: max(0.625rem, env(safe-area-inset-left));
+		padding-inline-end: max(0.625rem, env(safe-area-inset-right));
+	}
+
+	.spektral-error-dialog-shell {
+		align-self: center;
+		inline-size: 100%;
+	}
+
+	.spektral-error-dialog {
+		padding: 1rem;
+	}
+
+	.spektral-error-recoverable {
+		white-space: normal;
+	}
+
+	.spektral-error-source-row {
+		grid-template-columns: 2rem minmax(0, 1fr);
+		gap: 0.625rem;
+		padding-inline: 0.625rem;
+	}
+
+	.spektral-error-source-line {
+		padding-inline-end: 0.625rem;
+	}
+}
+
+@media (max-width: 32rem) {
+	.spektral-error-header-top {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0.75rem;
+	}
+
+	.spektral-error-badges {
+		justify-content: flex-start;
+	}
+}
+
+@media (forced-colors: active) {
+	.spektral-error-details summary:focus-visible {
+		outline: 2px solid Highlight;
+		outline-offset: -2px;
+	}
+}

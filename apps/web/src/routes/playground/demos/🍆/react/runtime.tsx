@@ -1,4 +1,4 @@
-import { useFrame, usePointer } from '@motion-core/motion-gpu/react';
+import { useFrame, usePointer } from 'spektral/react';
 
 export default function Runtime() {
 	const MAX_ORBIT_X = 0.78;

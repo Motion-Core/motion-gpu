@@ -177,10 +177,10 @@ export const contentUiDefaults: ContentUiConfig = {
 	packageManager: {
 		enabled: ['npm', 'pnpm', 'bun', 'yarn'],
 		default: 'npm',
-		storageKey: 'docs-package-manager'
+		storageKey: 'spektral-docs-package-manager'
 	},
 	theme: {
-		storageKey: 'docs-theme',
+		storageKey: 'spektral-docs-theme',
 		defaultMode: 'system'
 	}
 };

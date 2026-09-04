@@ -1,0 +1,375 @@
+import { render, waitFor } from '@testing-library/react';
+import { useEffect, type ReactElement } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { createCurrentWritable } from '../lib/core/current-value';
+import { createFrameRegistry } from '../lib/core/frame-registry';
+import { createSpektralGraphBridge } from '../lib/core/render-graph-reader';
+import type { SpektralContext } from '../lib/react/spektral-context';
+import { SpektralReactContext, useSpektral } from '../lib/react/spektral-context';
+import {
+	FrameRegistryReactContext,
+	useFrame,
+	type UseFrameResult
+} from '../lib/react/frame-context';
+import {
+	setSpektralUserContext,
+	useSpektralUserContext
+} from '../lib/react/use-spektral-user-context';
+
+function createRuntimeHarness() {
+	const registry = createFrameRegistry();
+	const size = createCurrentWritable({ width: 0, height: 0 });
+	const dpr = createCurrentWritable(1);
+	const maxDelta = createCurrentWritable(0.1);
+	const renderMode = createCurrentWritable<'always' | 'manual' | 'on-demand'>('always');
+	const autoRender = createCurrentWritable(true);
+	const user = createCurrentWritable<Record<string | symbol, unknown>>({});
+	const graphBridge = createSpektralGraphBridge();
+
+	const context: SpektralContext = {
+		canvas: undefined,
+		size,
+		dpr,
+		maxDelta,
+		renderMode,
+		autoRender,
+		user,
+		graph: graphBridge.graph,
+		invalidate: () => {
+			registry.invalidate();
+		},
+		advance: () => {
+			registry.advance();
+		},
+		scheduler: {
+			createStage: registry.createStage,
+			getStage: registry.getStage,
+			setDiagnosticsEnabled: registry.setDiagnosticsEnabled,
+			getDiagnosticsEnabled: registry.getDiagnosticsEnabled,
+			getLastRunTimings: registry.getLastRunTimings,
+			getSchedule: registry.getSchedule,
+			setProfilingEnabled: registry.setProfilingEnabled,
+			setProfilingWindow: registry.setProfilingWindow,
+			resetProfiling: registry.resetProfiling,
+			getProfilingEnabled: registry.getProfilingEnabled,
+			getProfilingWindow: registry.getProfilingWindow,
+			getProfilingSnapshot: registry.getProfilingSnapshot
+		}
+	};
+
+	return { context, registry };
+}
+
+function withProviders(
+	ui: ReactElement,
+	payload: ReturnType<typeof createRuntimeHarness>
+): ReactElement {
+	return (
+		<FrameRegistryReactContext.Provider value={payload.registry}>
+			<SpektralReactContext.Provider value={payload.context}>{ui}</SpektralReactContext.Provider>
+		</FrameRegistryReactContext.Provider>
+	);
+}
+
+function createState(registry: ReturnType<typeof createFrameRegistry>, delta = 0.016) {
+	return {
+		time: 1,
+		delta,
+		setUniform: vi.fn(),
+		setTexture: vi.fn(),
+		writeStorageBuffer: vi.fn(),
+		readStorageBuffer: vi.fn(() => Promise.resolve(new ArrayBuffer(0))),
+		invalidate: registry.invalidate,
+		advance: registry.advance,
+		renderMode: registry.getRenderMode(),
+		autoRender: registry.getAutoRender(),
+		canvas: document.createElement('canvas')
+	};
+}
+
+describe('react adapter runtime hooks', () => {
+	it('throws when useSpektral is called outside provider', () => {
+		function Probe() {
+			useSpektral();
+			return null;
+		}
+
+		expect(() => render(<Probe />)).toThrow(/useSpektral must be used inside <FragCanvas>/);
+	});
+
+	it('registers useFrame callbacks and auto-unsubscribes on unmount', async () => {
+		const payload = createRuntimeHarness();
+		const callback = vi.fn();
+		const onRegistration = vi.fn();
+
+		function Probe() {
+			const registration = useFrame('probe-task', callback);
+			useEffect(() => {
+				onRegistration(registration);
+			}, [registration]);
+			return null;
+		}
+
+		const view = render(withProviders(<Probe />, payload));
+		await waitFor(() => {
+			expect(onRegistration).toHaveBeenCalledTimes(1);
+		});
+		const registration = onRegistration.mock.calls[0]?.[0] as UseFrameResult;
+
+		await waitFor(() => {
+			const stageWithTask = payload.registry
+				.getSchedule()
+				.stages.some((stage) => stage.tasks.includes('probe-task'));
+			expect(stageWithTask).toBe(true);
+		});
+
+		expect(registration.task.key).toBe('probe-task');
+		let startedValue = false;
+		const unsubscribeStarted = registration.started.subscribe((value) => {
+			startedValue = value;
+		});
+		expect(startedValue).toBe(true);
+		unsubscribeStarted();
+
+		payload.registry.run(createState(payload.registry));
+		expect(callback).toHaveBeenCalledTimes(1);
+
+		view.unmount();
+		payload.registry.run(createState(payload.registry));
+		expect(callback).toHaveBeenCalledTimes(1);
+	});
+
+	it('does not re-register useFrame when options object is semantically unchanged', async () => {
+		const payload = createRuntimeHarness();
+		const callback = vi.fn();
+		const registerSpy = vi.spyOn(payload.registry, 'register');
+
+		function Probe({ frame }: { frame: number }) {
+			void frame;
+			useFrame('stable-task', callback, { autoInvalidate: false });
+			return null;
+		}
+
+		const view = render(withProviders(<Probe frame={0} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		view.rerender(withProviders(<Probe frame={1} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it('freezes useFrame registration options after first render', async () => {
+		const payload = createRuntimeHarness();
+		const callback = vi.fn();
+		const registerSpy = vi.spyOn(payload.registry, 'register');
+
+		function Probe({ autoInvalidate }: { autoInvalidate: boolean }) {
+			useFrame('frozen-task', callback, { autoInvalidate });
+			return null;
+		}
+
+		const view = render(withProviders(<Probe autoInvalidate={false} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		payload.registry.setRenderMode('on-demand');
+		payload.registry.endFrame();
+		payload.registry.run(createState(payload.registry));
+		expect(payload.registry.shouldRender()).toBe(false);
+
+		view.rerender(withProviders(<Probe autoInvalidate={true} />, payload));
+		await waitFor(() => {
+			expect(registerSpy).toHaveBeenCalledTimes(1);
+		});
+
+		payload.registry.endFrame();
+		payload.registry.run(createState(payload.registry));
+		expect(payload.registry.shouldRender()).toBe(false);
+		expect(callback).toHaveBeenCalledTimes(2);
+	});
+
+	it.each(['always', 'on-demand', 'manual'] as const)(
+		'orders stable auto-key task references in %s mode across rerenders',
+		async (renderMode) => {
+			const payload = createRuntimeHarness();
+			payload.registry.setRenderMode(renderMode);
+			const execution: string[] = [];
+			const onTasks = vi.fn();
+
+			function Probe() {
+				const first = useFrame(() => execution.push('first'));
+				const second = useFrame(() => execution.push('second'), { after: first.task });
+				onTasks(first.task, second.task);
+				return null;
+			}
+
+			const view = render(withProviders(<Probe />, payload));
+			await waitFor(() =>
+				expect(payload.registry.getSchedule().stages.flatMap((stage) => stage.tasks)).toHaveLength(
+					2
+				)
+			);
+
+			const [firstTask, secondTask] = onTasks.mock.calls[0] as [
+				UseFrameResult['task'],
+				UseFrameResult['task']
+			];
+			expect(firstTask.key).not.toBe(secondTask.key);
+			expect(firstTask.stage).toBe(secondTask.stage);
+
+			view.rerender(withProviders(<Probe />, payload));
+			await waitFor(() => expect(onTasks.mock.calls.length).toBeGreaterThan(1));
+			const [rerenderedFirstTask, rerenderedSecondTask] = onTasks.mock.calls.at(-1) as [
+				UseFrameResult['task'],
+				UseFrameResult['task']
+			];
+			expect(rerenderedFirstTask).toBe(firstTask);
+			expect(rerenderedSecondTask).toBe(secondTask);
+
+			expect(() => payload.registry.run(createState(payload.registry))).not.toThrow();
+			expect(execution).toEqual(['first', 'second']);
+		}
+	);
+
+	it('infers a dependent keyed task stage from a task reference before effects run', async () => {
+		const payload = createRuntimeHarness();
+		const execution: string[] = [];
+
+		function Probe() {
+			const first = useFrame('first', () => execution.push('first'), { stage: 'post' });
+			useFrame('second', () => execution.push('second'), { after: first.task });
+			return null;
+		}
+
+		render(withProviders(<Probe />, payload));
+		await waitFor(() => {
+			expect(payload.registry.getSchedule().stages.find((stage) => stage.key === 'post')).toEqual({
+				key: 'post',
+				tasks: ['first', 'second']
+			});
+		});
+
+		payload.registry.run(createState(payload.registry));
+		expect(execution).toEqual(['first', 'second']);
+	});
+
+	it('throws when useFrame is called outside FrameRegistry provider', () => {
+		function Probe() {
+			useFrame(() => undefined);
+			return null;
+		}
+
+		expect(() =>
+			render(
+				<SpektralReactContext.Provider value={createRuntimeHarness().context}>
+					<Probe />
+				</SpektralReactContext.Provider>
+			)
+		).toThrow(/useFrame must be used inside <FragCanvas>/);
+	});
+
+	it('supports skip, merge and replace user-context semantics', async () => {
+		const payload = createRuntimeHarness();
+		const onProbe = vi.fn();
+
+		function Probe() {
+			const allStore = useSpektralUserContext<Record<string | symbol, unknown>>();
+			const beforeInitial = allStore.current;
+			const initial = setSpektralUserContext('plugin', () => ({ mode: 'initial', enabled: true }));
+			const afterInitial = allStore.current;
+			const skipped = setSpektralUserContext('plugin', () => ({ mode: 'skipped' }));
+			const afterSkipped = allStore.current;
+			const merged = setSpektralUserContext('plugin', () => ({ merged: true }), {
+				existing: 'merge'
+			});
+			const afterMerged = allStore.current;
+			const replaced = setSpektralUserContext('plugin', () => ({ mode: 'replaced' }), {
+				existing: 'replace'
+			});
+			const afterReplaced = allStore.current;
+			const skippedAfterReplace = setSpektralUserContext('plugin', () => ({ mode: 'unchanged' }));
+			const afterSkippedAfterReplace = allStore.current;
+			const pluginStore = useSpektralUserContext<Record<string, unknown>>('plugin');
+
+			useEffect(() => {
+				onProbe({
+					initial,
+					skipped,
+					merged,
+					replaced,
+					skippedAfterReplace,
+					pluginStore,
+					allStore,
+					contextRefs: {
+						beforeInitial,
+						afterInitial,
+						afterSkipped,
+						afterMerged,
+						afterReplaced,
+						afterSkippedAfterReplace
+					}
+				});
+			}, [
+				allStore,
+				afterInitial,
+				afterMerged,
+				afterReplaced,
+				afterSkipped,
+				afterSkippedAfterReplace,
+				beforeInitial,
+				initial,
+				merged,
+				pluginStore,
+				replaced,
+				skipped,
+				skippedAfterReplace
+			]);
+
+			return null;
+		}
+
+		render(withProviders(<Probe />, payload));
+		await waitFor(() => {
+			expect(onProbe).toHaveBeenCalledTimes(1);
+		});
+
+		const result = onProbe.mock.calls[0]?.[0] as {
+			initial: Record<string, unknown>;
+			skipped: Record<string, unknown>;
+			merged: Record<string, unknown>;
+			replaced: Record<string, unknown>;
+			skippedAfterReplace: Record<string, unknown>;
+			pluginStore: { current: Record<string, unknown> | undefined };
+			allStore: { current: Record<string | symbol, unknown> };
+			contextRefs: {
+				beforeInitial: Record<string | symbol, unknown>;
+				afterInitial: Record<string | symbol, unknown>;
+				afterSkipped: Record<string | symbol, unknown>;
+				afterMerged: Record<string | symbol, unknown>;
+				afterReplaced: Record<string | symbol, unknown>;
+				afterSkippedAfterReplace: Record<string | symbol, unknown>;
+			};
+		};
+
+		expect(result.initial).toEqual({ mode: 'initial', enabled: true });
+		expect(result.skipped).toEqual({ mode: 'initial', enabled: true });
+		expect(result.merged).toEqual({
+			mode: 'initial',
+			enabled: true,
+			merged: true
+		});
+		expect(result.replaced).toEqual({ mode: 'replaced' });
+		expect(result.skippedAfterReplace).toEqual({ mode: 'replaced' });
+
+		expect(result.pluginStore.current).toEqual({ mode: 'replaced' });
+		expect(result.allStore.current.plugin).toEqual({ mode: 'replaced' });
+		expect(result.contextRefs.afterInitial).not.toBe(result.contextRefs.beforeInitial);
+		expect(result.contextRefs.afterMerged).not.toBe(result.contextRefs.afterSkipped);
+		expect(result.contextRefs.afterReplaced).not.toBe(result.contextRefs.afterMerged);
+		expect(result.contextRefs.afterSkippedAfterReplace).toBe(result.contextRefs.afterReplaced);
+	});
+});

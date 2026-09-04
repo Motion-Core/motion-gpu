@@ -35,7 +35,7 @@ export const contentSections: ContentSectionConfig[] = [
 		id: 'docs',
 		label: 'Docs',
 		icon: AppBookIcon,
-		description: 'Motion GPU documentation and API reference',
+		description: 'Spektral documentation and API reference',
 		navigation: [
 			{
 				slug: 'getting-started',

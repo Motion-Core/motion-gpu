@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, usePointer } from 'spektral/svelte';
 	import { RESONANCE_MEDIUM_SIZE, paintResonanceMedium } from './resonance-medium';
 
 	const pointer = usePointer({ requestFrame: 'auto' });

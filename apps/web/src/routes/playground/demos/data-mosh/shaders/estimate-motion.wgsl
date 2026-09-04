@@ -47,7 +47,7 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
         }
     }
 
-    let historyReady = previousBlock.a > 0.5 && motiongpuUniforms.uReset < 0.5;
+    let historyReady = previousBlock.a > 0.5 && spektralUniforms.uReset < 0.5;
     let improvement = clamp((zeroError - bestError) / (zeroError + 0.012), 0.0, 1.0);
     let confidence = select(
         0.0,

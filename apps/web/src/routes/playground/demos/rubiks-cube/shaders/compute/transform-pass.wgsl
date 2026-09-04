@@ -39,20 +39,20 @@ fn compute(@builtin(global_invocation_id) id: vec3u) {
   var gridPos = cubeBasePositions[i].xyz;
   var cubeQuat = cubeBaseQuaternions[i];
 
-  if (motiongpuUniforms.uMoveActive > 0.5) {
-    let axis = i32(round(motiongpuUniforms.uActiveAxis));
-    let layer = i32(round(motiongpuUniforms.uActiveLayer));
+  if (spektralUniforms.uMoveActive > 0.5) {
+    let axis = i32(round(spektralUniforms.uActiveAxis));
+    let layer = i32(round(spektralUniforms.uActiveLayer));
     let coord = i32(round(axis_coord(gridPos, axis)));
 
     if (coord == layer) {
-      let moveQuat = motiongpuUniforms.uMoveQuat;
+      let moveQuat = spektralUniforms.uMoveQuat;
       gridPos = quat_rotate(moveQuat, gridPos);
       cubeQuat = quat_mul(moveQuat, cubeQuat);
     }
   }
 
-  let sceneQuat = motiongpuUniforms.uSceneQuat;
-  let worldPos = quat_rotate(sceneQuat, gridPos * motiongpuUniforms.uSpacing);
+  let sceneQuat = spektralUniforms.uSceneQuat;
+  let worldPos = quat_rotate(sceneQuat, gridPos * spektralUniforms.uSpacing);
   let worldQuat = quat_mul(sceneQuat, cubeQuat);
   let invWorldQuat = quat_conj(worldQuat);
 

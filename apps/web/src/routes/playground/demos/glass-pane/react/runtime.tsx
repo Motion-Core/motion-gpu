@@ -1,4 +1,4 @@
-import { useFrame, useTexture } from '@motion-core/motion-gpu/react';
+import { useFrame, useTexture } from 'spektral/react';
 
 export default function Runtime() {
 	const image = useTexture(['/playground-media/sample-image-21.jpg'], {

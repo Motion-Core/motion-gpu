@@ -3,7 +3,7 @@ title: Testing & internals
 description: Maintainer-facing test coverage, lifecycle invariants, and validation commands.
 ---
 
-This page is for Motion GPU maintainers. Public consumers should rely on the domain guides and API reference.
+This page is for Spektral maintainers. Public consumers should rely on the domain guides and API reference.
 
 ## Coverage map
 
@@ -19,6 +19,9 @@ The package test suite covers:
 - built-in render, compute, and fragment-feedback pass contracts and lifecycle;
 - storage definitions, allocation, CPU transfers, bindings, and cleanup;
 - structured error classification and shader source mapping;
+- asynchronous fullscreen-pass preparation, hot-edit recovery, and stale-result isolation;
+- immutable compute topology descriptors and physical-signature graph invalidation;
+- frozen render-graph snapshots, cache identity, dependency reasons, and data isolation;
 - core and runtime performance baselines, including compute bind-group pressure;
 - Svelte, React, and Vue unit and E2E runtime parity.
 
@@ -33,10 +36,13 @@ The package test suite covers:
 - Named render targets are signature-compared as `key:format:widthxheight`.
 - Storage buffers use `STORAGE | COPY_DST | COPY_SRC`, flush pending writes before GPU work, and use disposable staging buffers for readback.
 - Compute pipelines compile lazily. Pipeline and bind-group caches are reused while source and resource topology remain stable.
+- Each compute pass owns one normalized, deeply frozen topology descriptor. Per-frame physical resource changes can refresh bindings and rebuild the graph plan without renormalizing that topology.
+- Active built-in fullscreen pipelines are prepared asynchronously before the first frame. A shader hot edit keeps the last-known-good pipeline until the latest request succeeds; stale completions cannot replace newer source.
 - Compute and feedback passes share the frame encoder but execute before the scene; render passes execute afterward.
 - Fragment feedback owns A/B render textures, excludes its target from regular texture bindings, and attaches the latest view before the scene.
 - The standard SDR path can render directly to canvas. Tone-mapped and HDR paths use an internal working surface and final presentation pass.
 - Renderer teardown destroys owned GPU resources and its owned device.
+- The experimental graph snapshot is deeply frozen and cached by plan identity. It uses opaque renderer-lifetime IDs and excludes GPU objects, WGSL, buffer data, callbacks, and timing records.
 
 ## Scheduler internals
 
@@ -46,7 +52,7 @@ Duplicate task keys replace the current registration atomically: cleanup from th
 
 ## Validation commands
 
-From `packages/motion-gpu`:
+From `packages/spektral`:
 
 ```bash
 pnpm run build
@@ -57,6 +63,9 @@ pnpm run perf:core
 pnpm run perf:core:check
 pnpm run perf:runtime
 pnpm run perf:runtime:check
+pnpm run perf:gpu:check
+pnpm run perf:renderer:check
+pnpm run bundle:check
 ```
 
 From `apps/web`:
@@ -67,4 +76,8 @@ pnpm run check
 pnpm run lint
 ```
 
-Performance checks compare current metrics with committed baselines. Browser E2E coverage remains necessary for WebGPU behavior that DOM or GPU mocks cannot prove.
+Core, runtime, and bundle checks are deterministic enough for the normal quality flow. The strict
+GPU and real-renderer commands are local release gates on the reference Apple M4 Pro/Metal machine;
+they require matching GPU, backend, driver, macOS, Chromium major, and suite fingerprints. They are
+not GitHub-hosted gates. Browser E2E coverage remains necessary for WebGPU behavior that DOM or GPU
+mocks cannot prove.

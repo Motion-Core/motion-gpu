@@ -83,8 +83,8 @@ test('isolates preview storage and DOM while keeping the message protocol operat
 }) => {
 	await page.goto('/');
 	await page.evaluate(() => {
-		document.cookie = 'motion_gpu_parent_secret=cookie-value; path=/; Secure; SameSite=Strict';
-		localStorage.setItem('motion-gpu-parent-secret', 'storage-value');
+		document.cookie = 'spektral_parent_secret=cookie-value; path=/; Secure; SameSite=Strict';
+		localStorage.setItem('spektral-parent-secret', 'storage-value');
 	});
 
 	await page.goto('/playground');
@@ -116,9 +116,9 @@ test('isolates preview storage and DOM while keeping the message protocol operat
 			origin: self.origin,
 			parentDocument: attempt(() => Boolean(parent.document.body)),
 			parentCookie: attempt(() => parent.document.cookie),
-			parentStorage: attempt(() => parent.localStorage.getItem('motion-gpu-parent-secret')),
+			parentStorage: attempt(() => parent.localStorage.getItem('spektral-parent-secret')),
 			previewCookie: attempt(() => document.cookie),
-			previewStorage: attempt(() => localStorage.getItem('motion-gpu-parent-secret')),
+			previewStorage: attempt(() => localStorage.getItem('spektral-parent-secret')),
 			canvasCount: document.querySelectorAll('canvas').length
 		};
 	});

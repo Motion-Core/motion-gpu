@@ -24,7 +24,7 @@ uniforms: {
 }
 ```
 
-Fields are available as `motiongpuUniforms.<name>`. Names must match `[A-Za-z_][A-Za-z0-9_]*`.
+Fields are available as `spektralUniforms.<name>`. Names must match `[A-Za-z_][A-Za-z0-9_]*`.
 
 ## Layout
 
@@ -48,10 +48,10 @@ useFrame((state) => {
 });
 ```
 
-The name must exist and the value must match its declared type. Motion GPU merges runtime overrides with material defaults, compares the packed values, and writes only dirty byte ranges.
+The name must exist and the value must match its declared type. Spektral merges runtime overrides with material defaults, compares the packed values, and writes only dirty byte ranges.
 
 Changing a value does not rebuild the renderer. Adding, removing, renaming, or changing the type of a uniform changes the material signature.
 
 ## Frame uniforms
 
-`motiongpuFrame.time`, `.delta`, and `.resolution` are generated separately and must not be declared in the material. See [Writing Shaders](/docs/writing-shaders#frame-uniforms) for their exact meaning.
+`spektralFrame.time`, `.delta`, and `.resolution` are generated separately and must not be declared in the material. See [Writing Shaders](/docs/writing-shaders#frame-uniforms) for their exact meaning.

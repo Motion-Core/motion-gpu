@@ -1,4 +1,4 @@
-import { useFrame, useMotionGPU, usePointer } from '@motion-core/motion-gpu/react';
+import { useFrame, useSpektral, usePointer } from 'spektral/react';
 
 export default function Runtime() {
 	const MAX_IMPACTS = 8;
@@ -8,7 +8,7 @@ export default function Runtime() {
 
 	type ImpactState = [number, number, number, number];
 
-	const motiongpu = useMotionGPU();
+	const spektral = useSpektral();
 	const impacts: ImpactState[] = Array.from({ length: MAX_IMPACTS }, () => [0, 0, 1, -100]);
 
 	let frameTime = 0;
@@ -17,14 +17,14 @@ export default function Runtime() {
 	const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 	const calcLens = (): number => {
-		const canvas = motiongpu.canvas;
+		const canvas = spektral.canvas;
 		if (canvas) {
 			const shortEdge = Math.max(320, Math.min(canvas.clientWidth, canvas.clientHeight));
 			const fit = clamp(shortEdge / REFERENCE_SHORT_EDGE, MIN_FIT, MAX_FIT);
 			return 1.08 / fit;
 		}
 
-		const { width, height } = motiongpu.size.current;
+		const { width, height } = spektral.size.current;
 		if (width <= 0 || height <= 0) {
 			return 1;
 		}
@@ -53,7 +53,7 @@ export default function Runtime() {
 	};
 
 	const intersectMoon = (uv: [number, number]): [number, number, number] | null => {
-		const { width, height } = motiongpu.size.current;
+		const { width, height } = spektral.size.current;
 		if (width <= 0 || height <= 0) {
 			return null;
 		}

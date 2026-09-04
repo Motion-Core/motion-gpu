@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { useFrame, usePointer } from '@motion-core/motion-gpu/svelte';
+	import { useFrame, usePointer } from 'spektral/svelte';
 
 	const MAX_ORBIT_X = 0.8;
 	const MAX_ORBIT_Y = 0.8;

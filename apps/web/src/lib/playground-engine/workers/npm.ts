@@ -234,8 +234,8 @@ export async function resolve_local(specifier: string) {
 	return new URL(subpath, LOCAL_PKG_URL).href;
 }
 
-const LOCAL_MOTIONGPU_PKG_URL = `${location.origin}/motion-gpu/package.json`;
-let local_motiongpu_pkg: Promise<any>;
+const LOCAL_SPEKTRAL_PKG_URL = `${location.origin}/spektral/package.json`;
+let local_spektral_pkg: Promise<any>;
 
 function pick_resolved_entry(
 	resolved: string | readonly string[] | undefined | void,
@@ -245,17 +245,17 @@ function pick_resolved_entry(
 	const value = Array.isArray(resolved) ? resolved[0] : resolved;
 	if (typeof value !== 'string' || value.length === 0) {
 		throw new Error(
-			`No matched export path was found for "${subpath}" while resolving "${specifier}" in "@motion-core/motion-gpu"`
+			`No matched export path was found for "${subpath}" while resolving "${specifier}" in "spektral"`
 		);
 	}
 	return value;
 }
 
-export async function resolve_local_motiongpu(specifier: string) {
-	const pkg = await (local_motiongpu_pkg ??= fetch(LOCAL_MOTIONGPU_PKG_URL).then((r) => r.json()));
+export async function resolve_local_spektral(specifier: string) {
+	const pkg = await (local_spektral_pkg ??= fetch(LOCAL_SPEKTRAL_PKG_URL).then((r) => r.json()));
 
-	// specifier is like '@motion-core/motion-gpu/svelte' -> subpath './svelte'
-	let subpath = specifier.replace('@motion-core/motion-gpu', '.') || '.';
+	// specifier is like 'spektral/svelte' -> subpath './svelte'
+	let subpath = specifier.replace('spektral', '.') || '.';
 	// Normalize accidental trailing slash: "./" should resolve like "."
 	if (subpath === './') subpath = '.';
 
@@ -268,19 +268,19 @@ export async function resolve_local_motiongpu(specifier: string) {
 		subpath
 	);
 
-	// resolved is like './dist/svelte/index.js' -> serve from /motion-gpu/dist/svelte/index.js
+	// resolved is like './dist/svelte/index.js' -> serve from /spektral/dist/svelte/index.js
 	// Strip leading './' and prefix with origin
 	const filePath = resolved.replace(/^\.\//, '');
-	return `${location.origin}/motion-gpu/${filePath}`;
+	return `${location.origin}/spektral/${filePath}`;
 }
 
-const LOCAL_MOTIONGPU_BASE = `${location.origin}/motion-gpu/`;
+const LOCAL_SPEKTRAL_BASE = `${location.origin}/spektral/`;
 
 /**
- * Resolves a URL from the local motion-gpu package, trying file extensions
+ * Resolves a URL from the local spektral package, trying file extensions
  * to normalize module identity (e.g., `./foo` and `./foo.js` → same URL).
  */
-export async function resolve_local_motiongpu_relative(url: string): Promise<string> {
+export async function resolve_local_spektral_relative(url: string): Promise<string> {
 	// Already has a known extension — return as-is
 	if (/\.(js|mjs|ts|svelte|json)$/.test(url)) return url;
 

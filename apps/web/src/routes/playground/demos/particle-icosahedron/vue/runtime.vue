@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue';
-import { useFrame, useMotionGPU, usePointer, type ComputePass } from '@motion-core/motion-gpu/vue';
+import { useFrame, useSpektral, usePointer, type ComputePass } from 'spektral/vue';
 
 const props = defineProps<{
 	clearDensity: ComputePass;
@@ -9,7 +9,7 @@ const props = defineProps<{
 
 const FRAME_ID_LIMIT = 16_000_000;
 
-const context = useMotionGPU();
+const context = useSpektral();
 
 let targetRotateY = 0;
 let targetRotateX = 0;

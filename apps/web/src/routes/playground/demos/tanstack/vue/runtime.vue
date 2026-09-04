@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useFrame, usePointer } from '@motion-core/motion-gpu/vue';
+import { useFrame, usePointer } from 'spektral/vue';
 
 const START_TIME = 0;
 const END_TIME = 24;

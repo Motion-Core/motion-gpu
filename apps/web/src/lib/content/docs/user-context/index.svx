@@ -1,24 +1,24 @@
 ---
 title: User context
-description: Store namespaced application state in the Motion GPU runtime.
+description: Store namespaced application state in the Spektral runtime.
 ---
 
-Advanced adapter entrypoints expose a read/write API over the `user` store in `MotionGPUContext`:
+Advanced adapter entrypoints expose a read/write API over the `user` store in `SpektralContext`:
 
 ```ts
 import {
-	setMotionGPUUserContext,
-	useMotionGPUUserContext
-} from '@motion-core/motion-gpu/svelte/advanced';
+	setSpektralUserContext,
+	useSpektralUserContext
+} from 'spektral/svelte/advanced';
 ```
 
-React also exports `useSetMotionGPUUserContext()` for writes from effects and event handlers. Vue and Svelte use `setMotionGPUUserContext(...)` directly.
+React also exports `useSetSpektralUserContext()` for writes from effects and event handlers. Vue and Svelte use `setSpektralUserContext(...)` directly.
 
 ## Read
 
 ```ts
-const all = useMotionGPUUserContext();
-const controls = useMotionGPUUserContext<Controls>('controls');
+const all = useSpektralUserContext();
+const controls = useSpektralUserContext<Controls>('controls');
 ```
 
 The first overload returns a `CurrentReadable` view of the complete namespace map. The second returns `CurrentReadable<T | undefined>` for one string or symbol namespace.
@@ -26,7 +26,7 @@ The first overload returns a `CurrentReadable` view of the complete namespace ma
 ## Write
 
 ```ts
-setMotionGPUUserContext(
+setSpektralUserContext(
 	'controls',
 	() => ({ enabled: true, speed: 1 }),
 	{ existing: 'skip' }
@@ -45,14 +45,14 @@ The default is `'skip'`.
 
 The complete namespace map is published as a frozen snapshot with no object prototype. This keeps
 names such as `toString`, `constructor`, and `__proto__` independent from JavaScript prototype
-properties. Treat snapshots as read-only and write through `setMotionGPUUserContext(...)` or the
+properties. Treat snapshots as read-only and write through `setSpektralUserContext(...)` or the
 `user` store. Merge mode accepts only records whose prototype is `Object.prototype` or `null`;
 arrays, dates, functions, and class instances are replaced instead of merged.
 
 Functions are treated as factories by default. Set `functionValue: 'value'` to store the function itself instead of calling it:
 
 ```ts
-setMotionGPUUserContext('handler', callback, {
+setSpektralUserContext('handler', callback, {
 	existing: 'replace',
 	functionValue: 'value'
 });
@@ -60,6 +60,6 @@ setMotionGPUUserContext('handler', callback, {
 
 ## Use cases
 
-Use separate namespaces for plugins or runtime subsystems that share a canvas but should not depend directly on each other. Use framework-native component state when data does not need to cross Motion GPU runtime boundaries.
+Use separate namespaces for plugins or runtime subsystems that share a canvas but should not depend directly on each other. Use framework-native component state when data does not need to cross Spektral runtime boundaries.
 
 All user-context functions require an active `FragCanvas` context. See [Hooks API](/docs/api-hooks-reference#advanced-user-context) for exact signatures.

@@ -1,5 +1,5 @@
 fn frag(uv: vec2f) -> vec4f {
-    let resolution = max(motiongpuFrame.resolution, vec2f(1.0));
+    let resolution = max(spektralFrame.resolution, vec2f(1.0));
     let texel = 1.0 / resolution;
     let center = textureSample(finalOutput, finalOutputSampler, uv);
     var bloom = vec3f(0.0);

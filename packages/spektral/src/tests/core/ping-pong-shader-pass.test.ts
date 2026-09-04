@@ -75,6 +75,14 @@ fn frag(uv: vec2f) -> vec4f {
 		).toThrow(/fn frag\(uv: vec2f\) -> vec4f/);
 	});
 
+	it('rejects an incomplete fragment signature with long whitespace in bounded time', () => {
+		const fragment = `fn frag(uv: vec2f) -> vec4f${' \t'.repeat(10_000)}!`;
+
+		expect(() => new PingPongShaderPass({ fragment, target: 'fluid' })).toThrow(
+			/fragment contract mismatch/i
+		);
+	}, 250);
+
 	it('validates iteration count and renderable sampled format', () => {
 		expect(
 			() =>

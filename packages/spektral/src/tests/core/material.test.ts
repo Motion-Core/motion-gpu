@@ -518,6 +518,12 @@ describe('material', () => {
 		).toThrow(/u32 define must be >= 0/);
 	});
 
+	it('rejects an incomplete fragment signature with long whitespace in bounded time', () => {
+		const fragment = `fn frag(uv: vec2f) -> vec4f${' \t'.repeat(10_000)}!`;
+
+		expect(() => defineMaterial({ fragment })).toThrow(/fragment contract mismatch/i);
+	}, 250);
+
 	it('expands includes and preserves source mapping metadata', () => {
 		const resolved = resolveMaterial(
 			defineMaterial({

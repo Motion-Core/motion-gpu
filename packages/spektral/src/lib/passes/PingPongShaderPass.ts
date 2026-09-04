@@ -5,7 +5,7 @@ import { managedPassBrand } from '../core/pass-brand.js';
 import { assertUniformName } from '../core/uniforms.js';
 
 const FRAGMENT_FUNCTION_SIGNATURE_PATTERN =
-	/\bfn\s+frag\s*\(\s*([^)]*?)\s*\)\s*->\s*([A-Za-z_][A-Za-z0-9_<>\s]*)\s*(?:\{|$)/m;
+	/\bfn[ \t\r\n]+frag[ \t\r\n]*\(([^)]*)\)[ \t\r\n]*->[ \t\r\n]*([A-Za-z_][A-Za-z0-9_<>]*)[ \t\r\n]*(?:\{|$)/m;
 const FRAGMENT_FUNCTION_NAME_PATTERN = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
 
 export interface PingPongShaderPassOptions<

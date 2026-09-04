@@ -1,0 +1,24 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "spektral-legacy-redirects",
+	"compatibility_date": "2025-09-27",
+	"main": "src/legacy-redirect-worker.ts",
+	"workers_dev": false,
+	"observability": {
+		"enabled": true
+	},
+	"routes": [
+		{
+			"pattern": "motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "www.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		},
+		{
+			"pattern": "preview.motion-gpu.dev/*",
+			"zone_name": "motion-gpu.dev"
+		}
+	]
+}

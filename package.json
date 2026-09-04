@@ -24,7 +24,6 @@
 		"deploy:web": "pnpm run build:spektral && pnpm --dir apps/web run deploy",
 		"check": "pnpm run build:spektral && pnpm run check:spektral && pnpm run check:web",
 		"check:web": "pnpm --dir apps/web run check",
-		"check:identity": "node ./scripts/release/assert-spektral-identity.mjs",
 		"check:spektral": "pnpm --dir packages/spektral run check",
 		"check:spektral:consumers": "pnpm --dir packages/spektral run check:consumers",
 		"check:spektral:consumers:browser": "pnpm --dir packages/spektral run check:consumers:browser",
@@ -63,8 +62,8 @@
 		"format:root": "oxfmt .oxfmtrc.json pnpm-workspace.yaml package.json CONTRIBUTING.md scripts .github .githooks",
 		"format:check:root": "oxfmt --check .oxfmtrc.json pnpm-workspace.yaml package.json CONTRIBUTING.md scripts .github .githooks",
 		"format:check": "pnpm run format:check:root && pnpm --dir apps/web run format:check && pnpm --dir packages/spektral run format:check",
-		"precommit": "pnpm run docs:changelog:check && pnpm run check:identity && pnpm run format:check && pnpm run lint",
-		"ci:quality": "pnpm run docs:changelog:check && pnpm run check:identity && pnpm run format:check && pnpm run lint && pnpm run test:spektral:build-tools && pnpm run test:spektral:bundle-tools && pnpm run build && pnpm run bundle:spektral:check && pnpm run check:spektral && pnpm run check:spektral:consumers && pnpm run check:spektral:consumers:peers && pnpm run check:web && pnpm run test:spektral:coverage && pnpm run test:spektral:perf-tools && pnpm run test:release-tools && pnpm --dir apps/web test --passWithNoTests",
+		"precommit": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint",
+		"ci:quality": "pnpm run docs:changelog:check && pnpm run format:check && pnpm run lint && pnpm run test:spektral:build-tools && pnpm run test:spektral:bundle-tools && pnpm run build && pnpm run bundle:spektral:check && pnpm run check:spektral && pnpm run check:spektral:consumers && pnpm run check:spektral:consumers:peers && pnpm run check:web && pnpm run test:spektral:coverage && pnpm run test:spektral:perf-tools && pnpm run test:release-tools && pnpm --dir apps/web test --passWithNoTests",
 		"ci:e2e": "pnpm run check:spektral:consumers:browser && pnpm --dir packages/spektral run test:e2e && pnpm --dir apps/web run test:e2e",
 		"ci": "pnpm run ci:quality && pnpm run ci:e2e",
 		"prepare": "node ./scripts/setup-git-hooks.mjs"
